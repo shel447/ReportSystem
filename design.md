@@ -139,9 +139,7 @@ stateDiagram-v2
     [*] --> Draft: 创建实例
     Draft --> Draft: 编辑内容
     Draft --> Draft: 重新生成某节
-    Draft --> Reviewing: 提交审核
-    Reviewing --> Draft: 驳回修改
-    Reviewing --> Finalized: 审核通过
+    Draft --> Finalized: 确认无误
     Finalized --> DocumentGenerated: 生成文档
     DocumentGenerated --> [*]
     
@@ -710,15 +708,15 @@ graph TD
     E --> F[数据采集]
     F --> G{复杂度评估}
     G -->|简单 | H[流水线模式]
-    G -->|中等 | I[主管 - 工作者模式]
-    G -->|复杂 | J[带审核辩论模式]
+    G -->|中等 | I[主管工作者模式]
+    G -->|复杂 | J[带辩论模式]
     H --> K[LLM 生成内容]
     I --> K
     J --> K
     K --> L[组装报告实例]
     L --> M[用户预览/修改]
-    M --> N{是否满意？}
-    N -->|否，修改 | O[局部重新生成]
+    M --> N{是否满意}
+    N -->|否 | O[局部重新生成]
     O --> M
     N -->|是 | P[生成报告文档]
     P --> Q[完成]
@@ -885,3 +883,4 @@ GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
 | v0.4 | 2026-02-28 | - | 新增定时任务功能设计（数据模型、API 接口、执行流程） |
 | v0.5 | 2026-02-28 | - | 报告文档存储改为 HOFS 分布式文件存储系统，移除 Redis 缓存设计 |
 | v0.6 | 2026-02-28 | - | 移除独立 API 网关，由 ChatBI 服务统一提供接口，更新时序图参与者 |
+| v0.7 | 2026-02-28 | - | 移除报告审核流程（当前无需审核），修复报告生成流程 mermaid 语法错误 |
