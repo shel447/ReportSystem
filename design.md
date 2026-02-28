@@ -801,11 +801,42 @@ POST   /rest/dte/chatbi/templates/{id}/clone   # 克隆模板
 
 ### 7.3 对话交互
 
+```
+POST   /rest/dte/chatbi/chat                   # 发送对话消息
+GET    /rest/dte/chatbi/chat/{session_id}      # 获取对话历史
+DELETE /rest/dte/chatbi/chat/{session_id}      # 结束对话会话
+```
+
 ### 7.4 报告实例管理
+
+```
+POST   /rest/dte/chatbi/instances              # 生成报告实例
+GET    /rest/dte/chatbi/instances/{id}         # 获取实例详情
+PUT    /rest/dte/chatbi/instances/{id}         # 更新实例
+POST   /rest/dte/chatbi/instances/{id}/regenerate/{section_id}  # 重新生成某节
+POST   /rest/dte/chatbi/instances/{id}/finalize  # 确认实例，准备生成文档
+```
 
 ### 7.5 报告文档管理
 
+```
+POST   /rest/dte/chatbi/documents              # 生成报告文档
+GET    /rest/dte/chatbi/documents/{id}         # 获取文档信息
+GET    /rest/dte/chatbi/documents/{id}/download  # 下载文档
+DELETE /rest/dte/chatbi/documents/{id}         # 删除文档
+GET    /rest/dte/chatbi/instances/{id}/documents  # 列出实例关联的所有文档
+```
+
 ### 7.6 数据源管理
+
+```
+POST   /rest/dte/chatbi/data-sources           # 注册数据源
+GET    /rest/dte/chatbi/data-sources           # 列出数据源
+GET    /rest/dte/chatbi/data-sources/{id}      # 获取数据源详情
+PUT    /rest/dte/chatbi/data-sources/{id}      # 更新数据源
+DELETE /rest/dte/chatbi/data-sources/{id}      # 删除数据源
+POST   /rest/dte/chatbi/data-sources/{id}/test  # 测试连接
+```
 
 ### 7.7 定时任务管理
 
