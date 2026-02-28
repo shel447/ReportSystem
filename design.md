@@ -491,11 +491,151 @@ class ReportDocument:
     created_by: str
 ```
 
+### 4.4 定时任务 (Scheduled Task)
+
+```mermaid
+classDiagram
+    class ScheduledTask {
+        +task_id: str
+        +name: str
+        +source_instance_id: str
+        +cron_expression: str
+        +timezone: str
+        +enabled: bool
+        +time_param_name: str
+        +time_format: str
+        +status: str
+        +last_run_at: datetime
+        +next_run_at: datetime
+    }
+    
+    class ScheduledTaskExecution {
+        +execution_id: str
+        +task_id: str
+        +status: str
+        +generated_instance_id: str
+        +started_at: datetime
+        +completed_at: datetime
+        +error_message: str
+    }
+    
+    ScheduledTask "1" *-- "0..*" ScheduledTaskExecution
+```
+
+```python
+@dataclass
+class ScheduledTask:
+    """定时任务配置"""
+    task_id: str
+    name: str
+    description: str
+    
+    # 关联的源实例（任意状态均可）
+    source_instance_id: str
+    template_id: str  # 冗余字段，方便查询
+    
+    # 定时配置
+    cron_expression: str  # 如 "0 8 * * *" (每天 8 点)
+    timezone: str = "Asia/Shanghai"
+    enabled: bool = True
+    
+    # 参数更新规则（仅时间参数）
+    time_param_name: str  # 如 "inspection_date"
+    time_format: str = "%Y-%m-%d"
+    
+    # 元数据
+    created_at: datetime
+    updated_at: datetime
+    created_by: str
+    last_run_at: Optional[datetime] = None
+    next_run_at: Optional[datetime] = None
+    status: str = "active"  # active/paused/stopped
+    
+    # 统计信息
+    total_runs: int = 0
+    success_runs: int = 0
+    failed_runs: int = 0
+```
+
+```python
+@dataclass
+class ScheduledTaskExecution:
+    """定时任务执行记录"""
+    execution_id: str
+    task_id: str
+    
+    # 执行结果
+    status: str  # success/failed
+    generated_instance_id: Optional[str] = None
+    
+    # 执行详情
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    
+    # 使用的参数
+    input_params_used: Dict[str, Any] = field(default_factory=dict)
+```
+
 ---
 
-## 5. 系统架构
+## 5. 定时任务设计
 
-### 5.1 整体架构图
+### 5.1 定时任务执行流程
+
+```mermaid
+sequenceDiagram
+    participant Scheduler as 任务调度器
+    participant Task as 定时任务服务
+    participant Instance as 实例服务
+    participant Data as 数据源
+    participant LLM as LLM 服务
+
+    Scheduler->>Task: 触发定时任务 (cron 时间到)
+    Task->>Task: 获取任务配置
+    Task->>Instance: 获取源实例
+    Instance-->>Task: 返回源实例
+    
+    Task->>Task: 替换时间参数为当前时间
+    
+    Task->>Instance: 创建新实例请求
+    Instance->>Data: 采集数据 (基于新时间)
+    Data-->>Instance: 返回原始数据
+    Instance->>LLM: 调用 LLM 生成内容
+    LLM-->>Instance: 返回生成结果
+    Instance-->>Task: 返回新实例 ID
+    
+    Task->>Task: 记录执行结果
+    Task->>Scheduler: 任务完成
+```
+
+### 5.2 定时任务设计说明
+
+**核心设计原则**:
+- 定时任务是独立的功能模块，不与报告生成流程强耦合
+- 任意状态的报告实例都可以作为定时任务的源实例
+- 每次执行生成**新的报告实例**，不覆盖原实例
+- 仅替换时间参数，其他参数保持不变
+
+**执行逻辑**:
+1. 到达 cron 指定时间时触发任务
+2. 获取源实例的 `input_params`
+3. 将 `time_param_name` 指定的参数替换为当前时间
+4. 基于新参数创建新的报告实例
+5. 调用 LLM 生成完整报告内容
+6. 记录执行结果（成功/失败）
+
+**约束条件**:
+- 执行记录保留 1 年
+- 任务执行失败不自动重试
+- 不考虑并发执行（任务时间到即执行）
+- 暂不自动生成报告文档，需手动触发
+
+---
+
+## 6. 系统架构
+
+### 6.1 整体架构图
 
 ```mermaid
 graph TB
@@ -510,6 +650,7 @@ graph TB
         TemplateService[模板服务]
         InstanceService[实例服务]
         DocService[文档服务]
+        SchedulerService[定时任务服务]
         TaskScheduler[任务调度]
     end
     
@@ -532,21 +673,27 @@ graph TB
     API --> TemplateService
     API --> InstanceService
     API --> DocService
+    API --> SchedulerService
     
     ChatService --> LLMRouter
     InstanceService --> PromptEngine
     InstanceService --> ChartGenerator
     InstanceService --> InsightEngine
     
+    SchedulerService --> TaskScheduler
+    SchedulerService --> InstanceService
+    
     ChatService --> GaussDB
     TemplateService --> GaussDB
     InstanceService --> GaussDB
+    SchedulerService --> GaussDB
     InstanceService --> Mongo
     DocService --> Mongo
     ChatService --> Redis
+    TaskScheduler --> Redis
 ```
 
-### 5.2 报告生成流程
+### 6.2 报告生成流程
 
 ```mermaid
 graph TD
@@ -685,6 +832,25 @@ DELETE /rest/dte/chatbi/data-sources/{id}      # 删除数据源
 POST   /rest/dte/chatbi/data-sources/{id}/test  # 测试连接
 ```
 
+### 6.7 定时任务管理
+
+```
+POST   /rest/dte/chatbi/scheduled-tasks              # 创建定时任务
+GET    /rest/dte/chatbi/scheduled-tasks              # 列出定时任务
+GET    /rest/dte/chatbi/scheduled-tasks/{id}         # 获取任务详情
+PUT    /rest/dte/chatbi/scheduled-tasks/{id}         # 更新任务
+DELETE /rest/dte/chatbi/scheduled-tasks/{id}         # 删除任务
+POST   /rest/dte/chatbi/scheduled-tasks/{id}/pause   # 暂停任务
+POST   /rest/dte/chatbi/scheduled-tasks/{id}/resume  # 恢复任务
+POST   /rest/dte/chatbi/scheduled-tasks/{id}/run-now # 立即执行一次
+
+# 查看任务生成的报告实例
+GET    /rest/dte/chatbi/scheduled-tasks/{id}/instances  # 查看任务生成的实例列表
+
+# 任务执行记录
+GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
+```
+
 ---
 
 ## 7. 附录
@@ -703,10 +869,11 @@ POST   /rest/dte/chatbi/data-sources/{id}/test  # 测试连接
 
 ---
 
-## 8. 修订历史
+## 9. 修订历史
 
 | 版本 | 日期 | 作者 | 变更说明 |
 |------|------|------|----------|
 | v0.1 | 2026-02-28 | - | 初始设计文档 |
 | v0.2 | 2026-02-28 | - | 补充 mermaid 时序图、架构图、数据模型图 |
 | v0.3 | 2026-02-28 | - | 修复 mermaid 代码块闭合问题，统一 API 前缀为/rest/dte/chatbi，数据库改为 GaussDB |
+| v0.4 | 2026-02-28 | - | 新增定时任务功能设计（数据模型、API 接口、执行流程） |
