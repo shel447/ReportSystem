@@ -481,7 +481,7 @@ class ReportDocument:
     template_id: str
     
     format: str  # word/pdf/markdown
-    file_path: str
+    hofs_path: str  # HOFS 分布式文件存储路径
     file_size: int
     
     version: int
@@ -663,8 +663,7 @@ graph TB
     
     subgraph 数据层
         GaussDB[(GaussDB<br/>业务数据)]
-        Mongo[(MongoDB<br/>报告文档)]
-        Redis[(Redis<br/>缓存)]
+        HOFS[(HOFS<br/>分布式文件存储)]
     end
     
     Web --> API
@@ -687,10 +686,7 @@ graph TB
     TemplateService --> GaussDB
     InstanceService --> GaussDB
     SchedulerService --> GaussDB
-    InstanceService --> Mongo
-    DocService --> Mongo
-    ChatService --> Redis
-    TaskScheduler --> Redis
+    DocService --> HOFS
 ```
 
 ### 6.2 报告生成流程
@@ -869,7 +865,7 @@ GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
 
 ---
 
-## 9. 修订历史
+## 8. 修订历史
 
 | 版本 | 日期 | 作者 | 变更说明 |
 |------|------|------|----------|
@@ -877,3 +873,4 @@ GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
 | v0.2 | 2026-02-28 | - | 补充 mermaid 时序图、架构图、数据模型图 |
 | v0.3 | 2026-02-28 | - | 修复 mermaid 代码块闭合问题，统一 API 前缀为/rest/dte/chatbi，数据库改为 GaussDB |
 | v0.4 | 2026-02-28 | - | 新增定时任务功能设计（数据模型、API 接口、执行流程） |
+| v0.5 | 2026-02-28 | - | 报告文档存储改为 HOFS 分布式文件存储系统，移除 Redis 缓存设计 |
