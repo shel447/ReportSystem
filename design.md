@@ -642,11 +642,10 @@ graph TB
     subgraph 表现层
         Web[Web 前端]
         Mobile[移动端]
-        API[API 网关]
     end
     
     subgraph 应用层
-        ChatService[对话服务]
+        ChatBI[ChatBI 服务<br/>统一接口提供]
         TemplateService[模板服务]
         InstanceService[实例服务]
         DocService[文档服务]
@@ -666,15 +665,15 @@ graph TB
         HOFS[(HOFS<br/>分布式文件存储)]
     end
     
-    Web --> API
-    Mobile --> API
-    API --> ChatService
-    API --> TemplateService
-    API --> InstanceService
-    API --> DocService
-    API --> SchedulerService
+    Web --> ChatBI
+    Mobile --> ChatBI
     
-    ChatService --> LLMRouter
+    ChatBI --> TemplateService
+    ChatBI --> InstanceService
+    ChatBI --> DocService
+    ChatBI --> SchedulerService
+    
+    ChatBI --> LLMRouter
     InstanceService --> PromptEngine
     InstanceService --> ChartGenerator
     InstanceService --> InsightEngine
@@ -682,14 +681,25 @@ graph TB
     SchedulerService --> TaskScheduler
     SchedulerService --> InstanceService
     
-    ChatService --> GaussDB
     TemplateService --> GaussDB
     InstanceService --> GaussDB
     SchedulerService --> GaussDB
     DocService --> HOFS
 ```
 
-### 6.2 报告生成流程
+### 6.2 架构说明
+
+**ChatBI 服务**:
+- 作为统一的服务入口，直接对外提供所有 REST API 接口
+- 整合了 API 网关的路由、认证、限流等功能
+- 接口前缀：`/rest/dte/chatbi/`
+
+**服务调用关系**:
+- Web/移动端 → ChatBI 服务 → 各业务服务（模板/实例/文档/定时任务）
+- ChatBI 服务 → LLM 路由（智能层）
+- 各业务服务 → 数据层（GaussDB/HOFS）
+
+### 6.3 报告生成流程
 
 ```mermaid
 graph TD
@@ -716,28 +726,28 @@ graph TD
 
 ---
 
-## 6. API 接口设计
+## 7. API 接口设计
 
-### 6.1 核心 API 时序图
+### 7.1 核心 API 时序图
 
 #### 生成报告实例
 
 ```mermaid
 sequenceDiagram
     participant Client as 客户端
-    participant API as API 网关
+    participant ChatBI as ChatBI 服务
     participant Instance as 实例服务
     participant Data as 数据源
     participant LLM as LLM 服务
 
-    Client->>API: POST /rest/dte/chatbi/instances
-    API->>Instance: 创建实例请求
+    Client->>ChatBI: POST /rest/dte/chatbi/instances
+    ChatBI->>Instance: 创建实例请求
     Instance->>Data: 采集数据
     Data-->>Instance: 返回数据
     Instance->>LLM: 批量生成内容
     LLM-->>Instance: 返回生成结果
-    Instance-->>API: 返回实例
-    API-->>Client: 201 Created
+    Instance-->>ChatBI: 返回实例
+    ChatBI-->>Client: 201 Created
 ```
 
 #### 重新生成某节
@@ -745,18 +755,18 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Client as 客户端
-    participant API as API 网关
+    participant ChatBI as ChatBI 服务
     participant Instance as 实例服务
     participant LLM as LLM 服务
 
-    Client->>API: POST /rest/dte/chatbi/instances/{id}/regenerate/{section_id}
-    API->>Instance: 重新生成请求
+    Client->>ChatBI: POST /rest/dte/chatbi/instances/{id}/regenerate/{section_id}
+    ChatBI->>Instance: 重新生成请求
     Instance->>Instance: 定位到指定 Section
     Instance->>LLM: 重新调用 LLM
     LLM-->>Instance: 返回新内容
     Instance->>Instance: 更新 Section 内容
-    Instance-->>API: 返回更新后的实例
-    API-->>Client: 200 OK
+    Instance-->>ChatBI: 返回更新后的实例
+    ChatBI-->>Client: 200 OK
 ```
 
 #### 生成报告文档
@@ -764,21 +774,21 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Client as 客户端
-    participant API as API 网关
+    participant ChatBI as ChatBI 服务
     participant Doc as 文档服务
-    participant Storage as 文件存储
+    participant HOFS as 文件存储
 
-    Client->>API: POST /rest/dte/chatbi/documents
-    API->>Doc: 生成文档请求
+    Client->>ChatBI: POST /rest/dte/chatbi/documents
+    ChatBI->>Doc: 生成文档请求
     Doc->>Doc: 渲染模板
     Doc->>Doc: 生成 Word/PDF
-    Doc->>Storage: 存储文件
-    Storage-->>Doc: 返回文件路径
-    Doc-->>API: 返回文档信息
-    API-->>Client: 201 Created
+    Doc->>HOFS: 存储文件
+    HOFS-->>Doc: 返回文件路径
+    Doc-->>ChatBI: 返回文档信息
+    ChatBI-->>Client: 201 Created
 ```
 
-### 6.2 报告模板管理
+### 7.2 报告模板管理
 
 ```
 POST   /rest/dte/chatbi/templates              # 创建报告模板
@@ -789,46 +799,15 @@ DELETE /rest/dte/chatbi/templates/{id}         # 删除模板
 POST   /rest/dte/chatbi/templates/{id}/clone   # 克隆模板
 ```
 
-### 6.3 对话交互
+### 7.3 对话交互
 
-```
-POST   /rest/dte/chatbi/chat                   # 发送对话消息
-GET    /rest/dte/chatbi/chat/{session_id}      # 获取对话历史
-DELETE /rest/dte/chatbi/chat/{session_id}      # 结束对话会话
-```
+### 7.4 报告实例管理
 
-### 6.4 报告实例管理
+### 7.5 报告文档管理
 
-```
-POST   /rest/dte/chatbi/instances              # 生成报告实例
-GET    /rest/dte/chatbi/instances/{id}         # 获取实例详情
-PUT    /rest/dte/chatbi/instances/{id}         # 更新实例
-POST   /rest/dte/chatbi/instances/{id}/regenerate/{section_id}  # 重新生成某节
-POST   /rest/dte/chatbi/instances/{id}/finalize  # 确认实例，准备生成文档
-```
+### 7.6 数据源管理
 
-### 6.5 报告文档管理
-
-```
-POST   /rest/dte/chatbi/documents              # 生成报告文档
-GET    /rest/dte/chatbi/documents/{id}         # 获取文档信息
-GET    /rest/dte/chatbi/documents/{id}/download  # 下载文档
-DELETE /rest/dte/chatbi/documents/{id}         # 删除文档
-GET    /rest/dte/chatbi/instances/{id}/documents  # 列出实例关联的所有文档
-```
-
-### 6.6 数据源管理
-
-```
-POST   /rest/dte/chatbi/data-sources           # 注册数据源
-GET    /rest/dte/chatbi/data-sources           # 列出数据源
-GET    /rest/dte/chatbi/data-sources/{id}      # 获取数据源详情
-PUT    /rest/dte/chatbi/data-sources/{id}      # 更新数据源
-DELETE /rest/dte/chatbi/data-sources/{id}      # 删除数据源
-POST   /rest/dte/chatbi/data-sources/{id}/test  # 测试连接
-```
-
-### 6.7 定时任务管理
+### 7.7 定时任务管理
 
 ```
 POST   /rest/dte/chatbi/scheduled-tasks              # 创建定时任务
@@ -849,23 +828,23 @@ GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
 
 ---
 
-## 7. 附录
+## 8. 附录
 
-### 7.1 报告模板示例
+### 8.1 报告模板示例
 
 详见 `template_example.json`
 
-### 7.2 报告实例示例
+### 8.2 报告实例示例
 
 详见 `instance_example.json`
 
-### 7.3 报告文档样例
+### 8.3 报告文档样例
 
 详见 `report_sample.md`
 
 ---
 
-## 8. 修订历史
+## 9. 修订历史
 
 | 版本 | 日期 | 作者 | 变更说明 |
 |------|------|------|----------|
@@ -874,3 +853,4 @@ GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
 | v0.3 | 2026-02-28 | - | 修复 mermaid 代码块闭合问题，统一 API 前缀为/rest/dte/chatbi，数据库改为 GaussDB |
 | v0.4 | 2026-02-28 | - | 新增定时任务功能设计（数据模型、API 接口、执行流程） |
 | v0.5 | 2026-02-28 | - | 报告文档存储改为 HOFS 分布式文件存储系统，移除 Redis 缓存设计 |
+| v0.6 | 2026-02-28 | - | 移除独立 API 网关，由 ChatBI 服务统一提供接口，更新时序图参与者 |
