@@ -1,0 +1,712 @@
+# 智能报告系统设计文档
+
+**版本**: v0.2  
+**创建时间**: 2026-02-28  
+**状态**: 设计评审中
+
+---
+
+## 目录
+
+1. [系统概述](#1-系统概述)
+2. [业务流程](#2-业务流程)
+3. [关键概念](#3-关键概念)
+4. [数据模型设计](#4-数据模型设计)
+5. [系统架构](#5-系统架构)
+6. [API 接口设计](#6-api-接口设计)
+7. [附录](#7-附录)
+8. [修订历史](#8-修订历史)
+
+---
+
+## 1. 系统概述
+
+### 1.1 项目背景
+
+智能报告系统是一个基于大语言模型（LLM）的报告生成平台，支持用户通过对话交互的方式，快速生成专业的分析报告。
+
+### 1.2 系统目标
+
+| 目标 | 指标 |
+|------|------|
+| 效率提升 | 简单报告 <30 秒，复杂报告 <10 分钟 |
+| 交互体验 | 对话式交互，支持局部修改和重新生成 |
+| 可追溯性 | 每个结论都有数据支撑，可追溯到原始数据 |
+| 灵活输出 | 支持 Word、PDF 等多种格式 |
+
+---
+
+## 2. 业务流程
+
+### 2.1 准备阶段
+
+**1.1 注册报告模板**
+
+用户预先定义报告模板，包括：
+- 报告类型、报告场景
+- 报告内容参数（输入参数定义）
+- 报告大纲（目录结构 + 内容节定义）
+
+### 2.2 运行阶段 - 时序图
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Chat as 对话服务
+    participant Template as 模板服务
+    participant Instance as 实例服务
+    participant Data as 数据源
+    participant LLM as LLM 服务
+    participant Doc as 文档服务
+
+    %% 阶段 1: 模板匹配
+    User->>Chat: 输入问题 (如"生成设备巡检报告")
+    Chat->>Template: 匹配报告模板
+    Template-->>Chat: 返回匹配的模板列表
+    Chat->>User: 确认模板及参数
+
+    %% 阶段 2: 参数收集
+    User->>Chat: 补充必要参数 (设备列表、时间范围等)
+    Chat->>Template: 获取模板的 content_params
+    Template-->>Chat: 返回参数定义
+
+    %% 阶段 3: 生成报告实例
+    User->>Chat: 确认生成
+    Chat->>Instance: 创建报告实例
+    Instance->>Data: 采集数据 (根据 data_requirements)
+    Data-->>Instance: 返回原始数据
+    Instance->>LLM: 调用 LLM 生成内容 (逐节)
+    LLM-->>Instance: 返回生成的内容 (图表 + 见解)
+    Instance-->>Chat: 返回报告实例
+    Chat->>User: 展示报告预览
+
+    %% 阶段 4: 修改与重新生成
+    User->>Chat: 修改某节内容/重新生成
+    Chat->>Instance: 重新生成指定 section
+    Instance->>Data: 重新采集数据 (可选)
+    Instance->>LLM: 重新调用 LLM
+    LLM-->>Instance: 返回新内容
+    Instance-->>Chat: 更新报告实例
+    Chat->>User: 展示更新后的内容
+
+    %% 阶段 5: 生成文档
+    User->>Chat: 确认无误，生成文档
+    Chat->>Instance: 确认实例 (finalize)
+    Instance->>Doc: 生成报告文档 (Word/PDF)
+    Doc-->>Instance: 返回文档信息
+    Instance-->>Chat: 返回文档 ID
+    Chat->>User: 提供下载链接
+```
+
+---
+
+## 3. 关键概念
+
+| 概念 | 定义 | 补充说明 |
+|------|------|----------|
+| **报告模板** | 用户预先定义的报告模板。包括报告类型、报告场景、报告内容参数、报告大纲 | 静态的、可复用的元数据定义 |
+| **报告实例** | 在报告模板的基础上，填充报告内容参数后，使用大语言模型技术栈生成报告实例 | 中间态，可编辑、可预览、支持局部重新生成 |
+| **报告文档** | 报告实例的物理载体，文档类型可以是 Word、PDF | 最终态，只读、可下载、可分享 |
+
+### 3.1 三者关系
+
+```mermaid
+graph LR
+    A[报告模板<br/>Template] -->|实例化<br/>填充参数 + LLM 生成 | B[报告实例<br/>Instance]
+    B -->|固化/导出 | C[报告文档<br/>Document]
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    
+    subgraph 静态定义
+        A
+    end
+    
+    subgraph 中间态 - 可编辑
+        B
+    end
+    
+    subgraph 最终态 - 只读
+        C
+    end
+```
+
+### 3.2 报告实例生命周期
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft: 创建实例
+    Draft --> Draft: 编辑内容
+    Draft --> Draft: 重新生成某节
+    Draft --> Reviewing: 提交审核
+    Reviewing --> Draft: 驳回修改
+    Reviewing --> Finalized: 审核通过
+    Finalized --> DocumentGenerated: 生成文档
+    DocumentGenerated --> [*]
+    
+    note right of Draft
+        中间态
+        可编辑、可预览
+        支持局部重新生成
+    end note
+    
+    note right of Finalized
+        已定稿
+        不可再修改
+        可生成文档
+    end note
+```
+
+---
+
+## 4. 数据模型设计
+
+### 4.1 报告模板 (Report Template)
+
+```python
+@dataclass
+class ReportTemplate:
+    template_id: str
+    name: str
+    description: str
+    
+    report_type: str  # daily/weekly/special/urgent
+    scenario: str     # 设备巡检/故障分析/容量评估等
+    
+    content_params: List[ContentParam]  # 内容参数定义
+    outline: List[Catalog]              # 报告大纲
+    
+    data_sources: List[DataSource]      # 数据源配置
+    output_formats: List[str]           # 支持的输出格式
+    
+    created_at: datetime
+    updated_at: datetime
+    created_by: str
+    version: str
+```
+
+#### 4.1.1 内容参数 (ContentParam)
+
+```python
+@dataclass
+class ContentParam:
+    name: str
+    label: str
+    param_type: str  # text/number/date/select/multi_select
+    
+    required: bool
+    default: Optional[Any]
+    description: str
+    
+    # 取值来源（三选一）
+    value_source: Optional[ValueSource]
+    
+    # 级联依赖
+    depends_on: Optional[List[str]]
+```
+
+```python
+@dataclass
+class ValueSource:
+    source_type: str  # static/query/api
+    
+    # 静态列表
+    static_options: Optional[List[Dict[str, str]]]
+    
+    # 数据库查询
+    query: Optional[QueryConfig]
+    
+    # API 调用
+    api: Optional[APIConfig]
+```
+
+#### 4.1.2 报告大纲 (Outline)
+
+```mermaid
+classDiagram
+    class Catalog {
+        +catalog_id: str
+        +title: str
+        +level: int
+        +title_template: str
+        +sections: List~Section~
+        +catalogs: List~Catalog~
+    }
+    
+    class Section {
+        +section_id: str
+        +title: str
+        +title_template: str
+        +generation: GenerationConfig
+        +data_requirements: List~DataRequirement~
+        +content_blocks: List~ContentBlock~
+        +dynamic: DynamicConfig
+        +interaction: InteractionConfig
+    }
+    
+    class GenerationConfig {
+        +type: GenerationType
+        +prompt: str
+        +prompt_template: str
+        +system_role: str
+        +max_tokens: int
+        +template: str
+        +scope: str
+        +target_catalogs: List~str~
+    }
+    
+    class GenerationType {
+        <<enumeration>>
+        LLM
+        DATA
+        STATIC
+        SUMMARY
+    }
+    
+    Catalog "1" *-- "0..*" Section
+    Catalog "1" *-- "0..*" Catalog
+    Section "1" *-- "1" GenerationConfig
+    GenerationConfig --> GenerationType
+```
+
+```python
+@dataclass
+class Catalog:
+    """目录节点"""
+    catalog_id: str
+    title: str
+    level: int
+    
+    sections: List['Section'] = field(default_factory=list)
+    catalogs: List['Catalog'] = field(default_factory=list)
+    
+    title_template: Optional[str] = None
+```
+
+```python
+@dataclass
+class Section:
+    """内容节节点 - 必须隶属于某个 Catalog"""
+    section_id: str
+    generation: GenerationConfig
+    
+    title: Optional[str] = None
+    title_template: Optional[str] = None
+    
+    data_requirements: List[DataRequirement] = field(default_factory=list)
+    content_blocks: List[ContentBlock] = field(default_factory=list)
+    
+    dynamic: Optional[DynamicConfig] = None
+    interaction: Optional[InteractionConfig] = None
+```
+
+```python
+class GenerationType(Enum):
+    LLM = "llm"       # LLM 生成
+    DATA = "data"     # 数据驱动
+    STATIC = "static" # 静态内容
+    SUMMARY = "summary"  # 对同级目录内容的总结
+```
+
+```python
+@dataclass
+class GenerationConfig:
+    type: GenerationType
+    
+    # LLM 类型字段
+    prompt: Optional[str] = None
+    prompt_template: Optional[str] = None
+    system_role: Optional[str] = None
+    max_tokens: Optional[int] = None
+    temperature: Optional[float] = 0.7
+    
+    # Data 类型字段
+    template: Optional[str] = None
+    
+    # Summary 类型字段
+    scope: Optional[str] = None  # sibling_catalogs/current_catalog/all/custom
+    target_catalogs: Optional[List[str]] = None
+    summary_style: Optional[str] = None  # concise/detailed/executive
+```
+
+### 4.2 报告实例 (Report Instance)
+
+```mermaid
+classDiagram
+    class ReportInstance {
+        +instance_id: str
+        +template_id: str
+        +template_version: str
+        +status: str
+        +input_params: Dict~str, Any~
+        +outline: List~CatalogContent~
+        +metadata: InstanceMetadata
+    }
+    
+    class CatalogContent {
+        +catalog_id: str
+        +title: str
+        +level: int
+        +generation_meta: GenerationMeta
+        +sections: List~SectionContent~
+        +catalogs: List~CatalogContent~
+    }
+    
+    class SectionContent {
+        +section_id: str
+        +title: str
+        +generation_type: str
+        +generated_chart: Dict
+        +generated_insight: str
+        +generated_content_blocks: List
+        +trace_info: TraceInfo
+        +user_edited: bool
+        +user_edit_content: str
+        +section_instance_id: str
+        +dynamic_params: Dict
+    }
+    
+    class TraceInfo {
+        +data_used: Dict
+        +llm_prompt: str
+        +llm_response: str
+        +generated_at: datetime
+        +model_name: str
+        +generation_cost_ms: int
+    }
+    
+    ReportInstance "1" *-- "0..*" CatalogContent
+    CatalogContent "1" *-- "0..*" SectionContent
+    CatalogContent "1" *-- "0..*" CatalogContent
+    SectionContent "1" *-- "0..1" TraceInfo
+```
+
+```python
+@dataclass
+class ReportInstance:
+    instance_id: str
+    template_id: str
+    template_version: str
+    status: str  # draft/reviewing/finalized
+    
+    input_params: Dict[str, Any]
+    outline: List[CatalogContent]  # 与模板结构对应，内联生成内容
+    
+    metadata: InstanceMetadata
+```
+
+```python
+@dataclass
+class CatalogContent:
+    """目录内容（内联生成内容）"""
+    catalog_id: str
+    title: str
+    level: int
+    
+    generation_meta: Optional[GenerationMeta] = None
+    
+    sections: List['SectionContent'] = field(default_factory=list)
+    catalogs: List['CatalogContent'] = field(default_factory=list)
+```
+
+```python
+@dataclass
+class SectionContent:
+    """内容节（内联生成内容）"""
+    section_id: str
+    title: str
+    generation_type: str
+    
+    # 生成内容
+    generated_chart: Optional[Dict[str, Any]] = None  # ECharts DSL
+    generated_insight: Optional[str] = None
+    generated_content_blocks: List[Dict[str, Any]] = field(default_factory=list)
+    
+    # 溯源信息
+    trace_info: Optional[TraceInfo] = None
+    
+    # 用户编辑状态
+    user_edited: bool = False
+    user_edit_content: Optional[str] = None
+    regenerate_count: int = 0
+    
+    # 动态生成相关
+    section_instance_id: Optional[str] = None
+    dynamic_params: Optional[Dict[str, Any]] = None
+```
+
+```python
+@dataclass
+class TraceInfo:
+    """溯源信息"""
+    data_used: Dict[str, Any]
+    llm_prompt: Optional[str] = None
+    llm_response: Optional[str] = None
+    generated_at: Optional[datetime] = None
+    model_name: Optional[str] = None
+    generation_cost_ms: Optional[int] = None
+```
+
+### 4.3 报告文档 (Report Document)
+
+```mermaid
+classDiagram
+    class ReportDocument {
+        +document_id: str
+        +instance_id: str
+        +template_id: str
+        +format: str
+        +file_path: str
+        +file_size: int
+        +version: int
+        +status: str
+        +created_at: datetime
+        +created_by: str
+    }
+    
+    class ReportInstance {
+        +instance_id: str
+        +status: str
+    }
+    
+    ReportDocument "1" --> "1" ReportInstance : 关联
+```
+
+```python
+@dataclass
+class ReportDocument:
+    document_id: str
+    instance_id: str
+    template_id: str
+    
+    format: str  # word/pdf/markdown
+    file_path: str
+    file_size: int
+    
+    version: int
+    status: str  # generating/ready/failed
+    
+    created_at: datetime
+    created_by: str
+```
+
+---
+
+## 5. 系统架构
+
+### 5.1 整体架构图
+
+```mermaid
+graph TB
+    subgraph 表现层
+        Web[Web 前端]
+        Mobile[移动端]
+        API[API 网关]
+    end
+    
+    subgraph 应用层
+        ChatService[对话服务]
+        TemplateService[模板服务]
+        InstanceService[实例服务]
+        DocService[文档服务]
+        TaskScheduler[任务调度]
+    end
+    
+    subgraph 智能层
+        LLMRouter[LLM 路由]
+        PromptEngine[Prompt 引擎]
+        ChartGenerator[图表生成]
+        InsightEngine[洞察引擎]
+    end
+    
+    subgraph 数据层
+        GaussDB[(GaussDB<br/>业务数据)]
+        Mongo[(MongoDB<br/>报告文档)]
+        Redis[(Redis<br/>缓存)]
+    end
+    
+    Web --> API
+    Mobile --> API
+    API --> ChatService
+    API --> TemplateService
+    API --> InstanceService
+    API --> DocService
+    
+    ChatService --> LLMRouter
+    InstanceService --> PromptEngine
+    InstanceService --> ChartGenerator
+    InstanceService --> InsightEngine
+    
+    ChatService --> GaussDB
+    TemplateService --> GaussDB
+    InstanceService --> GaussDB
+    InstanceService --> Mongo
+    DocService --> Mongo
+    ChatService --> Redis
+```
+
+### 5.2 报告生成流程
+
+```mermaid
+graph TD
+    A[用户输入问题] --> B{模板匹配}
+    B -->|匹配成功 | C[提示用户补充参数]
+    B -->|匹配失败 | D[返回无匹配结果]
+    C --> E[用户确认参数]
+    E --> F[数据采集]
+    F --> G{复杂度评估}
+    G -->|简单 | H[流水线模式]
+    G -->|中等 | I[主管 - 工作者模式]
+    G -->|复杂 | J[带审核辩论模式]
+    H --> K[LLM 生成内容]
+    I --> K
+    J --> K
+    K --> L[组装报告实例]
+    L --> M[用户预览/修改]
+    M --> N{是否满意？}
+    N -->|否，修改 | O[局部重新生成]
+    O --> M
+    N -->|是 | P[生成报告文档]
+    P --> Q[完成]
+```
+
+---
+
+## 6. API 接口设计
+
+### 6.1 核心 API 时序图
+
+#### 生成报告实例
+
+```mermaid
+sequenceDiagram
+    participant Client as 客户端
+    participant API as API 网关
+    participant Instance as 实例服务
+    participant Data as 数据源
+    participant LLM as LLM 服务
+
+    Client->>API: POST /rest/dte/chatbi/instances
+    API->>Instance: 创建实例请求
+    Instance->>Data: 采集数据
+    Data-->>Instance: 返回数据
+    Instance->>LLM: 批量生成内容
+    LLM-->>Instance: 返回生成结果
+    Instance-->>API: 返回实例
+    API-->>Client: 201 Created
+```
+
+#### 重新生成某节
+
+```mermaid
+sequenceDiagram
+    participant Client as 客户端
+    participant API as API 网关
+    participant Instance as 实例服务
+    participant LLM as LLM 服务
+
+    Client->>API: POST /rest/dte/chatbi/instances/{id}/regenerate/{section_id}
+    API->>Instance: 重新生成请求
+    Instance->>Instance: 定位到指定 Section
+    Instance->>LLM: 重新调用 LLM
+    LLM-->>Instance: 返回新内容
+    Instance->>Instance: 更新 Section 内容
+    Instance-->>API: 返回更新后的实例
+    API-->>Client: 200 OK
+```
+
+#### 生成报告文档
+
+```mermaid
+sequenceDiagram
+    participant Client as 客户端
+    participant API as API 网关
+    participant Doc as 文档服务
+    participant Storage as 文件存储
+
+    Client->>API: POST /rest/dte/chatbi/documents
+    API->>Doc: 生成文档请求
+    Doc->>Doc: 渲染模板
+    Doc->>Doc: 生成 Word/PDF
+    Doc->>Storage: 存储文件
+    Storage-->>Doc: 返回文件路径
+    Doc-->>API: 返回文档信息
+    API-->>Client: 201 Created
+```
+
+### 6.2 报告模板管理
+
+```
+POST   /rest/dte/chatbi/templates              # 创建报告模板
+GET    /rest/dte/chatbi/templates              # 列出报告模板
+GET    /rest/dte/chatbi/templates/{id}         # 获取模板详情
+PUT    /rest/dte/chatbi/templates/{id}         # 更新模板
+DELETE /rest/dte/chatbi/templates/{id}         # 删除模板
+POST   /rest/dte/chatbi/templates/{id}/clone   # 克隆模板
+```
+
+### 6.3 对话交互
+
+```
+POST   /rest/dte/chatbi/chat                   # 发送对话消息
+GET    /rest/dte/chatbi/chat/{session_id}      # 获取对话历史
+DELETE /rest/dte/chatbi/chat/{session_id}      # 结束对话会话
+```
+
+### 6.4 报告实例管理
+
+```
+POST   /rest/dte/chatbi/instances              # 生成报告实例
+GET    /rest/dte/chatbi/instances/{id}         # 获取实例详情
+PUT    /rest/dte/chatbi/instances/{id}         # 更新实例
+POST   /rest/dte/chatbi/instances/{id}/regenerate/{section_id}  # 重新生成某节
+POST   /rest/dte/chatbi/instances/{id}/finalize  # 确认实例，准备生成文档
+```
+
+### 6.5 报告文档管理
+
+```
+POST   /rest/dte/chatbi/documents              # 生成报告文档
+GET    /rest/dte/chatbi/documents/{id}         # 获取文档信息
+GET    /rest/dte/chatbi/documents/{id}/download  # 下载文档
+DELETE /rest/dte/chatbi/documents/{id}         # 删除文档
+GET    /rest/dte/chatbi/instances/{id}/documents  # 列出实例关联的所有文档
+```
+
+### 6.6 数据源管理
+
+```
+POST   /rest/dte/chatbi/data-sources           # 注册数据源
+GET    /rest/dte/chatbi/data-sources           # 列出数据源
+GET    /rest/dte/chatbi/data-sources/{id}      # 获取数据源详情
+PUT    /rest/dte/chatbi/data-sources/{id}      # 更新数据源
+DELETE /rest/dte/chatbi/data-sources/{id}      # 删除数据源
+POST   /rest/dte/chatbi/data-sources/{id}/test  # 测试连接
+```
+
+---
+
+## 7. 附录
+
+### 7.1 报告模板示例
+
+详见 `template_example.json`
+
+### 7.2 报告实例示例
+
+详见 `instance_example.json`
+
+### 7.3 报告文档样例
+
+详见 `report_sample.md`
+
+---
+
+## 8. 修订历史
+
+| 版本 | 日期 | 作者 | 变更说明 |
+|------|------|------|----------|
+| v0.1 | 2026-02-28 | - | 初始设计文档 |
+| v0.2 | 2026-02-28 | - | 补充 mermaid 时序图、架构图、数据模型图 |
+| v0.3 | 2026-02-28 | - | 修复 mermaid 代码块闭合问题，统一 API 前缀为/rest/dte/chatbi，数据库改为 GaussDB |
