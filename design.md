@@ -26,8 +26,8 @@
 
 | 角色 | 定义 | 职责边界 |
 |------|------|----------|
-| **产品 (Product)** | 上游集成方 | 面向最终用户，提供业务场景化的报告服务。通过调用本系统 API 完成报告的创建、预览与下载 |
-| **平台 (Platform)** | 本系统 | 报告模板定义、数据采集编排、LLM 生成逻辑调度、实例生命周期管理及文档导出 |
+| **产品 (Product)** | 上游集成方 | 面向最终用户，提供业务场景化的报告服务。通过调用本系统 API 完成模板管理、对话生成、定时任务配置、报告实例管理及文档下载 |
+| **平台 (Platform)** | 本系统 | 报告模板定义、对话式报告生成、定时任务调度、数据采集编排、LLM 生成逻辑调度、实例生命周期管理及文档导出 |
 | **推理系统 (Reasoning System)** | 下游能力提供方 | 提供大语言模型 (LLM) 推理接口、Embedding 向量化接口等 AI 原子能力 |
 
 ### 0.1 边界接口交互
@@ -48,10 +48,11 @@ graph LR
         EMB["Embedding 接口"]
     end
 
-    P -- "模板管理 API<br/>POST/GET/PUT/DELETE templates" --> API
-    P -- "报告生成 API<br/>POST instances" --> API
+    P -- "模板管理 API<br/>CRUD templates" --> API
     P -- "对话交互 API<br/>POST chat" --> API
-    P -- "文档下载 API<br/>GET documents/{id}/download" --> API
+    P -- "定时任务管理 API<br/>CRUD scheduled-tasks" --> API
+    P -- "报告实例管理 API<br/>GET/PUT/DELETE instances" --> API
+    P -- "文档管理 API<br/>GET/DELETE documents" --> API
 
     API --> Core
 
@@ -67,6 +68,8 @@ graph LR
     style LLM fill:#f3e5f5,stroke:#7b1fa2
     style EMB fill:#f3e5f5,stroke:#7b1fa2
 ```
+
+> **说明**：报告实例的**创建**不直接暴露为独立 API——它在对话交互流程或定时任务执行流程中自动产生。产品侧可通过实例管理 API 对已生成的报告实例进行查询、修改和删除。
 
 ---
 
@@ -935,3 +938,5 @@ GET    /rest/dte/chatbi/scheduled-tasks/{id}/executions  # 查看执行历史
 | v0.5 | 2026-02-28 | - | 报告文档存储改为 HOFS 分布式文件存储系统，移除 Redis 缓存设计 |
 | v0.6 | 2026-02-28 | - | 移除独立 API 网关，由 ChatBI 服务统一提供接口，更新时序图参与者 |
 | v0.7 | 2026-02-28 | - | 移除报告审核流程（当前无需审核），修复报告生成流程 mermaid 语法错误 |
+| v0.8 | 2026-03-02 | Antigravity | 新增上下文章节与边界交互图；细化定时任务模块（用户隔离、执行模式、自动文档生成） |
+| v0.9 | 2026-03-02 | Antigravity | 修正上下文交互图：增加定时任务管理与报告实例管理 API，移除独立的报告生成 API |
