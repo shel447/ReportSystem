@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能报告系统</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f0f23;
+            --bg-secondary: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-input: #0f3460;
+            --accent: #e94560;
+            --accent-hover: #ff6b81;
+            --text-primary: #eaeaea;
+            --text-secondary: #a0a0b8;
+            --border: #2a2a4a;
+            --success: #00d2ff;
+            --warning: #ffc107;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 24px 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar h1 {
+            font-size: 16px;
+            font-weight: 700;
+            padding: 0 20px 20px;
+            color: var(--accent);
+            letter-spacing: 1px;
+        }
+
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: rgba(233, 69, 96, 0.1);
+            color: var(--text-primary);
+        }
+
+        .nav-item.active {
+            background: rgba(233, 69, 96, 0.15);
+            color: var(--accent);
+            border-left-color: var(--accent);
+            font-weight: 600;
+        }
+
+        .nav-item .icon {
+            margin-right: 10px;
+        }
+
+        /* Main */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 16px 28px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .header .user-badge {
+            background: var(--bg-card);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--success);
+        }
+
+        .content {
+            flex: 1;
+            padding: 24px 28px;
+            overflow-y: auto;
+        }
+
+        /* Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(233, 69, 96, 0.15);
+        }
+
+        .card h3 {
+            font-size: 15px;
+            margin-bottom: 8px;
+        }
+
+        .card p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .card .meta {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .badge-type {
+            background: rgba(0, 210, 255, 0.15);
+            color: var(--success);
+        }
+
+        .badge-status {
+            background: rgba(255, 193, 7, 0.15);
+            color: var(--warning);
+        }
+
+        .badge-active {
+            background: rgba(76, 175, 80, 0.15);
+            color: #4caf50;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background: var(--bg-input);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent);
+        }
+
+        .btn-sm {
+            padding: 5px 12px;
+            font-size: 12px;
+        }
+
+        .btn-danger {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        /* Forms */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px;
+            width: 480px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal h3 {
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+
+        /* Chat */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 0;
+        }
+
+        .chat-msg {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-msg.user {
+            flex-direction: row-reverse;
+        }
+
+        .chat-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .chat-msg.user .chat-bubble {
+            background: var(--accent);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-msg.assistant .chat-bubble {
+            background: var(--bg-card);
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 10px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-input-row input {
+            flex: 1;
+        }
+
+        /* Instance detail */
+        .section-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px;
+            margin-bottom: 12px;
+        }
+
+        .section-card h4 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: var(--success);
+        }
+
+        .section-card pre {
+            font-size: 13px;
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .section-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <h1>📊 报告系统</h1>
+        <div class="nav-item active" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
+        <div class="nav-item" onclick="switchTab('instances')"><span class="icon">📄</span>报告实例</div>
+        <div class="nav-item" onclick="switchTab('documents')"><span class="icon">📑</span>报告文档</div>
+        <div class="nav-item" onclick="switchTab('tasks')"><span class="icon">⏰</span>定时任务</div>
+        <div class="nav-item" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <h2 id="page-title">模板管理</h2>
+            <span class="user-badge">👤 陆Sir (default)</span>
+        </div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="modal-content"></div>
+    </div>
+
+    <script>
+        const API = '/api';
+        let currentTab = 'templates';
+        let chatSessionId = '';
+        let chatMessages = [];
+
+        // --- Navigation ---
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            const titles = { templates: '模板管理', instances: '报告实例', documents: '报告文档', tasks: '定时任务', chat: '对话助手' };
+            document.getElementById('page-title').textContent = titles[tab];
+            loadContent();
+        }
+
+        async function loadContent() {
+            const c = document.getElementById('content');
+            if (currentTab === 'chat') { renderChat(c); return; }
+            if (currentTab === 'templates') { await renderTemplates(c); return; }
+            if (currentTab === 'instances') { await renderInstances(c); return; }
+            if (currentTab === 'documents') { await renderDocuments(c); return; }
+            if (currentTab === 'tasks') { await renderTasks(c); return; }
+        }
+
+        // --- Templates ---
+        async function renderTemplates(c) {
+            const data = await fetch(`${API}/templates`).then(r => r.json());
+            c.innerHTML = `
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="showCreateTemplate()">+ 新建模板</button>
+        </div>
+        ${data.length === 0 ? '<div class="empty-state"><div class="icon">📋</div><p>暂无模板，点击上方按钮创建</p></div>' : ''}
+        <div class="card-grid">
+            ${data.map(t => `
+                <div class="card" onclick="viewTemplate('${t.template_id}')">
+                    <h3>${t.name}</h3>
+                    <p>${t.description || '无描述'}</p>
+                    <div class="meta">
+                        <span class="badge badge-type">${t.report_type}</span>
+                        <span class="badge badge-status">${t.scenario || '通用'}</span>
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+        }
+
+        function showCreateTemplate() {
+            showModal(`
+        <h3>新建报告模板</h3>
+        <div class="form-group"><label>模板名称</label><input id="f-name" placeholder="如：设备日常巡检报告"></div>
+        <div class="form-group"><label>描述</label><textarea id="f-desc" rows="2" placeholder="模板用途简述"></textarea></div>
+        <div class="form-group"><label>报告类型</label>
+            <select id="f-type"><option value="daily">日报</option><option value="weekly">周报</option><option value="special">专项</option></select>
+        </div>
+        <div class="form-group"><label>场景</label><input id="f-scenario" placeholder="如：设备巡检、故障分析"></div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="hideModal()">取消</button>
+            <button class="btn btn-primary" onclick="createTemplate()">创建</button>
+        </div>
+    `);
+        }
+
+        async function createTemplate() {
+            await fetch(`${API}/templates`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('f-name').value,
+                    description: document.getElementById('f-desc').value,
+                    report_type: document.getElementById('f-type').value,
+                    scenario: document.getElementById('f-scenario').value,
+                })
+            });
+            hideModal();
+            loadContent();
+        }
+
+        async function viewTemplate(id) {
+            const t = await fetch(`${API}/templates/${id}`).then(r => r.json());
+            showModal(`
+        <h3>${t.name}</h3>
+        <p style="color:var(--text-secondary);margin-bottom:16px">${t.description}</p>
+        <div class="meta" style="margin-bottom:16px">
+            <span class="badge badge-type">${t.report_type}</span>
+            <span class="badge badge-status">${t.scenario}</span>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${id}')">删除</button>
+            <button class="btn btn-primary btn-sm" onclick="showGenerateInstance('${id}')">生成报告</button>
+            <button class="btn btn-secondary btn-sm" onclick="hideModal()">关闭</button>
+        </div>
+    `);
+        }
+
+        async function deleteTemplate(id) {
+            await fetch(`${API}/templates/${id}`, { method: 'DELETE' });
+            hideModal(); loadContent();
+        }
+
+        // --- Instances ---
+        async function renderInstances(c) {
+            const templates = await fetch(`${API}/templates`).then(r => r.json());
+            c.innerHTML = `
+        <div class="toolbar">
+            ${templates.length > 0
+                    ? `<select id="sel-tpl">${templates.map(t => `<option value="${t.template_id}">${t.name}</option>`).join('')}</select>
+                   <button class="btn btn-primary" onclick="generateInstance()">生成报告实例</button>`
+                    : '<span style="color:var(--text-secondary)">请先创建模板</span>'}
+        </div>
+        <div id="instance-list">加载中...</div>`;
+            // We don't have a list-all endpoint, so we show a message
+            document.getElementById('instance-list').innerHTML = `
+        <div class="empty-state"><div class="icon">📄</div>
+        <p>选择模板并点击「生成报告实例」开始</p></div>`;
+        }
+
+        async function generateInstance() {
+            const tplId = document.getElementById('sel-tpl').value;
+            const res = await fetch(`${API}/instances`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ template_id: tplId, input_params: { date: new Date().toISOString().slice(0, 10), devices: 'Router-001, Switch-001, Switch-002' } })
+            }).then(r => r.json());
+            showInstanceDetail(res);
+        }
+
+        function showGenerateInstance(tplId) {
+            hideModal();
+            showModal(`
+        <h3>生成报告实例</h3>
+        <div class="form-group"><label>报告日期</label><input id="f-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+        <div class="form-group"><label>设备列表</label><input id="f-devices" value="Router-001, Switch-001, Switch-002" placeholder="用逗号分隔"></div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="hideModal()">取消</button>
+            <button class="btn btn-primary" onclick="doGenerate('${tplId}')">生成</button>
+        </div>
+    `);
+        }
+
+        async function doGenerate(tplId) {
+            const res = await fetch(`${API}/instances`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    template_id: tplId,
+                    input_params: {
+                        date: document.getElementById('f-date').value,
+                        devices: document.getElementById('f-devices').value,
+                    }
+                })
+            }).then(r => r.json());
+            hideModal();
+            showInstanceDetail(res);
+        }
+
+        function showInstanceDetail(inst) {
+            const c = document.getElementById('content');
+            const sections = inst.outline_content || [];
+            c.innerHTML = `
+        <div class="toolbar">
+            <button class="btn btn-secondary" onclick="loadContent()">← 返回</button>
+            <span class="badge badge-status">${inst.status}</span>
+            <button class="btn btn-primary btn-sm" onclick="finalizeInst('${inst.instance_id}')">确认定稿</button>
+            <button class="btn btn-secondary btn-sm" onclick="generateDoc('${inst.instance_id}')">生成文档</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteInst('${inst.instance_id}')">删除</button>
+        </div>
+        <div id="sections">
+            ${sections.map((s, i) => `
+                <div class="section-card">
+                    <h4>${s.title}</h4>
+                    <pre>${s.content}</pre>
+                    <div class="section-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="regenerateSection('${inst.instance_id}',${i})">🔄 重新生成</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+        }
+
+        async function regenerateSection(instId, idx) {
+            const res = await fetch(`${API}/instances/${instId}/regenerate/${idx}`, { method: 'POST' }).then(r => r.json());
+            showInstanceDetail(res);
+        }
+
+        async function finalizeInst(instId) {
+            await fetch(`${API}/instances/${instId}/finalize`, { method: 'POST' });
+            const res = await fetch(`${API}/instances/${instId}`).then(r => r.json());
+            showInstanceDetail(res);
+        }
+
+        async function deleteInst(instId) {
+            await fetch(`${API}/instances/${instId}`, { method: 'DELETE' });
+            loadContent();
+        }
+
+        async function generateDoc(instId) {
+            const doc = await fetch(`${API}/documents`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ instance_id: instId, format: 'pdf' })
+            }).then(r => r.json());
+            alert(`文档已生成！ID: ${doc.document_id}\n格式: ${doc.format}\n路径: ${doc.file_path}`);
+        }
+
+        // --- Documents ---
+        async function renderDocuments(c) {
+            const docs = await fetch(`${API}/documents`).then(r => r.json());
+            c.innerHTML = `
+        ${docs.length === 0 ? '<div class="empty-state"><div class="icon">📑</div><p>暂无文档，请先生成报告并导出文档</p></div>' : ''}
+        <div class="card-grid">
+            ${docs.map(d => `
+                <div class="card">
+                    <h3>${d.format.toUpperCase()} 文档</h3>
+                    <p>实例: ${d.instance_id.slice(0, 8)}...</p>
+                    <p>路径: ${d.file_path}</p>
+                    <div class="meta">
+                        <span class="badge badge-active">${d.status}</span>
+                    </div>
+                    <div class="section-actions">
+                        <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.document_id}')">删除</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+        }
+
+        async function deleteDoc(id) {
+            await fetch(`${API}/documents/${id}`, { method: 'DELETE' });
+            loadContent();
+        }
+
+        // --- Tasks ---
+        async function renderTasks(c) {
+            const tasks = await fetch(`${API}/scheduled-tasks?user_id=default`).then(r => r.json());
+            const templates = await fetch(`${API}/templates`).then(r => r.json());
+            c.innerHTML = `
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="showCreateTask()">+ 新建定时任务</button>
+            <span style="font-size:12px;color:var(--text-secondary)">配额: ${tasks.length}/5</span>
+        </div>
+        ${tasks.length === 0 ? '<div class="empty-state"><div class="icon">⏰</div><p>暂无定时任务</p></div>' : ''}
+        <div class="card-grid">
+            ${tasks.map(t => `
+                <div class="card">
+                    <h3>${t.name}</h3>
+                    <p>${t.description || '无描述'}</p>
+                    <p style="font-size:12px;margin-top:6px">Cron: ${t.cron_expression || '无'} | 类型: ${t.schedule_type}</p>
+                    <div class="meta">
+                        <span class="badge ${t.status === 'active' ? 'badge-active' : 'badge-status'}">${t.status}</span>
+                        <span class="badge badge-type">执行 ${t.total_runs} 次</span>
+                    </div>
+                    <div class="section-actions" style="margin-top:12px">
+                        <button class="btn btn-primary btn-sm" onclick="runTaskNow('${t.task_id}')">立即执行</button>
+                        <button class="btn btn-secondary btn-sm" onclick="${t.status === 'active' ? `pauseTask('${t.task_id}')` : `resumeTask('${t.task_id}')`}">${t.status === 'active' ? '暂停' : '恢复'}</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteTask('${t.task_id}')">删除</button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+        }
+
+        function showCreateTask() {
+            showModal(`
+        <h3>新建定时任务</h3>
+        <div class="form-group"><label>任务名称</label><input id="ft-name" placeholder="如：每日巡检"></div>
+        <div class="form-group"><label>描述</label><input id="ft-desc" placeholder="任务描述"></div>
+        <div class="form-group"><label>模板 ID</label><input id="ft-tpl" placeholder="关联的模板 ID"></div>
+        <div class="form-group"><label>执行模式</label>
+            <select id="ft-type"><option value="recurring">周期性</option><option value="once">一次性</option></select>
+        </div>
+        <div class="form-group"><label>Cron 表达式</label><input id="ft-cron" value="0 8 * * *" placeholder="0 8 * * *"></div>
+        <div class="form-actions">
+            <button class="btn btn-secondary" onclick="hideModal()">取消</button>
+            <button class="btn btn-primary" onclick="createTask()">创建</button>
+        </div>
+    `);
+        }
+
+        async function createTask() {
+            const res = await fetch(`${API}/scheduled-tasks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('ft-name').value,
+                    description: document.getElementById('ft-desc').value,
+                    template_id: document.getElementById('ft-tpl').value,
+                    schedule_type: document.getElementById('ft-type').value,
+                    cron_expression: document.getElementById('ft-cron').value,
+                    user_id: 'default'
+                })
+            });
+            if (!res.ok) { const e = await res.json(); alert(e.detail); return; }
+            hideModal(); loadContent();
+        }
+
+        async function runTaskNow(id) {
+            const res = await fetch(`${API}/scheduled-tasks/${id}/run-now`, { method: 'POST' }).then(r => r.json());
+            alert(`任务已执行！新实例: ${res.instance_id}`);
+            loadContent();
+        }
+        async function pauseTask(id) { await fetch(`${API}/scheduled-tasks/${id}/pause`, { method: 'POST' }); loadContent(); }
+        async function resumeTask(id) { await fetch(`${API}/scheduled-tasks/${id}/resume`, { method: 'POST' }); loadContent(); }
+        async function deleteTask(id) { await fetch(`${API}/scheduled-tasks/${id}`, { method: 'DELETE' }); loadContent(); }
+
+        // --- Chat ---
+        function renderChat(c) {
+            c.innerHTML = `
+        <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+                ${chatMessages.length === 0 ? '<div class="empty-state"><div class="icon">💬</div><p>开始对话，告诉我您想生成什么报告</p></div>' : ''}
+                ${chatMessages.map(m => `
+                    <div class="chat-msg ${m.role}">
+                        <div class="chat-bubble">${m.content}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="chat-input-row">
+                <input id="chat-input" placeholder="输入消息... 如：帮我生成设备巡检报告" onkeypress="if(event.key==='Enter')sendChat()">
+                <button class="btn btn-primary" onclick="sendChat()">发送</button>
+            </div>
+        </div>`;
+            const el = document.getElementById('chat-messages');
+            el.scrollTop = el.scrollHeight;
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            input.value = '';
+
+            chatMessages.push({ role: 'user', content: msg });
+            renderChat(document.getElementById('content'));
+
+            const res = await fetch(`${API}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: msg, session_id: chatSessionId })
+            }).then(r => r.json());
+
+            chatSessionId = res.session_id;
+            chatMessages.push({ role: 'assistant', content: res.reply });
+            renderChat(document.getElementById('content'));
+        }
+
+        // --- Modal ---
+        function showModal(html) {
+            document.getElementById('modal-content').innerHTML = html;
+            document.getElementById('modal-overlay').classList.add('show');
+        }
+        function hideModal() {
+            document.getElementById('modal-overlay').classList.remove('show');
+        }
+        document.getElementById('modal-overlay').addEventListener('click', function (e) {
+            if (e.target === this) hideModal();
+        });
+
+        // Init
+        loadContent();
+    </script>
+</body>
+
+</html>
