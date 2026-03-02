@@ -8,7 +8,7 @@
 
 ## 目录
 
-1. [上下文](#0-上下文)
+0. [上下文](#0-上下文)
 1. [系统概述](#1-系统概述)
 2. [业务流程](#2-业务流程)
 3. [关键概念](#3-关键概念)
@@ -22,39 +22,50 @@
 
 ## 0. 上下文
 
-本系统在整体业务架构中定位为**“平台”**层，负责报告生成的通用逻辑编排与实例管理。其上下游关系如下：
+本系统在整体业务架构中定位为**"平台"**层，负责报告生成的通用逻辑编排与实例管理。其上下游关系如下：
 
-*   **上游：产品 (Product)**
-    *   作为本系统的继承方和接入方。
-    *   通过调用本系统提供的 API，为最终用户提供业务场景化的报告服务。
-*   **中台：本系统 (Platform)**
-    *   核心职责：负责报告模板定义、数据采集编排、LLM 生成逻辑调度、实例生命周期管理及文档导出。
-*   **下游：推理系统 (Reasoning System)**
-    *   能力提供方。
-    *   为本系统提供基础的大语言模型 (LLM) 推理接口、Embedding 向量化接口等 AI 原子能力。
+| 角色 | 定义 | 职责边界 |
+|------|------|----------|
+| **产品 (Product)** | 上游集成方 | 面向最终用户，提供业务场景化的报告服务。通过调用本系统 API 完成报告的创建、预览与下载 |
+| **平台 (Platform)** | 本系统 | 报告模板定义、数据采集编排、LLM 生成逻辑调度、实例生命周期管理及文档导出 |
+| **推理系统 (Reasoning System)** | 下游能力提供方 | 提供大语言模型 (LLM) 推理接口、Embedding 向量化接口等 AI 原子能力 |
 
-#### 0.1 边界交互示意图
+### 0.1 边界接口交互
 
 ```mermaid
-sequenceDiagram
-    participant P as 产品 (Product)
-    participant S as 本系统 (Platform)
-    participant I as 推理系统 (Inference)
+graph LR
+    subgraph 上游
+        P["产品 (Product)"]
+    end
 
-    Note over P, S: 业务集成接口 (REST/Socket)
-    P->>S: 1. 注册/配置报告模板
-    P->>S: 2. 触发报告生成 (传入业务参数)
-    P->>S: 3. 对话交互 (局部指令更新)
-    
-    Note over S, I: AI 能力接口 (Chat/Embedding)
-    S->>I: 4. 发送 Prompt / 上下文
-    I-->>S: 返回 LLM 生成内容
-    S->>I: 5. 文本向量化请求
-    I-->>S: 返回 Embedding 向量
+    subgraph 本系统
+        API["REST API 层"]
+        Core["核心引擎<br/>模板 · 实例 · 文档 · 定时任务"]
+    end
 
-    Note over P, S: 结果输出
-    S-->>P: 6. 返回报告实例数据 (预览)
-    S-->>P: 7. 推送文档下载链接 (最终态)
+    subgraph 下游
+        LLM["LLM 推理接口"]
+        EMB["Embedding 接口"]
+    end
+
+    P -- "模板管理 API<br/>POST/GET/PUT/DELETE templates" --> API
+    P -- "报告生成 API<br/>POST instances" --> API
+    P -- "对话交互 API<br/>POST chat" --> API
+    P -- "文档下载 API<br/>GET documents/{id}/download" --> API
+
+    API --> Core
+
+    Core -- "Chat Completion<br/>Prompt → 生成内容" --> LLM
+    Core -- "Text Embedding<br/>文本 → 向量" --> EMB
+
+    LLM -. "生成结果" .-> Core
+    EMB -. "向量结果" .-> Core
+
+    style P fill:#e1f5fe,stroke:#0288d1
+    style API fill:#fff3e0,stroke:#f57c00
+    style Core fill:#fff3e0,stroke:#f57c00
+    style LLM fill:#f3e5f5,stroke:#7b1fa2
+    style EMB fill:#f3e5f5,stroke:#7b1fa2
 ```
 
 ---
@@ -565,34 +576,29 @@ classDiagram
 class ScheduledTask:
     """定时任务配置"""
     task_id: str
-    user_id: str  # 所属用户 ID，支持数据隔离
     name: str
     description: str
     
-    # 关联的源实例
+    # 关联的源实例（任意状态均可）
     source_instance_id: str
-    template_id: str
+    template_id: str  # 冗余字段，方便查询
     
     # 定时配置
-    schedule_type: str    # "once" (一次性) / "recurring" (周期性)
-    cron_expression: Optional[str] = None # 周期性模式下必填
+    cron_expression: str  # 如 "0 8 * * *" (每天 8 点)
     timezone: str = "Asia/Shanghai"
     enabled: bool = True
     
-    # 自动化配置
-    auto_generate_doc: bool = True       # 是否自动生成文档
-    doc_formats: List[str] = field(default_factory=lambda: ["pdf"]) # 自动生成的格式
-    
     # 参数更新规则（仅时间参数）
-    time_param_name: str
+    time_param_name: str  # 如 "inspection_date"
     time_format: str = "%Y-%m-%d"
     
     # 元数据
     created_at: datetime
     updated_at: datetime
+    created_by: str
     last_run_at: Optional[datetime] = None
     next_run_at: Optional[datetime] = None
-    status: str = "active"  # active/paused/stopped/completed(针对一次性)
+    status: str = "active"  # active/paused/stopped
     
     # 统计信息
     total_runs: int = 0
@@ -631,37 +637,34 @@ sequenceDiagram
     participant Scheduler as 任务调度器
     participant Task as 定时任务服务
     participant Instance as 实例服务
+    participant Data as 数据源
     participant LLM as LLM 服务
-    participant Doc as 文档服务
 
-    Scheduler->>Task: 触发定时任务 (时间到或手动触发一次性任务)
-    Task->>Task: 权限与配额校验 (User ID)
-    Task->>Instance: 获取源实例配置
-    Instance-->>Task: 返回源实例参数
+    Scheduler->>Task: 触发定时任务 (cron 时间到)
+    Task->>Task: 获取任务配置
+    Task->>Instance: 获取源实例
+    Instance-->>Task: 返回源实例
     
-    Task->>Task: 替换时间参数为触发时间
+    Task->>Task: 替换时间参数为当前时间
     
-    Task->>Instance: 创建并生成新实例
+    Task->>Instance: 创建新实例请求
+    Instance->>Data: 采集数据 (基于新时间)
+    Data-->>Instance: 返回原始数据
     Instance->>LLM: 调用 LLM 生成内容
-    LLM-->>Instance: 返回结果
+    LLM-->>Instance: 返回生成结果
     Instance-->>Task: 返回新实例 ID
     
-    alt 开启自动生成文档
-        Task->>Doc: 调用文档导出服务 (基于新实例)
-        Doc-->>Task: 返回文档路径/ID
-    end
-    
-    Task->>Task: 记录执行结果并更新状态
+    Task->>Task: 记录执行结果
     Task->>Scheduler: 任务完成
 ```
 
 ### 5.2 定时任务设计说明
 
 **核心设计原则**:
-- **权限隔离**: 每个任务必关联 `user_id`。API 查询时强制增加 `user_id` 过滤。
-- **配额控制**: 创建任务前校验该用户已存在的 active 任务数。
-- **全链路闭环**: 周期性任务默认完成从数据填充到文档生成的全流程，无需人工介入。
-- **模式扩展**: 同时支持单次执行（如预约在半夜执行一次）和常用的 Cron 周期调度。
+- 定时任务是独立的功能模块，不与报告生成流程强耦合
+- 任意状态的报告实例都可以作为定时任务的源实例
+- 每次执行生成**新的报告实例**，不覆盖原实例
+- 仅替换时间参数，其他参数保持不变
 
 **执行逻辑**:
 1. 到达 cron 指定时间时触发任务
