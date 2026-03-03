@@ -35,13 +35,20 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     # 尝试匹配模板
     templates = db.query(ReportTemplate).all()
     matched = None
-    for t in templates:
-        if t.scenario and t.scenario.lower() in data.message.lower():
-            matched = t
-            break
-        if t.name and t.name.lower() in data.message.lower():
-            matched = t
-            break
+    
+    if templates:
+        # 1. 优先尝试关键词匹配
+        for t in templates:
+            if t.scenario and t.scenario.lower() in data.message.lower():
+                matched = t
+                break
+            if t.name and t.name.lower() in data.message.lower():
+                matched = t
+                break
+        
+        # 2. 如果没匹配到，使用第一个模板作为兜底
+        if not matched:
+            matched = templates[0]
 
     context = {"matched_template": matched.name if matched else None}
     reply = generate_chat_response(data.message, context)
@@ -49,8 +56,10 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     # 构建响应
     action = None
     if matched:
-        # 只要匹配到模板，就尝试返回 action（以前有限制只允许第一次生效，现在放宽以增强可用性）
-        reply = f"已为您匹配到模板「{matched.name}」，请在下方表单中填写参数后生成报告。"
+        # 只要有模板（匹配或兜底），就返回 action 表单
+        if "已为您匹配到模板" not in reply:
+            reply = f"已为您准备好模板「{matched.name}」，请在下方填写参数生成报告。\n\n" + reply
+            
         action = {
             "type": "show_param_form",
             "template_id": matched.template_id,
@@ -65,11 +74,11 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                  "placeholder": "用逗号分隔多台设备"},
             ],
         }
-        # 更新会话记录中的当前匹配模板
         session.matched_template_id = matched.template_id
 
     msgs.append({"role": "assistant", "content": reply,
                  **({"action": action} if action else {})})
+
 
     session.messages = msgs
 
