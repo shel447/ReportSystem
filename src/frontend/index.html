@@ -147,7 +147,46 @@
             line-height: 1.5;
         }
 
+        /* Tables */
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 16px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        .data-table th {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 14px 20px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table td {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .data-table tr:hover td {
+            background: rgba(233, 69, 96, 0.05);
+        }
+
         .card .meta {
+
             margin-top: 12px;
             display: flex;
             gap: 8px;
@@ -448,82 +487,40 @@
         <div class="toolbar">
             <button class="btn btn-primary" onclick="showCreateTemplate()">+ 新建模板</button>
         </div>
-        ${data.length === 0 ? '<div class="empty-state"><div class="icon">📋</div><p>暂无模板，点击上方按钮创建</p></div>' : ''}
-        <div class="card-grid">
-            ${data.map(t => `
-                <div class="card" onclick="viewTemplate('${t.template_id}')">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                        <h3>${t.name}</h3>
-                        <span class="badge badge-type">${t.report_type}</span>
-                    </div>
-                    <p>${t.description || '无描述'}</p>
-                    <div class="meta" style="margin-top:12px">
-                        <span class="badge badge-status">${t.scenario || '通用'}</span>
-                    </div>
-                </div>
-
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>模板名称</th>
+                        <th>场景</th>
+                        <th>类型</th>
+                        <th>创建时间</th>
+                        <th style="text-align:right">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.length === 0 ? '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无模板数据</td></tr>' : ''}
+                    ${data.map(t => `
+                        <tr>
+                            <td font-weight:600>${t.name}</td>
+                            <td><span class="badge badge-status">${t.scenario || '通用'}</span></td>
+                            <td><span class="badge badge-type">${t.report_type}</span></td>
+                            <td style="color:var(--text-secondary);font-size:12px">${t.created_at}</td>
+                            <td style="text-align:right">
+                                <button class="btn btn-primary btn-sm" onclick="viewTemplate('${t.template_id}')">详情</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${t.template_id}')">删除</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>`;
-        }
-
-        function showCreateTemplate() {
-            showModal(`
-        <h3>新建报告模板</h3>
-        <div class="form-group"><label>模板名称</label><input id="f-name" placeholder="如：设备日常巡检报告"></div>
-        <div class="form-group"><label>描述</label><textarea id="f-desc" rows="2" placeholder="模板用途简述"></textarea></div>
-        <div class="form-group"><label>报告类型</label>
-            <select id="f-type"><option value="daily">日报</option><option value="weekly">周报</option><option value="special">专项</option></select>
-        </div>
-        <div class="form-group"><label>场景</label><input id="f-scenario" placeholder="如：设备巡检、故障分析"></div>
-        <div class="form-actions">
-            <button class="btn btn-secondary" onclick="hideModal()">取消</button>
-            <button class="btn btn-primary" onclick="createTemplate()">创建</button>
-        </div>
-    `);
-        }
-
-        async function createTemplate() {
-            await fetch(`${API}/templates`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: document.getElementById('f-name').value,
-                    description: document.getElementById('f-desc').value,
-                    report_type: document.getElementById('f-type').value,
-                    scenario: document.getElementById('f-scenario').value,
-                })
-            });
-            hideModal();
-            loadContent();
-        }
-
-        async function viewTemplate(id) {
-            const t = await fetch(`${API}/templates/${id}`).then(r => r.json());
-            showModal(`
-        <h3>${t.name}</h3>
-        <p style="color:var(--text-secondary);margin-bottom:16px">${t.description}</p>
-        <div class="meta" style="margin-bottom:16px">
-            <span class="badge badge-type">${t.report_type}</span>
-            <span class="badge badge-status">${t.scenario}</span>
-        </div>
-        <div class="form-actions">
-            <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${id}')">删除</button>
-            <button class="btn btn-primary btn-sm" onclick="showGenerateInstance('${id}')">生成报告</button>
-            <button class="btn btn-secondary btn-sm" onclick="hideModal()">关闭</button>
-        </div>
-    `);
-        }
-
-        async function deleteTemplate(id) {
-            await fetch(`${API}/templates/${id}`, { method: 'DELETE' });
-            hideModal(); loadContent();
         }
 
         // --- Instances ---
         async function renderInstances(c) {
             const instances = await fetch(`${API}/instances`).then(r => r.json());
             const templates = await fetch(`${API}/templates`).then(r => r.json());
-            // 创建 ID 到名称的映射，方便显示
             const tplMap = {};
             templates.forEach(t => tplMap[t.template_id] = t.name);
 
@@ -532,54 +529,36 @@
             ${templates.length > 0
                     ? `<button class="btn btn-primary" onclick="showGenerateInstanceDialog()">+ 生成新报告</button>`
                     : '<span style="color:var(--text-secondary)">请先创建模板</span>'}
-            <button class="btn btn-secondary btn-sm" onclick="loadContent()">刷新列表</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadContent()">强制刷新</button>
         </div>
-        ${instances.length === 0 ? '<div class="empty-state"><div class="icon">📄</div><p>暂无报告实例</p></div>' : ''}
-        <div class="card-grid">
-            ${instances.map(inst => `
-                <div class="card" onclick="viewInstanceDetail('${inst.instance_id}')">
-                    <h3>${tplMap[inst.template_id] || '未知模板'}</h3>
-                    <p>ID: ${inst.instance_id.slice(0, 8)}...</p>
-                    <p style="font-size:12px;margin-top:4px;color:var(--text-secondary)">生成时间: ${inst.created_at}</p>
-                    <div class="meta">
-                        <span class="badge ${inst.status === 'finalized' ? 'badge-active' : 'badge-status'}">${inst.status === 'finalized' ? '已定稿' : '草稿'}</span>
-                    </div>
-                </div>
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>报告名称</th>
+                        <th>实例 ID</th>
+                        <th>状态</th>
+                        <th>生成时间</th>
+                        <th style="text-align:right">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${instances.length === 0 ? '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无报告实例</td></tr>' : ''}
+                    ${instances.map(inst => `
+                        <tr>
+                            <td style="font-weight:600">${tplMap[inst.template_id] || '未知模板'}</td>
+                            <td style="font-family:monospace;font-size:12px;color:var(--text-secondary)">${inst.instance_id.slice(0, 8)}...</td>
+                            <td><span class="badge ${inst.status === 'finalized' ? 'badge-active' : 'badge-status'}">${inst.status === 'finalized' ? '已定稿' : '草稿'}</span></td>
+                            <td style="color:var(--text-secondary);font-size:12px">${inst.created_at}</td>
+                            <td style="text-align:right">
+                                <button class="btn btn-primary btn-sm" onclick="viewInstanceDetail('${inst.instance_id}')">进入详情</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteInst('${inst.instance_id}')">删除</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>`;
-        }
-
-        async function viewInstanceDetail(id) {
-            const inst = await fetch(`${API}/instances/${id}`).then(r => r.json());
-            showInstanceDetail(inst);
-        }
-
-        function showGenerateInstanceDialog() {
-            renderInstancesDialog();
-        }
-
-        async function renderInstancesDialog() {
-            const templates = await fetch(`${API}/templates`).then(r => r.json());
-            showModal(`
-                <h3>生成新报告</h3>
-                <div class="form-group">
-                    <label>选择模板</label>
-                    <select id="f-instance-tpl">
-                        ${templates.map(t => `<option value="${t.template_id}">${t.name}</option>`).join('')}
-                    </select>
-                </div>
-                <div class="form-group"><label>报告日期</label><input id="f-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
-                <div class="form-group"><label>设备列表</label><input id="f-devices" value="Router-001, Switch-001" placeholder="用逗号分隔"></div>
-                <div class="form-actions">
-                    <button class="btn btn-secondary" onclick="hideModal()">取消</button>
-                    <button class="btn btn-primary" onclick="doGenerateFromDialog()">生成</button>
-                </div>
-            `);
-        }
-
-        async function doGenerateFromDialog() {
-            const tplId = document.getElementById('f-instance-tpl').value;
-            await doGenerate(tplId);
         }
 
         // --- Documents ---
@@ -587,27 +566,38 @@
             const docs = await fetch(`${API}/documents`).then(r => r.json());
             c.innerHTML = `
         <div class="toolbar">
-            <button class="btn btn-secondary btn-sm" onclick="loadContent()">刷新列表</button>
+            <button class="btn btn-secondary btn-sm" onclick="loadContent()">刷新记录</button>
         </div>
-        ${docs.length === 0 ? '<div class="empty-state"><div class="icon">📑</div><p>暂无导出的文档记录</p></div>' : ''}
-        <div class="card-grid">
-            ${docs.map(d => `
-                <div class="card">
-                    <h3>${d.format.toUpperCase()} 导出文件</h3>
-                    <p>导出时间: ${d.created_at}</p>
-                    <p style="font-size:12px;margin-top:4px">路径: <code style="color:var(--success)">${d.file_path}</code></p>
-                    <div class="meta">
-                        <span class="badge badge-active">${d.status}</span>
-                        <span class="badge badge-type">${(d.file_size / 1024).toFixed(1)} KB</span>
-                    </div>
-                    <div class="section-actions" style="margin-top:12px">
-                        <button class="btn btn-primary btn-sm" onclick="alert('即将下载: ' + '${d.file_path}')">下载</button>
-                        <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.document_id}')">删除记录</button>
-                    </div>
-                </div>
-            `).join('')}
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>导出类型</th>
+                        <th>文件路径</th>
+                        <th>大小</th>
+                        <th>生成时间</th>
+                        <th style="text-align:right">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${docs.length === 0 ? '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无导出的文档记录</td></tr>' : ''}
+                    ${docs.map(d => `
+                        <tr>
+                            <td style="font-weight:600;color:var(--success)">${d.format.toUpperCase()}</td>
+                            <td style="font-family:monospace;font-size:12px"><code>${d.file_path}</code></td>
+                            <td><span class="badge badge-type">${(d.file_size / 1024).toFixed(1)} KB</span></td>
+                            <td style="color:var(--text-secondary);font-size:12px">${d.created_at}</td>
+                            <td style="text-align:right">
+                                <button class="btn btn-primary btn-sm" onclick="alert('即将下载: ' + '${d.file_path}')">下载</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.document_id}')">删除记录</button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
         </div>`;
         }
+
 
 
         async function deleteDoc(id) {
