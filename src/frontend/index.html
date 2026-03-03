@@ -727,11 +727,37 @@
         <div class="chat-container">
             <div class="chat-messages" id="chat-messages">
                 ${chatMessages.length === 0 ? '<div class="empty-state"><div class="icon">💬</div><p>开始对话，告诉我您想生成什么报告</p></div>' : ''}
-                ${chatMessages.map(m => `
-                    <div class="chat-msg ${m.role}">
-                        <div class="chat-bubble">${m.content}</div>
-                    </div>
-                `).join('')}
+                ${chatMessages.map((m, idx) => {
+                if (m.role === 'user') {
+                    return `<div class="chat-msg user"><div class="chat-bubble">${m.content}</div></div>`;
+                }
+                // assistant message
+                let html = `<div class="chat-msg assistant"><div class="chat-bubble">`;
+                html += m.content;
+                // 如果带有 action，渲染内嵌表单
+                if (m.action && m.action.type === 'show_param_form') {
+                    const a = m.action;
+                    const formId = 'chat-form-' + idx;
+                    html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
+                    html += `<div style="font-weight:600;margin-bottom:12px;color:var(--success)">📋 ${a.template_name} - 参数配置</div>`;
+                    const params = (a.content_params && a.content_params.length > 0) ? a.content_params : a.default_params;
+                    params.forEach(p => {
+                        const inputType = p.type === 'date' ? 'date' : 'text';
+                        const defaultVal = p.default || '';
+                        const placeholder = p.placeholder || '';
+                        const required = p.required ? ' *' : '';
+                        html += `<div class="form-group">`;
+                        html += `<label>${p.label || p.name}${required}</label>`;
+                        html += `<input type="${inputType}" data-param-name="${p.name}" class="${formId}-input" value="${defaultVal}" placeholder="${placeholder}" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);width:100%;font-size:13px">`;
+                        html += `</div>`;
+                    });
+                    html += `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">`;
+                    html += `<button class="btn btn-primary" onclick="submitChatForm('${a.template_id}','${formId}')">🚀 生成报告</button>`;
+                    html += `</div></div>`;
+                }
+                html += `</div></div>`;
+                return html;
+            }).join('')}
             </div>
             <div class="chat-input-row">
                 <input id="chat-input" placeholder="输入消息... 如：帮我生成设备巡检报告" onkeypress="if(event.key==='Enter')sendChat()">
@@ -758,9 +784,46 @@
             }).then(r => r.json());
 
             chatSessionId = res.session_id;
-            chatMessages.push({ role: 'assistant', content: res.reply });
+            chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
             renderChat(document.getElementById('content'));
         }
+
+        async function submitChatForm(templateId, formId) {
+            const inputs = document.querySelectorAll('.' + formId + '-input');
+            const params = {};
+            inputs.forEach(inp => {
+                params[inp.dataset.paramName] = inp.value;
+            });
+
+            // 添加生成中提示
+            chatMessages.push({ role: 'assistant', content: '⏳ 正在为您生成报告，请稍候...' });
+            renderChat(document.getElementById('content'));
+
+            try {
+                const res = await fetch(`${API}/instances`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ template_id: templateId, input_params: params })
+                }).then(r => r.json());
+
+                // 替换最后的提示消息
+                chatMessages[chatMessages.length - 1] = {
+                    role: 'assistant',
+                    content: `✅ 报告已生成！共 ${(res.outline_content || []).length} 个章节。正在跳转到报告详情...`
+                };
+                renderChat(document.getElementById('content'));
+
+                // 短暂延迟后跳转到实例详情
+                setTimeout(() => { showInstanceDetail(res); }, 800);
+            } catch (e) {
+                chatMessages[chatMessages.length - 1] = {
+                    role: 'assistant',
+                    content: '❌ 生成失败，请检查参数后重试。'
+                };
+                renderChat(document.getElementById('content'));
+            }
+        }
+
 
         // --- Modal ---
         function showModal(html) {

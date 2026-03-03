@@ -46,15 +46,29 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     context = {"matched_template": matched.name if matched else None}
     reply = generate_chat_response(data.message, context)
 
+    # 构建响应
+    action = None
     if matched and not session.matched_template_id:
         session.matched_template_id = matched.template_id
-        reply = (f"已为您匹配到模板「{matched.name}」(场景: {matched.scenario})。\n\n"
-                 f"请提供以下参数：\n"
-                 f"1. 日期 (date)\n"
-                 f"2. 设备列表 (devices)\n\n"
-                 f"您可以在左侧「报告实例」页面基于此模板生成报告。")
+        reply = f"已为您匹配到模板「{matched.name}」，请在下方表单中填写参数后生成报告。"
+        # 返回结构化 action，前端据此弹出表单
+        action = {
+            "type": "show_param_form",
+            "template_id": matched.template_id,
+            "template_name": matched.name,
+            "scenario": matched.scenario or "",
+            "content_params": matched.content_params or [],
+            "default_params": [
+                {"name": "date", "label": "报告日期", "type": "date",
+                 "required": True, "default": ""},
+                {"name": "devices", "label": "设备列表", "type": "text",
+                 "required": True, "default": "Router-001, Switch-001",
+                 "placeholder": "用逗号分隔多台设备"},
+            ],
+        }
 
-    msgs.append({"role": "assistant", "content": reply})
+    msgs.append({"role": "assistant", "content": reply,
+                 **({"action": action} if action else {})})
     session.messages = msgs
 
     from sqlalchemy.orm.attributes import flag_modified
@@ -64,9 +78,11 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     return {
         "session_id": session.session_id,
         "reply": reply,
+        "action": action,
         "matched_template_id": session.matched_template_id,
         "messages": msgs,
     }
+
 
 
 @router.get("/{session_id}")
