@@ -452,13 +452,16 @@
         <div class="card-grid">
             ${data.map(t => `
                 <div class="card" onclick="viewTemplate('${t.template_id}')">
-                    <h3>${t.name}</h3>
-                    <p>${t.description || '无描述'}</p>
-                    <div class="meta">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                        <h3>${t.name}</h3>
                         <span class="badge badge-type">${t.report_type}</span>
+                    </div>
+                    <p>${t.description || '无描述'}</p>
+                    <div class="meta" style="margin-top:12px">
                         <span class="badge badge-status">${t.scenario || '通用'}</span>
                     </div>
                 </div>
+
             `).join('')}
         </div>`;
         }
@@ -518,130 +521,94 @@
 
         // --- Instances ---
         async function renderInstances(c) {
+            const instances = await fetch(`${API}/instances`).then(r => r.json());
             const templates = await fetch(`${API}/templates`).then(r => r.json());
+            // 创建 ID 到名称的映射，方便显示
+            const tplMap = {};
+            templates.forEach(t => tplMap[t.template_id] = t.name);
+
             c.innerHTML = `
         <div class="toolbar">
             ${templates.length > 0
-                    ? `<select id="sel-tpl">${templates.map(t => `<option value="${t.template_id}">${t.name}</option>`).join('')}</select>
-                   <button class="btn btn-primary" onclick="generateInstance()">生成报告实例</button>`
+                    ? `<button class="btn btn-primary" onclick="showGenerateInstanceDialog()">+ 生成新报告</button>`
                     : '<span style="color:var(--text-secondary)">请先创建模板</span>'}
+            <button class="btn btn-secondary btn-sm" onclick="loadContent()">刷新列表</button>
         </div>
-        <div id="instance-list">加载中...</div>`;
-            // We don't have a list-all endpoint, so we show a message
-            document.getElementById('instance-list').innerHTML = `
-        <div class="empty-state"><div class="icon">📄</div>
-        <p>选择模板并点击「生成报告实例」开始</p></div>`;
-        }
-
-        async function generateInstance() {
-            const tplId = document.getElementById('sel-tpl').value;
-            const res = await fetch(`${API}/instances`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ template_id: tplId, input_params: { date: new Date().toISOString().slice(0, 10), devices: 'Router-001, Switch-001, Switch-002' } })
-            }).then(r => r.json());
-            showInstanceDetail(res);
-        }
-
-        function showGenerateInstance(tplId) {
-            hideModal();
-            showModal(`
-        <h3>生成报告实例</h3>
-        <div class="form-group"><label>报告日期</label><input id="f-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
-        <div class="form-group"><label>设备列表</label><input id="f-devices" value="Router-001, Switch-001, Switch-002" placeholder="用逗号分隔"></div>
-        <div class="form-actions">
-            <button class="btn btn-secondary" onclick="hideModal()">取消</button>
-            <button class="btn btn-primary" onclick="doGenerate('${tplId}')">生成</button>
-        </div>
-    `);
-        }
-
-        async function doGenerate(tplId) {
-            const res = await fetch(`${API}/instances`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    template_id: tplId,
-                    input_params: {
-                        date: document.getElementById('f-date').value,
-                        devices: document.getElementById('f-devices').value,
-                    }
-                })
-            }).then(r => r.json());
-            hideModal();
-            showInstanceDetail(res);
-        }
-
-        function showInstanceDetail(inst) {
-            const c = document.getElementById('content');
-            const sections = inst.outline_content || [];
-            c.innerHTML = `
-        <div class="toolbar">
-            <button class="btn btn-secondary" onclick="loadContent()">← 返回</button>
-            <span class="badge badge-status">${inst.status}</span>
-            <button class="btn btn-primary btn-sm" onclick="finalizeInst('${inst.instance_id}')">确认定稿</button>
-            <button class="btn btn-secondary btn-sm" onclick="generateDoc('${inst.instance_id}')">生成文档</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteInst('${inst.instance_id}')">删除</button>
-        </div>
-        <div id="sections">
-            ${sections.map((s, i) => `
-                <div class="section-card">
-                    <h4>${s.title}</h4>
-                    <pre>${s.content}</pre>
-                    <div class="section-actions">
-                        <button class="btn btn-secondary btn-sm" onclick="regenerateSection('${inst.instance_id}',${i})">🔄 重新生成</button>
+        ${instances.length === 0 ? '<div class="empty-state"><div class="icon">📄</div><p>暂无报告实例</p></div>' : ''}
+        <div class="card-grid">
+            ${instances.map(inst => `
+                <div class="card" onclick="viewInstanceDetail('${inst.instance_id}')">
+                    <h3>${tplMap[inst.template_id] || '未知模板'}</h3>
+                    <p>ID: ${inst.instance_id.slice(0, 8)}...</p>
+                    <p style="font-size:12px;margin-top:4px;color:var(--text-secondary)">生成时间: ${inst.created_at}</p>
+                    <div class="meta">
+                        <span class="badge ${inst.status === 'finalized' ? 'badge-active' : 'badge-status'}">${inst.status === 'finalized' ? '已定稿' : '草稿'}</span>
                     </div>
                 </div>
             `).join('')}
         </div>`;
         }
 
-        async function regenerateSection(instId, idx) {
-            const res = await fetch(`${API}/instances/${instId}/regenerate/${idx}`, { method: 'POST' }).then(r => r.json());
-            showInstanceDetail(res);
+        async function viewInstanceDetail(id) {
+            const inst = await fetch(`${API}/instances/${id}`).then(r => r.json());
+            showInstanceDetail(inst);
         }
 
-        async function finalizeInst(instId) {
-            await fetch(`${API}/instances/${instId}/finalize`, { method: 'POST' });
-            const res = await fetch(`${API}/instances/${instId}`).then(r => r.json());
-            showInstanceDetail(res);
+        function showGenerateInstanceDialog() {
+            renderInstancesDialog();
         }
 
-        async function deleteInst(instId) {
-            await fetch(`${API}/instances/${instId}`, { method: 'DELETE' });
-            loadContent();
+        async function renderInstancesDialog() {
+            const templates = await fetch(`${API}/templates`).then(r => r.json());
+            showModal(`
+                <h3>生成新报告</h3>
+                <div class="form-group">
+                    <label>选择模板</label>
+                    <select id="f-instance-tpl">
+                        ${templates.map(t => `<option value="${t.template_id}">${t.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group"><label>报告日期</label><input id="f-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></div>
+                <div class="form-group"><label>设备列表</label><input id="f-devices" value="Router-001, Switch-001" placeholder="用逗号分隔"></div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="hideModal()">取消</button>
+                    <button class="btn btn-primary" onclick="doGenerateFromDialog()">生成</button>
+                </div>
+            `);
         }
 
-        async function generateDoc(instId) {
-            const doc = await fetch(`${API}/documents`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ instance_id: instId, format: 'pdf' })
-            }).then(r => r.json());
-            alert(`文档已生成！ID: ${doc.document_id}\n格式: ${doc.format}\n路径: ${doc.file_path}`);
+        async function doGenerateFromDialog() {
+            const tplId = document.getElementById('f-instance-tpl').value;
+            await doGenerate(tplId);
         }
 
         // --- Documents ---
         async function renderDocuments(c) {
             const docs = await fetch(`${API}/documents`).then(r => r.json());
             c.innerHTML = `
-        ${docs.length === 0 ? '<div class="empty-state"><div class="icon">📑</div><p>暂无文档，请先生成报告并导出文档</p></div>' : ''}
+        <div class="toolbar">
+            <button class="btn btn-secondary btn-sm" onclick="loadContent()">刷新列表</button>
+        </div>
+        ${docs.length === 0 ? '<div class="empty-state"><div class="icon">📑</div><p>暂无导出的文档记录</p></div>' : ''}
         <div class="card-grid">
             ${docs.map(d => `
                 <div class="card">
-                    <h3>${d.format.toUpperCase()} 文档</h3>
-                    <p>实例: ${d.instance_id.slice(0, 8)}...</p>
-                    <p>路径: ${d.file_path}</p>
+                    <h3>${d.format.toUpperCase()} 导出文件</h3>
+                    <p>导出时间: ${d.created_at}</p>
+                    <p style="font-size:12px;margin-top:4px">路径: <code style="color:var(--success)">${d.file_path}</code></p>
                     <div class="meta">
                         <span class="badge badge-active">${d.status}</span>
+                        <span class="badge badge-type">${(d.file_size / 1024).toFixed(1)} KB</span>
                     </div>
-                    <div class="section-actions">
-                        <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.document_id}')">删除</button>
+                    <div class="section-actions" style="margin-top:12px">
+                        <button class="btn btn-primary btn-sm" onclick="alert('即将下载: ' + '${d.file_path}')">下载</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteDoc('${d.document_id}')">删除记录</button>
                     </div>
                 </div>
             `).join('')}
         </div>`;
         }
+
 
         async function deleteDoc(id) {
             await fetch(`${API}/documents/${id}`, { method: 'DELETE' });

@@ -113,7 +113,19 @@ def regenerate_section(instance_id: str, section_index: int,
     return _inst_dict(inst)
 
 
+@router.get("")
+def list_instances(template_id: Optional[str] = None, 
+                   db: Session = Depends(get_db)):
+    q = db.query(ReportInstance)
+    if template_id:
+        q = q.filter(ReportInstance.template_id == template_id)
+    # 按创建时间倒序
+    instances = q.order_by(ReportInstance.created_at.desc()).all()
+    return [_inst_dict(inst) for inst in instances]
+
+
 def _inst_dict(inst):
+
     return {
         "instance_id": inst.instance_id,
         "template_id": inst.template_id,
