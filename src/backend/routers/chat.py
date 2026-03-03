@@ -48,10 +48,9 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
 
     # 构建响应
     action = None
-    if matched and not session.matched_template_id:
-        session.matched_template_id = matched.template_id
+    if matched:
+        # 只要匹配到模板，就尝试返回 action（以前有限制只允许第一次生效，现在放宽以增强可用性）
         reply = f"已为您匹配到模板「{matched.name}」，请在下方表单中填写参数后生成报告。"
-        # 返回结构化 action，前端据此弹出表单
         action = {
             "type": "show_param_form",
             "template_id": matched.template_id,
@@ -66,9 +65,12 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                  "placeholder": "用逗号分隔多台设备"},
             ],
         }
+        # 更新会话记录中的当前匹配模板
+        session.matched_template_id = matched.template_id
 
     msgs.append({"role": "assistant", "content": reply,
                  **({"action": action} if action else {})})
+
     session.messages = msgs
 
     from sqlalchemy.orm.attributes import flag_modified
