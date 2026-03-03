@@ -145,6 +145,11 @@ classDiagram
         +status: str
         +created_at: datetime
         +created_by: str
+        +schedule_type: str
+        +cron_expression: str
+        +timezone: str
+        +enabled: bool
+        +auto_generate_doc: bool
     }
     
     class ReportInstance {
@@ -165,7 +170,7 @@ class ReportDocument:
     template_id: str
     
     format: str  # word/pdf/markdown
-    hofs_path: str  # HOFS 分布式文件存储路径
+    file_path: str  # 文档存储路径
     file_size: int
     
     version: int
@@ -173,6 +178,7 @@ class ReportDocument:
     
     created_at: datetime
     created_by: str
+
 ```
 
 ---
