@@ -339,28 +339,48 @@
             height: 100%;
         }
 
-        .chat-messages {
+        /* Chat Mode - Immersive Layout */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 120px);
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        #chat-messages {
             flex: 1;
             overflow-y: auto;
-            padding: 16px 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-bottom: 100px;
+            /* 为固底输入框留空 */
         }
 
         .chat-msg {
-            margin-bottom: 16px;
             display: flex;
-            gap: 12px;
+            flex-direction: column;
+            max-width: 85%;
         }
 
         .chat-msg.user {
-            flex-direction: row-reverse;
+            align-self: flex-end;
+        }
+
+        .chat-msg.assistant {
+            align-self: flex-start;
         }
 
         .chat-bubble {
-            max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 16px;
+            padding: 12px 18px;
+            border-radius: 18px;
             font-size: 14px;
             line-height: 1.6;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
             white-space: pre-wrap;
         }
 
@@ -372,19 +392,38 @@
 
         .chat-msg.assistant .chat-bubble {
             background: var(--bg-card);
+            color: var(--text-primary);
             border-bottom-left-radius: 4px;
+            border: 1px solid var(--border);
         }
 
         .chat-input-row {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 300px);
+            max-width: 760px;
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 30px;
             display: flex;
-            gap: 10px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border);
+            gap: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            z-index: 100;
         }
 
         .chat-input-row input {
             flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            padding: 8px 16px;
+            outline: none;
+            font-size: 14px;
         }
+
 
         /* Instance detail */
         .section-card {
@@ -435,18 +474,20 @@
 <body>
     <div class="sidebar">
         <h1>📊 报告系统</h1>
-        <div class="nav-item active" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
+        <div class="nav-item active" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
+        <div class="nav-item" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
         <div class="nav-item" onclick="switchTab('instances')"><span class="icon">📄</span>报告实例</div>
         <div class="nav-item" onclick="switchTab('documents')"><span class="icon">📑</span>报告文档</div>
         <div class="nav-item" onclick="switchTab('tasks')"><span class="icon">⏰</span>定时任务</div>
-        <div class="nav-item" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
     </div>
+
 
     <div class="main">
         <div class="header">
-            <h2 id="page-title">模板管理</h2>
+            <h2 id="page-title">对话助手</h2>
             <span class="user-badge">👤 陆Sir (default)</span>
         </div>
+
         <div class="content" id="content"></div>
     </div>
 
@@ -457,8 +498,9 @@
 
     <script>
         const API = '/api';
-        let currentTab = 'templates';
+        let currentTab = 'chat';
         let chatSessionId = '';
+
         let chatMessages = [];
 
         // --- Navigation ---
@@ -682,10 +724,11 @@
         function renderChat(c) {
             c.innerHTML = `
         <div class="chat-container">
-            <div class="chat-messages" id="chat-messages">
-                ${chatMessages.length === 0 ? '<div class="empty-state"><div class="icon">💬</div><p>开始对话，告诉我您想生成什么报告</p></div>' : ''}
+            <div id="chat-messages">
+                ${chatMessages.length === 0 ? '<div class="empty-state" style="margin-top:100px"><div class="icon">💬</div><p>您好！我是您的智能报告助手。<br>您可以输入“帮我写个巡检报告”来开始。</p></div>' : ''}
                 ${chatMessages.map((m, idx) => {
-                if (m.role === 'user') {
+                const isUser = m.role === 'user';
+                if (isUser) {
                     return `<div class="chat-msg user"><div class="chat-bubble">${m.content}</div></div>`;
                 }
                 // assistant message
@@ -718,12 +761,13 @@
             </div>
             <div class="chat-input-row">
                 <input id="chat-input" placeholder="输入消息... 如：帮我生成设备巡检报告" onkeypress="if(event.key==='Enter')sendChat()">
-                <button class="btn btn-primary" onclick="sendChat()">发送</button>
+                <button class="btn btn-primary" style="border-radius:20px;padding:6px 16px" onclick="sendChat()">发送</button>
             </div>
         </div>`;
             const el = document.getElementById('chat-messages');
             el.scrollTop = el.scrollHeight;
         }
+
 
         async function sendChat() {
             const input = document.getElementById('chat-input');
