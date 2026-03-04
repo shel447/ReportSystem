@@ -24,21 +24,6 @@ async def list_design_docs() -> List[Dict[str, str]]:
             })
     return sorted(docs, key=lambda x: x["name"])
 
-@router.get("/design/{filename}")
-async def get_design_doc(filename: str):
-    """获取指定设计文档内容"""
-    if not filename.endswith(".md"):
-        filename += ".md"
-    
-    file_path = os.path.join(DESIGN_DIR, filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"Document {filename} not found")
-    
-    with open(file_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    
-    return {"name": filename, "content": content}
-
 @router.get("/design/download")
 async def download_design_docs():
     """打包并下载所有设计文档"""
@@ -60,3 +45,18 @@ async def download_design_docs():
         media_type="application/x-zip-compressed",
         headers={"Content-Disposition": "attachment; filename=design_docs.zip"}
     )
+
+@router.get("/design/{filename}")
+async def get_design_doc(filename: str):
+    """获取指定设计文档内容"""
+    if not filename.endswith(".md"):
+        filename += ".md"
+    
+    file_path = os.path.join(DESIGN_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Document {filename} not found")
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    return {"name": filename, "content": content}
