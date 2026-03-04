@@ -1,5 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 import os
+import zipfile
+import io
 from typing import List, Dict
 
 router = APIRouter(tags=["Design Docs"])
@@ -35,3 +38,25 @@ async def get_design_doc(filename: str):
         content = f.read()
     
     return {"name": filename, "content": content}
+
+@router.get("/design/download")
+async def download_design_docs():
+    """打包并下载所有设计文档"""
+    if not os.path.exists(DESIGN_DIR):
+        raise HTTPException(status_code=404, detail="Design directory not found")
+    
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for root, dirs, files in os.walk(DESIGN_DIR):
+            for file in files:
+                if file.endswith(".md"):
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, DESIGN_DIR)
+                    zip_file.write(file_path, arcname)
+    
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/x-zip-compressed",
+        headers={"Content-Disposition": "attachment; filename=design_docs.zip"}
+    )
