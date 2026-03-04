@@ -5,9 +5,9 @@ from fastapi.responses import FileResponse
 import os
 
 from .database import init_db
-from .routers import templates, instances, documents, tasks, chat
+from .routers import templates, instances, documents, tasks, chat, design
 
-app = FastAPI(title="智能报告系统", version="0.1.0")
+app = FastAPI(title="智能报告 system", version="1.2.0")
 
 # 注册路由
 API_PREFIX = "/api"
@@ -16,6 +16,7 @@ app.include_router(instances.router, prefix=API_PREFIX)
 app.include_router(documents.router, prefix=API_PREFIX)
 app.include_router(tasks.router, prefix=API_PREFIX)
 app.include_router(chat.router, prefix=API_PREFIX)
+app.include_router(design.router, prefix=API_PREFIX)
 
 # 静态文件 - 前端
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")

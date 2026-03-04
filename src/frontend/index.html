@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能报告系统</title>
+    <title>智能报告系统（需求分析用Demo）</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         :root {
             --bg-primary: #0f0f23;
@@ -473,7 +474,9 @@
 
 <body>
     <div class="sidebar">
-        <h1>📊 报告系统</h1>
+        <h1>📊 报告系统<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;font-weight:400">（需求分析用Demo）
+                v1.2.0</div>
+        </h1>
         <div class="nav-item active" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
         <div class="nav-item" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
         <div class="nav-item" onclick="switchTab('instances')"><span class="icon">📄</span>报告实例</div>
@@ -485,7 +488,12 @@
     <div class="main">
         <div class="header">
             <h2 id="page-title">对话助手</h2>
-            <span class="user-badge">👤 陆Sir (default)</span>
+            <div style="display:flex; gap:12px; align-items:center;">
+                <button onclick="viewHelp()"
+                    style="padding:6px 14px;font-size:13px;background:var(--bg-input);border:1px solid var(--border);color:var(--text-primary);border-radius:20px;cursor:pointer;transition:all 0.2s">❓
+                    帮助</button>
+                <span class="user-badge">👤 陆Sir (default)</span>
+            </div>
         </div>
 
         <div class="content" id="content"></div>
@@ -1247,6 +1255,70 @@
             }
         }
 
+        // --- Help & Docs ---
+        async function viewHelp() {
+            try {
+                const res = await fetch(`${API}/design`);
+                if (!res.ok) throw new Error("Failed to fetch");
+                const docs = await res.json();
+
+                let html = `
+                <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+                    <h3 style="font-size:18px">📖 系统设计文档与帮助</h3>
+                    <button onclick="hideModal()" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:20px">&times;</button>
+                </div>
+                <div style="color:var(--text-secondary);margin-bottom:16px;font-size:13px">点击下方条目可在线预览相关文档</div>
+                <div style="display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto">
+                `;
+                docs.forEach(d => {
+                    html += `<div onclick="viewDesignDoc('${d.name}')" style="padding:12px 16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+                        <span style="font-weight:500">${d.title}</span><span style="color:var(--text-secondary);font-size:12px">📄 ${d.name}</span>
+                    </div>`;
+                });
+                html += `</div>`;
+                showModal(html);
+            } catch (err) {
+                console.error(err);
+                alert("无法获取设计文档清单");
+            }
+        }
+
+        async function viewDesignDoc(filename) {
+            try {
+                const res = await fetch(`${API}/design/${filename}`);
+                if (!res.ok) throw new Error("Failed to fetch");
+                const doc = await res.json();
+
+                // Add minor markdown specific styling inline
+                const contentHtml = marked.parse(doc.content);
+                let html = `
+                <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+                    <div style="display:flex;align-items:center;gap:12px">
+                        <button onclick="viewHelp()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:20px" title="返回列表">←</button>
+                        <h3 style="font-size:18px">${doc.name}</h3>
+                    </div>
+                </div>
+                <div class="md-preview" style="background:var(--bg-secondary);padding:24px;border-radius:8px;max-height:65vh;overflow-y:auto;line-height:1.6;font-size:14px;color:var(--text-primary)">
+                    ${contentHtml}
+                </div>
+                <style>
+                    .md-preview h1, .md-preview h2, .md-preview h3 { margin-top:1.5em;margin-bottom:0.5em;color:var(--accent); }
+                    .md-preview pre { background:var(--bg-card);padding:12px;border-radius:6px;overflow-x:auto;margin:1em 0; border:1px solid var(--border); }
+                    .md-preview code { font-family:monospace;background:rgba(255,255,255,0.1);padding:2px 4px;border-radius:4px; }
+                    .md-preview ul, .md-preview ol { padding-left:2em;margin-bottom:1em; }
+                    .md-preview a { color:var(--success);text-decoration:none; }
+                    .md-preview blockquote { border-left:4px solid var(--border);padding-left:1em;color:var(--text-secondary);margin:1em 0; }
+                    .md-preview table { width:100%;border-collapse:collapse;margin:1em 0; }
+                    .md-preview th, .md-preview td { border:1px solid var(--border);padding:8px 12px;text-align:left; }
+                    .md-preview th { background:var(--bg-card); }
+                </style>
+                `;
+                showModal(html);
+            } catch (err) {
+                console.error(err);
+                alert("无法加载文档内容");
+            }
+        }
 
         // --- Modal ---
         function showModal(html) {
