@@ -1296,23 +1296,19 @@
                 if (!res.ok) throw new Error("Failed to fetch");
                 const doc = await res.json();
 
-                // Configure marked to handle mermaid code blocks
-                const renderer = new marked.Renderer();
-                const defaultCode = renderer.code.bind(renderer);
-                renderer.code = function (code, language, isEscaped) {
-                    if (language === 'mermaid') {
-                        return `<div class="mermaid">${code}</div>`;
+                // Configure marked to handle mermaid code blocks (Compatible with marked v12+)
+                const renderer = {
+                    code(token) {
+                        const { text, lang } = token;
+                        if (lang === 'mermaid') {
+                            return `<div class="mermaid">${text}</div>`;
+                        }
+                        // Returning false or undefined tells marked to use default renderer
+                        return undefined;
                     }
-                    return defaultCode(code, language, isEscaped);
                 };
-                // Use newer marked.use if available or setOptions
-                if (marked.use) {
-                    marked.use({ renderer });
-                } else {
-                    marked.setOptions({ renderer: renderer });
-                }
 
-                const contentHtml = marked.parse(doc.content);
+                const contentHtml = marked.parse(doc.content, { renderer });
                 let html = `
                 <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
                     <div style="display:flex;align-items:center;gap:12px">
@@ -1334,28 +1330,22 @@
                     .md-preview table { width:100%;border-collapse:collapse;margin:1em 0; }
                     .md-preview th, .md-preview td { border:1px solid var(--border);padding:8px 12px;text-align:left; }
                     .md-preview th { background:var(--bg-card); }
-                    .mermaid { background: white; border-radius: 8px; padding: 10px; margin: 10px 0; display: flex; justify-content: center; }
+                    .mermaid { background: white; border-radius: 8px; padding: 15px; margin: 20px 0; display: flex; justify-content: center; min-height: 100px; }
                 </style>
                 `;
                 showModal(html, true); // true for large modal
 
                 // Initialize Mermaid graph formatting for current injected data
                 if (window.mermaid) {
-                    mermaid.initialize({ startOnLoad: false, theme: 'default' }); // light theme inside white bg for better contrast
-                    // Use a slightly longer timeout to ensure content is in DOM
-                    setTimeout(async () => {
+                    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+                    // Use standard init call which is widely compatible
+                    setTimeout(() => {
                         try {
-                            if (mermaid.run) {
-                                await mermaid.run({
-                                    nodes: document.querySelectorAll('.mermaid')
-                                });
-                            } else {
-                                mermaid.init(undefined, document.querySelectorAll('.mermaid'));
-                            }
+                            mermaid.init(undefined, ".mermaid");
                         } catch (me) {
                             console.error("Mermaid error:", me);
                         }
-                    }, 100);
+                    }, 200);
                 }
             } catch (err) {
                 console.error(err);
@@ -1366,17 +1356,13 @@
         // --- Modal ---
         function showModal(html, isLarge = false) {
             const modalContent = document.getElementById('modal-content');
-            if (isLarge) {
-                modalContent.classList.add('modal-lg');
-            } else {
-                modalContent.classList.remove('modal-lg');
-            }
+            modalContent.className = 'modal' + (isLarge ? ' modal-lg' : '');
             modalContent.innerHTML = html;
             document.getElementById('modal-overlay').classList.add('show');
         }
         function hideModal() {
             document.getElementById('modal-overlay').classList.remove('show');
-            document.getElementById('modal-content').classList.remove('modal-lg'); // Ensure modal-lg is removed on hide
+            document.getElementById('modal-content').classList.remove('modal-lg');
         }
         document.getElementById('modal-overlay').addEventListener('click', function (e) {
             if (e.target === this) hideModal();
