@@ -26,15 +26,23 @@ def _generate_from_outline(outline, template_name, date_str, devices):
     sections = []
     for item in outline:
         title = item.get("title", "章节")
+        level = item.get("level", 1)
+        
+        # 限制层级在一个合理的 Markdown 范围内
+        if level > 6: level = 6
+        elif level < 1: level = 1
+        
+        md_heading = "#" * level
+
         sections.append({
             "title": title,
-            "content": f"【{title}】\n\n"
+            "content": f"{md_heading} {title}\n\n"
                        f"报告日期：{date_str}\n"
                        f"涉及设备：{', '.join(devices)}\n\n"
                        f"经过系统分析，{title}相关指标均处于正常范围。"
                        f"所有设备运行稳定，未发现重大异常。",
             "generated_at": datetime.now().isoformat(),
-            "model": "mock-llm-v1",
+            "model": "mock-llm-v1-hierarchical",
         })
     return sections
 
