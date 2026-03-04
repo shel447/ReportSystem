@@ -43,7 +43,7 @@ async def download_design_docs():
     return StreamingResponse(
         zip_buffer,
         media_type="application/x-zip-compressed",
-        headers={"Content-Disposition": "attachment; filename=design_docs.zip"}
+        headers={"Content-Disposition": 'attachment; filename="design_docs.zip"'}
     )
 
 @router.get("/design/{filename}")

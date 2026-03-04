@@ -72,7 +72,7 @@ async def export_feedbacks(db: Session = Depends(get_db)):
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/markdown",
-        headers={"Content-Disposition": "attachment; filename=feedbacks_report.md"}
+        headers={"Content-Disposition": 'attachment; filename="feedbacks_report.md"'}
     )
 
 @router.get("/")
