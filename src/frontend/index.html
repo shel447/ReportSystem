@@ -559,6 +559,96 @@
         </div>`;
         }
 
+        function showCreateTemplate() {
+            showModal(`
+                <h3>新建报告模板</h3>
+                <div class="form-group">
+                    <label>模板名称</label>
+                    <input id="tmpl-name" placeholder="如：周度运营分析报告">
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <input id="tmpl-desc" placeholder="简要说明模板用途">
+                </div>
+                <div class="form-group">
+                    <label>场景</label>
+                    <input id="tmpl-scenario" placeholder="如：设备监控 / 业务分析">
+                </div>
+                <div class="form-group">
+                    <label>报告类型</label>
+                    <select id="tmpl-type">
+                        <option value="daily">日报 (Daily)</option>
+                        <option value="weekly">周报 (Weekly)</option>
+                        <option value="special">专项报告 (Special)</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="hideModal()">取消</button>
+                    <button class="btn btn-primary" onclick="createTemplate()">创建</button>
+                </div>
+            `);
+        }
+
+        async function createTemplate() {
+            const data = {
+                name: document.getElementById('tmpl-name').value,
+                description: document.getElementById('tmpl-desc').value,
+                scenario: document.getElementById('tmpl-scenario').value,
+                report_type: document.getElementById('tmpl-type').value,
+                content_params: [
+                    { name: "date", label: "日期", type: "date", required: true, default: "" }
+                ],
+                outline: [
+                    { title: "摘要", sections: [{ title: "总体结论", generation_type: "llm" }] }
+                ]
+            };
+
+            const res = await fetch(`${API}/templates`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                hideModal();
+                loadContent();
+            } else {
+                const err = await res.json();
+                alert('创建失败: ' + (err.detail || '未知错误'));
+            }
+        }
+
+        async function viewTemplate(id) {
+            const t = await fetch(`${API}/templates/${id}`).then(r => r.json());
+            showModal(`
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                    <h3 style="margin:0">${t.name}</h3>
+                    <span class="badge badge-type">${t.report_type}</span>
+                </div>
+                <p style="color:var(--text-secondary);margin-bottom:20px">${t.description || '暂无描述'}</p>
+                <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;font-size:12px">
+                    <div style="margin-bottom:8px"><strong>场景:</strong> ${t.scenario || '通用'}</div>
+                    <div style="margin-bottom:8px"><strong>模板 ID:</strong> <code>${t.template_id}</code></div>
+                    <div style="margin-bottom:8px"><strong>参数数量:</strong> ${(t.content_params || []).length}</div>
+                    <div><strong>创建时间:</strong> ${t.created_at}</div>
+                </div>
+                <div class="form-actions" style="margin-top:24px">
+                    <button class="btn btn-primary" onclick="hideModal()">关闭</button>
+                    <button class="btn btn-pri-outline" onclick="deleteTemplate('${t.template_id}')" style="color:var(--danger)">删除模板</button>
+                </div>
+            `);
+        }
+
+        async function deleteTemplate(id) {
+            if (!confirm('确定要删除这个模板吗？这将无法撤销。')) return;
+            const res = await fetch(`${API}/templates/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                hideModal();
+                loadContent();
+            }
+        }
+
+
         // --- Instances ---
         async function renderInstances(c) {
             const instances = await fetch(`${API}/instances`).then(r => r.json());
@@ -789,6 +879,90 @@
             renderChat(document.getElementById('content'));
         }
 
+        async function viewInstanceDetail(dataOrId) {
+            let inst;
+            if (typeof dataOrId === 'string') {
+                inst = await fetch(`${API}/instances/${dataOrId}`).then(r => r.json());
+            } else {
+                inst = dataOrId;
+            }
+
+            const sectionsHtml = (inst.outline_content || []).map((s, idx) => `
+                <div style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid var(--accent)">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                        <strong style="font-size:14px;color:var(--text-primary)">${s.title}</strong>
+                        <button class="btn btn-secondary btn-sm" onclick="regenerateSection('${inst.instance_id}', ${idx})" style="padding:2px 8px;font-size:11px">重新生成</button>
+                    </div>
+                    <div style="margin-top:8px;font-size:13px;line-height:1.6;color:var(--text-secondary)">${s.content || '未生成内容'}</div>
+                </div>
+            `).join('');
+
+            showModal(`
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+                    <h3 style="margin:0">报告详情</h3>
+                    <span class="badge ${inst.status === 'finalized' ? 'badge-active' : 'badge-status'}">${inst.status === 'finalized' ? '已定稿' : '草稿'}</span>
+                </div>
+                
+                <div style="margin-bottom:20px;font-size:12px;color:var(--text-secondary)">
+                    <span>实例 ID: <code>${inst.instance_id}</code></span>
+                    <span style="margin-left:16px">生成时间: ${inst.created_at}</span>
+                </div>
+
+                <div id="instance-sections" style="max-height:400px;overflow-y:auto;padding-right:8px">
+                    ${sectionsHtml}
+                </div>
+
+                <div class="form-actions" style="margin-top:24px;background:var(--bg-secondary);padding:16px;border-radius:8px;margin-left:-8px;margin-right:-8px">
+                    <button class="btn btn-secondary" onclick="hideModal()">关闭</button>
+                    <div style="flex:1"></div>
+                    <button class="btn btn-danger btn-sm" onclick="deleteInst('${inst.instance_id}')" style="margin-right:8px">删除</button>
+                    ${inst.status !== 'finalized' ? `<button class="btn btn-primary" onclick="finalizeInst('${inst.instance_id}')">✅ 定稿并归档</button>` : `<button class="btn btn-primary" onclick="alert('TODO: 导出文档')">📄 导出 PDF</button>`}
+                </div>
+            `);
+        }
+
+        async function finalizeInst(id) {
+            if (!confirm('确定要定稿吗？定稿后内容将不可更改。')) return;
+            const res = await fetch(`${API}/instances/${id}/finalize`, { method: 'POST' });
+            if (res.ok) {
+                hideModal();
+                loadContent();
+            }
+        }
+
+        async function finalizeInst(id) {
+            try {
+                const res = await fetch(`${API}/instances/${id}/finalize`, { method: 'POST' });
+                if (res.ok) {
+                    hideModal();
+                    // 切换到报告实例列表页面
+                    currentTab = 'instances';
+                    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                    document.querySelectorAll('.nav-item')[2].classList.add('active');
+                    document.getElementById('page-title').textContent = '报告实例';
+                    await loadContent();
+                    alert('✅ 定稿成功！报告已归档。');
+                } else {
+                    const err = await res.json();
+                    alert('定稿失败: ' + (err.detail || '未知错误'));
+                }
+            } catch (e) {
+                alert('定稿请求出错: ' + e.message);
+            }
+        }
+
+        async function deleteInst(id) {
+            await fetch(`${API}/instances/${id}`, { method: 'DELETE' });
+            hideModal();
+            loadContent();
+        }
+
+
+        async function regenerateSection(instId, index) {
+            const res = await fetch(`${API}/instances/${instId}/regenerate/${index}`, { method: 'POST' }).then(r => r.json());
+            viewInstanceDetail(res); // 刷新详情
+        }
+
         async function submitChatForm(templateId, formId) {
             const inputs = document.querySelectorAll('.' + formId + '-input');
             const params = {};
@@ -814,8 +988,8 @@
                 };
                 renderChat(document.getElementById('content'));
 
-                // 短暂延迟后跳转到实例详情
-                setTimeout(() => { showInstanceDetail(res); }, 800);
+                // 短暂延迟后跳转到实例详情 (已修正函数名)
+                setTimeout(() => { viewInstanceDetail(res); }, 800);
             } catch (e) {
                 chatMessages[chatMessages.length - 1] = {
                     role: 'assistant',
