@@ -7,6 +7,7 @@
     <title>智能报告系统（需求分析用Demo）</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
     <style>
         :root {
             --bg-primary: #0f0f23;
@@ -290,6 +291,12 @@
             width: 480px;
             max-height: 80vh;
             overflow-y: auto;
+        }
+
+        .modal-lg {
+            width: 800px !important;
+            max-width: 90vw !important;
+            max-height: 85vh !important;
         }
 
         .modal h3 {
@@ -1289,7 +1296,17 @@
                 if (!res.ok) throw new Error("Failed to fetch");
                 const doc = await res.json();
 
-                // Add minor markdown specific styling inline
+                // Configure marked to handle mermaid code blocks
+                const renderer = new marked.Renderer();
+                const defaultCode = renderer.code.bind(renderer);
+                renderer.code = function (code, language, isEscaped) {
+                    if (language === 'mermaid') {
+                        return `<div class="mermaid">${code}</div>`;
+                    }
+                    return defaultCode(code, language, isEscaped);
+                };
+                marked.setOptions({ renderer: renderer });
+
                 const contentHtml = marked.parse(doc.content);
                 let html = `
                 <div style="margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
@@ -1298,7 +1315,7 @@
                         <h3 style="font-size:18px">${doc.name}</h3>
                     </div>
                 </div>
-                <div class="md-preview" style="background:var(--bg-secondary);padding:24px;border-radius:8px;max-height:65vh;overflow-y:auto;line-height:1.6;font-size:14px;color:var(--text-primary)">
+                <div class="md-preview" style="background:var(--bg-secondary);padding:24px;border-radius:8px;max-height:70vh;overflow-y:auto;line-height:1.6;font-size:14px;color:var(--text-primary)">
                     ${contentHtml}
                 </div>
                 <style>
@@ -1313,7 +1330,12 @@
                     .md-preview th { background:var(--bg-card); }
                 </style>
                 `;
-                showModal(html);
+                showModal(html, true); // true for large modal
+
+                // Initialize Mermaid graph formatting for current injected data
+                if (window.mermaid) {
+                    mermaid.init(undefined, document.querySelectorAll('.mermaid'));
+                }
             } catch (err) {
                 console.error(err);
                 alert("无法加载文档内容");
@@ -1321,12 +1343,19 @@
         }
 
         // --- Modal ---
-        function showModal(html) {
-            document.getElementById('modal-content').innerHTML = html;
+        function showModal(html, isLarge = false) {
+            const modalContent = document.getElementById('modal-content');
+            if (isLarge) {
+                modalContent.classList.add('modal-lg');
+            } else {
+                modalContent.classList.remove('modal-lg');
+            }
+            modalContent.innerHTML = html;
             document.getElementById('modal-overlay').classList.add('show');
         }
         function hideModal() {
             document.getElementById('modal-overlay').classList.remove('show');
+            document.getElementById('modal-content').classList.remove('modal-lg'); // Ensure modal-lg is removed on hide
         }
         document.getElementById('modal-overlay').addEventListener('click', function (e) {
             if (e.target === this) hideModal();
