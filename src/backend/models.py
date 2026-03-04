@@ -104,3 +104,13 @@ class ChatSession(Base):
     status = Column(String, default="active")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    feedback_id = Column(String, primary_key=True, default=gen_id)
+    user_ip = Column(String, nullable=True)
+    content = Column(Text, nullable=False)
+    priority = Column(String, default="medium")  # low, medium, high
+    created_at = Column(DateTime, server_default=func.now())
