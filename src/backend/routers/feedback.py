@@ -79,3 +79,18 @@ async def export_feedbacks(db: Session = Depends(get_db)):
 async def list_feedbacks(db: Session = Depends(get_db)):
     """获取反馈列表"""
     return db.query(Feedback).order_by(Feedback.created_at.desc()).all()
+
+@router.delete("/{feedback_id}")
+async def delete_feedback(feedback_id: str, db: Session = Depends(get_db)):
+    """删除指定的反馈意见"""
+    fb = db.query(Feedback).filter(Feedback.feedback_id == feedback_id).first()
+    if not fb:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+    
+    try:
+        db.delete(fb)
+        db.commit()
+        return {"status": "success", "message": "Feedback deleted successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))

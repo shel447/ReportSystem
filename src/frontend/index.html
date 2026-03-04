@@ -1485,6 +1485,19 @@
             renderFeedbackImages();
         }
 
+        async function deleteFeedback(id) {
+            if (!confirm("⚠️ 确定要永久删除这条反馈意见吗？此操作无法撤销。")) return;
+            try {
+                const res = await fetch(`${API}/feedback/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error("Delete failed");
+                // Refresh list
+                viewAllFeedbacks();
+            } catch (err) {
+                console.error("Delete error:", err);
+                alert("删除失败，请稍后重试");
+            }
+        }
+
         async function submitFeedback() {
             const submitter = document.getElementById('fb-submitter').value.trim();
             const content = document.getElementById('fb-content').value.trim();
@@ -1555,7 +1568,10 @@
                                     <span style="font-weight:600;font-size:14px;color:var(--text-primary);margin-left:5px">👤 ${fb.submitter || '匿名'}</span>
                                     <span style="color:var(--text-secondary);font-size:12px;margin-left:5px">${new Date(fb.created_at).toLocaleString()}</span>
                                 </div>
-                                <span style="color:var(--text-secondary);font-size:11px">IP: ${fb.user_ip}</span>
+                                <div style="display:flex;align-items:center;gap:15px">
+                                    <span style="color:var(--text-secondary);font-size:11px">IP: ${fb.user_ip}</span>
+                                    <button onclick="deleteFeedback('${fb.feedback_id}')" style="background:none;border:none;color:#ff4d4f;cursor:pointer;font-size:14px;padding:2px;display:flex;align-items:center;justify-content:center" title="删除此反馈">🗑️删除</button>
+                                </div>
                             </div>
                             <div style="font-size:14px;color:var(--text-primary);line-height:1.6;white-space:pre-wrap;margin-bottom:12px">${fb.content}</div>
                             ${fb.images && fb.images.length > 0 ? `
