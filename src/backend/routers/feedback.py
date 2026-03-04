@@ -43,7 +43,7 @@ async def create_feedback(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/export")
+@router.get("/export.md")
 async def export_feedbacks(db: Session = Depends(get_db)):
     """导出所有反馈为 Markdown 文档"""
     feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()

@@ -24,7 +24,7 @@ async def list_design_docs() -> List[Dict[str, str]]:
             })
     return sorted(docs, key=lambda x: x["name"])
 
-@router.get("/design/download")
+@router.get("/design/download.zip")
 async def download_design_docs():
     """打包并下载所有设计文档"""
     if not os.path.exists(DESIGN_DIR):

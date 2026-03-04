@@ -29,7 +29,7 @@ wheels/
 *.egg
 
 # Database
-src/backend/report_system.db
+# src/backend/report_system.db
 
 # Project specific
 .codemate/
