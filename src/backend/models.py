@@ -111,6 +111,7 @@ class Feedback(Base):
 
     feedback_id = Column(String, primary_key=True, default=gen_id)
     user_ip = Column(String, nullable=True)
+    submitter = Column(String, nullable=True)  # 提交人姓名
     content = Column(Text, nullable=False)
     priority = Column(String, default="medium")  # low, medium, high
     images = Column(JSON, default=list)  # 存储图片 Base64 列表
