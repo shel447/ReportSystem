@@ -26,7 +26,8 @@ if os.path.exists(FRONTEND_DIR):
 @app.get("/")
 async def index():
     index_path = os.path.join(FRONTEND_DIR, "index.html")
-    return FileResponse(index_path)
+    return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
 
 
 @app.on_event("startup")
