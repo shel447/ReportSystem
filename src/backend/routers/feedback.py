@@ -10,6 +10,8 @@ router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
 from datetime import datetime
 import io
+import zipfile
+import base64
 
 class FeedbackCreate(BaseModel):
     submitter: str
@@ -43,9 +45,9 @@ async def create_feedback(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/export.md")
+@router.get("/export.zip")
 async def export_feedbacks(db: Session = Depends(get_db)):
-    """导出所有反馈为 Markdown 文档"""
+    """导出所有反馈及相关图片资产资源为 ZIP 压缩包"""
     feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
     
     md_content = "# 系统意见反馈汇总报告\n\n"
@@ -55,24 +57,55 @@ async def export_feedbacks(db: Session = Depends(get_db)):
     
     priority_map = {'high': '🔴 高', 'medium': '🟡 中', 'low': '🟢 低'}
     
-    for fb in feedbacks:
-        time_str = fb.created_at.strftime('%Y-%m-%d %H:%M:%S')
-        md_content += f"### [{priority_map.get(fb.priority, '中')}] {fb.content[:30]}...\n\n"
-        md_content += f"- **提出人**: {fb.submitter or '匿名'}\n"
-        md_content += f"- **时间**: {time_str}\n"
-        md_content += f"- **IP**: {fb.user_ip}\n\n"
-        md_content += f"**反馈详情**:\n{fb.content}\n\n"
-        
-        if fb.images:
-            md_content += f"**附件图片**: 已附带 {len(fb.images)} 张截图 (Base64 数据略)\n\n"
-        
-        md_content += "---\n\n"
+    zip_buffer = io.BytesIO()
     
-    output = io.StringIO(md_content)
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for fb in feedbacks:
+            time_str = fb.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            md_content += f"### [{priority_map.get(fb.priority, '中')}] {fb.content[:30]}...\n\n"
+            md_content += f"- **提出人**: {fb.submitter or '匿名'}\n"
+            md_content += f"- **时间**: {time_str}\n"
+            md_content += f"- **IP**: {fb.user_ip}\n\n"
+            md_content += f"**反馈详情**:\n{fb.content}\n\n"
+            
+            if fb.images and len(fb.images) > 0:
+                md_content += f"**附件图片**:\n\n"
+                for idx, b64_str in enumerate(fb.images):
+                    try:
+                        # Parse data URI: data:image/png;base64,iVBOR...
+                        header, encoded = b64_str.split(",", 1)
+                        # Extract extension from header (e.g. image/png -> png)
+                        ext = "png"
+                        if "image/jpeg" in header:
+                            ext = "jpg"
+                        elif "image/webp" in header:
+                            ext = "webp"
+                        elif "image/gif" in header:
+                            ext = "gif"
+                            
+                        image_data = base64.b64decode(encoded)
+                        asset_path = f"assets/{fb.feedback_id}_{idx}.{ext}"
+                        
+                        # Write image to zip
+                        zip_file.writestr(asset_path, image_data)
+                        
+                        # Add relative link to markdown
+                        md_content += f"![相关截图 {idx+1}]({asset_path})\n\n"
+                    except Exception as e:
+                        print(f"Error decoding image {idx} for feedback {fb.feedback_id}: {e}")
+                        md_content += f"> [图片解析失败]\n\n"
+            
+            md_content += "---\n\n"
+            
+        # Write the aggregated markdown file
+        zip_file.writestr("feedbacks_report.md", md_content.encode("utf-8"))
+        
+    zip_buffer.seek(0)
+    
     return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/markdown",
-        headers={"Content-Disposition": 'attachment; filename="feedbacks_report.md"'}
+        zip_buffer,
+        media_type="application/x-zip-compressed",
+        headers={"Content-Disposition": 'attachment; filename="feedbacks_export.zip"'}
     )
 
 @router.get("/")
