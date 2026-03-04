@@ -958,6 +958,7 @@
                 if (m.action && m.action.type === 'show_param_form') {
                     const a = m.action;
                     const formId = 'chat-form-' + idx;
+                    const disabledStr = a.submitted ? 'disabled' : '';
                     html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
                     html += `<div style="font-weight:600;margin-bottom:12px;color:var(--success)">📋 ${a.template_name} - 参数配置</div>`;
                     const params = (a.content_params && a.content_params.length > 0) ? a.content_params : a.default_params;
@@ -968,31 +969,36 @@
                         const required = p.required ? ' *' : '';
                         html += `<div class="form-group">`;
                         html += `<label>${p.label || p.name}${required}</label>`;
-                        html += `<input type="${inputType}" data-param-name="${p.name}" class="${formId}-input" value="${defaultVal}" placeholder="${placeholder}" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);width:100%;font-size:13px">`;
+                        html += `<input type="${inputType}" ${disabledStr} data-param-name="${p.name}" class="${formId}-input" value="${defaultVal}" placeholder="${placeholder}" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);width:100%;font-size:13px">`;
                         html += `</div>`;
                     });
 
-                    if (a.outline && a.outline.length > 0) {
-                        html += `<div style="margin-top:16px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">📋 报告大纲预览 & 自定义</div>`;
-                        html += `<div id="${formId}-outline-container">`;
-                        a.outline.forEach((s, s_idx) => {
-                            html += `
-                            <div class="chat-outline-item" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid var(--accent)">
-                                <div style="flex:1">
-                                    <input class="outline-title" value="${s.title}" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:12px;font-weight:600">
-                                    <input class="outline-desc" value="${s.description || ''}" placeholder="描述（可选）" style="width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:11px">
-                                </div>
-                                <button onclick="this.closest('.chat-outline-item').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:2px">✕</button>
-                            </div>`;
-                        });
-                        html += `</div>`;
-                        html += `<button class="btn btn-secondary btn-sm" onclick="addChatOutlineSection('${formId}-outline-container')" style="padding:4px 8px;font-size:11px">+ 添加章节</button>`;
-                        html += `</div>`;
-                    }
+                    html += `<div style="margin-top:16px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">📋 报告大纲预览 & 自定义</div>`;
+                    html += `<div id="${formId}-outline-container">`;
+                    (a.outline || []).forEach((s, s_idx) => {
+                        html += `
+                        <div class="chat-outline-item" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid var(--accent)">
+                            <div style="flex:1">
+                                <input class="outline-title" ${disabledStr} value="${s.title}" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:12px;font-weight:600">
+                                <input class="outline-desc" ${disabledStr} value="${s.description || ''}" placeholder="描述（可选）" style="width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:11px">
+                            </div>
+                            ${!a.submitted ? `<button onclick="this.closest('.chat-outline-item').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:2px">✕</button>` : ''}
+                        </div>`;
+                    });
+                    html += `</div>`;
 
-                    html += `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">`;
-                    html += `<button class="btn btn-primary" onclick="submitChatForm('${a.template_id}','${formId}')">🚀 生成报告</button>`;
-                    html += `</div></div>`;
+                    if (!a.submitted) {
+                        html += `<button class="btn btn-secondary btn-sm" onclick="addChatOutlineSection('${formId}-outline-container')" style="padding:4px 8px;font-size:11px">+ 添加章节</button>`;
+                    }
+                    html += `</div>`;
+
+                    if (!a.submitted) {
+                        html += `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">`;
+                        html += `<button class="btn btn-primary" onclick="submitChatForm('${a.template_id}','${formId}')">🚀 生成报告</button>`;
+                        html += `</div></div>`;
+                    } else {
+                        html += `<div style="margin-top:12px;color:var(--text-secondary);font-size:12px;text-align:right">✅ 已提交生成</div></div>`;
+                    }
                 }
                 html += `</div></div>`;
                 return html;
@@ -1144,6 +1150,18 @@
                 })).filter(o => o.title);
             }
 
+            // 更新 chatMessages 以保存用户修改并冻结表单
+            const msgIdx = parseInt(formId.split('-')[2]);
+            if (chatMessages[msgIdx] && chatMessages[msgIdx].action) {
+                const act = chatMessages[msgIdx].action;
+                const pList = (act.content_params && act.content_params.length > 0) ? act.content_params : act.default_params;
+                pList.forEach(p => {
+                    if (params[p.name] !== undefined) p.default = params[p.name];
+                });
+                act.outline = outline_override;
+                act.submitted = true;
+            }
+
             // 添加生成中提示
             chatMessages.push({ role: 'assistant', content: '⏳ 正在为您生成报告，请稍候...' });
             renderChat(document.getElementById('content'));
@@ -1166,7 +1184,7 @@
                 };
                 renderChat(document.getElementById('content'));
 
-                // 短暂延迟后跳转到实例详情 (已修正函数名)
+                // 短暂延迟后跳转到实例详情
                 setTimeout(() => { viewInstanceDetail(res); }, 800);
             } catch (e) {
                 chatMessages[chatMessages.length - 1] = {
