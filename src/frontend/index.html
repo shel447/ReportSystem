@@ -582,6 +582,28 @@
                         <option value="special">专项报告 (Special)</option>
                     </select>
                 </div>
+
+                <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                        <label style="margin:0;font-weight:600;font-size:14px">📋 报告大纲</label>
+                        <button class="btn btn-secondary btn-sm" onclick="addOutlineSection('tmpl-outline')" style="padding:4px 10px;font-size:11px">+ 添加章节</button>
+                    </div>
+                    <div id="tmpl-outline">
+                        <div class="outline-item" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:10px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--accent)">
+                            <div style="flex:1">
+                                <input class="outline-title" value="执行摘要" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:13px;font-weight:600">
+                                <input class="outline-desc" value="总体概述与结论" placeholder="章节描述（可选）" style="width:100%;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px">
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:2px">
+                                <button onclick="moveOutlineItem(this,-1)" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;padding:2px">▲</button>
+                                <button onclick="removeOutlineItem(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:2px">✕</button>
+                                <button onclick="moveOutlineItem(this,1)" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;padding:2px">▼</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">💡 大纲定义报告的章节结构，每个章节会由 AI 独立生成内容</div>
+                </div>
+
                 <div class="form-actions">
                     <button class="btn btn-secondary" onclick="hideModal()">取消</button>
                     <button class="btn btn-primary" onclick="createTemplate()">创建</button>
@@ -589,7 +611,55 @@
             `);
         }
 
+        function addOutlineSection(containerId) {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = 'outline-item';
+            div.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:10px;background:var(--bg-secondary);border-radius:8px;border-left:3px solid var(--accent)';
+            div.innerHTML = `
+                <div style="flex:1">
+                    <input class="outline-title" value="" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:13px;font-weight:600">
+                    <input class="outline-desc" value="" placeholder="章节描述（可选）" style="width:100%;padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:12px">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px">
+                    <button onclick="moveOutlineItem(this,-1)" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;padding:2px">▲</button>
+                    <button onclick="removeOutlineItem(this)" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:2px">✕</button>
+                    <button onclick="moveOutlineItem(this,1)" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;padding:2px">▼</button>
+                </div>`;
+            container.appendChild(div);
+        }
+
+        function removeOutlineItem(btn) {
+            const item = btn.closest('.outline-item');
+            if (item.parentElement.querySelectorAll('.outline-item').length <= 1) {
+                alert('至少保留一个章节');
+                return;
+            }
+            item.remove();
+        }
+
+        function moveOutlineItem(btn, dir) {
+            const item = btn.closest('.outline-item');
+            const container = item.parentElement;
+            if (dir === -1 && item.previousElementSibling) {
+                container.insertBefore(item, item.previousElementSibling);
+            } else if (dir === 1 && item.nextElementSibling) {
+                container.insertBefore(item.nextElementSibling, item);
+            }
+        }
+
+        function collectOutline(containerId) {
+            const items = document.querySelectorAll(`#${containerId} .outline-item`);
+            return Array.from(items).map(item => ({
+                title: item.querySelector('.outline-title').value.trim(),
+                description: item.querySelector('.outline-desc')?.value.trim() || ''
+            })).filter(o => o.title);
+        }
+
         async function createTemplate() {
+            const outline = collectOutline('tmpl-outline');
+            if (outline.length === 0) { alert('请至少添加一个大纲章节'); return; }
+
             const data = {
                 name: document.getElementById('tmpl-name').value,
                 description: document.getElementById('tmpl-desc').value,
@@ -598,9 +668,7 @@
                 content_params: [
                     { name: "date", label: "日期", type: "date", required: true, default: "" }
                 ],
-                outline: [
-                    { title: "摘要", sections: [{ title: "总体结论", generation_type: "llm" }] }
-                ]
+                outline: outline
             };
 
             const res = await fetch(`${API}/templates`, {
@@ -618,26 +686,43 @@
             }
         }
 
+
         async function viewTemplate(id) {
             const t = await fetch(`${API}/templates/${id}`).then(r => r.json());
+            const outlineHtml = (t.outline || []).length > 0
+                ? (t.outline || []).map((s, i) => `
+                    <div style="display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--bg-secondary);border-radius:6px;margin-bottom:4px;border-left:3px solid var(--accent)">
+                        <span style="color:var(--text-secondary);font-size:11px;min-width:20px">${i + 1}.</span>
+                        <div>
+                            <strong style="font-size:13px;color:var(--text-primary)">${s.title}</strong>
+                            ${s.description ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${s.description}</div>` : ''}
+                        </div>
+                    </div>`).join('')
+                : '<div style="color:var(--text-secondary);font-size:12px">暂无大纲定义</div>';
+
             showModal(`
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
                     <h3 style="margin:0">${t.name}</h3>
                     <span class="badge badge-type">${t.report_type}</span>
                 </div>
                 <p style="color:var(--text-secondary);margin-bottom:20px">${t.description || '暂无描述'}</p>
-                <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;font-size:12px">
+                <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;font-size:12px;margin-bottom:16px">
                     <div style="margin-bottom:8px"><strong>场景:</strong> ${t.scenario || '通用'}</div>
                     <div style="margin-bottom:8px"><strong>模板 ID:</strong> <code>${t.template_id}</code></div>
                     <div style="margin-bottom:8px"><strong>参数数量:</strong> ${(t.content_params || []).length}</div>
                     <div><strong>创建时间:</strong> ${t.created_at}</div>
                 </div>
-                <div class="form-actions" style="margin-top:24px">
+                <div style="margin-bottom:16px">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:8px">📋 报告大纲 (${(t.outline || []).length} 个章节)</div>
+                    ${outlineHtml}
+                </div>
+                <div class="form-actions">
                     <button class="btn btn-primary" onclick="hideModal()">关闭</button>
                     <button class="btn btn-pri-outline" onclick="deleteTemplate('${t.template_id}')" style="color:var(--danger)">删除模板</button>
                 </div>
             `);
         }
+
 
         async function deleteTemplate(id) {
             if (!confirm('确定要删除这个模板吗？这将无法撤销。')) return;
@@ -886,6 +971,25 @@
                         html += `<input type="${inputType}" data-param-name="${p.name}" class="${formId}-input" value="${defaultVal}" placeholder="${placeholder}" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);width:100%;font-size:13px">`;
                         html += `</div>`;
                     });
+
+                    if (a.outline && a.outline.length > 0) {
+                        html += `<div style="margin-top:16px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">📋 报告大纲预览 & 自定义</div>`;
+                        html += `<div id="${formId}-outline-container">`;
+                        a.outline.forEach((s, s_idx) => {
+                            html += `
+                            <div class="chat-outline-item" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid var(--accent)">
+                                <div style="flex:1">
+                                    <input class="outline-title" value="${s.title}" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:12px;font-weight:600">
+                                    <input class="outline-desc" value="${s.description || ''}" placeholder="描述（可选）" style="width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:11px">
+                                </div>
+                                <button onclick="this.closest('.chat-outline-item').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:2px">✕</button>
+                            </div>`;
+                        });
+                        html += `</div>`;
+                        html += `<button class="btn btn-secondary btn-sm" onclick="addChatOutlineSection('${formId}-outline-container')" style="padding:4px 8px;font-size:11px">+ 添加章节</button>`;
+                        html += `</div>`;
+                    }
+
                     html += `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">`;
                     html += `<button class="btn btn-primary" onclick="submitChatForm('${a.template_id}','${formId}')">🚀 生成报告</button>`;
                     html += `</div></div>`;
@@ -901,6 +1005,21 @@
         </div>`;
             const el = document.getElementById('chat-messages');
             el.scrollTop = el.scrollHeight;
+        }
+
+        function addChatOutlineSection(containerId) {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = 'chat-outline-item';
+            div.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;padding:8px;background:var(--bg-secondary);border-radius:6px;border-left:3px solid var(--accent)';
+            div.innerHTML = `
+                <div style="flex:1">
+                    <input class="outline-title" value="" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:12px;font-weight:600">
+                    <input class="outline-desc" value="" placeholder="描述（可选）" style="width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:11px">
+                </div>
+                <button onclick="this.closest('.chat-outline-item').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:2px">✕</button>
+            `;
+            container.appendChild(div);
         }
 
 
@@ -1015,6 +1134,16 @@
                 params[inp.dataset.paramName] = inp.value;
             });
 
+            const outlineContainer = document.getElementById(formId + '-outline-container');
+            let outline_override = [];
+            if (outlineContainer) {
+                const outlineItems = outlineContainer.querySelectorAll('.chat-outline-item');
+                outline_override = Array.from(outlineItems).map(item => ({
+                    title: item.querySelector('.outline-title').value.trim(),
+                    description: item.querySelector('.outline-desc')?.value.trim() || ''
+                })).filter(o => o.title);
+            }
+
             // 添加生成中提示
             chatMessages.push({ role: 'assistant', content: '⏳ 正在为您生成报告，请稍候...' });
             renderChat(document.getElementById('content'));
@@ -1023,7 +1152,11 @@
                 const res = await fetch(`${API}/instances`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ template_id: templateId, input_params: params })
+                    body: JSON.stringify({
+                        template_id: templateId,
+                        input_params: params,
+                        outline_override: outline_override.length > 0 ? outline_override : undefined
+                    })
                 }).then(r => r.json());
 
                 // 替换最后的提示消息

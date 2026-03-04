@@ -66,6 +66,7 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
             "template_name": matched.name,
             "scenario": matched.scenario or "",
             "content_params": matched.content_params or [],
+            "outline": matched.outline or [],
             "default_params": [
                 {"name": "date", "label": "报告日期", "type": "date",
                  "required": True, "default": ""},

@@ -13,6 +13,7 @@ router = APIRouter(prefix="/instances", tags=["instances"])
 class InstanceCreate(BaseModel):
     template_id: str
     input_params: Dict[str, Any] = {}
+    outline_override: Optional[List[Any]] = None
 
 
 class InstanceUpdate(BaseModel):
@@ -28,7 +29,8 @@ def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Template not found")
 
     # 使用 mock LLM 生成内容
-    content = generate_report_content(template.name, template.outline, data.input_params)
+    active_outline = data.outline_override if data.outline_override else template.outline
+    content = generate_report_content(template.name, active_outline, data.input_params)
 
     inst = ReportInstance(
         instance_id=gen_id(),
