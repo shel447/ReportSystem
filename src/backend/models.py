@@ -113,4 +113,5 @@ class Feedback(Base):
     user_ip = Column(String, nullable=True)
     content = Column(Text, nullable=False)
     priority = Column(String, default="medium")  # low, medium, high
+    images = Column(JSON, default=list)  # 存储图片 Base64 列表
     created_at = Column(DateTime, server_default=func.now())

@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Feedback
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Dict, Optional
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
 class FeedbackCreate(BaseModel):
     content: str
     priority: str = "medium"
+    images: List[str] = []  # Base64 strings
 
 @router.post("/")
 async def create_feedback(
@@ -25,7 +26,8 @@ async def create_feedback(
         new_feedback = Feedback(
             user_ip=client_ip,
             content=feedback.content,
-            priority=feedback.priority
+            priority=feedback.priority,
+            images=feedback.images
         )
         db.add(new_feedback)
         db.commit()
@@ -37,5 +39,5 @@ async def create_feedback(
 
 @router.get("/")
 async def list_feedbacks(db: Session = Depends(get_db)):
-    """获取反馈列表 (仅供管理/调试)"""
+    """获取反馈列表"""
     return db.query(Feedback).order_by(Feedback.created_at.desc()).all()
