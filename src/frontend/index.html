@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -633,6 +633,7 @@
                     <button class="btn btn-primary" onclick="createTemplate()">创建</button>
                 </div>
             `);
+            attachOutlineBindingPanels('tmpl-outline');
         }
 
         function changeOutlineLevel(btn, delta) {
@@ -666,7 +667,47 @@
                     <button onclick="moveOutlineItem(this,1)" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;padding:2px">▼</button>
                 </div>`;
             container.appendChild(div);
+            attachOutlineBindingPanels(containerId);
         }
+
+        function attachOutlineBindingPanels(containerId) {
+            const items = document.querySelectorAll(`#${containerId} .outline-item`);
+            items.forEach(item => {
+                if (item.querySelector('.outline-binding-panel')) return;
+                const panel = document.createElement('div');
+                panel.className = 'outline-binding-panel';
+                panel.style.cssText = 'margin-top:8px;padding:8px;background:rgba(255,255,255,0.03);border:1px dashed var(--border);border-radius:6px';
+                panel.innerHTML = `
+                    <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">参数联动配置（运行时展开）</div>
+                    <div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+                        <label style="font-size:11px;color:var(--text-secondary);min-width:56px">生成模式</label>
+                        <select class="outline-mode" onchange="toggleOutlineMode(this)" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:11px">
+                            <option value="once">单次章节</option>
+                            <option value="repeat">按列表重复</option>
+                        </select>
+                    </div>
+                    <input class="outline-repeat-source" placeholder="重复来源参数（列表），如 devices" style="width:100%;margin-bottom:6px;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:11px;display:none">
+                    <input class="outline-title-template" placeholder="标题模板：如 设备 {{item}} 巡检" style="width:100%;margin-bottom:6px;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:11px">
+                    <input class="outline-desc-template" placeholder="描述模板：如 第 {{index}} 台设备" style="width:100%;margin-bottom:6px;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:11px">
+                    <div style="display:flex;gap:6px;margin-bottom:6px">
+                        <input class="outline-binding-title" placeholder="bindings.title 路径，如 item" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:11px">
+                        <input class="outline-binding-desc" placeholder="bindings.description 路径，如 item.desc" style="flex:1;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:11px">
+                    </div>
+                    <div style="font-size:11px;color:var(--text-secondary)">变量说明：{{item}} / {{index}} 仅在“按列表重复”模式下生效，来源于上方“重复来源参数”。</div>
+                `;
+                item.querySelector('div[style*="flex:1"]').appendChild(panel);
+            });
+        }
+
+        function toggleOutlineMode(selectEl) {
+            const panel = selectEl.closest('.outline-binding-panel');
+            if (!panel) return;
+            const repeatInput = panel.querySelector('.outline-repeat-source');
+            const repeat = selectEl.value === 'repeat';
+            repeatInput.style.display = repeat ? 'block' : 'none';
+            if (!repeat) repeatInput.value = '';
+        }
+
 
         function removeOutlineItem(btn) {
             const item = btn.closest('.outline-item');
@@ -689,11 +730,38 @@
 
         function collectOutline(containerId) {
             const items = document.querySelectorAll(`#${containerId} .outline-item`);
-            return Array.from(items).map(item => ({
-                title: item.querySelector('.outline-title').value.trim(),
-                description: item.querySelector('.outline-desc')?.value.trim() || '',
-                level: parseInt(item.dataset.level || 1)
-            })).filter(o => o.title);
+            return Array.from(items).map(item => {
+                const title = item.querySelector('.outline-title').value.trim();
+                const description = item.querySelector('.outline-desc')?.value.trim() || '';
+                const titleTemplate = item.querySelector('.outline-title-template')?.value.trim() || '';
+                const descriptionTemplate = item.querySelector('.outline-desc-template')?.value.trim() || '';
+                const mode = item.querySelector('.outline-mode')?.value || 'once';
+                const repeatSource = item.querySelector('.outline-repeat-source')?.value.trim() || '';
+                const bindingTitle = item.querySelector('.outline-binding-title')?.value.trim() || '';
+                const bindingDesc = item.querySelector('.outline-binding-desc')?.value.trim() || '';
+
+                const obj = {
+                    title,
+                    description,
+                    level: parseInt(item.dataset.level || 1)
+                };
+                if (titleTemplate) obj.title_template = titleTemplate;
+                if (descriptionTemplate) obj.description_template = descriptionTemplate;
+                if (mode === 'repeat' && repeatSource) {
+                    obj.repeat = {
+                        enabled: true,
+                        source_param: repeatSource,
+                        item_alias: 'item',
+                        index_alias: 'index'
+                    };
+                }
+                if (bindingTitle || bindingDesc) {
+                    obj.bindings = {};
+                    if (bindingTitle) obj.bindings.title = bindingTitle;
+                    if (bindingDesc) obj.bindings.description = bindingDesc;
+                }
+                return obj;
+            }).filter(o => o.title);
         }
 
         async function createTemplate() {
@@ -740,7 +808,11 @@
                         <span style="color:var(--text-secondary);font-size:11px;min-width:20px">${prefix}${i + 1}.</span>
                         <div>
                             <strong style="font-size:13px;color:var(--text-primary)">${s.title}</strong>
-                            ${s.description ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${s.description}</div>` : ''}
+                            <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;display:flex;gap:6px;flex-wrap:wrap">
+                                <span class="badge" style="background:rgba(0,210,255,0.15);color:var(--success)">${(s.repeat && s.repeat.enabled) ? `重复章节 · ${s.repeat.source_param || '未指定参数'}` : '单次章节'}</span>
+                                ${(s.repeat && s.repeat.enabled) ? `<span class="badge" style="background:rgba(255,193,7,0.15);color:var(--warning)">{{item}}/{{index}} 来源: ${s.repeat.source_param || '-'}</span>` : ''}
+                            </div>
+                            ${s.description ? `<div style="font-size:11px;color:var(--text-secondary);margin-top:4px">${s.description}</div>` : ''}
                         </div>
                     </div>`;
                 }).join('')
@@ -1093,6 +1165,7 @@
                 <div style="flex:1">
                     <input class="outline-title" value="" placeholder="章节标题" style="width:100%;margin-bottom:4px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-primary);font-size:12px;font-weight:600">
                     <input class="outline-desc" value="" placeholder="描述（可选）" style="width:100%;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:11px">
+                    <div style="margin-top:4px;font-size:11px;color:var(--text-secondary)">模式：单次章节（如需重复，请在模板管理中配置“按列表重复”）</div>
                 </div>
                 <button onclick="this.closest('.chat-outline-item').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;padding:2px">✕</button>
             `;
@@ -1215,11 +1288,16 @@
             let outline_override = [];
             if (outlineContainer) {
                 const outlineItems = outlineContainer.querySelectorAll('.chat-outline-item');
-                outline_override = Array.from(outlineItems).map(item => ({
-                    title: item.querySelector('.outline-title').value.trim(),
-                    description: item.querySelector('.outline-desc')?.value.trim() || '',
-                    level: parseInt(item.dataset.level || 1)
-                })).filter(o => o.title);
+                const act = chatMessages[parseInt(formId.split('-')[2])]?.action;
+                outline_override = Array.from(outlineItems).map((item, idx) => {
+                    const base = (act && Array.isArray(act.outline) && act.outline[idx]) ? act.outline[idx] : {};
+                    const out = { ...base,
+                        title: item.querySelector('.outline-title').value.trim(),
+                        description: item.querySelector('.outline-desc')?.value.trim() || '',
+                        level: parseInt(item.dataset.level || 1)
+                    };
+                    return out;
+                }).filter(o => o.title);
             }
 
             // 更新 chatMessages 以保存用户修改并冻结表单
@@ -1596,3 +1674,5 @@
 </body>
 
 </html>
+
+

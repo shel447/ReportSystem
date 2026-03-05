@@ -1,92 +1,106 @@
-"""Mock LLM 服务 - 模拟大模型生成报告内容"""
-from typing import List, Dict, Any
+﻿"""Mock LLM service used by the report system demo."""
 from datetime import datetime
+from typing import Any, Dict, List
 
 
 def generate_report_content(template_name: str, outline: List[Any],
                             params: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    根据模板大纲和输入参数，模拟 LLM 生成报告章节内容。
-    """
-    date_str = params.get("date", params.get("inspection_date",
-                          datetime.now().strftime("%Y-%m-%d")))
+    """Generate section content from outline (or fallback template)."""
+    date_str = params.get("date", params.get("inspection_date", datetime.now().strftime("%Y-%m-%d")))
     devices = params.get("devices", params.get("device_list", ["Device-001"]))
     if isinstance(devices, str):
-        devices = [d.strip() for d in devices.split(",")]
+        devices = [d.strip() for d in devices.split(",") if d.strip()]
+    if not isinstance(devices, list) or not devices:
+        devices = ["Device-001"]
 
-    # 如果模板有大纲定义，按大纲生成
     if outline:
-        return _generate_from_outline(outline, template_name, date_str, devices)
-
-    # 否则生成默认结构
+        return _generate_from_outline(outline, date_str, devices)
     return _generate_default(template_name, date_str, devices)
 
 
-def _generate_from_outline(outline, template_name, date_str, devices):
-    sections = []
+def _generate_from_outline(outline: List[Any], date_str: str, devices: List[str]) -> List[Dict[str, Any]]:
+    sections: List[Dict[str, Any]] = []
     for item in outline:
-        title = item.get("title", "章节")
-        level = item.get("level", 1)
-        
-        # 限制层级在一个合理的 Markdown 范围内
-        if level > 6: level = 6
-        elif level < 1: level = 1
-        
-        md_heading = "#" * level
+        if not isinstance(item, dict):
+            continue
 
-        sections.append({
+        title = item.get("title", "Section")
+        description = item.get("description", "")
+        level = int(item.get("level", 1) or 1)
+        level = max(1, min(6, level))
+        heading = "#" * level
+
+        body_lines = [
+            f"{heading} {title}",
+            "",
+            f"Date: {date_str}",
+            f"Devices: {', '.join(devices)}",
+        ]
+        if description:
+            body_lines.extend(["", f"Description: {description}"])
+        body_lines.extend([
+            "",
+            f"This section summarizes '{title}' based on current input parameters.",
+            "All key indicators are in normal range in this mock environment.",
+        ])
+
+        section = {
             "title": title,
-            "content": f"{md_heading} {title}\n\n"
-                       f"报告日期：{date_str}\n"
-                       f"涉及设备：{', '.join(devices)}\n\n"
-                       f"经过系统分析，{title}相关指标均处于正常范围。"
-                       f"所有设备运行稳定，未发现重大异常。",
+            "description": description,
+            "content": "\n".join(body_lines),
             "generated_at": datetime.now().isoformat(),
             "model": "mock-llm-v1-hierarchical",
-        })
+        }
+        if "dynamic_meta" in item:
+            section["dynamic_meta"] = item["dynamic_meta"]
+        sections.append(section)
     return sections
 
 
-def _generate_default(template_name, date_str, devices):
+def _generate_default(template_name: str, date_str: str, devices: List[str]) -> List[Dict[str, Any]]:
     device_details = "\n".join([
-        f"  - **{d}**: CPU 使用率 45%, 内存占用 62%, 运行正常" for d in devices
+        f"- **{d}**: CPU 45%, Memory 62%, status normal" for d in devices
     ])
 
     return [
         {
-            "title": "1. 执行摘要",
-            "content": f"# 执行摘要\n\n"
-                       f"本报告基于 **{template_name}** 模板生成，"
-                       f"报告日期为 {date_str}。\n\n"
-                       f"共巡检 {len(devices)} 台设备，"
-                       f"整体运行状况良好，健康评分 **92/100**。",
+            "title": "1. Executive Summary",
+            "content": (
+                f"# Executive Summary\n\n"
+                f"This report is generated from template **{template_name}**.\n"
+                f"Date: {date_str}.\n\n"
+                f"{len(devices)} devices inspected, overall health score **92/100**."
+            ),
             "generated_at": datetime.now().isoformat(),
             "model": "mock-llm-v1",
         },
         {
-            "title": "2. 设备状态概览",
-            "content": f"# 设备状态概览\n\n"
-                       f"巡检设备列表：\n{device_details}\n\n"
-                       f"所有设备各项指标均处于正常阈值范围内。",
+            "title": "2. Device Overview",
+            "content": (
+                f"# Device Overview\n\n"
+                f"Inspected devices:\n{device_details}\n\n"
+                "All key metrics are in expected range."
+            ),
             "generated_at": datetime.now().isoformat(),
             "model": "mock-llm-v1",
         },
         {
-            "title": "3. 异常分析",
-            "content": f"# 异常分析\n\n"
-                       f"在 {date_str} 的巡检周期内，未发现严重告警。\n\n"
-                       f"有 2 条低优先级告警：\n"
-                       f"- {devices[0]} 网络延迟偶尔超过 50ms\n"
-                       f"- 日志磁盘使用率达到 75%，建议清理",
+            "title": "3. Exception Analysis",
+            "content": (
+                f"# Exception Analysis\n\n"
+                f"No critical alerts found in cycle {date_str}.\n\n"
+                f"Sample low-priority item: {devices[0]} latency occasionally exceeds 50ms."
+            ),
             "generated_at": datetime.now().isoformat(),
             "model": "mock-llm-v1",
         },
         {
-            "title": "4. 建议与跟进",
-            "content": f"# 建议与跟进\n\n"
-                       f"1. 建议对日志磁盘进行清理或扩容\n"
-                       f"2. 持续关注 {devices[0]} 的网络延迟趋势\n"
-                       f"3. 下一次巡检建议重点关注存储指标",
+            "title": "4. Recommendations",
+            "content": (
+                "# Recommendations\n\n"
+                "1. Continue weekly capacity checks.\n"
+                f"2. Keep tracking network latency trend on {devices[0]}."
+            ),
             "generated_at": datetime.now().isoformat(),
             "model": "mock-llm-v1",
         },
@@ -94,19 +108,24 @@ def _generate_default(template_name, date_str, devices):
 
 
 def generate_chat_response(user_message: str, context: dict) -> str:
-    """模拟对话式 LLM 响应"""
+    """Mock chat response."""
     msg_lower = user_message.lower()
 
     if any(kw in msg_lower for kw in ["巡检", "检查", "设备", "报告"]):
-        return ("我可以帮您生成设备巡检报告。请告诉我：\n"
-                "1. 巡检日期（如：2026-03-02）\n"
-                "2. 需要巡检的设备（如：Router-001, Switch-001）")
+        return (
+            "我可以帮您生成设备巡检报告。\n"
+            "请提供：\n"
+            "1. 巡检日期（例如 2026-03-02）\n"
+            "2. 设备列表（例如 Router-001, Switch-001）"
+        )
 
     if any(kw in msg_lower for kw in ["模板", "列表", "有什么"]):
-        return "您可以在「模板管理」页面查看已有的报告模板，或者直接告诉我您想生成什么类型的报告。"
+        return "您可以在‘模板管理’页查看已有报告模板，或直接描述您要生成的报告类型。"
 
     if any(kw in msg_lower for kw in ["定时", "自动", "周期"]):
-        return ("可以的！您可以在「定时任务」页面创建自动化任务。\n"
-                "支持一次性执行和周期性执行两种模式。")
+        return "可以。您可以在‘定时任务’页创建一次性或周期性任务。"
 
-    return f"收到您的消息：「{user_message}」。我是报告系统的 AI 助手，可以帮您生成各类报告，请告诉我您的需求。"
+    matched_template = context.get("matched_template")
+    if matched_template:
+        return f"已识别模板：{matched_template}。请继续补充参数。"
+    return f"收到：{user_message}。请告诉我您希望生成哪一类报告。"

@@ -1,11 +1,13 @@
-"""报告实例管理路由"""
+﻿"""Report instance routes."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+
 from ..database import get_db
 from ..models import ReportInstance, ReportTemplate, gen_id
 from ..llm_mock import generate_report_content
+from ..outline_expand import expand_outline
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -24,13 +26,14 @@ class InstanceUpdate(BaseModel):
 @router.post("")
 def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
     template = db.query(ReportTemplate).filter(
-        ReportTemplate.template_id == data.template_id).first()
+        ReportTemplate.template_id == data.template_id
+    ).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
 
-    # 使用 mock LLM 生成内容
     active_outline = data.outline_override if data.outline_override else template.outline
-    content = generate_report_content(template.name, active_outline, data.input_params)
+    expanded_outline, warnings = expand_outline(active_outline or [], data.input_params or {})
+    content = generate_report_content(template.name, expanded_outline, data.input_params or {})
 
     inst = ReportInstance(
         instance_id=gen_id(),
@@ -43,13 +46,17 @@ def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
     db.add(inst)
     db.commit()
     db.refresh(inst)
-    return _inst_dict(inst)
+
+    result = _inst_dict(inst)
+    result["warnings"] = warnings
+    return result
 
 
 @router.get("/{instance_id}")
 def get_instance(instance_id: str, db: Session = Depends(get_db)):
     inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+        ReportInstance.instance_id == instance_id
+    ).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     return _inst_dict(inst)
@@ -59,7 +66,8 @@ def get_instance(instance_id: str, db: Session = Depends(get_db)):
 def update_instance(instance_id: str, data: InstanceUpdate,
                     db: Session = Depends(get_db)):
     inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+        ReportInstance.instance_id == instance_id
+    ).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     for k, v in data.model_dump(exclude_none=True).items():
@@ -72,7 +80,8 @@ def update_instance(instance_id: str, data: InstanceUpdate,
 @router.delete("/{instance_id}")
 def delete_instance(instance_id: str, db: Session = Depends(get_db)):
     inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+        ReportInstance.instance_id == instance_id
+    ).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     db.delete(inst)
@@ -83,7 +92,8 @@ def delete_instance(instance_id: str, db: Session = Depends(get_db)):
 @router.post("/{instance_id}/finalize")
 def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
     inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+        ReportInstance.instance_id == instance_id
+    ).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     inst.status = "finalized"
@@ -95,7 +105,8 @@ def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
 def regenerate_section(instance_id: str, section_index: int,
                        db: Session = Depends(get_db)):
     inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+        ReportInstance.instance_id == instance_id
+    ).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
 
@@ -104,7 +115,8 @@ def regenerate_section(instance_id: str, section_index: int,
         raise HTTPException(status_code=400, detail="Invalid section index")
 
     section = content[section_index]
-    section["content"] = f"[重新生成] {section.get('title', '未命名章节')}的分析内容已更新。基于最新数据重新评估，各项指标表现良好。"
+    title = section.get("title", "Untitled section")
+    section["content"] = f"[Regenerated] Content for '{title}' has been refreshed."
     section["regenerated"] = True
 
     inst.outline_content = content
@@ -116,18 +128,16 @@ def regenerate_section(instance_id: str, section_index: int,
 
 
 @router.get("")
-def list_instances(template_id: Optional[str] = None, 
+def list_instances(template_id: Optional[str] = None,
                    db: Session = Depends(get_db)):
     q = db.query(ReportInstance)
     if template_id:
         q = q.filter(ReportInstance.template_id == template_id)
-    # 按创建时间倒序
     instances = q.order_by(ReportInstance.created_at.desc()).all()
     return [_inst_dict(inst) for inst in instances]
 
 
 def _inst_dict(inst):
-
     return {
         "instance_id": inst.instance_id,
         "template_id": inst.template_id,

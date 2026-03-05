@@ -33,3 +33,8 @@ wheels/
 
 # Project specific
 .codemate/
+
+# Runtime logs
+*.out.log
+*.err.log
+uvicorn*.log
