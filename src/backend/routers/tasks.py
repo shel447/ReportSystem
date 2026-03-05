@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from ..database import get_db
-from ..models import ScheduledTask, ScheduledTaskExecution, ReportInstance, gen_id
-from ..llm_mock import generate_report_content
+from ..infrastructure.dependencies import build_scheduled_run_application_service
+from ..models import ScheduledTask, ScheduledTaskExecution, gen_id
 
 router = APIRouter(prefix="/scheduled-tasks", tags=["scheduled-tasks"])
 
@@ -126,43 +126,25 @@ def run_task_now(task_id: str, db: Session = Depends(get_db)):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # 模拟执行：创建新实例
-    from ..models import ReportTemplate
-    template = db.query(ReportTemplate).filter(
-        ReportTemplate.template_id == task.template_id).first()
-
-    params = {}
-    if task.source_instance_id:
-        source = db.query(ReportInstance).filter(
-            ReportInstance.instance_id == task.source_instance_id).first()
-        if source:
-            params = dict(source.input_params or {})
-
-    params[task.time_param_name] = datetime.now().strftime(task.time_format)
-
-    content = generate_report_content(
-        template.name if template else "Unknown",
-        template.outline if template else [],
-        params
-    )
-
-    new_inst = ReportInstance(
-        instance_id=gen_id(),
-        template_id=task.template_id,
-        input_params=params,
-        outline_content=content,
-        status="draft",
-    )
-    db.add(new_inst)
+    params = {task.time_param_name: datetime.now().strftime(task.time_format)}
+    app_service = build_scheduled_run_application_service(db)
+    try:
+        created = app_service.create_instance_from_schedule(
+            template_id=task.template_id,
+            source_instance_id=task.source_instance_id,
+            override_params=params,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     # 记录执行
     execution = ScheduledTaskExecution(
         execution_id=gen_id(),
         task_id=task_id,
         status="success",
-        generated_instance_id=new_inst.instance_id,
+        generated_instance_id=created["instance_id"],
         completed_at=datetime.now(),
-        input_params_used=params,
+        input_params_used=created["input_params"],
     )
     db.add(execution)
 
@@ -173,7 +155,7 @@ def run_task_now(task_id: str, db: Session = Depends(get_db)):
         task.status = "completed"
 
     db.commit()
-    return {"message": "executed", "instance_id": new_inst.instance_id}
+    return {"message": "executed", "instance_id": created["instance_id"]}
 
 
 @router.get("/{task_id}/executions")

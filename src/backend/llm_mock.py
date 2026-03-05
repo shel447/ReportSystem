@@ -8,10 +8,7 @@ def generate_report_content(template_name: str, outline: List[Any],
     """Generate section content from outline (or fallback template)."""
     date_str = params.get("date", params.get("inspection_date", datetime.now().strftime("%Y-%m-%d")))
     devices = params.get("devices", params.get("device_list", ["Device-001"]))
-    if isinstance(devices, str):
-        devices = [d.strip() for d in devices.split(",") if d.strip()]
-    if not isinstance(devices, list) or not devices:
-        devices = ["Device-001"]
+    devices = _normalize_devices(devices)
 
     if outline:
         return _generate_from_outline(outline, date_str, devices)
@@ -129,3 +126,25 @@ def generate_chat_response(user_message: str, context: dict) -> str:
     if matched_template:
         return f"已识别模板：{matched_template}。请继续补充参数。"
     return f"收到：{user_message}。请告诉我您希望生成哪一类报告。"
+
+
+def _normalize_devices(value: Any) -> List[str]:
+    if isinstance(value, str):
+        parts = [part.strip() for part in value.split(",") if part.strip()]
+        return parts or ["Device-001"]
+
+    if not isinstance(value, list) or not value:
+        return ["Device-001"]
+
+    normalized: List[str] = []
+    for entry in value:
+        if isinstance(entry, str) and entry.strip():
+            normalized.append(entry.strip())
+            continue
+        if isinstance(entry, dict):
+            name = entry.get("name") or entry.get("id") or entry.get("device")
+            if name:
+                normalized.append(str(name))
+                continue
+        normalized.append(str(entry))
+    return normalized or ["Device-001"]

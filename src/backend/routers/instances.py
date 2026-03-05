@@ -5,9 +5,8 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
 from ..database import get_db
-from ..models import ReportInstance, ReportTemplate, gen_id
-from ..llm_mock import generate_report_content
-from ..outline_expand import expand_outline
+from ..infrastructure.dependencies import build_instance_application_service
+from ..models import ReportInstance
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -25,31 +24,25 @@ class InstanceUpdate(BaseModel):
 
 @router.post("")
 def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
-    template = db.query(ReportTemplate).filter(
-        ReportTemplate.template_id == data.template_id
-    ).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    active_outline = data.outline_override if data.outline_override else template.outline
-    expanded_outline, warnings = expand_outline(active_outline or [], data.input_params or {})
-    content = generate_report_content(template.name, expanded_outline, data.input_params or {})
-
-    inst = ReportInstance(
-        instance_id=gen_id(),
-        template_id=data.template_id,
-        template_version=template.version,
-        input_params=data.input_params,
-        outline_content=content,
-        status="draft",
-    )
-    db.add(inst)
-    db.commit()
-    db.refresh(inst)
-
-    result = _inst_dict(inst)
-    result["warnings"] = warnings
-    return result
+    app_service = build_instance_application_service(db)
+    try:
+        result = app_service.create_instance(
+            template_id=data.template_id,
+            input_params=data.input_params or {},
+            outline_override=data.outline_override,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "instance_id": result["instance_id"],
+        "template_id": result["template_id"],
+        "status": result["status"],
+        "input_params": result["input_params"],
+        "outline_content": result["outline_content"],
+        "created_at": result.get("created_at"),
+        "updated_at": result.get("updated_at"),
+        "warnings": result.get("warnings", []),
+    }
 
 
 @router.get("/{instance_id}")
