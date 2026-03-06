@@ -16,6 +16,7 @@ class TemplateCreate(BaseModel):
     description: str = ""
     report_type: str = "daily"
     scenario: str = ""
+    match_keywords: List[str] = []
     content_params: List[Any] = []
     outline: List[Any] = []
     output_formats: List[str] = ["pdf"]
@@ -26,6 +27,7 @@ class TemplateUpdate(BaseModel):
     description: Optional[str] = None
     report_type: Optional[str] = None
     scenario: Optional[str] = None
+    match_keywords: Optional[List[str]] = None
     content_params: Optional[List[Any]] = None
     outline: Optional[List[Any]] = None
     output_formats: Optional[List[str]] = None
@@ -33,7 +35,8 @@ class TemplateUpdate(BaseModel):
 
 @router.post("")
 def create_template(data: TemplateCreate, db: Session = Depends(get_db)):
-    template = ReportTemplate(template_id=gen_id(), **data.model_dump())
+    payload = _clean_template_payload(data.model_dump())
+    template = ReportTemplate(template_id=gen_id(), **payload)
     db.add(template)
     db.commit()
     db.refresh(template)
@@ -67,7 +70,7 @@ def update_template(template_id: str, data: TemplateUpdate, db: Session = Depend
     template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
-    for key, value in data.model_dump(exclude_none=True).items():
+    for key, value in _clean_template_payload(data.model_dump(exclude_none=True)).items():
         setattr(template, key, value)
     db.commit()
     db.refresh(template)
@@ -94,9 +97,30 @@ def _template_detail(template: ReportTemplate):
         "description": template.description,
         "report_type": template.report_type,
         "scenario": template.scenario,
+        "match_keywords": _normalize_keywords(template.match_keywords),
         "content_params": template.content_params,
         "outline": template.outline,
         "output_formats": template.output_formats,
         "created_at": str(template.created_at),
         "version": template.version,
     }
+
+
+def _clean_template_payload(payload):
+    if "match_keywords" in payload:
+        payload["match_keywords"] = _normalize_keywords(payload.get("match_keywords"))
+    return payload
+
+
+def _normalize_keywords(items):
+    if not isinstance(items, list):
+        return []
+    seen = set()
+    normalized = []
+    for item in items:
+        text = str(item or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized.append(text)
+    return normalized

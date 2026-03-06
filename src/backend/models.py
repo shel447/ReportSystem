@@ -16,6 +16,7 @@ class ReportTemplate(Base):
     description = Column(Text, default="")
     report_type = Column(String, default="daily")
     scenario = Column(String, default="")
+    match_keywords = Column(JSON, default=list)
     content_params = Column(JSON, default=list)
     outline = Column(JSON, default=list)
     output_formats = Column(JSON, default=lambda: ["pdf"])

@@ -31,7 +31,7 @@ class InstanceReader(Protocol):
 class ContentGenerator(Protocol):
     def generate(
         self,
-        template_name: str,
+        template: ReportTemplateEntity,
         outline: List[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> List[Dict[str, Any]]:

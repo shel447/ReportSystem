@@ -73,7 +73,10 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                             "template_id": item["template_id"],
                             "template_name": item["template_name"],
                             "scenario": item["scenario"],
+                            "description": item["description"],
+                            "report_type": item["report_type"],
                             "score": item["score"],
+                            "score_label": item["score_label"],
                             "match_reasons": item["match_reasons"],
                         }
                         for item in matched["candidates"]

@@ -31,4 +31,27 @@ def get_db():
 
 def init_db():
     from . import models  # noqa: F401
+    from .telecom_demo_service import init_telecom_demo_db
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_columns()
+    init_telecom_demo_db()
+
+
+def _ensure_sqlite_columns():
+    additions = {
+        "report_templates": {
+            "match_keywords": "JSON DEFAULT '[]'",
+        },
+    }
+    with engine.begin() as connection:
+        for table_name, columns in additions.items():
+            existing = {
+                row[1]
+                for row in connection.exec_driver_sql(f"PRAGMA table_info({table_name})").fetchall()
+            }
+            for column_name, column_sql in columns.items():
+                if column_name in existing:
+                    continue
+                connection.exec_driver_sql(
+                    f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"
+                )

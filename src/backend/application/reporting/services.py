@@ -35,7 +35,7 @@ class InstanceApplicationService:
 
         active_outline = outline_override if outline_override else template.outline
         expansion = self.outline_expansion_service.expand(active_outline or [], input_params or {})
-        content = self.content_generator.generate(template.name, expansion.nodes, input_params or {})
+        content = self.content_generator.generate(template, expansion.nodes, input_params or {})
 
         created = self.instance_writer.create(
             template_id=template.template_id,

@@ -22,6 +22,11 @@ class SqlAlchemyTemplateRepository(TemplateReader):
         return ReportTemplateEntity(
             template_id=template.template_id,
             name=template.name,
+            description=template.description or "",
+            report_type=template.report_type or "",
+            scenario=template.scenario or "",
+            match_keywords=template.match_keywords or [],
+            content_params=template.content_params or [],
             version=template.version,
             outline=template.outline or [],
         )
@@ -76,8 +81,8 @@ class OpenAIContentGenerator(ContentGenerator):
 
     def generate(
         self,
-        template_name: str,
+        template: ReportTemplateEntity,
         outline: List[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        return generate_report_sections(self.db, self.gateway, template_name, outline, params)
+        return generate_report_sections(self.db, self.gateway, template, outline, params)

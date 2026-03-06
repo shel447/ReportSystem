@@ -36,6 +36,11 @@ class OutlineNode:
 class ReportTemplateEntity:
     template_id: str
     name: str
+    description: str
+    report_type: str
+    scenario: str
+    match_keywords: List[str]
+    content_params: List[Dict[str, Any]]
     version: str
     outline: List[Dict[str, Any]]
 

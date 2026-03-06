@@ -463,6 +463,65 @@
             gap: 8px;
         }
 
+        .section-status-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .debug-panel {
+            margin-top: 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .debug-panel summary {
+            cursor: pointer;
+            list-style: none;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .debug-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .debug-body {
+            padding: 12px 14px 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .debug-block {
+            background: rgba(0, 0, 0, 0.18);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .debug-block-title {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .debug-block pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--text-primary);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
         /* Empty state */
         .empty-state {
             text-align: center;
@@ -484,15 +543,15 @@
 <body>
     <div class="sidebar">
         <h1>📊 报告系统<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;font-weight:400">（需求分析用Demo）
-                v1.3.0</div>
+                v1.5.0</div>
         </h1>
-        <div class="nav-item active" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
-        <div class="nav-item" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
-        <div class="nav-item" onclick="switchTab('instances')"><span class="icon">📄</span>报告实例</div>
-        <div class="nav-item" onclick="switchTab('documents')"><span class="icon">📑</span>报告文档</div>
-        <div class="nav-item" onclick="switchTab('tasks')"><span class="icon">⏰</span>定时任务</div>
-        <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span>系统设置</div>
+        <div class="nav-item active" data-tab="chat" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
+        <div class="nav-item" data-tab="templates" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
+        <div class="nav-item" data-tab="instances" onclick="switchTab('instances')"><span class="icon">📄</span>报告实例</div>
+        <div class="nav-item" data-tab="documents" onclick="switchTab('documents')"><span class="icon">📑</span>报告文档</div>
+        <div class="nav-item" data-tab="tasks" onclick="switchTab('tasks')"><span class="icon">⏰</span>定时任务</div>
         <div style="margin-top:auto; padding-top:20px; border-top:1px solid var(--border)">
+            <div class="nav-item" data-tab="settings" onclick="switchTab('settings')"><span class="icon">⚙️</span>系统设置</div>
             <div class="nav-item" onclick="showFeedbackModal()"><span class="icon">💡</span>提意见</div>
         </div>
     </div>
@@ -550,10 +609,15 @@
         }
 
         // --- Navigation ---
+        function setActiveNav(tab) {
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const activeItem = document.querySelector(`.nav-item[data-tab="${tab}"]`);
+            if (activeItem) activeItem.classList.add('active');
+        }
+
         function switchTab(tab) {
             currentTab = tab;
-            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            setActiveNav(tab);
             const titles = { templates: '模板管理', instances: '报告实例', documents: '报告文档', tasks: '定时任务', settings: '系统设置', chat: '对话助手' };
             document.getElementById('page-title').textContent = titles[tab];
             loadContent();
@@ -620,6 +684,11 @@
                 <div class="form-group">
                     <label>场景</label>
                     <input id="tmpl-scenario" placeholder="如：设备监控 / 业务分析">
+                </div>
+                <div class="form-group">
+                    <label>匹配关键词 / 别名</label>
+                    <textarea id="tmpl-match-keywords" rows="3" placeholder="用逗号或换行分隔，如：资产, 资产信息, 资产统计, 资产台账" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
+                    <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">这些词只参与模板匹配，不会直接写进报告正文。</div>
                 </div>
                 <div class="form-group">
                     <label>报告类型</label>
@@ -791,6 +860,14 @@
             }).filter(o => o.title);
         }
 
+        function parseMatchKeywords(raw) {
+            const parts = String(raw || '')
+                .split(/[\n,，;；]+/)
+                .map(item => item.trim())
+                .filter(Boolean);
+            return Array.from(new Set(parts));
+        }
+
         async function createTemplate() {
             const outline = collectOutline('tmpl-outline');
             if (outline.length === 0) { alert('请至少添加一个大纲章节'); return; }
@@ -799,6 +876,7 @@
                 name: document.getElementById('tmpl-name').value,
                 description: document.getElementById('tmpl-desc').value,
                 scenario: document.getElementById('tmpl-scenario').value,
+                match_keywords: parseMatchKeywords(document.getElementById('tmpl-match-keywords').value),
                 report_type: document.getElementById('tmpl-type').value,
                 content_params: [
                     { name: "date", label: "日期", type: "date", required: true, default: "" },
@@ -825,6 +903,11 @@
 
         async function viewTemplate(id) {
             const t = await fetch(`${API}/templates/${id}`).then(r => r.json());
+            const keywordHtml = (t.match_keywords || []).length > 0
+                ? (t.match_keywords || []).map(keyword => `
+                    <span class="badge" style="background:rgba(16,185,129,0.14);color:var(--success)">${keyword}</span>
+                `).join('')
+                : '<span style="font-size:12px;color:var(--text-secondary)">未配置</span>';
             const outlineHtml = (t.outline || []).length > 0
                 ? (t.outline || []).map((s, i) => {
                     const l = s.level || 1;
@@ -853,6 +936,7 @@
                 <p style="color:var(--text-secondary);margin-bottom:20px">${t.description || '暂无描述'}</p>
                 <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;font-size:12px;margin-bottom:16px">
                     <div style="margin-bottom:8px"><strong>场景:</strong> ${t.scenario || '通用'}</div>
+                    <div style="margin-bottom:8px"><strong>匹配关键词:</strong> <span style="display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:top">${keywordHtml}</span></div>
                     <div style="margin-bottom:8px"><strong>模板 ID:</strong> <code>${t.template_id}</code></div>
                     <div style="margin-bottom:8px"><strong>参数数量:</strong> ${(t.content_params || []).length}</div>
                     <div><strong>创建时间:</strong> ${t.created_at}</div>
@@ -1294,26 +1378,37 @@
                 }
                 let html = `<div class="chat-msg assistant"><div class="chat-bubble">${m.content}`;
                 if (m.action && m.action.type === 'show_template_candidates') {
+                    const selectedCandidate = getSelectedCandidate(m.action);
+                    const selectedId = selectedCandidate ? selectedCandidate.template_id : '';
                     html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
-                    html += `<div style="font-weight:600;margin-bottom:12px;color:var(--success)">🧭 候选模板</div>`;
-                    html += (m.action.candidates || []).map(item => `
-                        <div style="padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;margin-bottom:10px">
+                    html += `<div style="font-weight:600;margin-bottom:10px;color:var(--success)">🧭 候选模板</div>`;
+                    html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">我找到了 ${(m.action.candidates || []).length} 个相关模板，请确认最符合的一项。</div>`;
+                    html += `
+                        <select onchange="updateCandidateSelection(${idx}, this.value)" style="width:100%;padding:9px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;color:var(--text-primary);font-size:13px">
+                            ${(m.action.candidates || []).map(item => `
+                                <option value="${item.template_id}" ${item.template_id === selectedId ? 'selected' : ''}>${buildCandidateOptionLabel(item)}</option>
+                            `).join('')}
+                        </select>
+                    `;
+                    if (selectedCandidate) {
+                        html += `
+                        <div style="margin-top:10px;padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px">
                             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
                                 <div>
-                                    <div style="font-weight:600;color:var(--text-primary)">${item.template_name}</div>
-                                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">场景：${item.scenario || '通用'}</div>
-                                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">原因：${(item.match_reasons || []).join(' · ') || '语义相似度命中'}</div>
+                                    <div style="font-weight:600;color:var(--text-primary)">${selectedCandidate.template_name}</div>
+                                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${buildCandidateMeta(selectedCandidate)}</div>
                                 </div>
-                                <div style="text-align:right;min-width:96px">
-                                    <div style="font-size:18px;font-weight:700;color:var(--success)">${Math.round((item.score || 0) * 100)}</div>
-                                    <div style="font-size:11px;color:var(--text-secondary)">匹配分</div>
-                                </div>
+                                <span class="badge" style="background:rgba(16,185,129,0.14);color:var(--success)">${selectedCandidate.score_label || '中相关'}</span>
                             </div>
-                            <div style="display:flex;justify-content:flex-end;margin-top:10px">
-                                <button class="btn btn-primary btn-sm" onclick="selectTemplateCandidate(${idx}, '${item.template_id}')">选择此模板</button>
+                            <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.6">
+                                <div><strong style="color:var(--text-primary)">相关原因</strong></div>
+                                <div style="margin-top:4px">${(selectedCandidate.match_reasons || []).map(reason => `• ${reason}`).join('<br>') || '• 语义相似度命中'}</div>
                             </div>
-                        </div>
-                    `).join('');
+                        </div>`;
+                    }
+                    html += `<div style="display:flex;justify-content:flex-end;margin-top:10px">
+                        <button class="btn btn-primary btn-sm" onclick="selectTemplateCandidate(${idx})">使用此模板</button>
+                    </div>`;
                     html += `</div>`;
                 }
                 if (m.action && m.action.type === 'show_param_form') {
@@ -1386,9 +1481,47 @@
             };
         }
 
-        async function selectTemplateCandidate(messageIndex, templateId) {
+        function getSelectedCandidate(action) {
+            const candidates = Array.isArray(action?.candidates) ? action.candidates : [];
+            if (candidates.length === 0) return null;
+            const selectedId = action?.selected_template_id || candidates[0].template_id;
+            return candidates.find(item => item.template_id === selectedId) || candidates[0];
+        }
+
+        function buildCandidateOptionLabel(item) {
+            const reasons = item.match_reasons || [];
+            const firstReason = reasons.length > 0 ? reasons[0] : '语义相似度命中';
+            const label = item.score_label || '中相关';
+            return `${item.template_name} · ${label} · ${firstReason}`;
+        }
+
+        function buildCandidateMeta(item) {
+            const parts = [];
+            if (item.scenario) parts.push(`场景：${item.scenario}`);
+            if (item.report_type) parts.push(`类型：${item.report_type}`);
+            if (item.description) parts.push(`说明：${item.description}`);
+            return parts.length > 0 ? parts.join(' / ') : '通用模板';
+        }
+
+        async function updateCandidateSelection(messageIndex, templateId) {
+            const message = chatMessages[messageIndex];
+            if (!message || !message.action || message.action.type !== 'show_template_candidates') return;
+            message.action.selected_template_id = templateId;
+            await renderChat(document.getElementById('content'));
+        }
+
+        async function selectTemplateCandidate(messageIndex, templateId = '') {
+            const message = chatMessages[messageIndex];
+            const action = message?.action || {};
+            const selectedCandidate = getSelectedCandidate(action);
+            const resolvedTemplateId = templateId || action.selected_template_id || selectedCandidate?.template_id;
+            if (!resolvedTemplateId) {
+                chatMessages.push({ role: 'assistant', content: '❌ 当前没有可用的候选模板。' });
+                await renderChat(document.getElementById('content'));
+                return;
+            }
             try {
-                const template = await fetchJson(`${API}/templates/${templateId}`);
+                const template = await fetchJson(`${API}/templates/${resolvedTemplateId}`);
                 chatMessages.push({
                     role: 'assistant',
                     content: `已选择模板「${template.name}」，请填写参数后生成报告。`,
@@ -1438,6 +1571,52 @@
             await renderChat(document.getElementById('content'));
         }
 
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatDebugValue(value) {
+            if (value === null || value === undefined || value === '') return '无';
+            if (typeof value === 'string') return value;
+            return JSON.stringify(value, null, 2);
+        }
+
+        function renderSectionDebug(debug, openByDefault) {
+            const info = debug || {};
+            return `
+                <details class="debug-panel" ${openByDefault ? 'open' : ''}>
+                    <summary>调试信息 · 尝试 ${info.attempts || 0} 次 · 返回 ${info.row_count || 0} 行</summary>
+                    <div class="debug-body">
+                        <div class="debug-block">
+                            <div class="debug-block-title">查询意图</div>
+                            <pre>${escapeHtml(formatDebugValue(info.nl_request))}</pre>
+                        </div>
+                        <div class="debug-block">
+                            <div class="debug-block-title">Ibis 代码</div>
+                            <pre>${escapeHtml(formatDebugValue(info.ibis_code))}</pre>
+                        </div>
+                        <div class="debug-block">
+                            <div class="debug-block-title">编译 SQL</div>
+                            <pre>${escapeHtml(formatDebugValue(info.compiled_sql))}</pre>
+                        </div>
+                        <div class="debug-block">
+                            <div class="debug-block-title">样本结果</div>
+                            <pre>${escapeHtml(formatDebugValue(info.sample_rows || []))}</pre>
+                        </div>
+                        <div class="debug-block">
+                            <div class="debug-block-title">错误信息</div>
+                            <pre>${escapeHtml(formatDebugValue(info.error_message))}</pre>
+                        </div>
+                    </div>
+                </details>
+            `;
+        }
+
         async function viewInstanceDetail(dataOrId) {
             let inst;
             if (typeof dataOrId === 'string') {
@@ -1446,12 +1625,21 @@
                 inst = dataOrId;
             }
             const sectionsHtml = (inst.outline_content || []).map((s, idx) => `
-                <div style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid var(--accent)">
+                <div style="margin-bottom:16px;padding:14px;background:var(--bg-secondary);border-radius:10px;border-left:4px solid ${s.status === 'failed' ? '#ff6b81' : 'var(--accent)'}">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start">
-                        <strong style="font-size:14px;color:var(--text-primary)">${s.title}</strong>
+                        <div style="padding-right:12px;flex:1">
+                            <strong style="font-size:14px;color:var(--text-primary)">${escapeHtml(s.title || '未命名章节')}</strong>
+                            <div class="section-status-row">
+                                <span class="badge" style="background:${s.status === 'failed' ? 'rgba(255,107,129,0.15)' : 'rgba(0,210,255,0.15)'};color:${s.status === 'failed' ? '#ff6b81' : 'var(--success)'}">${s.status === 'failed' ? '生成失败' : '已生成'}</span>
+                                <span class="badge" style="background:${s.data_status === 'success' ? 'rgba(255,193,7,0.15)' : 'rgba(255,107,129,0.15)'};color:${s.data_status === 'success' ? 'var(--warning)' : '#ff6b81'}">${s.data_status === 'success' ? '数据成功' : '查询失败'}</span>
+                                <span class="badge" style="background:rgba(255,255,255,0.08);color:var(--text-secondary)">样本 ${((s.debug && s.debug.row_count) || 0)} 行</span>
+                            </div>
+                            ${s.description ? `<div style="margin-top:8px;font-size:12px;color:var(--text-secondary)">${escapeHtml(s.description)}</div>` : ''}
+                        </div>
                         <button class="btn btn-secondary btn-sm" onclick="regenerateSection('${inst.instance_id}', ${idx})" style="padding:2px 8px;font-size:11px">重新生成</button>
                     </div>
-                    <div style="margin-top:8px;font-size:13px;line-height:1.6;color:var(--text-secondary)">${s.content || '未生成内容'}</div>
+                    <div style="margin-top:12px;font-size:13px;line-height:1.7;color:var(--text-primary)">${marked.parse(s.content || '未生成内容')}</div>
+                    ${renderSectionDebug(s.debug, s.status === 'failed')}
                 </div>
             `).join('');
             showModal(`
@@ -1480,8 +1668,7 @@
                 await fetchJson(`${API}/instances/${id}/finalize`, { method: 'POST' });
                 hideModal();
                 currentTab = 'instances';
-                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                document.querySelectorAll('.nav-item')[2].classList.add('active');
+                setActiveNav('instances');
                 document.getElementById('page-title').textContent = '报告实例';
                 await loadContent();
                 alert('✅ 定稿成功！报告已归档。');
@@ -1552,9 +1739,10 @@
                     })
                 });
                 const warnings = (res.warnings || []).length;
+                const failedSections = (res.outline_content || []).filter(item => item.status === 'failed').length;
                 chatMessages[chatMessages.length - 1] = {
                     role: 'assistant',
-                    content: `✅ 报告已生成！共 ${(res.outline_content || []).length} 个章节。${warnings > 0 ? `另有 ${warnings} 条告警已记录。` : ''}正在跳转到报告详情...`
+                    content: `✅ 报告已生成！共 ${(res.outline_content || []).length} 个章节。${failedSections > 0 ? `${failedSections} 个章节查询失败，已保留调试信息。` : ''}${warnings > 0 ? `另有 ${warnings} 条告警已记录。` : ''}正在跳转到报告详情...`
                 };
                 await renderChat(document.getElementById('content'));
                 setTimeout(() => { viewInstanceDetail(res); }, 800);

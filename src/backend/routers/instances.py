@@ -113,9 +113,20 @@ def regenerate_section(instance_id: str, section_index: int, db: Session = Depen
         regenerated = generate_single_section(
             db,
             OpenAICompatGateway(),
-            template.name if template else "报告章节",
+            {
+                "template_id": template.template_id if template else "",
+                "name": template.name if template else "报告章节",
+                "description": template.description if template else "",
+                "report_type": template.report_type if template else "",
+                "scenario": template.scenario if template else "",
+                "match_keywords": template.match_keywords if template else [],
+                "content_params": template.content_params if template else [],
+                "outline": template.outline if template else [],
+            },
             section_spec,
             inst.input_params or {},
+            existing_sections=content,
+            section_index=section_index,
         )
     except AIConfigurationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
