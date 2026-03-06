@@ -4,10 +4,11 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
+from ...ai_gateway import OpenAICompatGateway
 from ...application.reporting.ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
 from ...domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
-from ...llm_mock import generate_report_content
 from ...models import ReportInstance, ReportTemplate, gen_id
+from ...report_generation_service import generate_report_sections
 
 
 class SqlAlchemyTemplateRepository(TemplateReader):
@@ -68,11 +69,15 @@ class SqlAlchemyInstanceRepository(InstanceWriter, InstanceReader):
         return instance.input_params or {}
 
 
-class MockContentGenerator(ContentGenerator):
+class OpenAIContentGenerator(ContentGenerator):
+    def __init__(self, db: Session, gateway: OpenAICompatGateway | None = None) -> None:
+        self.db = db
+        self.gateway = gateway or OpenAICompatGateway()
+
     def generate(
         self,
         template_name: str,
         outline: List[Dict[str, Any]],
         params: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        return generate_report_content(template_name, outline, params)
+        return generate_report_sections(self.db, self.gateway, template_name, outline, params)

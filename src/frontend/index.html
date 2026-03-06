@@ -484,13 +484,14 @@
 <body>
     <div class="sidebar">
         <h1>📊 报告系统<div style="font-size:11px;color:var(--text-secondary);margin-top:4px;font-weight:400">（需求分析用Demo）
-                v1.2.0</div>
+                v1.3.0</div>
         </h1>
         <div class="nav-item active" onclick="switchTab('chat')"><span class="icon">💬</span>对话助手</div>
         <div class="nav-item" onclick="switchTab('templates')"><span class="icon">📋</span>模板管理</div>
         <div class="nav-item" onclick="switchTab('instances')"><span class="icon">📄</span>报告实例</div>
         <div class="nav-item" onclick="switchTab('documents')"><span class="icon">📑</span>报告文档</div>
         <div class="nav-item" onclick="switchTab('tasks')"><span class="icon">⏰</span>定时任务</div>
+        <div class="nav-item" onclick="switchTab('settings')"><span class="icon">⚙️</span>系统设置</div>
         <div style="margin-top:auto; padding-top:20px; border-top:1px solid var(--border)">
             <div class="nav-item" onclick="showFeedbackModal()"><span class="icon">💡</span>提意见</div>
         </div>
@@ -520,26 +521,52 @@
         const API = '/api';
         let currentTab = 'chat';
         let chatSessionId = '';
+        let systemSettingsSnapshot = null;
 
         let chatMessages = [];
+
+        async function fetchJson(url, options) {
+            const res = await fetch(url, options);
+            let data = null;
+            try {
+                data = await res.json();
+            } catch (e) {
+                data = null;
+            }
+            if (!res.ok) {
+                throw new Error((data && (data.detail || data.error || data.message)) || `请求失败 (${res.status})`);
+            }
+            return data;
+        }
+
+        async function refreshSystemSettings(force = false) {
+            if (!force && systemSettingsSnapshot) return systemSettingsSnapshot;
+            try {
+                systemSettingsSnapshot = await fetchJson(`${API}/system-settings`);
+            } catch (e) {
+                systemSettingsSnapshot = null;
+            }
+            return systemSettingsSnapshot;
+        }
 
         // --- Navigation ---
         function switchTab(tab) {
             currentTab = tab;
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             event.currentTarget.classList.add('active');
-            const titles = { templates: '模板管理', instances: '报告实例', documents: '报告文档', tasks: '定时任务', chat: '对话助手' };
+            const titles = { templates: '模板管理', instances: '报告实例', documents: '报告文档', tasks: '定时任务', settings: '系统设置', chat: '对话助手' };
             document.getElementById('page-title').textContent = titles[tab];
             loadContent();
         }
 
         async function loadContent() {
             const c = document.getElementById('content');
-            if (currentTab === 'chat') { renderChat(c); return; }
+            if (currentTab === 'chat') { await renderChat(c); return; }
             if (currentTab === 'templates') { await renderTemplates(c); return; }
             if (currentTab === 'instances') { await renderInstances(c); return; }
             if (currentTab === 'documents') { await renderDocuments(c); return; }
             if (currentTab === 'tasks') { await renderTasks(c); return; }
+            if (currentTab === 'settings') { await renderSettings(c); return; }
         }
 
         // --- Templates ---
@@ -1075,29 +1102,220 @@
 
 
         async function runTaskNow(id) {
-            const res = await fetch(`${API}/scheduled-tasks/${id}/run-now`, { method: 'POST' }).then(r => r.json());
-            alert(`任务已执行！新实例: ${res.instance_id}`);
-            loadContent();
+            try {
+                const res = await fetchJson(`${API}/scheduled-tasks/${id}/run-now`, { method: 'POST' });
+                alert(`任务已执行！新实例: ${res.instance_id}`);
+                loadContent();
+            } catch (e) {
+                alert(`任务执行失败: ${e.message}`);
+            }
         }
-        async function pauseTask(id) { await fetch(`${API}/scheduled-tasks/${id}/pause`, { method: 'POST' }); loadContent(); }
-        async function resumeTask(id) { await fetch(`${API}/scheduled-tasks/${id}/resume`, { method: 'POST' }); loadContent(); }
-        async function deleteTask(id) { await fetch(`${API}/scheduled-tasks/${id}`, { method: 'DELETE' }); loadContent(); }
+        async function pauseTask(id) { await fetchJson(`${API}/scheduled-tasks/${id}/pause`, { method: 'POST' }); loadContent(); }
+        async function resumeTask(id) { await fetchJson(`${API}/scheduled-tasks/${id}/resume`, { method: 'POST' }); loadContent(); }
+        async function deleteTask(id) { await fetchJson(`${API}/scheduled-tasks/${id}`, { method: 'DELETE' }); loadContent(); }
+
+        // --- Settings ---
+        async function renderSettings(c) {
+            const settings = await refreshSystemSettings(true);
+            const completion = settings?.completion || {};
+            const embedding = settings?.embedding || {};
+            const indexStatus = settings?.index_status || { items: [], total_templates: 0, ready_count: 0, stale_count: 0, error_count: 0, missing_count: 0 };
+            c.innerHTML = `
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+            <div class="card" style="cursor:default">
+                <h3>Completion 配置</h3>
+                <p style="margin-bottom:16px">用于对话回复和报告正文生成。</p>
+                <div class="form-group"><label>Base URL</label><input id="settings-completion-base-url" value="${completion.base_url || ''}" placeholder="https://api.example.com/v1"></div>
+                <div class="form-group"><label>Model</label><input id="settings-completion-model" value="${completion.model || ''}" placeholder="gpt-4.1-mini"></div>
+                <div class="form-group"><label>API Key</label><input id="settings-completion-api-key" type="password" placeholder="${completion.has_api_key ? completion.masked_api_key : '输入新的 API Key'}"></div>
+                <div class="form-group"><label>Temperature</label><input id="settings-completion-temperature" type="number" step="0.1" value="${completion.temperature ?? 0.2}"></div>
+                <div class="form-group"><label>Timeout (sec)</label><input id="settings-completion-timeout" type="number" min="1" value="${completion.timeout_sec ?? 60}"></div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)"><input id="settings-completion-clear-api-key" type="checkbox"> 清空已保存的 Completion API Key</label>
+            </div>
+            <div class="card" style="cursor:default">
+                <h3>Embedding 配置</h3>
+                <p style="margin-bottom:16px">用于模板语义匹配和模板索引重建。</p>
+                <div class="form-group"><label>Embedding Model</label><input id="settings-embedding-model" value="${embedding.model || ''}" placeholder="text-embedding-3-small"></div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;color:var(--text-primary)"><input id="settings-embedding-use-completion-auth" type="checkbox" ${embedding.use_completion_auth ? 'checked' : ''} onchange="toggleEmbeddingAuth()"> 复用 Completion 的 Base URL / API Key</label>
+                <div class="form-group"><label>Base URL</label><input id="settings-embedding-base-url" value="${embedding.base_url || ''}" placeholder="https://api.example.com/v1"></div>
+                <div class="form-group"><label>API Key</label><input id="settings-embedding-api-key" type="password" placeholder="${embedding.has_api_key ? embedding.masked_api_key : '输入新的 Embedding API Key'}"></div>
+                <div class="form-group"><label>Timeout (sec)</label><input id="settings-embedding-timeout" type="number" min="1" value="${embedding.timeout_sec ?? 60}"></div>
+                <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-secondary)"><input id="settings-embedding-clear-api-key" type="checkbox"> 清空已保存的 Embedding API Key</label>
+            </div>
+        </div>
+        <div class="toolbar" style="margin-top:20px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="saveSystemSettings()">保存设置</button>
+            <button class="btn btn-secondary" onclick="testSystemSettings('completion')">测试 Completion</button>
+            <button class="btn btn-secondary" onclick="testSystemSettings('embedding')">测试 Embedding</button>
+            <button class="btn btn-secondary" onclick="testSystemSettings('both')">测试全部</button>
+            <button class="btn btn-secondary" onclick="reindexTemplateIndices()">重建模板索引</button>
+            <span class="badge ${settings?.is_ready ? 'badge-active' : 'badge-status'}">${settings?.is_ready ? '配置完整' : '配置未完成'}</span>
+        </div>
+        <div id="settings-test-result" style="margin-top:12px;color:var(--text-secondary);font-size:13px"></div>
+        <div class="table-container" style="margin-top:20px">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>模板</th>
+                        <th>场景</th>
+                        <th>索引状态</th>
+                        <th>最近更新时间</th>
+                        <th>错误信息</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="5" style="padding:14px 20px;background:rgba(255,255,255,0.03);font-size:12px;color:var(--text-secondary)">
+                            总模板数 ${indexStatus.total_templates}，Ready ${indexStatus.ready_count}，Stale ${indexStatus.stale_count}，Error ${indexStatus.error_count}，Missing ${indexStatus.missing_count}
+                        </td>
+                    </tr>
+                    ${indexStatus.items.length === 0 ? '<tr><td colspan="5" style="text-align:center;padding:40px;color:var(--text-secondary)">暂无模板索引数据</td></tr>' : indexStatus.items.map(item => {
+                        const colorMap = { ready: 'var(--success)', stale: 'var(--warning)', error: '#ff6b81', missing: 'var(--text-secondary)' };
+                        return `
+                        <tr>
+                            <td style="font-weight:600">${item.template_name}</td>
+                            <td>${item.scenario || '通用'}</td>
+                            <td><span class="badge" style="background:rgba(255,255,255,0.08);color:${colorMap[item.status] || 'var(--text-primary)'}">${item.status}</span></td>
+                            <td style="font-size:12px;color:var(--text-secondary)">${item.updated_at || '-'}</td>
+                            <td style="font-size:12px;color:#ff9f43">${item.error_message || '-'}</td>
+                        </tr>`;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>`;
+            toggleEmbeddingAuth();
+        }
+
+        function toggleEmbeddingAuth() {
+            const reuse = document.getElementById('settings-embedding-use-completion-auth');
+            const baseUrl = document.getElementById('settings-embedding-base-url');
+            const apiKey = document.getElementById('settings-embedding-api-key');
+            const clearBox = document.getElementById('settings-embedding-clear-api-key');
+            if (!reuse || !baseUrl || !apiKey || !clearBox) return;
+            const disabled = reuse.checked;
+            baseUrl.disabled = disabled;
+            apiKey.disabled = disabled;
+            clearBox.disabled = disabled;
+        }
+
+        function collectSettingsPayload() {
+            return {
+                completion: {
+                    base_url: document.getElementById('settings-completion-base-url').value.trim(),
+                    model: document.getElementById('settings-completion-model').value.trim(),
+                    api_key: document.getElementById('settings-completion-api-key').value.trim() || null,
+                    clear_api_key: document.getElementById('settings-completion-clear-api-key').checked,
+                    temperature: parseFloat(document.getElementById('settings-completion-temperature').value || '0.2'),
+                    timeout_sec: parseInt(document.getElementById('settings-completion-timeout').value || '60', 10)
+                },
+                embedding: {
+                    base_url: document.getElementById('settings-embedding-base-url').value.trim(),
+                    model: document.getElementById('settings-embedding-model').value.trim(),
+                    api_key: document.getElementById('settings-embedding-api-key').value.trim() || null,
+                    clear_api_key: document.getElementById('settings-embedding-clear-api-key').checked,
+                    timeout_sec: parseInt(document.getElementById('settings-embedding-timeout').value || '60', 10),
+                    use_completion_auth: document.getElementById('settings-embedding-use-completion-auth').checked,
+                }
+            };
+        }
+
+        async function saveSystemSettings() {
+            try {
+                await fetchJson(`${API}/system-settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(collectSettingsPayload())
+                });
+                await renderSettings(document.getElementById('content'));
+                document.getElementById('settings-test-result').innerHTML = '<span style="color:var(--success)">✅ 设置已保存，模板索引已标记为 stale，请执行“重建模板索引”。</span>';
+            } catch (e) {
+                document.getElementById('settings-test-result').innerHTML = `<span style="color:#ff6b81">❌ ${e.message}</span>`;
+            }
+        }
+
+        async function testSystemSettings(target) {
+            try {
+                const result = await fetchJson(`${API}/system-settings/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ target })
+                });
+                const parts = [];
+                if (result.completion) {
+                    parts.push(result.completion.ok
+                        ? `Completion: 成功 (${result.completion.model})`
+                        : `Completion: 失败 - ${result.completion.error}`);
+                }
+                if (result.embedding) {
+                    parts.push(result.embedding.ok
+                        ? `Embedding: 成功 (${result.embedding.model}, dim=${result.embedding.dimension})`
+                        : `Embedding: 失败 - ${result.embedding.error}`);
+                }
+                document.getElementById('settings-test-result').innerHTML = `<span style="color:${parts.some(item => item.includes('失败')) ? '#ff9f43' : 'var(--success)'}">${parts.join(' | ')}</span>`;
+            } catch (e) {
+                document.getElementById('settings-test-result').innerHTML = `<span style="color:#ff6b81">❌ ${e.message}</span>`;
+            }
+        }
+
+        async function reindexTemplateIndices() {
+            try {
+                const result = await fetchJson(`${API}/system-settings/reindex`, { method: 'POST' });
+                await renderSettings(document.getElementById('content'));
+                document.getElementById('settings-test-result').innerHTML = `<span style="color:var(--success)">✅ ${result.message}</span>`;
+            } catch (e) {
+                document.getElementById('settings-test-result').innerHTML = `<span style="color:#ff6b81">❌ ${e.message}</span>`;
+            }
+        }
 
         // --- Chat ---
-        function renderChat(c) {
+        async function renderChat(c) {
+            const settings = await refreshSystemSettings();
+            const indexStatus = settings?.index_status || { ready_count: 0 };
+            let bannerHtml = '';
+            if (!settings || !settings.is_ready) {
+                bannerHtml = `
+                <div style="margin-bottom:16px;padding:14px 16px;background:rgba(255,193,7,0.12);border:1px solid rgba(255,193,7,0.35);border-radius:12px;color:var(--warning);font-size:13px;line-height:1.6">
+                    当前尚未完成真实模型配置。请先到“系统设置”中填写 Completion 与 Embedding 接口，否则聊天只会提示配置，无法真正生成报告。
+                </div>`;
+            } else if (indexStatus.ready_count === 0) {
+                bannerHtml = `
+                <div style="margin-bottom:16px;padding:14px 16px;background:rgba(255,193,7,0.12);border:1px solid rgba(255,193,7,0.35);border-radius:12px;color:var(--warning);font-size:13px;line-height:1.6">
+                    真实模型配置已完成，但模板语义索引还不可用。请到“系统设置”执行一次“重建模板索引”，然后再开始模板语义匹配。
+                </div>`;
+            }
             c.innerHTML = `
         <div class="chat-container">
+            ${bannerHtml}
             <div id="chat-messages">
                 ${chatMessages.length === 0 ? '<div class="empty-state" style="margin-top:100px"><div class="icon">💬</div><p>您好！我是您的智能报告助手。<br>您可以输入“帮我写个巡检报告”来开始。</p></div>' : ''}
                 ${chatMessages.map((m, idx) => {
-                const isUser = m.role === 'user';
-                if (isUser) {
+                if (m.role === 'user') {
                     return `<div class="chat-msg user"><div class="chat-bubble">${m.content}</div></div>`;
                 }
-                // assistant message
-                let html = `<div class="chat-msg assistant"><div class="chat-bubble">`;
-                html += m.content;
-                // 如果带有 action，渲染内嵌表单
+                let html = `<div class="chat-msg assistant"><div class="chat-bubble">${m.content}`;
+                if (m.action && m.action.type === 'show_template_candidates') {
+                    html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
+                    html += `<div style="font-weight:600;margin-bottom:12px;color:var(--success)">🧭 候选模板</div>`;
+                    html += (m.action.candidates || []).map(item => `
+                        <div style="padding:12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;margin-bottom:10px">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                                <div>
+                                    <div style="font-weight:600;color:var(--text-primary)">${item.template_name}</div>
+                                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">场景：${item.scenario || '通用'}</div>
+                                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">原因：${(item.match_reasons || []).join(' · ') || '语义相似度命中'}</div>
+                                </div>
+                                <div style="text-align:right;min-width:96px">
+                                    <div style="font-size:18px;font-weight:700;color:var(--success)">${Math.round((item.score || 0) * 100)}</div>
+                                    <div style="font-size:11px;color:var(--text-secondary)">匹配分</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;justify-content:flex-end;margin-top:10px">
+                                <button class="btn btn-primary btn-sm" onclick="selectTemplateCandidate(${idx}, '${item.template_id}')">选择此模板</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    html += `</div>`;
+                }
                 if (m.action && m.action.type === 'show_param_form') {
                     const a = m.action;
                     const formId = 'chat-form-' + idx;
@@ -1115,7 +1333,6 @@
                         html += `<input type="${inputType}" ${disabledStr} data-param-name="${p.name}" class="${formId}-input" value="${defaultVal}" placeholder="${placeholder}" style="background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);width:100%;font-size:13px">`;
                         html += `</div>`;
                     });
-
                     html += `<div style="margin-top:16px"><div style="font-weight:600;font-size:13px;margin-bottom:8px">📋 报告大纲预览 & 自定义</div>`;
                     html += `<div id="${formId}-outline-container">`;
                     (a.outline || []).forEach((s, s_idx) => {
@@ -1129,12 +1346,10 @@
                         </div>`;
                     });
                     html += `</div>`;
-
                     if (!a.submitted) {
                         html += `<button class="btn btn-secondary btn-sm" onclick="addChatOutlineSection('${formId}-outline-container')" style="padding:4px 8px;font-size:11px">+ 添加章节</button>`;
                     }
                     html += `</div>`;
-
                     if (!a.submitted) {
                         html += `<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">`;
                         html += `<button class="btn btn-primary" onclick="submitChatForm('${a.template_id}','${formId}')">🚀 生成报告</button>`;
@@ -1148,12 +1363,42 @@
             }).join('')}
             </div>
             <div class="chat-input-row">
-                <input id="chat-input" placeholder="输入消息... 如：帮我生成设备巡检报告" onkeypress="if(event.key==='Enter')sendChat()">
+                <input id="chat-input" placeholder="${settings?.is_ready ? '输入消息... 如：帮我生成设备巡检报告' : '请先完成系统设置，再开始真实对话'}" onkeypress="if(event.key==='Enter')sendChat()">
                 <button class="btn btn-primary" style="border-radius:20px;padding:6px 16px" onclick="sendChat()">发送</button>
             </div>
         </div>`;
             const el = document.getElementById('chat-messages');
-            el.scrollTop = el.scrollHeight;
+            if (el) el.scrollTop = el.scrollHeight;
+        }
+
+        function buildParamFormAction(template) {
+            return {
+                type: 'show_param_form',
+                template_id: template.template_id,
+                template_name: template.name,
+                scenario: template.scenario || '',
+                content_params: template.content_params || [],
+                outline: template.outline || [],
+                default_params: [
+                    { name: 'date', label: '报告日期', type: 'date', required: true, default: '' },
+                    { name: 'devices', label: '设备列表', type: 'text', required: true, default: 'Router-001, Switch-001', placeholder: '用逗号分隔多台设备' },
+                ]
+            };
+        }
+
+        async function selectTemplateCandidate(messageIndex, templateId) {
+            try {
+                const template = await fetchJson(`${API}/templates/${templateId}`);
+                chatMessages.push({
+                    role: 'assistant',
+                    content: `已选择模板「${template.name}」，请填写参数后生成报告。`,
+                    action: buildParamFormAction(template)
+                });
+                await renderChat(document.getElementById('content'));
+            } catch (e) {
+                chatMessages.push({ role: 'assistant', content: `❌ 无法加载模板详情：${e.message}` });
+                await renderChat(document.getElementById('content'));
+            }
         }
 
         function addChatOutlineSection(containerId) {
@@ -1172,35 +1417,34 @@
             container.appendChild(div);
         }
 
-
         async function sendChat() {
             const input = document.getElementById('chat-input');
             const msg = input.value.trim();
             if (!msg) return;
             input.value = '';
-
             chatMessages.push({ role: 'user', content: msg });
-            renderChat(document.getElementById('content'));
-
-            const res = await fetch(`${API}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: msg, session_id: chatSessionId })
-            }).then(r => r.json());
-
-            chatSessionId = res.session_id;
-            chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
-            renderChat(document.getElementById('content'));
+            await renderChat(document.getElementById('content'));
+            try {
+                const res = await fetchJson(`${API}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, session_id: chatSessionId })
+                });
+                chatSessionId = res.session_id;
+                chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
+            } catch (e) {
+                chatMessages.push({ role: 'assistant', content: `❌ ${e.message}` });
+            }
+            await renderChat(document.getElementById('content'));
         }
 
         async function viewInstanceDetail(dataOrId) {
             let inst;
             if (typeof dataOrId === 'string') {
-                inst = await fetch(`${API}/instances/${dataOrId}`).then(r => r.json());
+                inst = await fetchJson(`${API}/instances/${dataOrId}`);
             } else {
                 inst = dataOrId;
             }
-
             const sectionsHtml = (inst.outline_content || []).map((s, idx) => `
                 <div style="margin-bottom:16px;padding:12px;background:var(--bg-secondary);border-radius:8px;border-left:4px solid var(--accent)">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -1210,22 +1454,18 @@
                     <div style="margin-top:8px;font-size:13px;line-height:1.6;color:var(--text-secondary)">${s.content || '未生成内容'}</div>
                 </div>
             `).join('');
-
             showModal(`
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)">
                     <h3 style="margin:0">报告详情</h3>
                     <span class="badge ${inst.status === 'finalized' ? 'badge-active' : 'badge-status'}">${inst.status === 'finalized' ? '已定稿' : '草稿'}</span>
                 </div>
-                
                 <div style="margin-bottom:20px;font-size:12px;color:var(--text-secondary)">
                     <span>实例 ID: <code>${inst.instance_id}</code></span>
                     <span style="margin-left:16px">生成时间: ${inst.created_at}</span>
                 </div>
-
                 <div id="instance-sections" style="max-height:400px;overflow-y:auto;padding-right:8px">
                     ${sectionsHtml}
                 </div>
-
                 <div class="form-actions" style="margin-top:24px;background:var(--bg-secondary);padding:16px;border-radius:8px;margin-left:-8px;margin-right:-8px">
                     <button class="btn btn-secondary" onclick="hideModal()">关闭</button>
                     <div style="flex:1"></div>
@@ -1236,45 +1476,33 @@
         }
 
         async function finalizeInst(id) {
-            if (!confirm('确定要定稿吗？定稿后内容将不可更改。')) return;
-            const res = await fetch(`${API}/instances/${id}/finalize`, { method: 'POST' });
-            if (res.ok) {
-                hideModal();
-                loadContent();
-            }
-        }
-
-        async function finalizeInst(id) {
             try {
-                const res = await fetch(`${API}/instances/${id}/finalize`, { method: 'POST' });
-                if (res.ok) {
-                    hideModal();
-                    // 切换到报告实例列表页面
-                    currentTab = 'instances';
-                    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-                    document.querySelectorAll('.nav-item')[2].classList.add('active');
-                    document.getElementById('page-title').textContent = '报告实例';
-                    await loadContent();
-                    alert('✅ 定稿成功！报告已归档。');
-                } else {
-                    const err = await res.json();
-                    alert('定稿失败: ' + (err.detail || '未知错误'));
-                }
+                await fetchJson(`${API}/instances/${id}/finalize`, { method: 'POST' });
+                hideModal();
+                currentTab = 'instances';
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('.nav-item')[2].classList.add('active');
+                document.getElementById('page-title').textContent = '报告实例';
+                await loadContent();
+                alert('✅ 定稿成功！报告已归档。');
             } catch (e) {
-                alert('定稿请求出错: ' + e.message);
+                alert('定稿失败: ' + e.message);
             }
         }
 
         async function deleteInst(id) {
-            await fetch(`${API}/instances/${id}`, { method: 'DELETE' });
+            await fetchJson(`${API}/instances/${id}`, { method: 'DELETE' });
             hideModal();
             loadContent();
         }
 
-
         async function regenerateSection(instId, index) {
-            const res = await fetch(`${API}/instances/${instId}/regenerate/${index}`, { method: 'POST' }).then(r => r.json());
-            viewInstanceDetail(res); // 刷新详情
+            try {
+                const res = await fetchJson(`${API}/instances/${instId}/regenerate/${index}`, { method: 'POST' });
+                viewInstanceDetail(res);
+            } catch (e) {
+                alert('重新生成失败: ' + e.message);
+            }
         }
 
         async function submitChatForm(templateId, formId) {
@@ -1288,20 +1516,19 @@
             let outline_override = [];
             if (outlineContainer) {
                 const outlineItems = outlineContainer.querySelectorAll('.chat-outline-item');
-                const act = chatMessages[parseInt(formId.split('-')[2])]?.action;
+                const act = chatMessages[parseInt(formId.split('-')[2], 10)]?.action;
                 outline_override = Array.from(outlineItems).map((item, idx) => {
                     const base = (act && Array.isArray(act.outline) && act.outline[idx]) ? act.outline[idx] : {};
-                    const out = { ...base,
+                    return {
+                        ...base,
                         title: item.querySelector('.outline-title').value.trim(),
                         description: item.querySelector('.outline-desc')?.value.trim() || '',
-                        level: parseInt(item.dataset.level || 1)
+                        level: parseInt(item.dataset.level || 1, 10)
                     };
-                    return out;
-                }).filter(o => o.title);
+                }).filter(item => item.title);
             }
 
-            // 更新 chatMessages 以保存用户修改并冻结表单
-            const msgIdx = parseInt(formId.split('-')[2]);
+            const msgIdx = parseInt(formId.split('-')[2], 10);
             if (chatMessages[msgIdx] && chatMessages[msgIdx].action) {
                 const act = chatMessages[msgIdx].action;
                 const pList = (act.content_params && act.content_params.length > 0) ? act.content_params : act.default_params;
@@ -1312,12 +1539,10 @@
                 act.submitted = true;
             }
 
-            // 添加生成中提示
             chatMessages.push({ role: 'assistant', content: '⏳ 正在为您生成报告，请稍候...' });
-            renderChat(document.getElementById('content'));
-
+            await renderChat(document.getElementById('content'));
             try {
-                const res = await fetch(`${API}/instances`, {
+                const res = await fetchJson(`${API}/instances`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1325,23 +1550,20 @@
                         input_params: params,
                         outline_override: outline_override.length > 0 ? outline_override : undefined
                     })
-                }).then(r => r.json());
-
-                // 替换最后的提示消息
+                });
+                const warnings = (res.warnings || []).length;
                 chatMessages[chatMessages.length - 1] = {
                     role: 'assistant',
-                    content: `✅ 报告已生成！共 ${(res.outline_content || []).length} 个章节。正在跳转到报告详情...`
+                    content: `✅ 报告已生成！共 ${(res.outline_content || []).length} 个章节。${warnings > 0 ? `另有 ${warnings} 条告警已记录。` : ''}正在跳转到报告详情...`
                 };
-                renderChat(document.getElementById('content'));
-
-                // 短暂延迟后跳转到实例详情
+                await renderChat(document.getElementById('content'));
                 setTimeout(() => { viewInstanceDetail(res); }, 800);
             } catch (e) {
                 chatMessages[chatMessages.length - 1] = {
                     role: 'assistant',
-                    content: '❌ 生成失败，请检查参数后重试。'
+                    content: `❌ 生成失败：${e.message}`
                 };
-                renderChat(document.getElementById('content'));
+                await renderChat(document.getElementById('content'));
             }
         }
 
@@ -1674,5 +1896,11 @@
 </body>
 
 </html>
+
+
+
+
+
+
 
 

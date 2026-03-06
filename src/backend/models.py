@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Boolean, Integer, Float, DateTime, JSON
+﻿from sqlalchemy import Column, String, Text, Boolean, Integer, DateTime, JSON
 from sqlalchemy.sql import func
 from .database import Base
 import uuid
@@ -31,9 +31,9 @@ class ReportInstance(Base):
     instance_id = Column(String, primary_key=True, default=gen_id)
     template_id = Column(String, nullable=False)
     template_version = Column(String, default="1.0")
-    status = Column(String, default="draft")  # draft / finalized
+    status = Column(String, default="draft")
     input_params = Column(JSON, default=dict)
-    outline_content = Column(JSON, default=list)    # generated content
+    outline_content = Column(JSON, default=list)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     created_by = Column(String, default="system")
@@ -63,7 +63,7 @@ class ScheduledTask(Base):
     description = Column(Text, default="")
     source_instance_id = Column(String, default="")
     template_id = Column(String, default="")
-    schedule_type = Column(String, default="recurring")  # once / recurring
+    schedule_type = Column(String, default="recurring")
     cron_expression = Column(String, default="")
     timezone = Column(String, default="Asia/Shanghai")
     enabled = Column(Boolean, default=True)
@@ -106,13 +106,35 @@ class ChatSession(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    settings_id = Column(String, primary_key=True, default="global")
+    completion_config = Column(JSON, default=dict)
+    embedding_config = Column(JSON, default=dict)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class TemplateSemanticIndex(Base):
+    __tablename__ = "template_semantic_indices"
+
+    template_id = Column(String, primary_key=True)
+    semantic_text = Column(Text, default="")
+    embedding_vector = Column(JSON, default=list)
+    embedding_model = Column(String, default="")
+    status = Column(String, default="stale")
+    error_message = Column(Text, nullable=True)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
 class Feedback(Base):
     __tablename__ = "feedbacks"
 
     feedback_id = Column(String, primary_key=True, default=gen_id)
     user_ip = Column(String, nullable=True)
-    submitter = Column(String, nullable=True)  # 提交人姓名
+    submitter = Column(String, nullable=True)
     content = Column(Text, nullable=False)
-    priority = Column(String, default="medium")  # low, medium, high
-    images = Column(JSON, default=list)  # 存储图片 Base64 列表
+    priority = Column(String, default="medium")
+    images = Column(JSON, default=list)
     created_at = Column(DateTime, server_default=func.now())

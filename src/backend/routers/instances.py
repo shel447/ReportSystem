@@ -4,9 +4,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 
+from ..ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
 from ..database import get_db
 from ..infrastructure.dependencies import build_instance_application_service
-from ..models import ReportInstance
+from ..models import ReportInstance, ReportTemplate
+from ..report_generation_service import generate_single_section
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -33,6 +35,10 @@ def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except AIRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {
         "instance_id": result["instance_id"],
         "template_id": result["template_id"],
@@ -47,24 +53,19 @@ def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
 
 @router.get("/{instance_id}")
 def get_instance(instance_id: str, db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id
-    ).first()
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     return _inst_dict(inst)
 
 
 @router.put("/{instance_id}")
-def update_instance(instance_id: str, data: InstanceUpdate,
-                    db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id
-    ).first()
+def update_instance(instance_id: str, data: InstanceUpdate, db: Session = Depends(get_db)):
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
-    for k, v in data.model_dump(exclude_none=True).items():
-        setattr(inst, k, v)
+    for key, value in data.model_dump(exclude_none=True).items():
+        setattr(inst, key, value)
     db.commit()
     db.refresh(inst)
     return _inst_dict(inst)
@@ -72,9 +73,7 @@ def update_instance(instance_id: str, data: InstanceUpdate,
 
 @router.delete("/{instance_id}")
 def delete_instance(instance_id: str, db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id
-    ).first()
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     db.delete(inst)
@@ -84,9 +83,7 @@ def delete_instance(instance_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{instance_id}/finalize")
 def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id
-    ).first()
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     inst.status = "finalized"
@@ -95,24 +92,39 @@ def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{instance_id}/regenerate/{section_index}")
-def regenerate_section(instance_id: str, section_index: int,
-                       db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id
-    ).first()
+def regenerate_section(instance_id: str, section_index: int, db: Session = Depends(get_db)):
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    content = inst.outline_content or []
+    content = list(inst.outline_content or [])
     if section_index < 0 or section_index >= len(content):
         raise HTTPException(status_code=400, detail="Invalid section index")
 
-    section = content[section_index]
-    title = section.get("title", "Untitled section")
-    section["content"] = f"[Regenerated] Content for '{title}' has been refreshed."
-    section["regenerated"] = True
+    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == inst.template_id).first()
+    current = content[section_index]
+    section_spec = {
+        "title": current.get("title", "未命名章节"),
+        "description": current.get("description", ""),
+        "dynamic_meta": current.get("dynamic_meta"),
+        "level": 1,
+    }
+    try:
+        regenerated = generate_single_section(
+            db,
+            OpenAICompatGateway(),
+            template.name if template else "报告章节",
+            section_spec,
+            inst.input_params or {},
+        )
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except AIRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    content[section_index] = {**current, **regenerated, "regenerated": True}
     inst.outline_content = content
+
     from sqlalchemy.orm.attributes import flag_modified
     flag_modified(inst, "outline_content")
     db.commit()
@@ -121,13 +133,13 @@ def regenerate_section(instance_id: str, section_index: int,
 
 
 @router.get("")
-def list_instances(template_id: Optional[str] = None,
-                   db: Session = Depends(get_db)):
-    q = db.query(ReportInstance)
+def list_instances(template_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(ReportInstance)
     if template_id:
-        q = q.filter(ReportInstance.template_id == template_id)
-    instances = q.order_by(ReportInstance.created_at.desc()).all()
+        query = query.filter(ReportInstance.template_id == template_id)
+    instances = query.order_by(ReportInstance.created_at.desc()).all()
     return [_inst_dict(inst) for inst in instances]
+
 
 
 def _inst_dict(inst):
