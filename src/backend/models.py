@@ -46,7 +46,7 @@ class ReportDocument(Base):
     document_id = Column(String, primary_key=True, default=gen_id)
     instance_id = Column(String, nullable=False)
     template_id = Column(String, default="")
-    format = Column(String, default="pdf")
+    format = Column(String, default="md")
     file_path = Column(String, default="")
     file_size = Column(Integer, default=0)
     version = Column(Integer, default=1)

@@ -7,7 +7,7 @@ import os
 from .database import init_db
 from .routers import templates, instances, documents, tasks, chat, design, feedback, system_settings
 
-app = FastAPI(title="Smart Report System", version="1.5.0")
+app = FastAPI(title="Smart Report System", version="1.6.0")
 
 API_PREFIX = "/api"
 app.include_router(templates.router, prefix=API_PREFIX)

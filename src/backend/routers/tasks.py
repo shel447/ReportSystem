@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..ai_gateway import AIConfigurationError, AIRequestError
 from ..database import get_db
+from ..document_service import DocumentGenerationError, create_markdown_document
 from ..infrastructure.dependencies import build_scheduled_run_application_service
 from ..models import ScheduledTask, ScheduledTaskExecution, gen_id
 
@@ -152,8 +153,20 @@ def run_task_now(task_id: str, db: Session = Depends(get_db)):
     if task.schedule_type == "once":
         task.status = "completed"
 
+    generated_document_id = None
+    if task.auto_generate_doc:
+        try:
+            document = create_markdown_document(db, created["instance_id"])
+            generated_document_id = document.document_id
+        except DocumentGenerationError:
+            generated_document_id = None
+
     db.commit()
-    return {"message": "executed", "instance_id": created["instance_id"]}
+    return {
+        "message": "executed",
+        "instance_id": created["instance_id"],
+        "document_id": generated_document_id,
+    }
 
 
 @router.get("/{task_id}/executions")
