@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 
 <head>
@@ -735,8 +735,8 @@
                     ${data.map(t => `
                         <tr>
                             <td font-weight:600>${t.name}</td>
-                            <td><span class="badge badge-status">${t.scenario || '通用'}</span></td>
-                            <td><span class="badge badge-type">${t.report_type}</span></td>
+                            <td><span class="badge badge-status">${t.scene || t.scenario || '通用'}</span></td>
+                            <td><span class="badge badge-type">${t.type || t.report_type}</span></td>
                             <td style="color:var(--text-secondary);font-size:12px">${t.created_at}</td>
                             <td style="text-align:right">
                                 <button class="btn btn-primary btn-sm" onclick="viewTemplate('${t.template_id}')">详情</button>
@@ -777,6 +777,11 @@
                         <option value="special">专项报告 (Special)</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>模板类型 (v2)</label>
+                    <input id="tmpl-template-type" placeholder="如：设备健康评估 / 资产统计">
+                    <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">用于新模板规范的 type 字段，不影响旧模板。</div>
+                </div>
 
                 <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -801,6 +806,19 @@
                         </div>
                     </div>
                     <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">💡 支持多级嵌套。通过 ◂ 和 ▸ 调整大纲层级结构</div>
+                </div>
+
+                <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:8px">⚙️ 高级 JSON 输入 (v2)</div>
+                    <div class="form-group">
+                        <label>parameters JSON</label>
+                        <textarea id="tmpl-parameters-json" rows="4" placeholder='[{"id":"date","label":"日期","required":true,"input_type":"free_text"}]' style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>sections JSON</label>
+                        <textarea id="tmpl-sections-json" rows="6" placeholder='[{"title":"执行摘要","content":{"presentation":{"type":"text","template":"..."} }}]' style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
+                    </div>
+                    <div style="font-size:11px;color:var(--text-secondary)">填写任意一项即按 v2 模板规范保存，sections 优先于旧大纲。</div>
                 </div>
 
                 <div class="form-actions">
@@ -947,21 +965,40 @@
             return Array.from(new Set(parts));
         }
 
+        function parseJsonField(id, label) {
+            const raw = document.getElementById(id)?.value?.trim();
+            if (!raw) return null;
+            try {
+                return JSON.parse(raw);
+            } catch (e) {
+                alert(`${label} JSON 无效，请检查格式。`);
+                throw e;
+            }
+        }
+
         async function createTemplate() {
             const outline = collectOutline('tmpl-outline');
-            if (outline.length === 0) { alert('请至少添加一个大纲章节'); return; }
+            const parametersJson = parseJsonField('tmpl-parameters-json', 'parameters');
+            const sectionsJson = parseJsonField('tmpl-sections-json', 'sections');
+            const v2Enabled = Array.isArray(parametersJson) || Array.isArray(sectionsJson);
+            if (outline.length === 0 && !v2Enabled) { alert('请至少添加一个大纲章节'); return; }
 
             const data = {
                 name: document.getElementById('tmpl-name').value,
                 description: document.getElementById('tmpl-desc').value,
                 scenario: document.getElementById('tmpl-scenario').value,
+                scene: document.getElementById('tmpl-scenario').value,
+                type: document.getElementById('tmpl-template-type').value,
                 match_keywords: parseMatchKeywords(document.getElementById('tmpl-match-keywords').value),
                 report_type: document.getElementById('tmpl-type').value,
-                content_params: [
+                content_params: v2Enabled ? [] : [
                     { name: "date", label: "日期", type: "date", required: true, default: "" },
                     { name: "devices", label: "涉及设备", type: "text", required: true, default: "", placeholder: "如：Router-001, Switch-001" }
                 ],
-                outline: outline
+                parameters: parametersJson || [],
+                outline: outline,
+                sections: sectionsJson || [],
+                schema_version: v2Enabled ? 'v2' : ''
             };
 
             const res = await fetch(`${API}/templates`, {
@@ -1014,10 +1051,11 @@
                 </div>
                 <p style="color:var(--text-secondary);margin-bottom:20px">${t.description || '暂无描述'}</p>
                 <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;font-size:12px;margin-bottom:16px">
-                    <div style="margin-bottom:8px"><strong>场景:</strong> ${t.scenario || '通用'}</div>
+                    <div style="margin-bottom:8px"><strong>模板类型:</strong> ${t.type || t.report_type || '未设置'}</div>
+                    <div style="margin-bottom:8px"><strong>场景:</strong> ${t.scene || t.scenario || '通用'}</div>
                     <div style="margin-bottom:8px"><strong>匹配关键词:</strong> <span style="display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:top">${keywordHtml}</span></div>
                     <div style="margin-bottom:8px"><strong>模板 ID:</strong> <code>${t.template_id}</code></div>
-                    <div style="margin-bottom:8px"><strong>参数数量:</strong> ${(t.content_params || []).length}</div>
+                    <div style="margin-bottom:8px"><strong>参数数量:</strong> ${((t.parameters && t.parameters.length) ? t.parameters.length : (t.content_params || []).length)}</div>
                     <div><strong>创建时间:</strong> ${t.created_at}</div>
                 </div>
                 <div style="margin-bottom:16px">
@@ -1508,6 +1546,9 @@
             <div id="chat-messages">
                 ${chatMessages.length === 0 ? '<div class="empty-state" style="margin-top:100px"><div class="icon">💬</div><p>您好！我是您的智能报告助手。<br>您可以输入“帮我写个巡检报告”来开始。</p></div>' : ''}
                 ${chatMessages.map((m, idx) => {
+                if (m.meta && m.meta.type === 'context_state') {
+                    return '';
+                }
                 if (m.role === 'user') {
                     return `<div class="chat-msg user"><div class="chat-bubble">${m.content}</div></div>`;
                 }
@@ -1545,6 +1586,39 @@
                         <button class="btn btn-primary btn-sm" onclick="selectTemplateCandidate(${idx})">使用此模板</button>
                     </div>`;
                     html += `</div>`;
+                }
+                if (m.action && m.action.type === 'ask_param') {
+                    const a = m.action;
+                    const param = a.param || {};
+                    const progress = a.progress || { collected: 0, required: 0 };
+                    const options = Array.isArray(param.options) ? param.options : [];
+                    const templateName = a.template_name || '';
+                    const inputType = param.input_type === 'date' ? 'date' : 'text';
+                    html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
+                    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">`;
+                    html += `<div style="font-weight:600;color:var(--success)">🧩 补充参数</div>`;
+                    html += `<div style="font-size:12px;color:var(--text-secondary)">已收集 ${progress.collected}/${progress.required}</div>`;
+                    html += `</div>`;
+                    if (templateName) {
+                        html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">已匹配模板：<strong style="color:var(--text-primary)">${templateName}</strong></div>`;
+                    }
+                    html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">当前缺少参数：<strong style="color:var(--text-primary)">${param.label || param.id || ''}</strong></div>`;
+                    if (options.length > 0) {
+                        html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">可选：${options.join(' / ')}</div>`;
+                    }
+                    html += `<div style="display:flex;gap:8px;align-items:center">`;
+                    html += `<input id="param-input-${idx}" type="${inputType}" placeholder="请输入参数值" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px">`;
+                    html += `<button class="btn btn-primary btn-sm" onclick="sendParamValue(${idx})">提交</button>`;
+                    html += `</div></div>`;
+                }
+                if (m.action && m.action.type === 'download_document') {
+                    const doc = m.action.document || {};
+                    html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
+                    html += `<div style="font-weight:600;color:var(--success);margin-bottom:8px">📥 文档已生成</div>`;
+                    html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">${doc.file_name || '报告文档'}</div>`;
+                    html += `<div style="display:flex;justify-content:flex-end">`;
+                    html += `<button class="btn btn-primary btn-sm" onclick="downloadDoc('${doc.document_id}')">下载 Markdown</button>`;
+                    html += `</div></div>`;
                 }
                 if (m.action && m.action.type === 'show_param_form') {
                     const a = m.action;
@@ -1632,8 +1706,9 @@
 
         function buildCandidateMeta(item) {
             const parts = [];
+            if (item.template_type) parts.push(`模板类型：${item.template_type}`);
             if (item.scenario) parts.push(`场景：${item.scenario}`);
-            if (item.report_type) parts.push(`类型：${item.report_type}`);
+            if (item.report_type) parts.push(`报告类型：${item.report_type}`);
             if (item.description) parts.push(`说明：${item.description}`);
             return parts.length > 0 ? parts.join(' / ') : '通用模板';
         }
@@ -1656,12 +1731,13 @@
                 return;
             }
             try {
-                const template = await fetchJson(`${API}/templates/${resolvedTemplateId}`);
-                chatMessages.push({
-                    role: 'assistant',
-                    content: `已选择模板「${template.name}」，请填写参数后生成报告。`,
-                    action: buildParamFormAction(template)
+                const res = await fetchJson(`${API}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: '', session_id: chatSessionId, selected_template_id: resolvedTemplateId })
                 });
+                chatSessionId = res.session_id;
+                chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
                 await renderChat(document.getElementById('content'));
             } catch (e) {
                 chatMessages.push({ role: 'assistant', content: `❌ 无法加载模板详情：${e.message}` });
@@ -1697,6 +1773,38 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: msg, session_id: chatSessionId })
+                });
+                chatSessionId = res.session_id;
+                chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
+            } catch (e) {
+                chatMessages.push({ role: 'assistant', content: `❌ ${e.message}` });
+            }
+            await renderChat(document.getElementById('content'));
+        }
+
+        async function sendParamValue(messageIndex) {
+            const message = chatMessages[messageIndex];
+            const action = message?.action;
+            if (!action || action.type !== 'ask_param') return;
+            const paramId = action.param?.id;
+            const input = document.getElementById(`param-input-${messageIndex}`);
+            const value = input ? input.value.trim() : '';
+            if (!paramId || !value) {
+                alert('请先输入参数值。');
+                return;
+            }
+            chatMessages.push({ role: 'user', content: value });
+            await renderChat(document.getElementById('content'));
+            try {
+                const res = await fetchJson(`${API}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: value,
+                        session_id: chatSessionId,
+                        param_id: paramId,
+                        param_value: value
+                    })
                 });
                 chatSessionId = res.session_id;
                 chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
@@ -2230,11 +2338,5 @@
 </body>
 
 </html>
-
-
-
-
-
-
 
 
