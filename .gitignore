@@ -4,6 +4,7 @@
 
 # Python
 .venv/
+.worktrees/
 venv/
 env/
 ENV/
