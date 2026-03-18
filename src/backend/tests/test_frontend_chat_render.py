@@ -52,6 +52,15 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("min-height: 320px", styles)
         self.assertIn("min-height: 64px", styles)
 
+    def test_shared_layouts_no_longer_cap_page_widths(self):
+        base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        layout_css_path = os.path.join(base, "frontend", "src", "styles", "layout.css")
+        with open(layout_css_path, "r", encoding="utf-8") as f:
+            styles = f.read()
+        self.assertNotIn("max-width: 1180px", styles)
+        self.assertNotIn("max-width: 1220px", styles)
+        self.assertNotIn("max-width: 1040px", styles)
+
 
 if __name__ == "__main__":
     unittest.main()

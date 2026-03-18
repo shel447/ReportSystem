@@ -184,7 +184,8 @@
 .page-intro-bar__body {
   display: grid;
   gap: 8px;
-  max-width: 760px;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .page-intro-bar__eyebrow {
@@ -214,18 +215,8 @@
 .conversation-layout {
   display: grid;
   gap: 18px;
-}
-
-.list-page-layout {
-  max-width: 1180px;
-}
-
-.detail-page-layout {
-  max-width: 1220px;
-}
-
-.conversation-layout {
-  max-width: 1040px;
+  inline-size: 100%;
+  min-width: 0;
 }
 
 .conversation-layout__surface {

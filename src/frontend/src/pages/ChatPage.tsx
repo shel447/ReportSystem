@@ -4,16 +4,12 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { sendChatMessage } from "../entities/chat/api";
 import type { ChatAction, ChatMessageItem, ChatRequest, ChatResponse } from "../entities/chat/types";
 import { fetchSystemSettings } from "../entities/system-settings/api";
-import { PageSection } from "../shared/ui/PageSection";
-import { StatusBanner } from "../shared/ui/StatusBanner";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
 import { ChatActionPanel } from "../features/chat-report-flow/components/ChatActionPanel";
 import { ConversationLayout } from "../shared/layouts/ConversationLayout";
-import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 
 const WELCOME_MESSAGE = "您好！我是您的智能报告助手。";
 const INPUT_PLACEHOLDER = "输入消息，例如：制作设备巡检报告";
-const WORKFLOW_STEPS = ["模板匹配", "补参", "确认", "生成", "下载"];
 
 export function ChatPage() {
   const [draft, setDraft] = useState("");
@@ -73,111 +69,103 @@ export function ChatPage() {
 
   return (
     <div className="chat-page">
-      <PageSection
-        description="从自然语言需求进入模板匹配、结构化补参与文档下载的完整链路。"
-      >
-        <ConversationLayout
-          intro={
-            <>
-              <PageIntroBar
-                eyebrow="Conversation Workflow"
-                description="先匹配模板，再逐项补齐必填参数，确认后生成并下载 Markdown 文档。"
-              />
-              <div className="workflow-strip" aria-label="报告生成流程">
-                {WORKFLOW_STEPS.map((step, index) => (
-                  <span key={step} className="workflow-strip__item">
-                    <span className="workflow-strip__index">{index + 1}</span>
-                    <span>{step}</span>
-                  </span>
-                ))}
-              </div>
-            </>
-          }
-          notices={
-            <>
-              {systemSettingsQuery.data && !systemSettingsQuery.data.is_ready ? (
-                <StatusBanner tone="warning" title="系统设置未完成">
-                  Completion 与 Embedding 尚未配置完成。当前仍可查看界面，但实际生成会被后端阻断。
-                </StatusBanner>
-              ) : null}
+      <ConversationLayout
+        notices={
+          <>
+            {systemSettingsQuery.data && !systemSettingsQuery.data.is_ready ? (
+              <ChatInlineBanner title="系统设置未完成">
+                Completion 与 Embedding 尚未配置完成。当前仍可查看界面，但实际生成会被后端阻断。
+              </ChatInlineBanner>
+            ) : null}
 
-              {errorMessage ? (
-                <StatusBanner tone="warning" title="请求失败">
-                  {errorMessage}
-                </StatusBanner>
-              ) : null}
-            </>
-          }
-          stream={
-            <SurfaceCard className="chat-stream-card">
-              <div className="message-list">
-                {messages.map((message, index) => (
-                  <article
-                    key={`${message.role}-${index}-${message.content}`}
-                    className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
-                  >
-                    <div className="message-bubble__meta">{message.role === "assistant" ? "助手" : "我"}</div>
-                    {message.content ? <p>{message.content}</p> : null}
-                    {message.action ? (
-                      <div className="message-bubble__action">
-                        <ChatActionPanel
-                          action={message.action}
-                          onSubmitParam={(paramId, value) => {
-                            if (Array.isArray(value)) {
-                              runAction({ param_id: paramId, param_values: value });
-                              return;
-                            }
-                            runAction({ param_id: paramId, param_value: value });
-                          }}
-                          onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
-                          onCommand={(command, targetParamId) =>
-                            runAction({ command, target_param_id: targetParamId })
+            {errorMessage ? (
+              <ChatInlineBanner title="请求失败">{errorMessage}</ChatInlineBanner>
+            ) : null}
+          </>
+        }
+        stream={
+          <SurfaceCard className="chat-stream-card">
+            <div className="message-list">
+              {messages.map((message, index) => (
+                <article
+                  key={`${message.role}-${index}-${message.content}`}
+                  className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
+                >
+                  <div className="message-bubble__meta">{message.role === "assistant" ? "助手" : "我"}</div>
+                  {message.content ? <p>{message.content}</p> : null}
+                  {message.action ? (
+                    <div className="message-bubble__action">
+                      <ChatActionPanel
+                        action={message.action}
+                        onSubmitParam={(paramId, value) => {
+                          if (Array.isArray(value)) {
+                            runAction({ param_id: paramId, param_values: value });
+                            return;
                           }
-                        />
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
+                          runAction({ param_id: paramId, param_value: value });
+                        }}
+                        onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
+                        onCommand={(command, targetParamId) =>
+                          runAction({ command, target_param_id: targetParamId })
+                        }
+                      />
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </SurfaceCard>
+        }
+        composer={
+          <SurfaceCard className="chat-compose-card">
+            <div className="chat-compose">
+              <label className="sr-only" htmlFor="chat-input">
+                发送消息
+              </label>
+              <textarea
+                id="chat-input"
+                rows={3}
+                placeholder={INPUT_PLACEHOLDER}
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    submitMessage();
+                  }
+                }}
+              />
+              <div className="compose-footer">
+                <span className="compose-hint">
+                  {latestAction?.type === "ask_param" ? "当前处于结构化补参阶段" : "支持直接输入自然语言需求"}
+                </span>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={submitMessage}
+                  disabled={chatMutation.isPending}
+                >
+                  {chatMutation.isPending ? "发送中..." : "发送"}
+                </button>
               </div>
-            </SurfaceCard>
-          }
-          composer={
-            <SurfaceCard className="chat-compose-card">
-              <div className="chat-compose">
-                <label className="sr-only" htmlFor="chat-input">
-                  发送消息
-                </label>
-                <textarea
-                  id="chat-input"
-                  rows={3}
-                  placeholder={INPUT_PLACEHOLDER}
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      submitMessage();
-                    }
-                  }}
-                />
-                <div className="compose-footer">
-                  <span className="compose-hint">
-                    {latestAction?.type === "ask_param" ? "当前处于结构化补参阶段" : "支持直接输入自然语言需求"}
-                  </span>
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={submitMessage}
-                    disabled={chatMutation.isPending}
-                  >
-                    {chatMutation.isPending ? "发送中..." : "发送"}
-                  </button>
-                </div>
-              </div>
-            </SurfaceCard>
-          }
-        />
-      </PageSection>
+            </div>
+          </SurfaceCard>
+        }
+      />
+    </div>
+  );
+}
+
+type ChatInlineBannerProps = {
+  title: string;
+  children: string;
+};
+
+function ChatInlineBanner({ title, children }: ChatInlineBannerProps) {
+  return (
+    <div className="chat-inline-banner" role="status">
+      <strong>{title}</strong>
+      <span>{children}</span>
     </div>
   );
 }

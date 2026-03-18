@@ -1,43 +1,31 @@
-.chat-layout {
-  display: grid;
-  gap: 20px;
-  max-width: 1040px;
+.chat-page {
+  min-width: 0;
 }
 
-.workflow-strip {
+.chat-inline-banner {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.workflow-strip__item {
-  display: inline-flex;
   align-items: center;
   gap: 10px;
   min-height: 42px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(37, 109, 130, 0.14);
-  background: rgba(255, 255, 255, 0.74);
-  color: var(--text-primary);
+  padding: 10px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(196, 128, 31, 0.18);
+  background: rgba(255, 248, 230, 0.88);
+  color: var(--text-secondary);
 }
 
-.workflow-strip__index {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(37, 109, 130, 0.1);
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 700;
+.chat-inline-banner strong {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.chat-inline-banner span {
+  line-height: 1.55;
 }
 
 .chat-stream-card,
 .chat-compose-card {
-  padding: 16px 18px;
+  padding: 18px 20px;
 }
 
 .chat-stream-card {
