@@ -207,10 +207,14 @@ function SectionPanel({
           <strong>{section.title || `章节 ${index + 1}`}</strong>
           <p>{section.description || "无章节描述"}</p>
         </div>
-        <div className="section-panel__meta">
-          <span className="status-chip">{section.status ?? "unknown"}</span>
-          <span className="status-chip status-chip--soft">{section.data_status ?? "unknown"}</span>
-        </div>
+        {section.status || section.data_status ? (
+          <div className="section-panel__meta">
+            {section.status ? <span className="status-chip">{formatSectionStatus(section.status)}</span> : null}
+            {section.data_status ? (
+              <span className="status-chip status-chip--soft">{formatDataStatus(section.data_status)}</span>
+            ) : null}
+          </div>
+        ) : null}
       </summary>
       <div className="section-panel__body">
         <div className="action-row action-row--compact">
@@ -228,4 +232,24 @@ function SectionPanel({
       </div>
     </details>
   );
+}
+
+function formatSectionStatus(status: string) {
+  if (status === "generated") {
+    return "已生成";
+  }
+  if (status === "failed") {
+    return "生成失败";
+  }
+  return status;
+}
+
+function formatDataStatus(status: string) {
+  if (status === "success") {
+    return "查询成功";
+  }
+  if (status === "failed") {
+    return "查询失败";
+  }
+  return status;
 }

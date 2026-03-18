@@ -1,7 +1,7 @@
 .chat-layout {
   display: grid;
   gap: 20px;
-  max-width: 960px;
+  max-width: 1040px;
 }
 
 .workflow-strip {
@@ -51,7 +51,7 @@
 }
 
 .message-bubble {
-  max-width: 86%;
+  inline-size: min(72ch, 78%);
   display: grid;
   gap: 10px;
   padding: 16px 18px;
@@ -71,6 +71,7 @@
 
 .message-bubble--user {
   justify-self: end;
+  inline-size: min(64ch, 72%);
   background: rgba(37, 109, 130, 0.08);
 }
 
@@ -89,8 +90,8 @@
 }
 
 .chat-compose textarea {
-  min-height: 84px;
-  max-height: 180px;
+  min-height: 72px;
+  max-height: 168px;
   background: rgba(255, 255, 255, 0.96);
   resize: vertical;
 }
@@ -362,7 +363,7 @@
 
 @media (max-width: 860px) {
   .message-bubble {
-    max-width: 100%;
+    inline-size: 100%;
   }
 
   .workflow-strip {

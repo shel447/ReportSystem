@@ -112,4 +112,58 @@ describe("InstanceDetailPage", () => {
       "/api/documents/doc-1/download",
     );
   });
+
+  it("omits placeholder status chips for legacy sections without runtime markers", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/instances/inst-legacy" && !init?.method) {
+          return {
+            ok: true,
+            json: async () => ({
+              instance_id: "inst-legacy",
+              template_id: "tpl-1",
+              status: "draft",
+              input_params: { report_date: "2026-03-18" },
+              outline_content: [
+                {
+                  title: "旧版章节",
+                  description: "兼容章节",
+                  content: "旧版正文",
+                  debug: {},
+                },
+              ],
+              created_at: "2026-03-18T10:00:00",
+              updated_at: "2026-03-18T10:01:00",
+            }),
+          };
+        }
+        if (url === "/api/templates" && !init?.method) {
+          return {
+            ok: true,
+            json: async () => [
+              {
+                template_id: "tpl-1",
+                name: "旧版模板",
+                report_type: "daily",
+              },
+            ],
+          };
+        }
+        if (url === "/api/documents?instance_id=inst-legacy" && !init?.method) {
+          return {
+            ok: true,
+            json: async () => [],
+          };
+        }
+        throw new Error(`Unexpected fetch ${url}`);
+      }),
+    );
+
+    renderInstanceDetailPage("/instances/inst-legacy");
+
+    expect(await screen.findByText("旧版章节")).toBeInTheDocument();
+    expect(screen.queryByText("unknown")).not.toBeInTheDocument();
+  });
 });

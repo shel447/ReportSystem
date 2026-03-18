@@ -55,4 +55,17 @@ describe("App shell", () => {
     expect(screen.getByRole("heading", { name: "报告实例", level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "对话助手", level: 1 })).not.toBeInTheDocument();
   });
+
+  it("keeps secondary pages on a single route heading", () => {
+    const documentsView = renderApp("/documents");
+    expect(screen.getAllByRole("heading", { name: "报告文档" })).toHaveLength(1);
+    documentsView.unmount();
+
+    const tasksView = renderApp("/tasks");
+    expect(screen.getAllByRole("heading", { name: "定时任务" })).toHaveLength(1);
+    tasksView.unmount();
+
+    renderApp("/settings");
+    expect(screen.getAllByRole("heading", { name: "系统设置" })).toHaveLength(1);
+  });
 });

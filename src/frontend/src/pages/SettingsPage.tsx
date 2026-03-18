@@ -7,6 +7,8 @@ import {
   testSystemSettings,
   updateSystemSettings,
 } from "../entities/system-settings/api";
+import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
+import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 import { PageSection } from "../shared/ui/PageSection";
 import { StatusBanner } from "../shared/ui/StatusBanner";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
@@ -115,151 +117,171 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <PageSection title="系统设置" description="集中配置 Completion、Embedding 与模板索引状态。">
+      <PageSection description="集中配置 Completion、Embedding 与模板索引状态。">
         {message ? (
           <StatusBanner tone="info" title="操作反馈">
             <span className="pre-wrap">{message}</span>
           </StatusBanner>
         ) : null}
 
-        <div className="settings-grid">
-          <SurfaceCard>
-            <div className="list-header">
-              <div>
-                <p className="section-kicker">Completion</p>
-                <h3>Completion 配置</h3>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label className="field">
-                <span className="field-label">Base URL</span>
-                <input
-                  value={form.completionBaseUrl}
-                  onChange={(event) => setForm((current) => ({ ...current, completionBaseUrl: event.target.value }))}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Model</span>
-                <input
-                  value={form.completionModel}
-                  onChange={(event) => setForm((current) => ({ ...current, completionModel: event.target.value }))}
-                />
-              </label>
-              <label className="field field--full">
-                <span className="field-label">API Key</span>
-                <input
-                  type="password"
-                  placeholder={settingsQuery.data?.completion.masked_api_key || "留空则保留原值"}
-                  value={form.completionApiKey}
-                  onChange={(event) => setForm((current) => ({ ...current, completionApiKey: event.target.value }))}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Temperature</span>
-                <input
-                  value={form.completionTemperature}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, completionTemperature: event.target.value }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Timeout(s)</span>
-                <input
-                  value={form.completionTimeout}
-                  onChange={(event) => setForm((current) => ({ ...current, completionTimeout: event.target.value }))}
-                />
-              </label>
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard>
-            <div className="list-header">
-              <div>
-                <p className="section-kicker">Embedding</p>
-                <h3>Embedding 配置</h3>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label className="field field--full field--checkbox">
-                <span className="field-label">复用 Completion 鉴权</span>
-                <input
-                  type="checkbox"
-                  checked={form.useCompletionAuth}
-                  onChange={(event) => setForm((current) => ({ ...current, useCompletionAuth: event.target.checked }))}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Base URL</span>
-                <input
-                  value={form.embeddingBaseUrl}
-                  onChange={(event) => setForm((current) => ({ ...current, embeddingBaseUrl: event.target.value }))}
-                  disabled={form.useCompletionAuth}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Model</span>
-                <input
-                  value={form.embeddingModel}
-                  onChange={(event) => setForm((current) => ({ ...current, embeddingModel: event.target.value }))}
-                />
-              </label>
-              <label className="field field--full">
-                <span className="field-label">API Key</span>
-                <input
-                  type="password"
-                  placeholder={settingsQuery.data?.embedding.masked_api_key || "留空则保留原值"}
-                  value={form.embeddingApiKey}
-                  onChange={(event) => setForm((current) => ({ ...current, embeddingApiKey: event.target.value }))}
-                  disabled={form.useCompletionAuth}
-                />
-              </label>
-              <label className="field">
-                <span className="field-label">Timeout(s)</span>
-                <input
-                  value={form.embeddingTimeout}
-                  onChange={(event) => setForm((current) => ({ ...current, embeddingTimeout: event.target.value }))}
-                />
-              </label>
-            </div>
-          </SurfaceCard>
-
-          <SurfaceCard className="settings-grid__wide">
-            <div className="list-header">
-              <div>
-                <p className="section-kicker">Operations</p>
-                <h3>连接测试与索引</h3>
-              </div>
-            </div>
-
-            <div className="detail-grid">
-              <div className="detail-block">
+        <DetailPageLayout
+          intro={
+            <PageIntroBar
+              eyebrow="System Settings"
+              description="统一维护 Completion、Embedding 与语义索引配置。"
+              badge={settingsQuery.data?.is_ready ? "配置完成" : "待完善"}
+            />
+          }
+          summary={
+            <SurfaceCard className="summary-strip">
+              <div className="summary-strip__item">
                 <span>配置完整性</span>
                 <strong>{settingsQuery.data?.is_ready ? "已完成" : "未完成"}</strong>
               </div>
-              <div className="detail-block">
+              <div className="summary-strip__item">
                 <span>Ready 模板数</span>
                 <strong>{settingsQuery.data?.index_status?.ready_count ?? 0}</strong>
               </div>
-              <div className="detail-block">
+              <div className="summary-strip__item">
                 <span>异常模板数</span>
                 <strong>{settingsQuery.data?.index_status?.error_count ?? 0}</strong>
               </div>
-            </div>
+            </SurfaceCard>
+          }
+          content={
+            <div className="settings-grid">
+              <SurfaceCard>
+                <div className="list-header">
+                  <div>
+                    <p className="section-kicker">Completion</p>
+                    <h3>Completion 配置</h3>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <label className="field">
+                    <span className="field-label">Base URL</span>
+                    <input
+                      value={form.completionBaseUrl}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, completionBaseUrl: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Model</span>
+                    <input
+                      value={form.completionModel}
+                      onChange={(event) => setForm((current) => ({ ...current, completionModel: event.target.value }))}
+                    />
+                  </label>
+                  <label className="field field--full">
+                    <span className="field-label">API Key</span>
+                    <input
+                      type="password"
+                      placeholder={settingsQuery.data?.completion.masked_api_key || "留空则保留原值"}
+                      value={form.completionApiKey}
+                      onChange={(event) => setForm((current) => ({ ...current, completionApiKey: event.target.value }))}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Temperature</span>
+                    <input
+                      value={form.completionTemperature}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, completionTemperature: event.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Timeout(s)</span>
+                    <input
+                      value={form.completionTimeout}
+                      onChange={(event) => setForm((current) => ({ ...current, completionTimeout: event.target.value }))}
+                    />
+                  </label>
+                </div>
+              </SurfaceCard>
 
-            <div className="action-row">
-              <button className="primary-button" type="button" onClick={() => saveMutation.mutate()}>
-                {saveMutation.isPending ? "保存中..." : "保存设置"}
-              </button>
-              <button className="secondary-button" type="button" onClick={() => testMutation.mutate("both")}>
-                {testMutation.isPending ? "测试中..." : "测试连接"}
-              </button>
-              <button className="ghost-button ghost-button--inline" type="button" onClick={() => reindexMutation.mutate()}>
-                {reindexMutation.isPending ? "重建中..." : "重建模板索引"}
-              </button>
+              <SurfaceCard>
+                <div className="list-header">
+                  <div>
+                    <p className="section-kicker">Embedding</p>
+                    <h3>Embedding 配置</h3>
+                  </div>
+                </div>
+                <div className="form-grid">
+                  <label className="field field--full field--checkbox">
+                    <span className="field-label">复用 Completion 鉴权</span>
+                    <input
+                      type="checkbox"
+                      checked={form.useCompletionAuth}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, useCompletionAuth: event.target.checked }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Base URL</span>
+                    <input
+                      value={form.embeddingBaseUrl}
+                      onChange={(event) => setForm((current) => ({ ...current, embeddingBaseUrl: event.target.value }))}
+                      disabled={form.useCompletionAuth}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Model</span>
+                    <input
+                      value={form.embeddingModel}
+                      onChange={(event) => setForm((current) => ({ ...current, embeddingModel: event.target.value }))}
+                    />
+                  </label>
+                  <label className="field field--full">
+                    <span className="field-label">API Key</span>
+                    <input
+                      type="password"
+                      placeholder={settingsQuery.data?.embedding.masked_api_key || "留空则保留原值"}
+                      value={form.embeddingApiKey}
+                      onChange={(event) => setForm((current) => ({ ...current, embeddingApiKey: event.target.value }))}
+                      disabled={form.useCompletionAuth}
+                    />
+                  </label>
+                  <label className="field">
+                    <span className="field-label">Timeout(s)</span>
+                    <input
+                      value={form.embeddingTimeout}
+                      onChange={(event) => setForm((current) => ({ ...current, embeddingTimeout: event.target.value }))}
+                    />
+                  </label>
+                </div>
+              </SurfaceCard>
+
+              <SurfaceCard className="settings-grid__wide">
+                <div className="list-header">
+                  <div>
+                    <p className="section-kicker">Operations</p>
+                    <h3>连接测试与索引</h3>
+                  </div>
+                </div>
+
+                <div className="action-row">
+                  <button className="primary-button" type="button" onClick={() => saveMutation.mutate()}>
+                    {saveMutation.isPending ? "保存中..." : "保存设置"}
+                  </button>
+                  <button className="secondary-button" type="button" onClick={() => testMutation.mutate("both")}>
+                    {testMutation.isPending ? "测试中..." : "测试连接"}
+                  </button>
+                  <button
+                    className="ghost-button ghost-button--inline"
+                    type="button"
+                    onClick={() => reindexMutation.mutate()}
+                  >
+                    {reindexMutation.isPending ? "重建中..." : "重建模板索引"}
+                  </button>
+                </div>
+              </SurfaceCard>
             </div>
-          </SurfaceCard>
-        </div>
+          }
+        />
       </PageSection>
     </div>
   );
