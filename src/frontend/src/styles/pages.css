@@ -1,5 +1,8 @@
 .chat-page {
   min-width: 0;
+  --chat-compose-left: 0px;
+  --chat-compose-width: 100%;
+  --chat-compose-reserve: 176px;
 }
 
 .chat-inline-banner {
@@ -28,9 +31,32 @@
   padding: 18px 20px;
 }
 
+.chat-stream-shell {
+  padding-bottom: calc(var(--chat-compose-reserve, 176px) + 24px);
+}
+
 .chat-stream-card {
   display: grid;
   min-height: 320px;
+}
+
+.chat-compose-dock {
+  position: fixed;
+  left: var(--chat-compose-left);
+  bottom: 0;
+  width: var(--chat-compose-width);
+  z-index: 24;
+  padding: 0 0 24px;
+  box-sizing: border-box;
+}
+
+.chat-compose-dock::before {
+  content: "";
+  position: absolute;
+  inset: -18px -18px 0;
+  background: linear-gradient(180deg, rgba(246, 243, 235, 0) 0%, rgba(246, 243, 235, 0.92) 38%, rgba(246, 243, 235, 0.98) 100%);
+  pointer-events: none;
+  z-index: -1;
 }
 
 .message-list {
@@ -88,7 +114,7 @@
   min-height: 64px;
   max-height: 144px;
   background: rgba(255, 255, 255, 0.96);
-  resize: vertical;
+  resize: none;
 }
 
 .compose-footer {
@@ -357,13 +383,14 @@
 }
 
 @media (max-width: 860px) {
+  .chat-page {
+    --chat-compose-left: 20px;
+    --chat-compose-width: calc(100vw - 40px);
+  }
+
   .message-bubble {
     max-inline-size: 100%;
     inline-size: 100%;
-  }
-
-  .workflow-strip {
-    display: grid;
   }
 
   .compose-footer {

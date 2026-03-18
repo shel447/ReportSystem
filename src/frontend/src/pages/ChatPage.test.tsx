@@ -43,6 +43,8 @@ describe("ChatPage", () => {
     renderChatPage();
 
     expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-stream-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-compose-dock")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "对话助手" })).not.toBeInTheDocument();
     expect(screen.queryByText("Conversation Workflow")).not.toBeInTheDocument();
     expect(screen.queryByText("模板匹配")).not.toBeInTheDocument();

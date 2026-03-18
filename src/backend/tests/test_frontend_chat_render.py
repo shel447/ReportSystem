@@ -51,6 +51,10 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("flex-direction: column;", styles)
         self.assertIn("min-height: 320px", styles)
         self.assertIn("min-height: 64px", styles)
+        self.assertIn(".chat-compose-dock {", styles)
+        self.assertIn("position: fixed;", styles)
+        self.assertIn(".chat-stream-shell {", styles)
+        self.assertIn("padding-bottom: calc(var(--chat-compose-reserve", styles)
 
     def test_shared_layouts_no_longer_cap_page_widths(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
