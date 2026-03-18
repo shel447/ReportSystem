@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AppShell } from "./shell/AppShell";
 import { DocumentsPage } from "../pages/DocumentsPage";
 import { ChatPage } from "../pages/ChatPage";
+import { InstanceDetailPage } from "../pages/InstanceDetailPage";
 import { InstancesPage } from "../pages/InstancesPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { TasksPage } from "../pages/TasksPage";
@@ -21,7 +22,7 @@ export function App() {
         <Route path="/templates/new" element={<TemplateDetailPage />} />
         <Route path="/templates/:templateId" element={<TemplateDetailPage />} />
         <Route path="/instances" element={<InstancesPage />} />
-        <Route path="/instances/:instanceId" element={<InstancesPage />} />
+        <Route path="/instances/:instanceId" element={<InstanceDetailPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/settings" element={<SettingsPage />} />
