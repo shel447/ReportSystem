@@ -38,6 +38,8 @@ src/backend/generated_documents/
 
 # Project specific
 .codemate/
+node_modules/
+*.tsbuildinfo
 
 # Runtime logs
 *.out.log

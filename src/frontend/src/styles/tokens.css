@@ -1,0 +1,40 @@
+:root {
+  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", serif;
+
+  --bg-canvas: #f7f5ef;
+  --bg-glow: rgba(71, 123, 196, 0.12);
+  --bg-panel: rgba(255, 255, 255, 0.78);
+  --bg-surface: #fffdf8;
+  --bg-soft: #f2eee3;
+  --bg-strong: #edf3f8;
+
+  --text-primary: #1b2430;
+  --text-secondary: #5f6b79;
+  --text-muted: #8793a1;
+  --text-inverse: #f8fbff;
+
+  --line-soft: rgba(117, 133, 153, 0.22);
+  --line-strong: rgba(86, 104, 126, 0.34);
+
+  --accent: #256d82;
+  --accent-strong: #1c5566;
+  --accent-soft: rgba(37, 109, 130, 0.1);
+  --accent-muted: rgba(37, 109, 130, 0.16);
+  --success-soft: rgba(36, 122, 88, 0.12);
+  --warning-soft: rgba(180, 120, 32, 0.14);
+  --danger-soft: rgba(176, 65, 43, 0.13);
+
+  --shadow-soft: 0 20px 44px rgba(163, 152, 129, 0.12);
+  --shadow-card: 0 12px 26px rgba(170, 161, 142, 0.1);
+  --shadow-hover: 0 10px 20px rgba(139, 131, 114, 0.12);
+
+  --radius-shell: 28px;
+  --radius-card: 24px;
+  --radius-control: 16px;
+  --radius-pill: 999px;
+
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-canvas);
+}
