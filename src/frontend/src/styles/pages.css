@@ -4,21 +4,45 @@
   max-width: 960px;
 }
 
-.hero-card h3 {
-  margin: 0 0 10px;
-  font-family: var(--font-serif);
-  font-size: 1.48rem;
+.workflow-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.hero-card p:last-child {
-  margin: 0;
-  color: var(--text-secondary);
-  line-height: 1.75;
+.workflow-strip__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 109, 130, 0.14);
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--text-primary);
 }
 
-.chat-surface {
+.workflow-strip__index {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(37, 109, 130, 0.1);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.chat-stream-card,
+.chat-compose-card {
+  padding: 18px 20px;
+}
+
+.chat-stream-card {
   display: grid;
-  gap: 18px;
+  min-height: 360px;
 }
 
 .message-list {
@@ -61,14 +85,14 @@
 
 .chat-compose {
   display: grid;
-  gap: 12px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line-soft);
+  gap: 10px;
 }
 
 .chat-compose textarea {
-  min-height: 108px;
+  min-height: 84px;
+  max-height: 180px;
   background: rgba(255, 255, 255, 0.96);
+  resize: vertical;
 }
 
 .compose-footer {
@@ -167,6 +191,10 @@
 @media (max-width: 860px) {
   .message-bubble {
     max-width: 100%;
+  }
+
+  .workflow-strip {
+    display: grid;
   }
 
   .compose-footer {

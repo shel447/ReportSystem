@@ -17,7 +17,7 @@ function renderChatPage() {
 }
 
 describe("ChatPage", () => {
-  it("renders welcome state and sends message through chat api", async () => {
+  it("renders workflow strip without duplicating the route title and sends message through chat api", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({
         ok: true,
@@ -43,6 +43,15 @@ describe("ChatPage", () => {
     renderChatPage();
 
     expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "对话助手" })).not.toBeInTheDocument();
+    expect(screen.getByText("模板匹配")).toBeInTheDocument();
+    expect(screen.getByText("补参")).toBeInTheDocument();
+    expect(screen.getByText("确认")).toBeInTheDocument();
+    expect(screen.getByText("生成")).toBeInTheDocument();
+    expect(screen.getByText("下载")).toBeInTheDocument();
+    expect(
+      screen.queryByText("模板匹配、补参确认与 Markdown 生成集中在同一条工作流里。"),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText("输入消息，例如：制作设备巡检报告"), {
       target: { value: "制作设备巡检报告" },
