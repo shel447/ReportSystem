@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import { TemplatesPage } from "./TemplatesPage";
 
@@ -11,16 +12,18 @@ function renderTemplatesPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <TemplatesPage />
+      <MemoryRouter>
+        <TemplatesPage />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 describe("TemplatesPage", () => {
-  it("loads template list, renders detail, and updates template", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  it("loads template cards without embedding the full editor", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "/api/templates" && !init?.method) {
+      if (url === "/api/templates") {
         return {
           ok: true,
           json: async () => [
@@ -36,73 +39,17 @@ describe("TemplatesPage", () => {
           ],
         };
       }
-      if (url === "/api/templates/tpl-1" && !init?.method) {
-        return {
-          ok: true,
-          json: async () => ({
-            template_id: "tpl-1",
-            name: "设备巡检报告",
-            description: "巡检模板",
-            report_type: "daily",
-            scenario: "集团",
-            type: "巡检",
-            scene: "总部",
-            match_keywords: ["巡检"],
-            content_params: [],
-            parameters: [{ id: "date", label: "日期", input_type: "date", required: true }],
-            outline: [],
-            sections: [{ title: "概览", content: { presentation: { type: "text", template: "ok" } } }],
-            schema_version: "v2.0",
-            output_formats: ["md"],
-            version: "1.0",
-          }),
-        };
-      }
-      if (url === "/api/templates/tpl-1" && init?.method === "PUT") {
-        return {
-          ok: true,
-          json: async () => ({
-            template_id: "tpl-1",
-            name: "设备巡检报告-新版",
-            description: "巡检模板",
-            report_type: "daily",
-            scenario: "集团",
-            type: "巡检",
-            scene: "总部",
-            match_keywords: ["巡检"],
-            content_params: [],
-            parameters: [{ id: "date", label: "日期", input_type: "date", required: true }],
-            outline: [],
-            sections: [{ title: "概览", content: { presentation: { type: "text", template: "ok" } } }],
-            schema_version: "v2.0",
-            output_formats: ["md"],
-            version: "1.0",
-          }),
-        };
-      }
       throw new Error(`Unexpected fetch ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
 
     renderTemplatesPage();
 
-    expect(await screen.findByText("设备巡检报告")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
-
-    fireEvent.change(screen.getByLabelText("模板名称"), {
-      target: { value: "设备巡检报告-新版" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/templates/tpl-1",
-        expect.objectContaining({
-          method: "PUT",
-        }),
-      );
-    });
-
-    expect(await screen.findByDisplayValue("设备巡检报告-新版")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /设备巡检报告/ })).toHaveAttribute(
+      "href",
+      "/templates/tpl-1",
+    );
+    expect(screen.getByRole("link", { name: "新建模板" })).toHaveAttribute("href", "/templates/new");
+    expect(screen.queryByLabelText("模板名称")).not.toBeInTheDocument();
   });
 });

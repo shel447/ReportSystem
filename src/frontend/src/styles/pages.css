@@ -188,6 +188,99 @@
   color: var(--text-secondary);
 }
 
+.template-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.template-card {
+  display: grid;
+  gap: 14px;
+  min-height: 220px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 247, 241, 0.92));
+  box-shadow: var(--shadow-card);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.template-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 109, 130, 0.22);
+  box-shadow: var(--shadow-hover);
+}
+
+.template-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.template-card__header strong {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  line-height: 1.35;
+}
+
+.template-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.template-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.template-card__meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(37, 109, 130, 0.08);
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.template-detail-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summary-strip__item {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid var(--line-soft);
+}
+
+.summary-strip__item span {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.json-editor-block {
+  display: grid;
+  gap: 14px;
+}
+
 @media (max-width: 860px) {
   .message-bubble {
     max-width: 100%;
@@ -200,5 +293,9 @@
   .compose-footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .summary-strip {
+    grid-template-columns: 1fr;
   }
 }

@@ -6,6 +6,7 @@ import { ChatPage } from "../pages/ChatPage";
 import { InstancesPage } from "../pages/InstancesPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { TasksPage } from "../pages/TasksPage";
+import { TemplateDetailPage } from "../pages/TemplateDetailPage";
 import { TemplatesPage } from "../pages/TemplatesPage";
 
 export function App() {
@@ -17,8 +18,8 @@ export function App() {
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/templates" element={<TemplatesPage />} />
-        <Route path="/templates/new" element={<TemplatesPage />} />
-        <Route path="/templates/:templateId" element={<TemplatesPage />} />
+        <Route path="/templates/new" element={<TemplateDetailPage />} />
+        <Route path="/templates/:templateId" element={<TemplateDetailPage />} />
         <Route path="/instances" element={<InstancesPage />} />
         <Route path="/instances/:instanceId" element={<InstancesPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
