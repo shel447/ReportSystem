@@ -1,11 +1,16 @@
-"""报告实例管理路由"""
+﻿"""Report instance routes."""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
+
+from ..ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
 from ..database import get_db
-from ..models import ReportInstance, ReportTemplate, gen_id
-from ..llm_mock import generate_report_content
+from ..infrastructure.dependencies import build_instance_application_service
+from ..models import ReportInstance, ReportTemplate
+from ..report_generation_service import generate_single_section
+from ..application.reporting.services import is_v2_template
+from ..infrastructure.reporting.repositories import OpenAIContentGenerator, SqlAlchemyTemplateRepository
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -23,47 +28,46 @@ class InstanceUpdate(BaseModel):
 
 @router.post("")
 def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
-    template = db.query(ReportTemplate).filter(
-        ReportTemplate.template_id == data.template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-
-    # 使用 mock LLM 生成内容
-    active_outline = data.outline_override if data.outline_override else template.outline
-    content = generate_report_content(template.name, active_outline, data.input_params)
-
-    inst = ReportInstance(
-        instance_id=gen_id(),
-        template_id=data.template_id,
-        template_version=template.version,
-        input_params=data.input_params,
-        outline_content=content,
-        status="draft",
-    )
-    db.add(inst)
-    db.commit()
-    db.refresh(inst)
-    return _inst_dict(inst)
+    app_service = build_instance_application_service(db)
+    try:
+        result = app_service.create_instance(
+            template_id=data.template_id,
+            input_params=data.input_params or {},
+            outline_override=data.outline_override,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except AIRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "instance_id": result["instance_id"],
+        "template_id": result["template_id"],
+        "status": result["status"],
+        "input_params": result["input_params"],
+        "outline_content": result["outline_content"],
+        "created_at": result.get("created_at"),
+        "updated_at": result.get("updated_at"),
+        "warnings": result.get("warnings", []),
+    }
 
 
 @router.get("/{instance_id}")
 def get_instance(instance_id: str, db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     return _inst_dict(inst)
 
 
 @router.put("/{instance_id}")
-def update_instance(instance_id: str, data: InstanceUpdate,
-                    db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+def update_instance(instance_id: str, data: InstanceUpdate, db: Session = Depends(get_db)):
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
-    for k, v in data.model_dump(exclude_none=True).items():
-        setattr(inst, k, v)
+    for key, value in data.model_dump(exclude_none=True).items():
+        setattr(inst, key, value)
     db.commit()
     db.refresh(inst)
     return _inst_dict(inst)
@@ -71,8 +75,7 @@ def update_instance(instance_id: str, data: InstanceUpdate,
 
 @router.delete("/{instance_id}")
 def delete_instance(instance_id: str, db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     db.delete(inst)
@@ -82,8 +85,7 @@ def delete_instance(instance_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{instance_id}/finalize")
 def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
     inst.status = "finalized"
@@ -92,22 +94,59 @@ def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{instance_id}/regenerate/{section_index}")
-def regenerate_section(instance_id: str, section_index: int,
-                       db: Session = Depends(get_db)):
-    inst = db.query(ReportInstance).filter(
-        ReportInstance.instance_id == instance_id).first()
+def regenerate_section(instance_id: str, section_index: int, db: Session = Depends(get_db)):
+    inst = db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
     if not inst:
         raise HTTPException(status_code=404, detail="Instance not found")
 
-    content = inst.outline_content or []
+    content = list(inst.outline_content or [])
     if section_index < 0 or section_index >= len(content):
         raise HTTPException(status_code=400, detail="Invalid section index")
 
-    section = content[section_index]
-    section["content"] = f"[重新生成] {section.get('title', '未命名章节')}的分析内容已更新。基于最新数据重新评估，各项指标表现良好。"
-    section["regenerated"] = True
+    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == inst.template_id).first()
+    template_entity = SqlAlchemyTemplateRepository(db).get_by_id(inst.template_id)
+    current = content[section_index]
+    regenerated: Dict[str, Any]
+    try:
+        if template_entity and is_v2_template(template_entity):
+            generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
+            sections, _warnings = generator.generate_v2(template_entity, inst.input_params or {})
+            if section_index >= len(sections):
+                raise HTTPException(status_code=400, detail="Invalid section index")
+            regenerated = sections[section_index]
+        else:
+            section_spec = {
+                "title": current.get("title", "未命名章节"),
+                "description": current.get("description", ""),
+                "dynamic_meta": current.get("dynamic_meta"),
+                "level": 1,
+            }
+            regenerated = generate_single_section(
+                db,
+                OpenAICompatGateway(),
+                {
+                    "template_id": template.template_id if template else "",
+                    "name": template.name if template else "报告章节",
+                    "description": template.description if template else "",
+                    "report_type": template.report_type if template else "",
+                    "scenario": template.scenario if template else "",
+                    "match_keywords": template.match_keywords if template else [],
+                    "content_params": template.content_params if template else [],
+                    "outline": template.outline if template else [],
+                },
+                section_spec,
+                inst.input_params or {},
+                existing_sections=content,
+                section_index=section_index,
+            )
+    except AIConfigurationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except AIRequestError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    content[section_index] = {**current, **regenerated, "regenerated": True}
     inst.outline_content = content
+
     from sqlalchemy.orm.attributes import flag_modified
     flag_modified(inst, "outline_content")
     db.commit()
@@ -116,18 +155,16 @@ def regenerate_section(instance_id: str, section_index: int,
 
 
 @router.get("")
-def list_instances(template_id: Optional[str] = None, 
-                   db: Session = Depends(get_db)):
-    q = db.query(ReportInstance)
+def list_instances(template_id: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(ReportInstance)
     if template_id:
-        q = q.filter(ReportInstance.template_id == template_id)
-    # 按创建时间倒序
-    instances = q.order_by(ReportInstance.created_at.desc()).all()
+        query = query.filter(ReportInstance.template_id == template_id)
+    instances = query.order_by(ReportInstance.created_at.desc()).all()
     return [_inst_dict(inst) for inst in instances]
 
 
-def _inst_dict(inst):
 
+def _inst_dict(inst):
     return {
         "instance_id": inst.instance_id,
         "template_id": inst.template_id,

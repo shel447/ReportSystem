@@ -1,0 +1,284 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "report-template",
+  "title": "ReportTemplate",
+  "description": "智能报告系统模板定义 Schema v2.0",
+  "type": "object",
+  "required": ["id", "type", "scene", "name", "parameters", "sections"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "模板唯一标识符",
+      "pattern": "^[a-z0-9_]+$"
+    },
+    "type": {
+      "type": "string",
+      "description": "报告类型，如：设备健康评估"
+    },
+    "scene": {
+      "type": "string",
+      "description": "场景细分，如：总部、分部"
+    },
+    "name": {
+      "type": "string",
+      "description": "模板展示名称"
+    },
+    "parameters": {
+      "type": "array",
+      "description": "模板参数定义列表",
+      "items": { "$ref": "#/$defs/Parameter" }
+    },
+    "sections": {
+      "type": "array",
+      "description": "报告章节树（顶层）",
+      "items": { "$ref": "#/$defs/Section" }
+    }
+  },
+  "$defs": {
+    "Parameter": {
+      "type": "object",
+      "required": ["id", "label", "required", "input_type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "参数唯一标识，在内容中以 {param_id} 引用"
+        },
+        "label": {
+          "type": "string",
+          "description": "用户可读的参数名"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "是否为必填参数"
+        },
+        "input_type": {
+          "type": "string",
+          "enum": ["free_text", "date", "enum", "dynamic"],
+          "description": "输入方式"
+        },
+        "multi": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否允许多值选择，true 时可作为 foreach 来源"
+        },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "枚举选项，仅 input_type=enum 时有效"
+        },
+        "source": {
+          "type": "string",
+          "description": "动态选项来源，仅 input_type=dynamic 时有效"
+        }
+      }
+    },
+    "Section": {
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "章节标题"
+        },
+        "description": {
+          "type": "string",
+          "description": "章节说明"
+        },
+        "foreach": {
+          "$ref": "#/$defs/Foreach",
+          "description": "循环展开声明"
+        },
+        "content": {
+          "$ref": "#/$defs/Content",
+          "description": "叶节点内容，与 subsections 互斥"
+        },
+        "subsections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Section" },
+          "description": "子章节，与 content 互斥"
+        }
+      }
+    },
+    "Foreach": {
+      "type": "object",
+      "required": ["param", "as"],
+      "additionalProperties": false,
+      "properties": {
+        "param": { "type": "string" },
+        "as": { "type": "string" }
+      }
+    },
+    "Content": {
+      "type": "object",
+      "description": "内容节点：数据获取与视图层平级解耦 (v2.0)",
+      "required": ["presentation"],
+      "additionalProperties": false,
+      "properties": {
+        "datasets": {
+          "type": "array",
+          "description": "局部数据池，按 DAG 拓扑执行",
+          "items": { "$ref": "#/$defs/Dataset" }
+        },
+        "presentation": { "$ref": "#/$defs/Presentation" }
+      }
+    },
+    "Dataset": {
+      "type": "object",
+      "required": ["id", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "数据集全局唯一标识"
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "前置依赖的 Dataset ID 列表"
+        },
+        "source": { "$ref": "#/$defs/Source" }
+      }
+    },
+    "Source": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["sql", "nl2sql", "ai_synthesis"],
+          "description": "数据获取方式"
+        },
+        "query": { "type": "string" },
+        "key_col": { "type": "string" },
+        "value_col": { "type": "string" },
+        "description": { "type": "string" },
+        "context": {
+          "type": "object",
+          "properties": {
+            "refs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "queries": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "query"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "query": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "knowledge": {
+          "type": "object",
+          "properties": {
+            "query_template": { "type": "string" },
+            "params": {
+              "type": "object",
+              "properties": {
+                "subject": { "type": "string" },
+                "symptoms": { "type": "string" },
+                "objective": { "type": "string" }
+              }
+            }
+          }
+        },
+        "prompt": { "type": "string" }
+      }
+    },
+    "Presentation": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["text", "value", "chart", "simple_table", "composite_table"],
+          "description": "呈现类型"
+        },
+        "template": { "type": "string" },
+        "anchor": { "type": "string" },
+        "dataset_id": { "type": "string" },
+        "chart_type": {
+          "type": "string",
+          "enum": ["bar", "line", "pie", "area", "scatter"]
+        },
+        "columns": { "type": "integer" },
+        "sections": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/CompositeSection" }
+        }
+      }
+    },
+    "CompositeSection": {
+      "type": "object",
+      "required": ["layout"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "band": {
+          "type": ["string", "null"]
+        },
+        "dataset_id": { "type": "string" },
+        "layout": { "$ref": "#/$defs/Layout" }
+      }
+    },
+    "Layout": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["kv_grid", "tabular"]
+        },
+        "cols_per_row": { "type": "integer" },
+        "key_span": { "type": "integer" },
+        "value_span": { "type": "integer" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key"],
+            "properties": {
+              "key": { "type": "string" },
+              "value": { "type": "string" },
+              "col": { "type": "string" }
+            }
+          }
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "span"],
+            "properties": {
+              "label": { "type": "string" },
+              "span": { "type": "integer" },
+              "repeat": { "type": "boolean" }
+            }
+          }
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["field", "span"],
+            "properties": {
+              "field": { "type": "string" },
+              "span": { "type": "integer" },
+              "repeat": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

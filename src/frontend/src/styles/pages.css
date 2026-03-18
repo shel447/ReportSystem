@@ -1,0 +1,176 @@
+.chat-layout {
+  display: grid;
+  gap: 20px;
+  max-width: 960px;
+}
+
+.hero-card h3 {
+  margin: 0 0 10px;
+  font-family: var(--font-serif);
+  font-size: 1.48rem;
+}
+
+.hero-card p:last-child {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.75;
+}
+
+.chat-surface {
+  display: grid;
+  gap: 18px;
+}
+
+.message-list {
+  display: grid;
+  gap: 14px;
+}
+
+.message-bubble {
+  max-width: 86%;
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.message-bubble p {
+  margin: 0;
+  line-height: 1.72;
+}
+
+.message-bubble--assistant {
+  justify-self: start;
+}
+
+.message-bubble--user {
+  justify-self: end;
+  background: rgba(37, 109, 130, 0.08);
+}
+
+.message-bubble__meta {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.message-bubble__action {
+  margin-top: 4px;
+}
+
+.chat-compose {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.chat-compose textarea {
+  min-height: 108px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.compose-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.compose-hint {
+  color: var(--text-secondary);
+}
+
+.action-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(37, 109, 130, 0.12);
+  background: rgba(37, 109, 130, 0.04);
+}
+
+.card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.template-hint {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+}
+
+.inline-panel {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.inline-panel p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.reason-list,
+.chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reason-list span,
+.choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--line-soft);
+}
+
+.choice-chip input {
+  width: auto;
+  margin: 0;
+}
+
+.choice-chip.active {
+  border-color: rgba(37, 109, 130, 0.22);
+  background: var(--accent-soft);
+}
+
+.review-list {
+  display: grid;
+  gap: 10px;
+}
+
+.review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.review-item p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 860px) {
+  .message-bubble {
+    max-width: 100%;
+  }
+
+  .compose-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

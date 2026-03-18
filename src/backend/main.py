@@ -1,44 +1,76 @@
-"""智能报告系统 - FastAPI 主入口"""
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+"""Smart report system FastAPI entrypoint."""
+from __future__ import annotations
+
 import os
 
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
 from .database import init_db
-from .routers import templates, instances, documents, tasks, chat, design, feedback
+from .routers import chat, design, documents, feedback, instances, system_settings, tasks, templates
 
-app = FastAPI(title="智能报告 system", version="1.2.0")
-
-# 注册路由
 API_PREFIX = "/api"
-app.include_router(templates.router, prefix=API_PREFIX)
-app.include_router(instances.router, prefix=API_PREFIX)
-app.include_router(documents.router, prefix=API_PREFIX)
-app.include_router(tasks.router, prefix=API_PREFIX)
-app.include_router(chat.router, prefix=API_PREFIX)
-app.include_router(design.router, prefix=API_PREFIX)
-app.include_router(feedback.router, prefix=API_PREFIX)
-
-# 静态文件 - 前端
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
-if os.path.exists(FRONTEND_DIR):
-    app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+BACKEND_DIR = os.path.dirname(__file__)
+FRONTEND_SOURCE_DIR = os.path.join(BACKEND_DIR, "..", "frontend")
+FRONTEND_DIST_DIR = os.path.join(FRONTEND_SOURCE_DIR, "dist")
 
 
-@app.get("/")
-async def index():
-    index_path = os.path.join(FRONTEND_DIR, "index.html")
+def create_app(*, frontend_dir: str | None = None) -> FastAPI:
+    app = FastAPI(title="Smart Report System", version="1.6.0")
+
+    app.include_router(templates.router, prefix=API_PREFIX)
+    app.include_router(instances.router, prefix=API_PREFIX)
+    app.include_router(documents.router, prefix=API_PREFIX)
+    app.include_router(tasks.router, prefix=API_PREFIX)
+    app.include_router(chat.router, prefix=API_PREFIX)
+    app.include_router(design.router, prefix=API_PREFIX)
+    app.include_router(feedback.router, prefix=API_PREFIX)
+    app.include_router(system_settings.router, prefix=API_PREFIX)
+
+    resolved_frontend_dir = frontend_dir or FRONTEND_DIST_DIR
+    assets_dir = os.path.join(resolved_frontend_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/")
+    async def index() -> FileResponse:
+        return _serve_frontend_file(resolved_frontend_dir, "")
+
+    @app.get("/{full_path:path}")
+    async def spa_entry(full_path: str) -> FileResponse:
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        return _serve_frontend_file(resolved_frontend_dir, full_path)
+
+    @app.on_event("startup")
+    def on_startup() -> None:
+        init_db()
+        print("Database initialized")
+        print("Server started: http://localhost:8000")
+
+    return app
+
+
+def _serve_frontend_file(frontend_dir: str, requested_path: str) -> FileResponse:
+    index_path = os.path.join(frontend_dir, "index.html")
+    if not os.path.exists(index_path):
+        raise HTTPException(status_code=404, detail="Frontend build not found")
+
+    requested_path = (requested_path or "").strip("/")
+    if requested_path:
+        frontend_root = os.path.abspath(frontend_dir)
+        candidate = os.path.abspath(os.path.join(frontend_root, requested_path))
+        if candidate.startswith(frontend_root) and os.path.isfile(candidate):
+            return FileResponse(candidate, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
     return FileResponse(index_path, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    print("✅ 数据库初始化完成")
-    print("✅ 智能报告系统已启动: http://localhost:8000")
+app = create_app()
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("src.backend.main:app", host="0.0.0.0", port=8000, reload=True)

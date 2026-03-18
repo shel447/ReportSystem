@@ -1,12 +1,16 @@
-"""定时任务管理路由"""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
+﻿"""定时任务管理路由"""
 from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from ..ai_gateway import AIConfigurationError, AIRequestError
 from ..database import get_db
-from ..models import ScheduledTask, ScheduledTaskExecution, ReportInstance, gen_id
-from ..llm_mock import generate_report_content
+from ..document_service import DocumentGenerationError, create_markdown_document
+from ..infrastructure.dependencies import build_scheduled_run_application_service
+from ..models import ScheduledTask, ScheduledTaskExecution, gen_id
 
 router = APIRouter(prefix="/scheduled-tasks", tags=["scheduled-tasks"])
 
@@ -36,21 +40,18 @@ class TaskUpdate(BaseModel):
 
 @router.post("")
 def create_task(data: TaskCreate, db: Session = Depends(get_db)):
-    # 配额校验
     user_count = db.query(ScheduledTask).filter(
         ScheduledTask.user_id == data.user_id,
-        ScheduledTask.status.in_(["active", "paused"])
+        ScheduledTask.status.in_(["active", "paused"]),
     ).count()
     if user_count >= MAX_TASKS_PER_USER:
-        raise HTTPException(status_code=400,
-                            detail=f"每位用户最多创建 {MAX_TASKS_PER_USER} 个定时任务")
+        raise HTTPException(status_code=400, detail=f"每位用户最多创建 {MAX_TASKS_PER_USER} 个定时任务")
 
     global_count = db.query(ScheduledTask).filter(
         ScheduledTask.status.in_(["active", "paused"])
     ).count()
     if global_count >= MAX_TASKS_GLOBAL:
-        raise HTTPException(status_code=400,
-                            detail=f"系统全局最多 {MAX_TASKS_GLOBAL} 个定时任务")
+        raise HTTPException(status_code=400, detail=f"系统全局最多 {MAX_TASKS_GLOBAL} 个定时任务")
 
     task = ScheduledTask(task_id=gen_id(), **data.model_dump())
     db.add(task)
@@ -61,10 +62,8 @@ def create_task(data: TaskCreate, db: Session = Depends(get_db)):
 
 @router.get("")
 def list_tasks(user_id: str = "default", db: Session = Depends(get_db)):
-    # 用户隔离
-    tasks = db.query(ScheduledTask).filter(
-        ScheduledTask.user_id == user_id).all()
-    return [_task_dict(t) for t in tasks]
+    tasks = db.query(ScheduledTask).filter(ScheduledTask.user_id == user_id).all()
+    return [_task_dict(task) for task in tasks]
 
 
 @router.get("/{task_id}")
@@ -80,8 +79,8 @@ def update_task(task_id: str, data: TaskUpdate, db: Session = Depends(get_db)):
     task = db.query(ScheduledTask).filter(ScheduledTask.task_id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    for k, v in data.model_dump(exclude_none=True).items():
-        setattr(task, k, v)
+    for key, value in data.model_dump(exclude_none=True).items():
+        setattr(task, key, value)
     db.commit()
     db.refresh(task)
     return _task_dict(task)
@@ -121,48 +120,30 @@ def resume_task(task_id: str, db: Session = Depends(get_db)):
 
 @router.post("/{task_id}/run-now")
 def run_task_now(task_id: str, db: Session = Depends(get_db)):
-    """立即执行一次定时任务"""
     task = db.query(ScheduledTask).filter(ScheduledTask.task_id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # 模拟执行：创建新实例
-    from ..models import ReportTemplate
-    template = db.query(ReportTemplate).filter(
-        ReportTemplate.template_id == task.template_id).first()
+    params = {task.time_param_name: datetime.now().strftime(task.time_format)}
+    app_service = build_scheduled_run_application_service(db)
+    try:
+        created = app_service.create_instance_from_schedule(
+            template_id=task.template_id,
+            source_instance_id=task.source_instance_id,
+            override_params=params,
+        )
+    except (AIConfigurationError, AIRequestError, ValueError) as exc:
+        _record_failed_execution(db, task, params, str(exc))
+        status_code = 400 if isinstance(exc, (AIConfigurationError, ValueError)) else 502
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
-    params = {}
-    if task.source_instance_id:
-        source = db.query(ReportInstance).filter(
-            ReportInstance.instance_id == task.source_instance_id).first()
-        if source:
-            params = dict(source.input_params or {})
-
-    params[task.time_param_name] = datetime.now().strftime(task.time_format)
-
-    content = generate_report_content(
-        template.name if template else "Unknown",
-        template.outline if template else [],
-        params
-    )
-
-    new_inst = ReportInstance(
-        instance_id=gen_id(),
-        template_id=task.template_id,
-        input_params=params,
-        outline_content=content,
-        status="draft",
-    )
-    db.add(new_inst)
-
-    # 记录执行
     execution = ScheduledTaskExecution(
         execution_id=gen_id(),
         task_id=task_id,
         status="success",
-        generated_instance_id=new_inst.instance_id,
+        generated_instance_id=created["instance_id"],
         completed_at=datetime.now(),
-        input_params_used=params,
+        input_params_used=created["input_params"],
     )
     db.add(execution)
 
@@ -172,35 +153,68 @@ def run_task_now(task_id: str, db: Session = Depends(get_db)):
     if task.schedule_type == "once":
         task.status = "completed"
 
+    generated_document_id = None
+    if task.auto_generate_doc:
+        try:
+            document = create_markdown_document(db, created["instance_id"])
+            generated_document_id = document.document_id
+        except DocumentGenerationError:
+            generated_document_id = None
+
     db.commit()
-    return {"message": "executed", "instance_id": new_inst.instance_id}
+    return {
+        "message": "executed",
+        "instance_id": created["instance_id"],
+        "document_id": generated_document_id,
+    }
 
 
 @router.get("/{task_id}/executions")
 def list_executions(task_id: str, db: Session = Depends(get_db)):
-    execs = db.query(ScheduledTaskExecution).filter(
-        ScheduledTaskExecution.task_id == task_id).all()
-    return [{"execution_id": e.execution_id, "status": e.status,
-             "generated_instance_id": e.generated_instance_id,
-             "started_at": str(e.started_at),
-             "completed_at": str(e.completed_at)} for e in execs]
+    executions = db.query(ScheduledTaskExecution).filter(ScheduledTaskExecution.task_id == task_id).all()
+    return [{
+        "execution_id": item.execution_id,
+        "status": item.status,
+        "generated_instance_id": item.generated_instance_id,
+        "started_at": str(item.started_at),
+        "completed_at": str(item.completed_at),
+        "error_message": item.error_message,
+    } for item in executions]
 
 
-def _task_dict(t):
+
+def _record_failed_execution(db: Session, task: ScheduledTask, params: dict, error_message: str) -> None:
+    execution = ScheduledTaskExecution(
+        execution_id=gen_id(),
+        task_id=task.task_id,
+        status="failed",
+        completed_at=datetime.now(),
+        error_message=error_message,
+        input_params_used=params,
+    )
+    db.add(execution)
+    task.total_runs += 1
+    task.failed_runs += 1
+    task.last_run_at = datetime.now()
+    db.commit()
+
+
+
+def _task_dict(task: ScheduledTask):
     return {
-        "task_id": t.task_id,
-        "user_id": t.user_id,
-        "name": t.name,
-        "description": t.description,
-        "source_instance_id": t.source_instance_id,
-        "template_id": t.template_id,
-        "schedule_type": t.schedule_type,
-        "cron_expression": t.cron_expression,
-        "enabled": t.enabled,
-        "auto_generate_doc": t.auto_generate_doc,
-        "status": t.status,
-        "total_runs": t.total_runs,
-        "success_runs": t.success_runs,
-        "last_run_at": str(t.last_run_at) if t.last_run_at else None,
-        "created_at": str(t.created_at),
+        "task_id": task.task_id,
+        "user_id": task.user_id,
+        "name": task.name,
+        "description": task.description,
+        "source_instance_id": task.source_instance_id,
+        "template_id": task.template_id,
+        "schedule_type": task.schedule_type,
+        "cron_expression": task.cron_expression,
+        "enabled": task.enabled,
+        "auto_generate_doc": task.auto_generate_doc,
+        "status": task.status,
+        "total_runs": task.total_runs,
+        "success_runs": task.success_runs,
+        "last_run_at": str(task.last_run_at) if task.last_run_at else None,
+        "created_at": str(task.created_at),
     }

@@ -4,6 +4,7 @@
 
 # Python
 .venv/
+.worktrees/
 venv/
 env/
 ENV/
@@ -29,7 +30,18 @@ wheels/
 *.egg
 
 # Database
-# src/backend/report_system.db
+src/backend/report_system.db
+src/backend/telecom_demo.db
+src/backend/generated_documents/
+*.db
+*.sqlite
 
 # Project specific
 .codemate/
+node_modules/
+*.tsbuildinfo
+
+# Runtime logs
+*.out.log
+*.err.log
+uvicorn*.log
