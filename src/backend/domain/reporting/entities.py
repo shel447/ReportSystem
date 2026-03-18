@@ -43,6 +43,11 @@ class ReportTemplateEntity:
     content_params: List[Dict[str, Any]]
     version: str
     outline: List[Dict[str, Any]]
+    template_type: str = ""
+    scene: str = ""
+    parameters: List[Dict[str, Any]] = field(default_factory=list)
+    sections: List[Dict[str, Any]] = field(default_factory=list)
+    schema_version: str = ""
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, String, Text, Boolean, Integer, DateTime, JSON
+from sqlalchemy import Column, String, Text, Boolean, Integer, DateTime, JSON
 from sqlalchemy.sql import func
 from .database import Base
 import uuid
@@ -16,6 +16,11 @@ class ReportTemplate(Base):
     description = Column(Text, default="")
     report_type = Column(String, default="daily")
     scenario = Column(String, default="")
+    template_type = Column(String, default="")
+    scene = Column(String, default="")
+    parameters = Column(JSON, default=list)
+    sections = Column(JSON, default=list)
+    schema_version = Column(String, default="")
     match_keywords = Column(JSON, default=list)
     content_params = Column(JSON, default=list)
     outline = Column(JSON, default=list)

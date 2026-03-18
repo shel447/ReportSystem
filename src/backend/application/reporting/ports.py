@@ -36,3 +36,10 @@ class ContentGenerator(Protocol):
         params: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         ...
+
+    def generate_v2(
+        self,
+        template: ReportTemplateEntity,
+        params: Dict[str, Any],
+    ) -> tuple[List[Dict[str, Any]], List[str]]:
+        ...

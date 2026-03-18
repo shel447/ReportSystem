@@ -41,6 +41,11 @@ def _ensure_sqlite_columns():
     additions = {
         "report_templates": {
             "match_keywords": "JSON DEFAULT '[]'",
+            "template_type": "TEXT DEFAULT ''",
+            "scene": "TEXT DEFAULT ''",
+            "parameters": "JSON DEFAULT '[]'",
+            "sections": "JSON DEFAULT '[]'",
+            "schema_version": "TEXT DEFAULT ''",
         },
     }
     with engine.begin() as connection:

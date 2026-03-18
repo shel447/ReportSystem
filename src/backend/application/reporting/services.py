@@ -1,11 +1,17 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 from .ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
-from ...domain.reporting.entities import ReportInstanceEntity
+from ...domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
 from ...domain.reporting.services import OutlineExpansionService
+
+
+def is_v2_template(template: ReportTemplateEntity) -> bool:
+    schema_version = getattr(template, "schema_version", None)
+    sections = getattr(template, "sections", None)
+    return bool(schema_version == "v2" or sections)
 
 
 class InstanceApplicationService:
@@ -33,15 +39,20 @@ class InstanceApplicationService:
         if not template:
             raise ValueError("Template not found")
 
-        active_outline = outline_override if outline_override else template.outline
-        expansion = self.outline_expansion_service.expand(active_outline or [], input_params or {})
-        content = self.content_generator.generate(template, expansion.nodes, input_params or {})
+        warnings: List[str] = []
+        if is_v2_template(template):
+            outline_content, warnings = self.content_generator.generate_v2(template, input_params or {})
+        else:
+            active_outline = outline_override if outline_override else template.outline
+            expansion = self.outline_expansion_service.expand(active_outline or [], input_params or {})
+            outline_content = self.content_generator.generate(template, expansion.nodes, input_params or {})
+            warnings = expansion.warnings
 
         created = self.instance_writer.create(
             template_id=template.template_id,
             template_version=template.version,
             input_params=input_params or {},
-            outline_content=content,
+            outline_content=outline_content,
             status="draft",
         )
         payload = asdict(created)
@@ -49,7 +60,7 @@ class InstanceApplicationService:
             payload["created_at"] = str(payload["created_at"])
         if payload.get("updated_at") is not None:
             payload["updated_at"] = str(payload["updated_at"])
-        payload["warnings"] = expansion.warnings
+        payload["warnings"] = warnings
         return payload
 
 

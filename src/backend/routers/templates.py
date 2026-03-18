@@ -6,6 +6,7 @@ from typing import Optional, List, Any
 
 from ..database import get_db
 from ..models import ReportTemplate, gen_id
+from ..template_schema_service import validate_template_payload
 from ..template_index_service import delete_template_index, mark_template_index_stale
 
 router = APIRouter(prefix="/templates", tags=["templates"])
@@ -15,10 +16,15 @@ class TemplateCreate(BaseModel):
     name: str
     description: str = ""
     report_type: str = "daily"
+    type: str = ""
     scenario: str = ""
+    scene: str = ""
     match_keywords: List[str] = []
     content_params: List[Any] = []
+    parameters: List[Any] = []
     outline: List[Any] = []
+    sections: List[Any] = []
+    schema_version: str = ""
     output_formats: List[str] = ["pdf"]
 
 
@@ -26,16 +32,24 @@ class TemplateUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     report_type: Optional[str] = None
+    type: Optional[str] = None
     scenario: Optional[str] = None
+    scene: Optional[str] = None
     match_keywords: Optional[List[str]] = None
     content_params: Optional[List[Any]] = None
+    parameters: Optional[List[Any]] = None
     outline: Optional[List[Any]] = None
+    sections: Optional[List[Any]] = None
+    schema_version: Optional[str] = None
     output_formats: Optional[List[str]] = None
 
 
 @router.post("")
 def create_template(data: TemplateCreate, db: Session = Depends(get_db)):
-    payload = _clean_template_payload(data.model_dump())
+    try:
+        payload = _clean_template_payload(data.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     template = ReportTemplate(template_id=gen_id(), **payload)
     db.add(template)
     db.commit()
@@ -53,6 +67,8 @@ def list_templates(db: Session = Depends(get_db)):
         "description": item.description,
         "report_type": item.report_type,
         "scenario": item.scenario,
+        "type": item.template_type or "",
+        "scene": item.scene or "",
         "created_at": str(item.created_at),
     } for item in templates]
 
@@ -70,7 +86,11 @@ def update_template(template_id: str, data: TemplateUpdate, db: Session = Depend
     template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
-    for key, value in _clean_template_payload(data.model_dump(exclude_none=True)).items():
+    try:
+        updates = _clean_template_payload(data.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    for key, value in updates.items():
         setattr(template, key, value)
     db.commit()
     db.refresh(template)
@@ -97,9 +117,14 @@ def _template_detail(template: ReportTemplate):
         "description": template.description,
         "report_type": template.report_type,
         "scenario": template.scenario,
+        "type": template.template_type or "",
+        "scene": template.scene or "",
         "match_keywords": _normalize_keywords(template.match_keywords),
         "content_params": template.content_params,
+        "parameters": template.parameters,
         "outline": template.outline,
+        "sections": template.sections,
+        "schema_version": template.schema_version or "",
         "output_formats": template.output_formats,
         "created_at": str(template.created_at),
         "version": template.version,
@@ -107,6 +132,11 @@ def _template_detail(template: ReportTemplate):
 
 
 def _clean_template_payload(payload):
+    payload = validate_template_payload(payload)
+    if "type" in payload:
+        payload["template_type"] = payload.pop("type") or ""
+    if "scene" in payload:
+        payload["scene"] = payload.get("scene") or ""
     if "match_keywords" in payload:
         payload["match_keywords"] = _normalize_keywords(payload.get("match_keywords"))
     return payload

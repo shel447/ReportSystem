@@ -9,6 +9,8 @@ from ..database import get_db
 from ..infrastructure.dependencies import build_instance_application_service
 from ..models import ReportInstance, ReportTemplate
 from ..report_generation_service import generate_single_section
+from ..application.reporting.services import is_v2_template
+from ..infrastructure.reporting.repositories import OpenAIContentGenerator, SqlAlchemyTemplateRepository
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -102,32 +104,41 @@ def regenerate_section(instance_id: str, section_index: int, db: Session = Depen
         raise HTTPException(status_code=400, detail="Invalid section index")
 
     template = db.query(ReportTemplate).filter(ReportTemplate.template_id == inst.template_id).first()
+    template_entity = SqlAlchemyTemplateRepository(db).get_by_id(inst.template_id)
     current = content[section_index]
-    section_spec = {
-        "title": current.get("title", "未命名章节"),
-        "description": current.get("description", ""),
-        "dynamic_meta": current.get("dynamic_meta"),
-        "level": 1,
-    }
+    regenerated: Dict[str, Any]
     try:
-        regenerated = generate_single_section(
-            db,
-            OpenAICompatGateway(),
-            {
-                "template_id": template.template_id if template else "",
-                "name": template.name if template else "报告章节",
-                "description": template.description if template else "",
-                "report_type": template.report_type if template else "",
-                "scenario": template.scenario if template else "",
-                "match_keywords": template.match_keywords if template else [],
-                "content_params": template.content_params if template else [],
-                "outline": template.outline if template else [],
-            },
-            section_spec,
-            inst.input_params or {},
-            existing_sections=content,
-            section_index=section_index,
-        )
+        if template_entity and is_v2_template(template_entity):
+            generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
+            sections, _warnings = generator.generate_v2(template_entity, inst.input_params or {})
+            if section_index >= len(sections):
+                raise HTTPException(status_code=400, detail="Invalid section index")
+            regenerated = sections[section_index]
+        else:
+            section_spec = {
+                "title": current.get("title", "未命名章节"),
+                "description": current.get("description", ""),
+                "dynamic_meta": current.get("dynamic_meta"),
+                "level": 1,
+            }
+            regenerated = generate_single_section(
+                db,
+                OpenAICompatGateway(),
+                {
+                    "template_id": template.template_id if template else "",
+                    "name": template.name if template else "报告章节",
+                    "description": template.description if template else "",
+                    "report_type": template.report_type if template else "",
+                    "scenario": template.scenario if template else "",
+                    "match_keywords": template.match_keywords if template else [],
+                    "content_params": template.content_params if template else [],
+                    "outline": template.outline if template else [],
+                },
+                section_spec,
+                inst.input_params or {},
+                existing_sections=content,
+                section_index=section_index,
+            )
     except AIConfigurationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except AIRequestError as exc:

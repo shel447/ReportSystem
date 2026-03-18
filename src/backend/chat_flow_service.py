@@ -71,6 +71,7 @@ def build_ask_param_action(state: Dict[str, Any], params: List[Dict[str, Any]]) 
 
     target_id = missing_required[0]
     param = next((p for p in params if p.get("id") == target_id), {"id": target_id, "label": target_id})
+    slot = slots.get(target_id) or {}
     return {
         "type": "ask_param",
         "template_name": state.get("report", {}).get("template_name", ""),
@@ -81,8 +82,78 @@ def build_ask_param_action(state: Dict[str, Any], params: List[Dict[str, Any]]) 
             "multi": bool(param.get("multi")),
             "options": list(param.get("options") or []),
         },
+        "widget": _build_param_widget(param),
+        "selected_values": _selected_values(slot.get("value")),
         "progress": {
             "collected": collected_count,
             "required": required_count,
         },
     }
+
+
+def build_review_params_action(state: Dict[str, Any], params: List[Dict[str, Any]]) -> Dict[str, Any]:
+    slots = state.get("slots") or {}
+    collected = []
+    for param in params:
+        param_id = str(param.get("id") or "")
+        if param_id not in slots:
+            continue
+        collected.append(
+            {
+                "id": param_id,
+                "label": param.get("label") or param_id,
+                "value": slots[param_id].get("value"),
+                "required": bool(param.get("required")),
+            }
+        )
+    return {
+        "type": "review_params",
+        "template_id": state.get("report", {}).get("template_id", ""),
+        "template_name": state.get("report", {}).get("template_name", ""),
+        "params": collected,
+        "missing_required": list(state.get("missing", {}).get("required") or []),
+    }
+
+
+def rewind_slots_for_param(state: Dict[str, Any], params: List[Dict[str, Any]], target_param_id: str) -> Dict[str, Any]:
+    slots = dict(state.get("slots") or {})
+    ordered_ids = [str(item.get("id") or "") for item in params if str(item.get("id") or "")]
+    if target_param_id not in ordered_ids:
+        return state
+    start = ordered_ids.index(target_param_id)
+    for param_id in ordered_ids[start:]:
+        slots.pop(param_id, None)
+    state["slots"] = slots
+    state["missing"] = state.get("missing") or {}
+    state["missing"]["required"] = [
+        param_id
+        for param_id in ordered_ids[start:]
+        if next((item for item in params if item.get("id") == param_id and item.get("required")), None)
+    ]
+    return state
+
+
+def reset_slots(state: Dict[str, Any]) -> Dict[str, Any]:
+    state["slots"] = {}
+    missing = state.get("missing") or {}
+    missing["required"] = []
+    state["missing"] = missing
+    return state
+
+
+def _build_param_widget(param: Dict[str, Any]) -> Dict[str, Any]:
+    input_type = str(param.get("input_type") or "free_text")
+    multi = bool(param.get("multi"))
+    if input_type in {"enum", "dynamic"}:
+        return {"kind": "multi_select" if multi else "single_select"}
+    if input_type == "date":
+        return {"kind": "date"}
+    return {"kind": "text"}
+
+
+def _selected_values(value: Any) -> List[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import math
@@ -43,10 +43,10 @@ class TemplateIndexUnavailableError(Exception):
 
 def build_template_semantic_text(template: ReportTemplate) -> str:
     param_lines: List[str] = []
-    for item in _as_list(template.content_params):
+    for item in _as_list(_effective_parameters(template)):
         if not isinstance(item, dict):
             continue
-        name = str(item.get("name") or "").strip()
+        name = str(item.get("name") or item.get("id") or "").strip()
         label = str(item.get("label") or "").strip()
         desc = str(item.get("description") or "").strip()
         parts = [part for part in [label, name, desc] if part]
@@ -54,24 +54,24 @@ def build_template_semantic_text(template: ReportTemplate) -> str:
             param_lines.append(" / ".join(parts))
 
     outline_lines: List[str] = []
-    for item in _as_list(template.outline):
-        if not isinstance(item, dict):
-            continue
-        title = str(item.get("title") or "").strip()
-        desc = str(item.get("description") or "").strip()
+    for title, desc in _collect_section_lines(_effective_sections(template)):
         parts = [part for part in [title, desc] if part]
         if parts:
             outline_lines.append(" / ".join(parts))
+
+    dataset_lines = _dataset_phrases(template)
 
     keyword_text = "；".join(_string_list(template.match_keywords))
     sections = [
         f"模板名称: {template.name}",
         f"模板描述: {template.description}",
-        f"场景: {template.scenario}",
+        f"模板类型: {_template_type(template)}",
+        f"场景: {_template_scene(template)}",
         f"报告类型: {template.report_type}",
         f"匹配关键词: {keyword_text}",
         "内容参数: " + "；".join(param_lines),
         "报告大纲: " + "；".join(outline_lines),
+        "章节数据源: " + "；".join(dataset_lines),
     ]
     return "\n".join(line for line in sections if line.split(": ", 1)[-1].strip())
 
@@ -89,10 +89,7 @@ def mark_template_index_stale(db: Session, template_id: str, reason: str = "模�
 
 def mark_all_template_indices_stale(db: Session, reason: str = "设置已更新，请重建模板索引。") -> None:
     template_ids = [item[0] for item in db.query(ReportTemplate.template_id).all()]
-    existing = {
-        row.template_id: row
-        for row in db.query(TemplateSemanticIndex).all()
-    }
+    existing = {row.template_id: row for row in db.query(TemplateSemanticIndex).all()}
     for template_id in template_ids:
         row = existing.get(template_id)
         if row is None:
@@ -113,10 +110,7 @@ def delete_template_index(db: Session, template_id: str) -> None:
 
 def get_index_status(db: Session) -> Dict[str, Any]:
     templates = db.query(ReportTemplate).order_by(ReportTemplate.created_at.desc()).all()
-    indices = {
-        row.template_id: row
-        for row in db.query(TemplateSemanticIndex).all()
-    }
+    indices = {row.template_id: row for row in db.query(TemplateSemanticIndex).all()}
     items: List[Dict[str, Any]] = []
     counts = {"ready": 0, "stale": 0, "error": 0, "missing": 0}
     for template in templates:
@@ -132,14 +126,16 @@ def get_index_status(db: Session) -> Dict[str, Any]:
         if status not in counts:
             status = "stale"
         counts[status] += 1
-        items.append({
-            "template_id": template.template_id,
-            "template_name": template.name,
-            "scenario": template.scenario or "",
-            "status": status,
-            "updated_at": updated_at,
-            "error_message": error_message,
-        })
+        items.append(
+            {
+                "template_id": template.template_id,
+                "template_name": template.name,
+                "scenario": _template_scene(template),
+                "status": status,
+                "updated_at": updated_at,
+                "error_message": error_message,
+            }
+        )
     return {
         "total_templates": len(templates),
         "ready_count": counts["ready"],
@@ -153,10 +149,7 @@ def get_index_status(db: Session) -> Dict[str, Any]:
 def reindex_all_templates(db: Session, gateway: OpenAICompatGateway) -> Dict[str, Any]:
     config = build_embedding_provider_config(db)
     templates = db.query(ReportTemplate).order_by(ReportTemplate.created_at.desc()).all()
-    existing = {
-        row.template_id: row
-        for row in db.query(TemplateSemanticIndex).all()
-    }
+    existing = {row.template_id: row for row in db.query(TemplateSemanticIndex).all()}
     active_ids = {template.template_id for template in templates}
 
     for template_id, row in existing.items():
@@ -204,18 +197,21 @@ def match_templates(db: Session, message: str, gateway: OpenAICompatGateway) -> 
         semantic_weight = 0.50 if rule["strong_direct"] else 0.74
         total = min(1.0, semantic_score * semantic_weight + min(0.56, rule["score"]))
         reasons = _finalize_reasons(rule["reasons"], semantic_score)
-        ranked.append({
-            "template_id": template.template_id,
-            "template_name": template.name or "未命名模板",
-            "scenario": template.scenario or "",
-            "description": template.description or "",
-            "report_type": template.report_type or "",
-            "score": round(total, 4),
-            "score_label": _score_label(total),
-            "semantic_score": round(semantic_score, 4),
-            "rule_score": round(rule["score"], 4),
-            "match_reasons": reasons,
-        })
+        ranked.append(
+            {
+                "template_id": template.template_id,
+                "template_name": template.name or "未命名模板",
+                "scenario": _template_scene(template),
+                "template_type": _template_type(template),
+                "description": template.description or "",
+                "report_type": template.report_type or "",
+                "score": round(total, 4),
+                "score_label": _score_label(total),
+                "semantic_score": round(semantic_score, 4),
+                "rule_score": round(rule["score"], 4),
+                "match_reasons": reasons,
+            }
+        )
 
     ranked.sort(key=lambda item: (item["score"], item["rule_score"], item["semantic_score"]), reverse=True)
     top = ranked[0]
@@ -265,10 +261,17 @@ def _rule_score(template: ReportTemplate, query_norm: str) -> Dict[str, Any]:
         score += 0.09 if desc_match[0] in {"full", "core"} else 0.06
         reasons.append((70, f"描述命中：{desc_match[1]}"))
 
-    scenario_match = _best_phrase_match(query_norm, [template.scenario] if template.scenario else [], allow_core_terms=True)
-    if scenario_match:
-        score += 0.08 if scenario_match[0] in {"full", "core"} else 0.05
-        reasons.append((74, f"场景命中：{scenario_match[1]}"))
+    template_type = _template_type(template)
+    type_match = _best_phrase_match(query_norm, [template_type] if template_type else [], allow_core_terms=True)
+    if type_match:
+        score += 0.09 if type_match[0] in {"full", "core"} else 0.06
+        reasons.append((76, f"类型命中：{type_match[1]}"))
+
+    scene_text = _template_scene(template)
+    scene_match = _best_phrase_match(query_norm, [scene_text] if scene_text else [], allow_core_terms=True)
+    if scene_match:
+        score += 0.08 if scene_match[0] in {"full", "core"} else 0.05
+        reasons.append((74, f"场景命中：{scene_match[1]}"))
 
     param_match = _best_phrase_match(query_norm, _param_phrases(template))
     if param_match:
@@ -279,6 +282,11 @@ def _rule_score(template: ReportTemplate, query_norm: str) -> Dict[str, Any]:
     if outline_match:
         score += 0.07 if outline_match[0] in {"full", "core"} else 0.05
         reasons.append((62, f"大纲命中：{outline_match[1]}"))
+
+    dataset_match = _best_phrase_match(query_norm, _dataset_phrases(template), allow_core_terms=True)
+    if dataset_match:
+        score += 0.06 if dataset_match[0] in {"full", "core"} else 0.04
+        reasons.append((58, f"数据源命中：{dataset_match[1]}"))
 
     report_type_match = _best_phrase_match(query_norm, [template.report_type] if template.report_type else [])
     if report_type_match:
@@ -357,10 +365,10 @@ def _score_label(score: float) -> str:
 
 def _param_phrases(template: ReportTemplate) -> List[str]:
     phrases: List[str] = []
-    for item in _as_list(template.content_params):
+    for item in _as_list(_effective_parameters(template)):
         if not isinstance(item, dict):
             continue
-        for key in ("label", "name", "description"):
+        for key in ("label", "name", "id", "description"):
             value = str(item.get(key) or "").strip()
             if value:
                 phrases.append(value)
@@ -369,14 +377,84 @@ def _param_phrases(template: ReportTemplate) -> List[str]:
 
 def _outline_phrases(template: ReportTemplate) -> List[str]:
     phrases: List[str] = []
-    for item in _as_list(template.outline):
+    for title, desc in _collect_section_lines(_effective_sections(template)):
+        if title:
+            phrases.append(title)
+        if desc:
+            phrases.append(desc)
+    return phrases
+
+
+def _dataset_phrases(template: ReportTemplate) -> List[str]:
+    phrases: List[str] = []
+    for item in _effective_sections(template):
+        phrases.extend(_collect_dataset_phrases(item))
+    return list(dict.fromkeys(phrase for phrase in phrases if phrase))
+
+
+def _effective_parameters(template: ReportTemplate) -> List[Any]:
+    params = list(getattr(template, "parameters", None) or [])
+    if params:
+        return params
+    return list(template.content_params or [])
+
+
+def _effective_sections(template: ReportTemplate) -> List[Any]:
+    sections = list(getattr(template, "sections", None) or [])
+    if sections:
+        return sections
+    return list(template.outline or [])
+
+
+def _collect_section_lines(nodes: List[Any]) -> List[Tuple[str, str]]:
+    lines: List[Tuple[str, str]] = []
+    for item in nodes:
         if not isinstance(item, dict):
             continue
-        for key in ("title", "description"):
-            value = str(item.get(key) or "").strip()
-            if value:
-                phrases.append(value)
+        title = str(item.get("title") or "").strip()
+        desc = str(item.get("description") or "").strip()
+        if title or desc:
+            lines.append((title, desc))
+        children = item.get("subsections") or item.get("sections") or []
+        if isinstance(children, list) and children:
+            lines.extend(_collect_section_lines(children))
+    return lines
+
+
+def _collect_dataset_phrases(node: Any) -> List[str]:
+    if not isinstance(node, dict):
+        return []
+    phrases: List[str] = []
+    content = node.get("content") or {}
+    datasets = content.get("datasets") if isinstance(content, dict) else []
+    if isinstance(datasets, list):
+        for dataset in datasets:
+            if not isinstance(dataset, dict):
+                continue
+            for key in ("id", "name", "description", "prompt"):
+                value = str(dataset.get(key) or "").strip()
+                if value:
+                    phrases.append(value)
+            source = dataset.get("source") or {}
+            if isinstance(source, dict):
+                for key in ("kind", "description", "prompt", "query"):
+                    value = str(source.get(key) or "").strip()
+                    if value:
+                        phrases.append(value)
+
+    children = node.get("subsections") or node.get("sections") or []
+    if isinstance(children, list):
+        for child in children:
+            phrases.extend(_collect_dataset_phrases(child))
     return phrases
+
+
+def _template_type(template: ReportTemplate) -> str:
+    return str(getattr(template, "template_type", None) or template.report_type or "").strip()
+
+
+def _template_scene(template: ReportTemplate) -> str:
+    return str(getattr(template, "scene", None) or template.scenario or "").strip()
 
 
 def _core_terms_present(query_norm: str, phrase_norm: str) -> bool:

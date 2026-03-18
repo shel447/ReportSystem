@@ -812,13 +812,13 @@
                     <div style="font-weight:600;font-size:14px;margin-bottom:8px">⚙️ 高级 JSON 输入 (v2)</div>
                     <div class="form-group">
                         <label>parameters JSON</label>
-                        <textarea id="tmpl-parameters-json" rows="4" placeholder='[{"id":"date","label":"日期","required":true,"input_type":"free_text"}]' style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
+                        <textarea id="tmpl-parameters-json" rows="5" placeholder='[{"id":"report_date","label":"报告日期","required":true,"input_type":"date"},{"id":"devices","label":"设备","required":true,"input_type":"dynamic","multi":true,"source":"api:/devices/list"}]' style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
                     </div>
                     <div class="form-group">
                         <label>sections JSON</label>
-                        <textarea id="tmpl-sections-json" rows="6" placeholder='[{"title":"执行摘要","content":{"presentation":{"type":"text","template":"..."} }}]' style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
+                        <textarea id="tmpl-sections-json" rows="8" placeholder='[{"title":"执行摘要","content":{"datasets":[{"id":"summary","source":{"kind":"sql","query":"select 1 as total"}}],"presentation":{"type":"text","dataset_id":"summary","template":"本期共 {$value} 条记录。"}}}]' style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;resize:vertical"></textarea>
                     </div>
-                    <div style="font-size:11px;color:var(--text-secondary)">填写任意一项即按 v2 模板规范保存，sections 优先于旧大纲。</div>
+                    <div style="font-size:11px;color:var(--text-secondary)">填写任意一项即按 v2.0 模板规范保存，后端会校验 schema，并将旧的单 source 自动归一化到 content.datasets。</div>
                 </div>
 
                 <div class="form-actions">
@@ -998,7 +998,7 @@
                 parameters: parametersJson || [],
                 outline: outline,
                 sections: sectionsJson || [],
-                schema_version: v2Enabled ? 'v2' : ''
+                schema_version: v2Enabled ? 'v2.0' : ''
             };
 
             const res = await fetch(`${API}/templates`, {
@@ -1024,6 +1024,29 @@
                     <span class="badge" style="background:rgba(16,185,129,0.14);color:var(--success)">${keyword}</span>
                 `).join('')
                 : '<span style="font-size:12px;color:var(--text-secondary)">未配置</span>';
+            const parameterDefs = (t.parameters && t.parameters.length > 0) ? t.parameters : (t.content_params || []);
+            const parameterHtml = parameterDefs.length > 0
+                ? parameterDefs.map(param => {
+                    const paramId = param.id || param.name || '-';
+                    const label = param.label || paramId;
+                    const inputType = param.input_type || param.type || 'free_text';
+                    const extraTags = [
+                        inputType,
+                        param.required ? '必填' : '选填',
+                        param.multi ? '多选' : '',
+                    ].filter(Boolean).join(' / ');
+                    return `
+                    <div style="padding:8px 12px;background:var(--bg-secondary);border-radius:6px;margin-bottom:6px;border:1px solid var(--border)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+                            <div>
+                                <strong style="font-size:13px;color:var(--text-primary)">${label}</strong>
+                                <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${paramId}</div>
+                            </div>
+                            <span class="badge" style="background:rgba(0,210,255,0.15);color:var(--success)">${extraTags}</span>
+                        </div>
+                    </div>`;
+                }).join('')
+                : '<div style="color:var(--text-secondary);font-size:12px">暂无参数定义</div>';
             const outlineHtml = (t.outline || []).length > 0
                 ? (t.outline || []).map((s, i) => {
                     const l = s.level || 1;
@@ -1043,6 +1066,25 @@
                     </div>`;
                 }).join('')
                 : '<div style="color:var(--text-secondary);font-size:12px">暂无大纲定义</div>';
+            const sectionHtml = (t.sections || []).length > 0
+                ? (t.sections || []).map((section, index) => {
+                    const datasetCount = Array.isArray(section?.content?.datasets) ? section.content.datasets.length : 0;
+                    const presentationType = section?.content?.presentation?.type || '未配置';
+                    return `
+                    <div style="padding:10px 12px;background:var(--bg-secondary);border-radius:6px;margin-bottom:6px;border-left:3px solid var(--success)">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+                            <div>
+                                <strong style="font-size:13px;color:var(--text-primary)">${index + 1}. ${section.title || '未命名章节'}</strong>
+                                <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">${section.description || '无章节描述'}</div>
+                            </div>
+                            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                                <span class="badge" style="background:rgba(0,210,255,0.15);color:var(--success)">datasets: ${datasetCount}</span>
+                                <span class="badge" style="background:rgba(255,193,7,0.15);color:var(--warning)">presentation: ${presentationType}</span>
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('')
+                : outlineHtml;
 
             showModal(`
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -1053,14 +1095,19 @@
                 <div style="background:var(--bg-secondary);padding:12px;border-radius:8px;font-size:12px;margin-bottom:16px">
                     <div style="margin-bottom:8px"><strong>模板类型:</strong> ${t.type || t.report_type || '未设置'}</div>
                     <div style="margin-bottom:8px"><strong>场景:</strong> ${t.scene || t.scenario || '通用'}</div>
+                    <div style="margin-bottom:8px"><strong>Schema 版本:</strong> ${t.schema_version || 'legacy'}</div>
                     <div style="margin-bottom:8px"><strong>匹配关键词:</strong> <span style="display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:top">${keywordHtml}</span></div>
                     <div style="margin-bottom:8px"><strong>模板 ID:</strong> <code>${t.template_id}</code></div>
                     <div style="margin-bottom:8px"><strong>参数数量:</strong> ${((t.parameters && t.parameters.length) ? t.parameters.length : (t.content_params || []).length)}</div>
                     <div><strong>创建时间:</strong> ${t.created_at}</div>
                 </div>
                 <div style="margin-bottom:16px">
-                    <div style="font-weight:600;font-size:14px;margin-bottom:8px">📋 报告大纲 (${(t.outline || []).length} 个章节)</div>
-                    ${outlineHtml}
+                    <div style="font-weight:600;font-size:14px;margin-bottom:8px">🧩 参数定义 (${parameterDefs.length} 项)</div>
+                    ${parameterHtml}
+                </div>
+                <div style="margin-bottom:16px">
+                    <div style="font-weight:600;font-size:14px;margin-bottom:8px">📋 章节定义 (${(t.sections && t.sections.length) ? t.sections.length : (t.outline || []).length} 项)</div>
+                    ${sectionHtml}
                 </div>
                 <div class="form-actions">
                     <button class="btn btn-primary" onclick="hideModal()">关闭</button>
@@ -1591,9 +1638,7 @@
                     const a = m.action;
                     const param = a.param || {};
                     const progress = a.progress || { collected: 0, required: 0 };
-                    const options = Array.isArray(param.options) ? param.options : [];
                     const templateName = a.template_name || '';
-                    const inputType = param.input_type === 'date' ? 'date' : 'text';
                     html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
                     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">`;
                     html += `<div style="font-weight:600;color:var(--success)">🧩 补充参数</div>`;
@@ -1603,12 +1648,34 @@
                         html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px">已匹配模板：<strong style="color:var(--text-primary)">${templateName}</strong></div>`;
                     }
                     html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">当前缺少参数：<strong style="color:var(--text-primary)">${param.label || param.id || ''}</strong></div>`;
-                    if (options.length > 0) {
-                        html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">可选：${options.join(' / ')}</div>`;
-                    }
-                    html += `<div style="display:flex;gap:8px;align-items:center">`;
-                    html += `<input id="param-input-${idx}" type="${inputType}" placeholder="请输入参数值" style="flex:1;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px">`;
+                    html += `<div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">`;
+                    html += buildParamWidgetControl(a, idx);
                     html += `<button class="btn btn-primary btn-sm" onclick="sendParamValue(${idx})">提交</button>`;
+                    html += `</div></div>`;
+                }
+                if (m.action && m.action.type === 'review_params') {
+                    const a = m.action;
+                    html += `<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">`;
+                    html += `<div style="font-weight:600;color:var(--success);margin-bottom:8px">✅ 参数确认</div>`;
+                    if (a.template_name) {
+                        html += `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">已匹配模板：<strong style="color:var(--text-primary)">${a.template_name}</strong></div>`;
+                    }
+                    html += `<div style="display:grid;gap:8px">`;
+                    (a.params || []).forEach(param => {
+                        html += `
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px">
+                                <div>
+                                    <div style="font-size:13px;font-weight:600;color:var(--text-primary)">${param.label || param.id}</div>
+                                    <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${escapeHtml(formatChatParamValue(param.value))}</div>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="sendChatCommand('edit_param', '${escapeJsSingleQuoted(param.id)}', '${escapeJsSingleQuoted(`修改参数：${param.label || param.id}`)}')">编辑</button>
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+                    html += `<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">`;
+                    html += `<button class="btn btn-secondary btn-sm" onclick="sendChatCommand('reset_params', '', '重置参数')">重置参数</button>`;
+                    html += `<button class="btn btn-primary btn-sm" onclick="sendChatCommand('confirm_generation', '', '确认生成报告')">确认生成</button>`;
                     html += `</div></div>`;
                 }
                 if (m.action && m.action.type === 'download_document') {
@@ -1713,6 +1780,54 @@
             return parts.length > 0 ? parts.join(' / ') : '通用模板';
         }
 
+        function formatChatParamValue(value) {
+            if (Array.isArray(value)) return value.join('、');
+            if (value === null || value === undefined || value === '') return '未填写';
+            return String(value);
+        }
+
+        function buildParamWidgetControl(action, messageIndex) {
+            const param = action?.param || {};
+            const widget = action?.widget || {};
+            const options = Array.isArray(param.options) ? param.options : [];
+            const selectedValues = Array.isArray(action?.selected_values) ? action.selected_values : [];
+            const inputId = `param-input-${messageIndex}`;
+
+            if (widget.kind === 'single_select') {
+                return `
+                    <select id="${inputId}" style="flex:1;min-width:260px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px">
+                        <option value="">请选择</option>
+                        ${options.map(option => `<option value="${escapeHtml(option)}" ${selectedValues[0] === option ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+                    </select>
+                `;
+            }
+            if (widget.kind === 'multi_select') {
+                const size = Math.max(3, Math.min(options.length || 3, 6));
+                return `
+                    <div style="flex:1;min-width:260px">
+                        <select id="${inputId}" multiple size="${size}" style="width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px">
+                            ${options.map(option => `<option value="${escapeHtml(option)}" ${selectedValues.includes(option) ? 'selected' : ''}>${escapeHtml(option)}</option>`).join('')}
+                        </select>
+                        <div style="font-size:11px;color:var(--text-secondary);margin-top:4px">可多选，按住 Ctrl 或 Command 选择多个值。</div>
+                    </div>
+                `;
+            }
+            if (widget.kind === 'date') {
+                return `<input id="${inputId}" type="date" value="${escapeHtml(selectedValues[0] || '')}" style="flex:1;min-width:260px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px">`;
+            }
+            return `<input id="${inputId}" type="text" value="${escapeHtml(selectedValues[0] || '')}" placeholder="请输入参数值" style="flex:1;min-width:260px;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px">`;
+        }
+
+        function readParamWidgetValue(messageIndex, action) {
+            const widget = action?.widget || {};
+            const input = document.getElementById(`param-input-${messageIndex}`);
+            if (!input) return null;
+            if (widget.kind === 'multi_select') {
+                return Array.from(input.selectedOptions || []).map(option => option.value).filter(Boolean);
+            }
+            return input.value.trim();
+        }
+
         async function updateCandidateSelection(messageIndex, templateId) {
             const message = chatMessages[messageIndex];
             if (!message || !message.action || message.action.type !== 'show_template_candidates') return;
@@ -1787,24 +1902,53 @@
             const action = message?.action;
             if (!action || action.type !== 'ask_param') return;
             const paramId = action.param?.id;
-            const input = document.getElementById(`param-input-${messageIndex}`);
-            const value = input ? input.value.trim() : '';
-            if (!paramId || !value) {
+            const widget = action.widget || {};
+            const value = readParamWidgetValue(messageIndex, action);
+            const isMulti = widget.kind === 'multi_select';
+            const hasValue = isMulti ? Array.isArray(value) && value.length > 0 : !!value;
+            if (!paramId || !hasValue) {
                 alert('请先输入参数值。');
                 return;
             }
-            chatMessages.push({ role: 'user', content: value });
+            const displayValue = Array.isArray(value) ? value.join('、') : value;
+            chatMessages.push({ role: 'user', content: displayValue });
             await renderChat(document.getElementById('content'));
             try {
+                const payload = {
+                    message: displayValue,
+                    session_id: chatSessionId,
+                    param_id: paramId,
+                };
+                if (isMulti) {
+                    payload.param_values = value;
+                } else {
+                    payload.param_value = value;
+                }
                 const res = await fetchJson(`${API}/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: value,
-                        session_id: chatSessionId,
-                        param_id: paramId,
-                        param_value: value
-                    })
+                    body: JSON.stringify(payload)
+                });
+                chatSessionId = res.session_id;
+                chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
+            } catch (e) {
+                chatMessages.push({ role: 'assistant', content: `❌ ${e.message}` });
+            }
+            await renderChat(document.getElementById('content'));
+        }
+
+        async function sendChatCommand(command, targetParamId = '', label = '') {
+            if (label) {
+                chatMessages.push({ role: 'user', content: label });
+                await renderChat(document.getElementById('content'));
+            }
+            try {
+                const payload = { message: '', session_id: chatSessionId, command };
+                if (targetParamId) payload.target_param_id = targetParamId;
+                const res = await fetchJson(`${API}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
                 chatSessionId = res.session_id;
                 chatMessages.push({ role: 'assistant', content: res.reply, action: res.action || null });
@@ -1821,6 +1965,12 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        function escapeJsSingleQuoted(value) {
+            return String(value ?? '')
+                .replace(/\\/g, '\\\\')
+                .replace(/'/g, "\\'");
         }
 
         function formatDebugValue(value) {
