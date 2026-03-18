@@ -37,27 +37,34 @@
 
 .chat-stream-card,
 .chat-compose-card {
-  padding: 18px 20px;
+  padding: 16px 18px;
 }
 
 .chat-stream-card {
   display: grid;
-  min-height: 360px;
+  min-height: 320px;
 }
 
 .message-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
 
 .message-bubble {
-  inline-size: min(72ch, 78%);
+  max-inline-size: min(72ch, 78%);
+  inline-size: fit-content;
+  align-self: flex-start;
   display: grid;
   gap: 10px;
   padding: 16px 18px;
   border-radius: 22px;
   border: 1px solid var(--line-soft);
   background: rgba(255, 255, 255, 0.74);
+}
+
+.message-bubble--has-action {
+  inline-size: min(72ch, 78%);
 }
 
 .message-bubble p {
@@ -70,8 +77,8 @@
 }
 
 .message-bubble--user {
-  justify-self: end;
-  inline-size: min(64ch, 72%);
+  align-self: flex-end;
+  max-inline-size: min(60ch, 68%);
   background: rgba(37, 109, 130, 0.08);
 }
 
@@ -86,12 +93,12 @@
 
 .chat-compose {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .chat-compose textarea {
-  min-height: 72px;
-  max-height: 168px;
+  min-height: 64px;
+  max-height: 144px;
   background: rgba(255, 255, 255, 0.96);
   resize: vertical;
 }
@@ -363,6 +370,7 @@
 
 @media (max-width: 860px) {
   .message-bubble {
+    max-inline-size: 100%;
     inline-size: 100%;
   }
 

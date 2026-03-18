@@ -114,7 +114,7 @@ export function ChatPage() {
                 {messages.map((message, index) => (
                   <article
                     key={`${message.role}-${index}-${message.content}`}
-                    className={`message-bubble message-bubble--${message.role}`}
+                    className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
                   >
                     <div className="message-bubble__meta">{message.role === "assistant" ? "助手" : "我"}</div>
                     {message.content ? <p>{message.content}</p> : null}

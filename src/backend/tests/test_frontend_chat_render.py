@@ -47,8 +47,10 @@ class FrontendChatRenderTests(unittest.TestCase):
         pages_css_path = os.path.join(base, "frontend", "src", "styles", "pages.css")
         with open(pages_css_path, "r", encoding="utf-8") as f:
             styles = f.read()
-        self.assertIn("inline-size: min(72ch, 78%)", styles)
-        self.assertIn("min-height: 72px", styles)
+        self.assertIn(".message-list {\n  display: flex;", styles)
+        self.assertIn("flex-direction: column;", styles)
+        self.assertIn("min-height: 320px", styles)
+        self.assertIn("min-height: 64px", styles)
 
 
 if __name__ == "__main__":
