@@ -71,7 +71,6 @@ export function ChatPage() {
   return (
     <div className="chat-page">
       <PageSection
-        title="对话助手"
         description="从自然语言需求进入模板匹配、结构化补参与文档下载的完整链路。"
       >
         <div className="chat-layout">

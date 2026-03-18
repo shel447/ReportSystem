@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 type PageSectionProps = {
-  title: string;
+  title?: string;
   description?: string;
   actions?: ReactNode;
   children: ReactNode;
@@ -12,7 +12,7 @@ export function PageSection({ title, description, actions, children }: PageSecti
     <section className="page-section">
       <header className="page-section__header">
         <div>
-          <h2>{title}</h2>
+          {title ? <h2>{title}</h2> : null}
           {description ? <p>{description}</p> : null}
         </div>
         {actions ? <div className="page-section__actions">{actions}</div> : null}

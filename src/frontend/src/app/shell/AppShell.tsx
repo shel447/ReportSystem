@@ -12,7 +12,10 @@ type AppShellProps = {
 export function AppShell({ pathname, children }: AppShellProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const routeMeta = [...PAGE_META, ...FOOTER_META];
-  const pageTitle = routeMeta.find((item) => pathname.startsWith(item.href))?.label ?? "智能报告系统";
+  const pageTitle =
+    routeMeta
+      .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+      .sort((left, right) => right.href.length - left.href.length)[0]?.label ?? "智能报告系统";
 
   return (
     <div className="app-shell">

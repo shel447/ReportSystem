@@ -17,7 +17,10 @@ export function App() {
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/templates" element={<TemplatesPage />} />
+        <Route path="/templates/new" element={<TemplatesPage />} />
+        <Route path="/templates/:templateId" element={<TemplatesPage />} />
         <Route path="/instances" element={<InstancesPage />} />
+        <Route path="/instances/:instanceId" element={<InstancesPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/settings" element={<SettingsPage />} />
