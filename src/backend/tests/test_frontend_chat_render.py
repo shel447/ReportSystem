@@ -82,11 +82,19 @@ class FrontendChatRenderTests(unittest.TestCase):
     def test_shared_layouts_no_longer_cap_page_widths(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         layout_css_path = os.path.join(base, "frontend", "src", "styles", "layout.css")
+        app_shell_path = os.path.join(base, "frontend", "src", "app", "shell", "AppShell.tsx")
         with open(layout_css_path, "r", encoding="utf-8") as f:
             styles = f.read()
+        with open(app_shell_path, "r", encoding="utf-8") as f:
+            shell_content = f.read()
         self.assertNotIn("max-width: 1180px", styles)
         self.assertNotIn("max-width: 1220px", styles)
         self.assertNotIn("max-width: 1040px", styles)
+        self.assertIn(".app-sidebar {\n  position: sticky;", styles)
+        self.assertIn(".app-header__actions {", styles)
+        self.assertIn(".header-feedback-link {", styles)
+        self.assertIn("app-header__actions", shell_content)
+        self.assertIn("header-feedback-link", shell_content)
 
     def test_settings_page_uses_inline_action_feedback(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

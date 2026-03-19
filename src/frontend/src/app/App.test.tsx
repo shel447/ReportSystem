@@ -68,4 +68,16 @@ describe("App shell", () => {
     renderApp("/settings");
     expect(screen.getAllByRole("heading", { name: "系统设置" })).toHaveLength(1);
   });
+
+  it("keeps settings in the sidebar footer and moves feedback to the header", () => {
+    const view = renderApp("/chat");
+    const sidebarFooter = view.container.querySelector(".sidebar-footer");
+    const headerActions = view.container.querySelector(".app-header__actions");
+
+    expect(sidebarFooter).not.toBeNull();
+    expect(headerActions).not.toBeNull();
+    expect(sidebarFooter?.textContent).toContain("系统设置");
+    expect(sidebarFooter?.textContent).not.toContain("提意见");
+    expect(headerActions?.textContent).toContain("提意见");
+  });
 });

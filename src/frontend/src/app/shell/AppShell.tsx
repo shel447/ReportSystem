@@ -43,9 +43,6 @@ export function AppShell({ pathname, children }: AppShellProps) {
         </nav>
         <div className="sidebar-footer">
           <div className="footer-actions">
-            <button className="ghost-button" type="button" onClick={() => setFeedbackOpen(true)}>
-              提意见
-            </button>
             {FOOTER_META.map((item) => (
               <NavLink
                 key={item.href}
@@ -67,7 +64,12 @@ export function AppShell({ pathname, children }: AppShellProps) {
             <p className="eyebrow">Smart Report Workspace</p>
             <h1>{pageTitle}</h1>
           </div>
-          <div className="user-pill">默认工作区</div>
+          <div className="app-header__actions">
+            <button className="header-feedback-link" type="button" onClick={() => setFeedbackOpen(true)}>
+              提意见
+            </button>
+            <div className="user-pill">默认工作区</div>
+          </div>
         </header>
         <section className="page-body">{children}</section>
       </main>

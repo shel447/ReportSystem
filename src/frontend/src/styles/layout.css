@@ -5,9 +5,14 @@
 }
 
 .app-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  height: 100vh;
+  overflow-y: auto;
   padding: 24px 18px;
   background: rgba(255, 253, 248, 0.78);
   border-right: 1px solid var(--line-soft);
@@ -106,6 +111,12 @@
   padding: 28px 36px 18px;
 }
 
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .app-header h1 {
   margin: 6px 0 0;
   font-family: var(--font-serif);
@@ -127,6 +138,21 @@
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.82);
   color: var(--text-secondary);
+}
+
+.header-feedback-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: color 140ms ease, transform 140ms ease;
+}
+
+.header-feedback-link:hover {
+  color: var(--accent-strong);
+  transform: translateY(-1px);
 }
 
 .page-body {
@@ -240,10 +266,11 @@
   }
 
   .app-sidebar {
-    position: sticky;
+    position: static;
     top: 0;
-    z-index: 10;
     gap: 16px;
+    height: auto;
+    overflow: visible;
     padding-bottom: 16px;
   }
 
@@ -262,6 +289,15 @@
   .page-body {
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  .app-header {
+    align-items: flex-start;
+  }
+
+  .app-header__actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .split-layout,
