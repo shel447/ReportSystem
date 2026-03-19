@@ -55,6 +55,7 @@ describe("ChatPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
     expect(screen.getByText("制作设备巡检报告")).toBeInTheDocument();
+    expect(screen.getByText("正在处理中")).toBeInTheDocument();
     expect(composer.value).toBe("");
     expect(composer).toBeDisabled();
     expect(screen.getByRole("button", { name: "发送" })).toHaveClass("chat-send-button", "is-pending");
@@ -77,6 +78,7 @@ describe("ChatPage", () => {
       expect(screen.getByText("请提供参数「报告日期」的取值。")).toBeInTheDocument();
     });
 
+    expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
     expect(composer).not.toBeDisabled();
 
     expect(fetchMock).toHaveBeenCalledWith("/api/system-settings", undefined);
@@ -148,6 +150,7 @@ describe("ChatPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交" }));
 
     expect(screen.getByText("2026-03-19")).toBeInTheDocument();
+    expect(screen.getByText("正在处理中")).toBeInTheDocument();
     expect(dateInput).toBeDisabled();
     expect(screen.getByRole("button", { name: "提交" })).toBeDisabled();
 
@@ -177,6 +180,7 @@ describe("ChatPage", () => {
       expect(screen.getByText("参数已收集完成，请确认生成。")).toBeInTheDocument();
     });
 
+    expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "确认生成" })).toBeEnabled();
   });
 });

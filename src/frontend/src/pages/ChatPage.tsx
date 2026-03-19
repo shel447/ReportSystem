@@ -200,6 +200,19 @@ export function ChatPage() {
                     ) : null}
                   </article>
                 ))}
+                {chatMutation.isPending ? (
+                  <article className="message-bubble message-bubble--assistant message-bubble--pending" aria-live="polite">
+                    <div className="message-bubble__meta">助手</div>
+                    <div className="message-pending" role="status">
+                      <span>正在处理中</span>
+                      <span className="message-pending__dots" aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    </div>
+                  </article>
+                ) : null}
                 <div ref={messageEndRef} />
               </div>
             </SurfaceCard>
