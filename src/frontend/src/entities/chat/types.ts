@@ -50,6 +50,9 @@ export type OutlineNode = {
   level: number;
   children: OutlineNode[];
   dynamic_meta?: Record<string, unknown>;
+  display_text?: string;
+  ai_generated?: boolean;
+  node_kind?: "group" | "structured_leaf" | "freeform_leaf";
 };
 
 export type ReviewOutlineAction = {

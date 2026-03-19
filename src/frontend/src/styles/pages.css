@@ -302,6 +302,122 @@
   color: var(--text-secondary);
 }
 
+.outline-tree {
+  display: grid;
+  gap: 8px;
+}
+
+.outline-tree__children {
+  display: grid;
+  gap: 8px;
+}
+
+.outline-tree__node {
+  display: grid;
+  gap: 8px;
+}
+
+.outline-tree__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border-radius: 14px;
+}
+
+.outline-tree__node.is-selected .outline-tree__row,
+.outline-tree__node:hover .outline-tree__row {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.outline-tree__lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.outline-tree__toggle,
+.outline-tree__spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+}
+
+.outline-tree__toggle {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.outline-tree__toggle:hover:not(:disabled) {
+  background: rgba(27, 36, 48, 0.06);
+}
+
+.outline-tree__spacer {
+  opacity: 0;
+}
+
+.outline-tree__ai-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 28px;
+  block-size: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(37, 109, 130, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.outline-tree__label {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.7;
+  text-align: left;
+  cursor: text;
+}
+
+.outline-tree__label:hover:not(:disabled) {
+  color: var(--accent-strong);
+}
+
+.outline-tree__inline-input {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+}
+
+.outline-tree__toolbar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.outline-tree__node:hover .outline-tree__toolbar,
+.outline-tree__node.is-selected .outline-tree__toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .template-catalog-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

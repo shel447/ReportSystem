@@ -79,6 +79,9 @@ def _merge_outline_list(
             current["description"] = str(raw.get("description") or "").strip()
             current["level"] = level
             current["children"] = children
+        current.pop("display_text", None)
+        current.pop("ai_generated", None)
+        current.pop("node_kind", None)
 
         if children:
             current["section_kind"] = "group"
@@ -105,13 +108,20 @@ def _treeify_legacy_outline(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             "level": level,
             "children": [],
             "section_kind": "freeform_leaf",
+            "node_kind": "freeform_leaf",
             "source_kind": "legacy",
+            "ai_generated": True,
         }
+        node["display_text"] = _build_display_text(node["title"], node["description"])
         if isinstance(item.get("dynamic_meta"), dict):
             node["dynamic_meta"] = copy.deepcopy(item.get("dynamic_meta"))
         while stack and int(stack[-1]["level"]) >= level:
             stack.pop()
         if stack:
+            stack[-1]["section_kind"] = "group"
+            stack[-1]["node_kind"] = "group"
+            stack[-1]["ai_generated"] = False
+            stack[-1]["display_text"] = _build_display_text(stack[-1].get("title"), stack[-1].get("description"))
             stack[-1].setdefault("children", []).append(node)
         else:
             roots.append(node)
@@ -120,11 +130,17 @@ def _treeify_legacy_outline(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 
 
 def _sanitize_outline_node(node: Dict[str, Any]) -> Dict[str, Any]:
+    title = str(node.get("title") or "")
+    description = str(node.get("description") or "")
+    node_kind = str(node.get("node_kind") or node.get("section_kind") or ("group" if node.get("children") else "freeform_leaf"))
     payload = {
         "node_id": str(node.get("node_id") or ""),
-        "title": str(node.get("title") or ""),
-        "description": str(node.get("description") or ""),
+        "title": title,
+        "description": description,
         "level": max(1, int(node.get("level") or 1)),
+        "display_text": str(node.get("display_text") or _build_display_text(title, description)),
+        "ai_generated": bool(node.get("ai_generated")),
+        "node_kind": node_kind,
         "children": [_sanitize_outline_node(child) for child in node.get("children") or [] if isinstance(child, dict)],
     }
     if isinstance(node.get("dynamic_meta"), dict):
@@ -144,3 +160,11 @@ def _walk_outline(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def _is_v2_template(template: ReportTemplateEntity) -> bool:
     return bool(getattr(template, "sections", None))
+
+
+def _build_display_text(title: Any, description: Any) -> str:
+    title_text = str(title or "").strip()
+    description_text = str(description or "").strip()
+    if title_text and description_text:
+        return f"{title_text}：{description_text}"
+    return title_text or description_text

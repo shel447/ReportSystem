@@ -97,6 +97,10 @@ class ChatFlowServiceTests(unittest.TestCase):
                     "description": "说明",
                     "level": 1,
                     "children": [],
+                    "section_kind": "freeform_leaf",
+                    "node_kind": "freeform_leaf",
+                    "display_text": "概览：说明",
+                    "ai_generated": True,
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 }
             ],
@@ -111,6 +115,9 @@ class ChatFlowServiceTests(unittest.TestCase):
         self.assertEqual(action["warnings"], ["x"])
         self.assertEqual(action["outline"][0]["node_id"], "node-1")
         self.assertNotIn("content", action["outline"][0])
+        self.assertEqual(action["outline"][0]["display_text"], "概览：说明")
+        self.assertEqual(action["outline"][0]["node_kind"], "freeform_leaf")
+        self.assertTrue(action["outline"][0]["ai_generated"])
         self.assertEqual(action["params_snapshot"][0]["value"], "总部")
 
     def test_rewind_slots_for_param_clears_target_and_following_slots(self):

@@ -77,6 +77,71 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual([node["title"] for node in outline], ["资产清单 A001", "资产清单 A002"])
         self.assertEqual(flatten_review_outline(outline)[0]["title"], "资产清单 A001")
 
+    def test_build_pending_outline_review_marks_ai_generated_nodes_for_frontend(self):
+        template = ReportTemplateEntity(
+            template_id="tpl-3",
+            name="综合报告",
+            description="",
+            report_type="special",
+            scenario="总部",
+            match_keywords=[],
+            content_params=[],
+            version="1.0",
+            outline=[],
+            parameters=[],
+            sections=[
+                {
+                    "title": "总览",
+                    "subsections": [
+                        {
+                            "title": "SQL 章节",
+                            "description": "纯查询",
+                            "content": {
+                                "datasets": [{"id": "d1", "source": {"kind": "sql", "sql": "select 1"}}],
+                                "presentation": {"type": "text", "template": "ok"},
+                            },
+                        },
+                        {
+                            "title": "NL2SQL 章节",
+                            "description": "模型转查询",
+                            "content": {
+                                "datasets": [{"id": "d2", "source": {"kind": "nl2sql", "query": "查站点"}}],
+                                "presentation": {"type": "text", "template": "ok"},
+                            },
+                        },
+                        {
+                            "title": "AI 综合章节",
+                            "description": "模型总结",
+                            "content": {
+                                "datasets": [{"id": "d3", "source": {"kind": "ai_synthesis", "prompt": "总结"}}],
+                                "presentation": {"type": "text", "template": "ok"},
+                            },
+                        },
+                        {
+                            "title": "自由撰写章节",
+                            "description": "直接生成",
+                        },
+                    ],
+                }
+            ],
+            schema_version="v2.0",
+        )
+
+        outline, warnings = build_pending_outline_review(template, {})
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(outline[0]["node_kind"], "group")
+        self.assertFalse(outline[0]["ai_generated"])
+        self.assertEqual(outline[0]["display_text"], "总览")
+        children = outline[0]["children"]
+        self.assertEqual(children[0]["node_kind"], "structured_leaf")
+        self.assertFalse(children[0]["ai_generated"])
+        self.assertEqual(children[0]["display_text"], "SQL 章节：纯查询")
+        self.assertTrue(children[1]["ai_generated"])
+        self.assertTrue(children[2]["ai_generated"])
+        self.assertEqual(children[3]["node_kind"], "freeform_leaf")
+        self.assertTrue(children[3]["ai_generated"])
+
     def test_merge_outline_override_preserves_structured_content_and_marks_new_nodes(self):
         current = [
             {
@@ -115,6 +180,8 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertNotIn("content", merged[0])
         self.assertEqual(merged[0]["children"][0]["section_kind"], "freeform_leaf")
         self.assertEqual(merged[0]["children"][0]["source_kind"], "manual")
+        self.assertNotIn("display_text", merged[0])
+        self.assertNotIn("ai_generated", merged[0])
 
 
 if __name__ == "__main__":

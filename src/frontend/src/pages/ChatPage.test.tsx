@@ -259,7 +259,16 @@ describe("ChatPage", () => {
             warnings: [],
             params_snapshot: [{ id: "report_date", label: "报告日期", value: "2026-03-19" }],
             outline: [
-              { node_id: "node-1", title: "总部概览", description: "巡检范围", level: 1, children: [] },
+              {
+                node_id: "node-1",
+                title: "总部概览",
+                description: "巡检范围",
+                display_text: "总部概览：巡检范围",
+                node_kind: "freeform_leaf",
+                ai_generated: true,
+                level: 1,
+                children: [],
+              },
             ],
           },
         },
@@ -267,7 +276,7 @@ describe("ChatPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue("总部概览")).toBeInTheDocument();
+      expect(screen.getByText("总部概览：巡检范围")).toBeInTheDocument();
     });
 
     expect(screen.getByRole("button", { name: "保存大纲" })).toBeEnabled();

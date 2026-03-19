@@ -23,6 +23,11 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn('action.type === "review_outline"', content)
         self.assertIn("confirm_outline_generation", content)
         self.assertIn("edit_outline", content)
+        self.assertIn("display_text", content)
+        self.assertIn("ai_generated", content)
+        self.assertIn("node_kind", content)
+        self.assertNotIn("章节标题", content)
+        self.assertNotIn("章节说明", content)
 
     def test_frontend_supports_structured_param_widgets_and_v2_schema(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -55,6 +60,11 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("single_select", panel_content)
         self.assertIn("review_outline", panel_content)
         self.assertIn("保存大纲", panel_content)
+        self.assertIn("outline-tree", panel_content)
+        self.assertIn("编辑章节", panel_content)
+        self.assertIn("outline-tree__toggle", panel_content)
+        self.assertIn('"展开" : "折叠"', panel_content)
+        self.assertIn("AI", panel_content)
         self.assertIn("/templates/new", template_catalog_content)
         self.assertIn("schemaVersion", template_detail_content)
         self.assertIn("TemplateWorkbench", template_detail_content)
@@ -88,6 +98,10 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("padding-bottom: calc(var(--chat-compose-reserve", styles)
         self.assertIn("background: transparent;", styles)
         self.assertIn("box-shadow: none;", styles)
+        self.assertIn(".outline-tree {", styles)
+        self.assertIn(".outline-tree__label {", styles)
+        self.assertIn(".outline-tree__toolbar {", styles)
+        self.assertIn(".outline-tree__node:hover .outline-tree__toolbar", styles)
 
     def test_shared_layouts_no_longer_cap_page_widths(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

@@ -270,6 +270,9 @@ def _build_outline_node(
                 )
             )
         node["section_kind"] = "group"
+        node["node_kind"] = "group"
+        node["display_text"] = _outline_display_text(title, description)
+        node["ai_generated"] = False
         node["children"] = rendered_children
         return [node]
 
@@ -277,8 +280,13 @@ def _build_outline_node(
     if isinstance(content, dict):
         node["content"] = _normalize_content(content)
         node["section_kind"] = "structured_leaf"
+        node["node_kind"] = "structured_leaf"
+        node["ai_generated"] = _content_uses_ai(node["content"])
     else:
         node["section_kind"] = "freeform_leaf"
+        node["node_kind"] = "freeform_leaf"
+        node["ai_generated"] = True
+    node["display_text"] = _outline_display_text(title, description)
     return [node]
 
 
@@ -991,6 +999,25 @@ def _locals_from_dynamic_meta(dynamic_meta: Dict[str, Any] | None) -> Dict[str, 
     if index_alias != "index":
         locals_ctx["index"] = index
     return locals_ctx
+
+
+def _outline_display_text(title: Any, description: Any) -> str:
+    title_text = str(title or "").strip()
+    description_text = str(description or "").strip()
+    if title_text and description_text:
+        return f"{title_text}：{description_text}"
+    return title_text or description_text
+
+
+def _content_uses_ai(content: Dict[str, Any]) -> bool:
+    for dataset in _as_list(content.get("datasets")):
+        if not isinstance(dataset, dict):
+            continue
+        source = dataset.get("source") if isinstance(dataset.get("source"), dict) else {}
+        kind = str(source.get("kind") or "").strip()
+        if kind in {"nl2sql", "ai_synthesis"}:
+            return True
+    return False
 
 
 def _render_sql(sql: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) -> str:

@@ -91,7 +91,7 @@ describe("ChatActionPanel", () => {
     expect(onSelectTemplate).toHaveBeenCalledWith("tpl-1");
   });
 
-  it("renders review_outline and submits edited tree", () => {
+  it("renders review_outline as a content tree with inline editing and AI badge", () => {
     const onSubmitOutline = vi.fn();
     const onCommand = vi.fn();
     render(
@@ -108,7 +108,21 @@ describe("ChatActionPanel", () => {
               title: "总部概览",
               description: "巡检范围",
               level: 1,
-              children: [],
+              display_text: "总部概览：巡检范围",
+              node_kind: "group",
+              ai_generated: false,
+              children: [
+                {
+                  node_id: "node-2",
+                  title: "二级小节",
+                  description: "补充说明",
+                  level: 2,
+                  display_text: "二级小节：补充说明",
+                  node_kind: "freeform_leaf",
+                  ai_generated: true,
+                  children: [],
+                },
+              ],
             },
           ],
         }}
@@ -119,7 +133,21 @@ describe("ChatActionPanel", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("章节标题 node-1"), { target: { value: "总部总览" } });
+    expect(screen.queryByText("章节标题")).not.toBeInTheDocument();
+    expect(screen.queryByText("章节说明")).not.toBeInTheDocument();
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("总部概览：巡检范围")).toBeInTheDocument();
+    expect(screen.getByText("二级小节：补充说明")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "折叠章节 node-1" }));
+    expect(screen.queryByText("二级小节：补充说明")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "展开章节 node-1" }));
+
+    fireEvent.click(screen.getByText("总部概览：巡检范围"));
+    const inlineInput = screen.getByLabelText("编辑章节 node-1");
+    fireEvent.change(inlineInput, { target: { value: "总部总览：新的范围" } });
+    fireEvent.keyDown(inlineInput, { key: "Enter" });
+
     fireEvent.click(screen.getByRole("button", { name: "保存大纲" }));
     fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     fireEvent.click(screen.getByRole("button", { name: "返回改参数" }));
@@ -127,11 +155,11 @@ describe("ChatActionPanel", () => {
     expect(screen.getByText("foreach 已展开")).toBeInTheDocument();
     expect(onSubmitOutline).toHaveBeenCalledWith(
       "edit_outline",
-      expect.arrayContaining([expect.objectContaining({ title: "总部总览" })]),
+      expect.arrayContaining([expect.objectContaining({ title: "总部总览", description: "新的范围" })]),
     );
     expect(onSubmitOutline).toHaveBeenCalledWith(
       "confirm_outline_generation",
-      expect.arrayContaining([expect.objectContaining({ title: "总部总览" })]),
+      expect.arrayContaining([expect.objectContaining({ title: "总部总览", description: "新的范围" })]),
     );
     expect(onCommand).toHaveBeenCalledWith("edit_param");
   });
