@@ -191,6 +191,7 @@ export function ChatPage() {
                             }
                             runAction({ param_id: paramId, param_value: value });
                           }}
+                          onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
                           onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
                           onCommand={(command, targetParamId) =>
                             runAction({ command, target_param_id: targetParamId })
@@ -270,11 +271,20 @@ function buildOptimisticActionMessage(payload: Omit<ChatRequest, "session_id">, 
     const candidate = latestAction.candidates.find((item) => item.template_id === payload.selected_template_id);
     return candidate ? `选择模板：${candidate.template_name}` : "选择模板";
   }
-  if (payload.command === "confirm_generation") {
+  if (payload.command === "prepare_outline_review" || payload.command === "confirm_generation") {
+    return "确认参数并生成大纲";
+  }
+  if (payload.command === "edit_outline") {
+    return "保存大纲";
+  }
+  if (payload.command === "confirm_outline_generation") {
     return "确认生成";
   }
   if (payload.command === "reset_params") {
     return "重置参数";
+  }
+  if (payload.command === "edit_param" && latestAction?.type === "review_outline") {
+    return "返回改参数";
   }
   if (payload.command === "edit_param" && latestAction?.type === "review_params") {
     const param = latestAction.params.find((item) => item.id === payload.target_param_id);

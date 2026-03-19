@@ -43,3 +43,11 @@ class ContentGenerator(Protocol):
         params: Dict[str, Any],
     ) -> tuple[List[Dict[str, Any]], List[str]]:
         ...
+
+    def generate_v2_from_outline(
+        self,
+        template: ReportTemplateEntity,
+        outline: List[Dict[str, Any]],
+        params: Dict[str, Any],
+    ) -> tuple[List[Dict[str, Any]], List[str]]:
+        ...

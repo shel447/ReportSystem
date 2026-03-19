@@ -110,10 +110,21 @@ def regenerate_section(instance_id: str, section_index: int, db: Session = Depen
     try:
         if template_entity and is_v2_template(template_entity):
             generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
-            sections, _warnings = generator.generate_v2(template_entity, inst.input_params or {})
-            if section_index >= len(sections):
-                raise HTTPException(status_code=400, detail="Invalid section index")
-            regenerated = sections[section_index]
+            outline_node = ((current.get("debug") or {}).get("outline_node")) if isinstance(current, dict) else None
+            if outline_node:
+                sections, _warnings = generator.generate_v2_from_outline(
+                    template_entity,
+                    [outline_node],
+                    inst.input_params or {},
+                )
+                if not sections:
+                    raise HTTPException(status_code=400, detail="Invalid section index")
+                regenerated = sections[0]
+            else:
+                sections, _warnings = generator.generate_v2(template_entity, inst.input_params or {})
+                if section_index >= len(sections):
+                    raise HTTPException(status_code=400, detail="Invalid section index")
+                regenerated = sections[section_index]
         else:
             section_spec = {
                 "title": current.get("title", "未命名章节"),

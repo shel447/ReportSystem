@@ -3,6 +3,7 @@ import unittest
 from backend.chat_flow_service import (
     apply_template_selection,
     build_ask_param_action,
+    build_review_outline_action,
     build_review_params_action,
     reset_slots,
     rewind_slots_for_param,
@@ -83,6 +84,34 @@ class ChatFlowServiceTests(unittest.TestCase):
         self.assertEqual(action["type"], "review_params")
         self.assertEqual(action["params"][0]["id"], "scene")
         self.assertEqual(action["params"][1]["value"], ["A001", "A002"])
+
+    def test_build_review_outline_action_returns_sanitized_outline_and_param_snapshot(self):
+        state = new_context_state("s1")
+        state["report"] = {
+            "template_name": "设备巡检报告",
+            "template_id": "t1",
+            "pending_outline_review": [
+                {
+                    "node_id": "node-1",
+                    "title": "概览",
+                    "description": "说明",
+                    "level": 1,
+                    "children": [],
+                    "content": {"presentation": {"type": "text", "template": "ok"}},
+                }
+            ],
+            "outline_review_warnings": ["x"],
+        }
+        state["slots"] = {"scene": {"value": "总部"}}
+        params = [{"id": "scene", "label": "场景", "required": True}]
+
+        action = build_review_outline_action(state, params)
+
+        self.assertEqual(action["type"], "review_outline")
+        self.assertEqual(action["warnings"], ["x"])
+        self.assertEqual(action["outline"][0]["node_id"], "node-1")
+        self.assertNotIn("content", action["outline"][0])
+        self.assertEqual(action["params_snapshot"][0]["value"], "总部")
 
     def test_rewind_slots_for_param_clears_target_and_following_slots(self):
         state = new_context_state("s1")

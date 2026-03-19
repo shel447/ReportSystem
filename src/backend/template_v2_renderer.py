@@ -19,19 +19,62 @@ def generate_report_sections_v2(
     nl2sql_runner: Optional[Callable[..., Dict[str, Any]]] = None,
     ai_synthesis_runner: Optional[Callable[..., str]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
+    outline_tree, warnings = build_outline_tree_v2(template, input_params)
+    rendered, render_warnings = generate_report_sections_from_outline_tree_v2(
+        template,
+        outline_tree,
+        input_params,
+        db_path=db_path,
+        nl2sql_runner=nl2sql_runner,
+        ai_synthesis_runner=ai_synthesis_runner,
+    )
+    warnings.extend(render_warnings)
+    return rendered, warnings
+
+
+def build_outline_tree_v2(
+    template: Dict[str, Any],
+    input_params: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
     warnings: List[str] = []
     sections = _as_list(template.get("sections"))
-    rendered: List[Dict[str, Any]] = []
-    for item in sections:
-        rendered.extend(
-            _render_section(
+    outline_tree: List[Dict[str, Any]] = []
+    for index, item in enumerate(sections):
+        outline_tree.extend(
+            _build_outline_node(
                 item,
                 input_params,
                 warnings,
                 locals_ctx={},
+                path_prefix=f"sec-{index}",
+                level=1,
+            )
+        )
+    return outline_tree, warnings
+
+
+def generate_report_sections_from_outline_tree_v2(
+    template: Dict[str, Any],
+    outline_tree: List[Dict[str, Any]],
+    input_params: Dict[str, Any],
+    *,
+    db_path: Optional[str] = None,
+    nl2sql_runner: Optional[Callable[..., Dict[str, Any]]] = None,
+    ai_synthesis_runner: Optional[Callable[..., str]] = None,
+    freeform_runner: Optional[Callable[..., Dict[str, Any]]] = None,
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    warnings: List[str] = []
+    rendered: List[Dict[str, Any]] = []
+    for node in outline_tree or []:
+        rendered.extend(
+            _render_outline_tree_node(
+                node,
+                input_params,
+                warnings,
                 db_path=db_path or DEFAULT_DB_PATH,
                 nl2sql_runner=nl2sql_runner,
                 ai_synthesis_runner=ai_synthesis_runner,
+                freeform_runner=freeform_runner,
             )
         )
     return rendered, warnings
@@ -172,6 +215,233 @@ def _expand_foreach(
             )
         )
     return rendered
+
+
+def _build_outline_node(
+    section: Dict[str, Any],
+    params: Dict[str, Any],
+    warnings: List[str],
+    locals_ctx: Dict[str, Any],
+    *,
+    path_prefix: str,
+    level: int,
+) -> List[Dict[str, Any]]:
+    if not isinstance(section, dict):
+        return []
+
+    foreach = section.get("foreach") if isinstance(section.get("foreach"), dict) else None
+    if foreach:
+        return _expand_outline_foreach(
+            section,
+            params,
+            warnings,
+            locals_ctx,
+            path_prefix=path_prefix,
+            level=level,
+        )
+
+    title = _render_text(str(section.get("title") or ""), params, locals_ctx)
+    description = _render_text(str(section.get("description") or ""), params, locals_ctx)
+    node_level = max(1, min(6, int(section.get("level") or level)))
+    node = {
+        "node_id": f"node-{path_prefix}",
+        "title": title,
+        "description": description,
+        "level": node_level,
+        "children": [],
+        "source_kind": "v2",
+    }
+    dynamic_meta = _dynamic_meta_from_locals(locals_ctx)
+    if dynamic_meta:
+        node["dynamic_meta"] = dynamic_meta
+
+    children = _as_list(section.get("subsections"))
+    if children:
+        rendered_children: List[Dict[str, Any]] = []
+        for index, child in enumerate(children):
+            rendered_children.extend(
+                _build_outline_node(
+                    child,
+                    params,
+                    warnings,
+                    locals_ctx,
+                    path_prefix=f"{path_prefix}-{index}",
+                    level=node_level + 1,
+                )
+            )
+        node["section_kind"] = "group"
+        node["children"] = rendered_children
+        return [node]
+
+    content = section.get("content")
+    if isinstance(content, dict):
+        node["content"] = _normalize_content(content)
+        node["section_kind"] = "structured_leaf"
+    else:
+        node["section_kind"] = "freeform_leaf"
+    return [node]
+
+
+def _expand_outline_foreach(
+    section: Dict[str, Any],
+    params: Dict[str, Any],
+    warnings: List[str],
+    locals_ctx: Dict[str, Any],
+    *,
+    path_prefix: str,
+    level: int,
+) -> List[Dict[str, Any]]:
+    foreach = section.get("foreach") or {}
+    param_id = str(foreach.get("param") or "").strip()
+    alias = str(foreach.get("as") or "item").strip()
+    depth = int(locals_ctx.get("__foreach_depth__", 0) or 0)
+    if depth >= 1:
+        warnings.append("检测到嵌套 foreach，已忽略内层循环。")
+        cloned = copy.deepcopy(section)
+        cloned.pop("foreach", None)
+        return _build_outline_node(
+            cloned,
+            params,
+            warnings,
+            locals_ctx,
+            path_prefix=path_prefix,
+            level=level,
+        )
+    if not param_id:
+        warnings.append("foreach 缺少 param 参数，已跳过。")
+        return []
+    values = params.get(param_id)
+    if values is None:
+        warnings.append(f"foreach 参数 {param_id} 缺失，已跳过。")
+        return []
+    if not isinstance(values, list):
+        values = [values]
+    rendered: List[Dict[str, Any]] = []
+    for item_index, value in enumerate(values):
+        child_locals = dict(locals_ctx)
+        child_locals[alias] = value
+        child_locals["__foreach_depth__"] = depth + 1
+        child_locals["__dynamic_meta__"] = {
+            "source_param": param_id,
+            "item_alias": alias,
+            "index_alias": "index",
+            "item": value,
+            "index": item_index,
+        }
+        cloned = copy.deepcopy(section)
+        cloned.pop("foreach", None)
+        rendered.extend(
+            _build_outline_node(
+                cloned,
+                params,
+                warnings,
+                child_locals,
+                path_prefix=f"{path_prefix}-r{item_index}",
+                level=level,
+            )
+        )
+    return rendered
+
+
+def _render_outline_tree_node(
+    node: Dict[str, Any],
+    params: Dict[str, Any],
+    warnings: List[str],
+    *,
+    db_path: str,
+    nl2sql_runner: Optional[Callable[..., Dict[str, Any]]],
+    ai_synthesis_runner: Optional[Callable[..., str]],
+    freeform_runner: Optional[Callable[..., Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    title = str(node.get("title") or "")
+    description = str(node.get("description") or "")
+    level = max(1, min(6, int(node.get("level") or 1)))
+    children = _as_list(node.get("children"))
+    dynamic_meta = node.get("dynamic_meta") if isinstance(node.get("dynamic_meta"), dict) else None
+
+    if children:
+        rendered = [
+            {
+                "title": title,
+                "description": description,
+                "content": "",
+                "status": "generated",
+                "data_status": "success",
+                "debug": {"outline_node": copy.deepcopy(node)},
+                "level": level,
+                **({"dynamic_meta": dynamic_meta} if dynamic_meta else {}),
+            }
+        ]
+        for child in children:
+            rendered.extend(
+                _render_outline_tree_node(
+                    child,
+                    params,
+                    warnings,
+                    db_path=db_path,
+                    nl2sql_runner=nl2sql_runner,
+                    ai_synthesis_runner=ai_synthesis_runner,
+                    freeform_runner=freeform_runner,
+                )
+            )
+        return rendered
+
+    if node.get("section_kind") == "structured_leaf" and isinstance(node.get("content"), dict):
+        locals_ctx = _locals_from_dynamic_meta(dynamic_meta)
+        content, debug, data_status = _render_content(
+            node.get("content"),
+            params,
+            locals_ctx,
+            warnings,
+            db_path=db_path,
+            nl2sql_runner=nl2sql_runner,
+            ai_synthesis_runner=ai_synthesis_runner,
+        )
+        debug["outline_node"] = copy.deepcopy(node)
+        payload = {
+            "title": title,
+            "description": description,
+            "content": content,
+            "status": "generated" if data_status == "success" else "failed",
+            "data_status": data_status,
+            "debug": debug,
+            "level": level,
+        }
+        if dynamic_meta:
+            payload["dynamic_meta"] = dynamic_meta
+        return [payload]
+
+    result = (
+        freeform_runner(
+            title=title,
+            description=description,
+            level=level,
+            dynamic_meta=dynamic_meta or {},
+            outline_node=copy.deepcopy(node),
+            params=params,
+        )
+        if freeform_runner
+        else {
+            "content": f"{'#' * level} {title}\n\n{description}".strip(),
+            "debug": {},
+            "status": "generated",
+            "data_status": "success",
+        }
+    )
+    debug = dict(result.get("debug") or {})
+    debug["outline_node"] = copy.deepcopy(node)
+    payload = {
+        "title": title,
+        "description": description,
+        "content": str(result.get("content") or ""),
+        "status": str(result.get("status") or "generated"),
+        "data_status": str(result.get("data_status") or "success"),
+        "debug": debug,
+        "level": level,
+    }
+    if dynamic_meta:
+        payload["dynamic_meta"] = dynamic_meta
+    return [payload]
 
 
 def _render_content(
@@ -696,6 +966,31 @@ def _render_text(text: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) 
     text = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, text)
     text = re.sub(r"\{\$([a-zA-Z0-9_]+)\}", replace_local, text)
     return text
+
+
+def _dynamic_meta_from_locals(locals_ctx: Dict[str, Any]) -> Dict[str, Any] | None:
+    value = locals_ctx.get("__dynamic_meta__")
+    if isinstance(value, dict):
+        return copy.deepcopy(value)
+    return None
+
+
+def _locals_from_dynamic_meta(dynamic_meta: Dict[str, Any] | None) -> Dict[str, Any]:
+    if not isinstance(dynamic_meta, dict):
+        return {}
+    item_alias = str(dynamic_meta.get("item_alias") or "item")
+    index_alias = str(dynamic_meta.get("index_alias") or "index")
+    item = dynamic_meta.get("item")
+    index = dynamic_meta.get("index")
+    locals_ctx: Dict[str, Any] = {
+        item_alias: item,
+        index_alias: index,
+    }
+    if item_alias != "item":
+        locals_ctx["item"] = item
+    if index_alias != "index":
+        locals_ctx["index"] = index
+    return locals_ctx
 
 
 def _render_sql(sql: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) -> str:

@@ -43,6 +43,28 @@ export type ReviewParamsAction = {
   missing_required: string[];
 };
 
+export type OutlineNode = {
+  node_id: string;
+  title: string;
+  description: string;
+  level: number;
+  children: OutlineNode[];
+  dynamic_meta?: Record<string, unknown>;
+};
+
+export type ReviewOutlineAction = {
+  type: "review_outline";
+  template_id?: string;
+  template_name?: string;
+  outline: OutlineNode[];
+  warnings: string[];
+  params_snapshot: Array<{
+    id: string;
+    label: string;
+    value: string | string[];
+  }>;
+};
+
 export type ShowTemplateCandidatesAction = {
   type: "show_template_candidates";
   selected_template_id?: string;
@@ -61,6 +83,7 @@ export type DownloadDocumentAction = {
 export type ChatAction =
   | AskParamAction
   | ReviewParamsAction
+  | ReviewOutlineAction
   | ShowTemplateCandidatesAction
   | DownloadDocumentAction;
 
@@ -90,6 +113,13 @@ export type ChatRequest = {
   param_id?: string;
   param_value?: string;
   param_values?: string[];
-  command?: "confirm_generation" | "reset_params" | "edit_param";
+  command?:
+    | "prepare_outline_review"
+    | "edit_outline"
+    | "confirm_outline_generation"
+    | "confirm_generation"
+    | "reset_params"
+    | "edit_param";
   target_param_id?: string;
+  outline_override?: OutlineNode[];
 };

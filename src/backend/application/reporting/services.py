@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from .ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
 from ...domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
 from ...domain.reporting.services import OutlineExpansionService
+from ...outline_review_service import flatten_review_outline
 
 
 def is_v2_template(template: ReportTemplateEntity) -> bool:
@@ -41,12 +42,27 @@ class InstanceApplicationService:
 
         warnings: List[str] = []
         if is_v2_template(template):
-            outline_content, warnings = self.content_generator.generate_v2(template, input_params or {})
+            if outline_override:
+                outline_content, warnings = self.content_generator.generate_v2_from_outline(
+                    template,
+                    outline_override,
+                    input_params or {},
+                )
+            else:
+                outline_content, warnings = self.content_generator.generate_v2(template, input_params or {})
         else:
-            active_outline = outline_override if outline_override else template.outline
-            expansion = self.outline_expansion_service.expand(active_outline or [], input_params or {})
-            outline_content = self.content_generator.generate(template, expansion.nodes, input_params or {})
-            warnings = expansion.warnings
+            if outline_override and any(isinstance(item, dict) and "children" in item for item in outline_override):
+                outline_content = self.content_generator.generate(
+                    template,
+                    flatten_review_outline(outline_override),
+                    input_params or {},
+                )
+                warnings = []
+            else:
+                active_outline = outline_override if outline_override else template.outline
+                expansion = self.outline_expansion_service.expand(active_outline or [], input_params or {})
+                outline_content = self.content_generator.generate(template, expansion.nodes, input_params or {})
+                warnings = expansion.warnings
 
         created = self.instance_writer.create(
             template_id=template.template_id,

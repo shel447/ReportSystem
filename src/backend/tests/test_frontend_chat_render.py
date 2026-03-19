@@ -17,9 +17,12 @@ class FrontendChatRenderTests(unittest.TestCase):
         with open(panel_path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn('action.type === "review_params"', content)
-        self.assertIn("confirm_generation", content)
+        self.assertIn("prepare_outline_review", content)
         self.assertIn("reset_params", content)
         self.assertIn("edit_param", content)
+        self.assertIn('action.type === "review_outline"', content)
+        self.assertIn("confirm_outline_generation", content)
+        self.assertIn("edit_outline", content)
 
     def test_frontend_supports_structured_param_widgets_and_v2_schema(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -42,6 +45,7 @@ class FrontendChatRenderTests(unittest.TestCase):
         with open(panel_path, "r", encoding="utf-8") as f:
             panel_content = f.read()
         self.assertIn("param_values", chat_content)
+        self.assertIn("outline_override", chat_content)
         self.assertIn("chat-send-button", chat_content)
         self.assertIn("message-bubble--pending", chat_content)
         self.assertNotIn("默认工作区", chat_content)
@@ -49,6 +53,8 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertNotIn("支持直接输入自然语言需求", chat_content)
         self.assertIn("multi_select", panel_content)
         self.assertIn("single_select", panel_content)
+        self.assertIn("review_outline", panel_content)
+        self.assertIn("保存大纲", panel_content)
         self.assertIn("/templates/new", template_catalog_content)
         self.assertIn("schemaVersion", template_detail_content)
         self.assertIn("TemplateWorkbench", template_detail_content)

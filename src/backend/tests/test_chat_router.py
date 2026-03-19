@@ -32,7 +32,19 @@ class ChatRouterTests(unittest.TestCase):
                     "source": "api:/devices/list",
                 },
             ],
-            sections=[{"title": "概述", "content": {"presentation": {"type": "text", "template": "ok"}}}],
+            sections=[
+                {
+                    "title": "{scene}概述",
+                    "description": "巡检范围",
+                    "content": {"presentation": {"type": "text", "template": "ok"}},
+                },
+                {
+                    "title": "设备 {$device}",
+                    "description": "检查项",
+                    "foreach": {"param": "devices", "as": "device"},
+                    "content": {"presentation": {"type": "text", "template": "ok"}},
+                },
+            ],
             schema_version="v2.0",
         )
         self.db.add(self.template)
@@ -59,7 +71,7 @@ class ChatRouterTests(unittest.TestCase):
             response = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
         self.assertEqual(response["action"]["type"], "review_params")
-        self.assertEqual(response["reply"], "参数已收集完成，请确认后生成报告。")
+        self.assertEqual(response["reply"], "参数已收集完成，请确认后生成大纲。")
         self.assertEqual(response["action"]["params"][0]["id"], "scene")
 
     def test_send_message_confirms_then_generates_document(self):
@@ -76,8 +88,18 @@ class ChatRouterTests(unittest.TestCase):
              patch(
                  "backend.routers.chat.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001"]},
-             ):
+            ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], command="prepare_outline_review"),
+                db=self.db,
+            )
+
+        self.assertEqual(second["action"]["type"], "review_outline")
+        self.assertEqual(second["action"]["outline"][0]["title"], "总部概述")
+        self.assertEqual(second["action"]["outline"][1]["title"], "设备 A001")
 
         fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
         fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", template_id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
@@ -88,13 +110,26 @@ class ChatRouterTests(unittest.TestCase):
                  "backend.routers.chat.serialize_document",
                  return_value={"document_id": "doc-1", "download_url": "/api/documents/doc-1/download"},
              ):
-            second = send_message(
-                ChatMessage(session_id=first["session_id"], command="confirm_generation"),
+            third = send_message(
+                ChatMessage(
+                    session_id=first["session_id"],
+                    command="confirm_outline_generation",
+                    outline_override=[
+                        {
+                            "node_id": second["action"]["outline"][0]["node_id"],
+                            "title": "总部总览",
+                            "description": "巡检范围",
+                            "level": 1,
+                            "children": [],
+                        },
+                        second["action"]["outline"][1],
+                    ],
+                ),
                 db=self.db,
             )
 
-        self.assertEqual(second["action"]["type"], "download_document")
-        self.assertEqual(second["action"]["document"]["document_id"], "doc-1")
+        self.assertEqual(third["action"]["type"], "download_document")
+        self.assertEqual(third["action"]["document"]["document_id"], "doc-1")
 
     def test_send_message_reset_params_restarts_required_collection(self):
         with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
@@ -149,6 +184,39 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(second["action"]["type"], "ask_param")
         self.assertEqual(second["action"]["param"]["id"], "devices")
+
+    def test_send_message_edit_param_from_outline_review_returns_review_params(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部", "devices": ["A001"]},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], command="prepare_outline_review"),
+                db=self.db,
+            )
+
+        self.assertEqual(second["action"]["type"], "review_outline")
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            third = send_message(
+                ChatMessage(session_id=first["session_id"], command="edit_param"),
+                db=self.db,
+            )
+
+        self.assertEqual(third["action"]["type"], "review_params")
 
 
 if __name__ == "__main__":

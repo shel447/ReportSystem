@@ -156,14 +156,14 @@ describe("ChatPage", () => {
 
     resolveSecondChat?.({
       session_id: "s-1",
-      reply: "参数已收集完成，请确认生成。",
+      reply: "参数已收集完成，请确认后生成大纲。",
       messages: [
         { role: "user", content: "制作设备巡检报告" },
         { role: "assistant", content: "请提供参数「报告日期」的取值。" },
         { role: "user", content: "2026-03-19" },
         {
           role: "assistant",
-          content: "参数已收集完成，请确认生成。",
+          content: "参数已收集完成，请确认后生成大纲。",
           action: {
             type: "review_params",
             template_name: "设备巡检报告",
@@ -177,10 +177,100 @@ describe("ChatPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("参数已收集完成，请确认生成。")).toBeInTheDocument();
+      expect(screen.getByText("参数已收集完成，请确认后生成大纲。")).toBeInTheDocument();
     });
 
     expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "确认参数并生成大纲" })).toBeEnabled();
+  });
+
+  it("shows outline review before final generation", async () => {
+    let resolveFirstChat: ((value: unknown) => void) | undefined;
+    let resolveSecondChat: ((value: unknown) => void) | undefined;
+    const firstChatResponse = new Promise((resolve) => {
+      resolveFirstChat = resolve;
+    });
+    const secondChatResponse = new Promise((resolve) => {
+      resolveSecondChat = resolve;
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ is_ready: true, index_status: { ready_count: 1 } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => firstChatResponse,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => secondChatResponse,
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage();
+
+    fireEvent.change(screen.getByPlaceholderText("输入消息，例如：制作设备巡检报告"), {
+      target: { value: "制作设备巡检报告" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    resolveFirstChat?.({
+      session_id: "s-1",
+      reply: "参数已收集完成，请确认后生成大纲。",
+      messages: [
+        { role: "user", content: "制作设备巡检报告" },
+        {
+          role: "assistant",
+          content: "参数已收集完成，请确认后生成大纲。",
+          action: {
+            type: "review_params",
+            template_name: "设备巡检报告",
+            params: [{ id: "report_date", label: "报告日期", value: "2026-03-19", required: true }],
+            missing_required: [],
+          },
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "确认参数并生成大纲" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "确认参数并生成大纲" }));
+
+    expect(screen.getByRole("button", { name: "确认参数并生成大纲" })).toBeDisabled();
+    expect(screen.getByText("正在处理中")).toBeInTheDocument();
+
+    resolveSecondChat?.({
+      session_id: "s-1",
+      reply: "参数已确认，请检查报告大纲。",
+      messages: [
+        { role: "user", content: "制作设备巡检报告" },
+        { role: "assistant", content: "参数已收集完成，请确认后生成大纲。" },
+        { role: "user", content: "确认参数并生成大纲" },
+        {
+          role: "assistant",
+          content: "参数已确认，请检查报告大纲。",
+          action: {
+            type: "review_outline",
+            template_name: "设备巡检报告",
+            template_id: "tpl-1",
+            warnings: [],
+            params_snapshot: [{ id: "report_date", label: "报告日期", value: "2026-03-19" }],
+            outline: [
+              { node_id: "node-1", title: "总部概览", description: "巡检范围", level: 1, children: [] },
+            ],
+          },
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("总部概览")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "保存大纲" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "确认生成" })).toBeEnabled();
   });
 });

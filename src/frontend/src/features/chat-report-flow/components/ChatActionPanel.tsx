@@ -1,24 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type {
   AskParamAction,
   ChatAction,
   DownloadDocumentAction,
+  OutlineNode,
+  ReviewOutlineAction,
   ReviewParamsAction,
   ShowTemplateCandidatesAction,
 } from "../../../entities/chat/types";
 
+type ChatCommand =
+  | "prepare_outline_review"
+  | "reset_params"
+  | "edit_param";
+
+type OutlineCommand = "edit_outline" | "confirm_outline_generation";
+
 type ChatActionPanelProps = {
   action: ChatAction;
   onSubmitParam: (paramId: string, value: string | string[]) => void;
+  onSubmitOutline: (command: OutlineCommand, outline: OutlineNode[]) => void;
   onSelectTemplate: (templateId: string) => void;
-  onCommand: (command: "confirm_generation" | "reset_params" | "edit_param", targetParamId?: string) => void;
+  onCommand: (command: ChatCommand, targetParamId?: string) => void;
   disabled?: boolean;
+};
+
+type OutlineRow = {
+  node_id: string;
+  title: string;
+  description: string;
+  level: number;
 };
 
 export function ChatActionPanel({
   action,
   onSubmitParam,
+  onSubmitOutline,
   onSelectTemplate,
   onCommand,
   disabled = false,
@@ -31,6 +49,16 @@ export function ChatActionPanel({
   }
   if (action.type === "review_params") {
     return <ReviewPanel action={action} onCommand={onCommand} disabled={disabled} />;
+  }
+  if (action.type === "review_outline") {
+    return (
+      <ReviewOutlinePanel
+        action={action}
+        onSubmitOutline={onSubmitOutline}
+        onCommand={onCommand}
+        disabled={disabled}
+      />
+    );
   }
   if (action.type === "download_document") {
     return <DownloadPanel action={action} />;
@@ -196,7 +224,7 @@ function ReviewPanel({
   disabled,
 }: {
   action: ReviewParamsAction;
-  onCommand: (command: "confirm_generation" | "reset_params" | "edit_param", targetParamId?: string) => void;
+  onCommand: (command: ChatCommand, targetParamId?: string) => void;
   disabled: boolean;
 }) {
   return (
@@ -234,7 +262,141 @@ function ReviewPanel({
           className="primary-button"
           type="button"
           disabled={disabled}
-          onClick={() => onCommand("confirm_generation")}
+          onClick={() => onCommand("prepare_outline_review")}
+        >
+          确认参数并生成大纲
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ReviewOutlinePanel({
+  action,
+  onSubmitOutline,
+  onCommand,
+  disabled,
+}: {
+  action: ReviewOutlineAction;
+  onSubmitOutline: (command: OutlineCommand, outline: OutlineNode[]) => void;
+  onCommand: (command: ChatCommand, targetParamId?: string) => void;
+  disabled: boolean;
+}) {
+  const [rows, setRows] = useState<OutlineRow[]>(() => flattenOutline(action.outline));
+
+  useEffect(() => {
+    setRows(flattenOutline(action.outline));
+  }, [action]);
+
+  const currentOutline = buildOutlineTree(rows);
+
+  const updateRow = (nodeId: string, patch: Partial<OutlineRow>) => {
+    setRows((current) => current.map((row) => (row.node_id === nodeId ? { ...row, ...patch } : row)));
+  };
+
+  return (
+    <section className="action-card">
+      <div className="card-heading">
+        <div>
+          <p className="section-kicker">大纲确认</p>
+          {action.template_name ? (
+            <p className="template-hint">
+              <span>已匹配模板：</span>
+              <strong>{action.template_name}</strong>
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {action.params_snapshot.length ? (
+        <div className="inline-panel">
+          <strong>已确认参数</strong>
+          <div className="reason-list">
+            {action.params_snapshot.map((item) => (
+              <span key={item.id}>
+                {item.label}：{formatParamValue(item.value)}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {action.warnings.length ? (
+        <div className="inline-panel">
+          <strong>展开提示</strong>
+          <div className="reason-list">
+            {action.warnings.map((warning) => (
+              <span key={warning}>{warning}</span>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div className="outline-editor" role="tree">
+        {rows.map((row, index) => (
+          <div key={row.node_id} className="outline-editor__row" style={{ paddingInlineStart: `${(row.level - 1) * 18}px` }}>
+            <div className="outline-editor__fields">
+              <label className="field">
+                <span className="field-label">章节标题</span>
+                <input
+                  aria-label={`章节标题 ${row.node_id}`}
+                  type="text"
+                  value={row.title}
+                  disabled={disabled}
+                  onChange={(event) => updateRow(row.node_id, { title: event.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">章节说明</span>
+                <input
+                  aria-label={`章节说明 ${row.node_id}`}
+                  type="text"
+                  value={row.description}
+                  disabled={disabled}
+                  onChange={(event) => updateRow(row.node_id, { description: event.target.value })}
+                />
+              </label>
+            </div>
+            <div className="outline-editor__actions">
+              <button type="button" className="ghost-button" disabled={disabled} onClick={() => setRows((current) => addSibling(current, row.node_id))}>
+                新增同级
+              </button>
+              <button type="button" className="ghost-button" disabled={disabled} onClick={() => setRows((current) => addChild(current, row.node_id))}>
+                新增子章节
+              </button>
+              <button type="button" className="ghost-button" disabled={disabled || index === 0} onClick={() => setRows((current) => moveBlock(current, row.node_id, "up"))}>
+                上移
+              </button>
+              <button type="button" className="ghost-button" disabled={disabled || index === rows.length - 1} onClick={() => setRows((current) => moveBlock(current, row.node_id, "down"))}>
+                下移
+              </button>
+              <button type="button" className="ghost-button" disabled={disabled || row.level <= 1} onClick={() => setRows((current) => shiftLevel(current, row.node_id, -1))}>
+                提升层级
+              </button>
+              <button type="button" className="ghost-button" disabled={disabled || index === 0} onClick={() => setRows((current) => shiftLevel(current, row.node_id, 1))}>
+                降低层级
+              </button>
+              <button type="button" className="ghost-button" disabled={disabled || rows.length <= 1} onClick={() => setRows((current) => removeBlock(current, row.node_id))}>
+                删除
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="action-row">
+        <button className="secondary-button" type="button" disabled={disabled} onClick={() => onCommand("edit_param")}>
+          返回改参数
+        </button>
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={disabled}
+          onClick={() => onSubmitOutline("edit_outline", currentOutline)}
+        >
+          保存大纲
+        </button>
+        <button
+          className="primary-button"
+          type="button"
+          disabled={disabled}
+          onClick={() => onSubmitOutline("confirm_outline_generation", currentOutline)}
         >
           确认生成
         </button>
@@ -261,4 +423,167 @@ function DownloadPanel({ action }: { action: DownloadDocumentAction }) {
 
 function formatParamValue(value: string | string[]) {
   return Array.isArray(value) ? value.join("、") : value;
+}
+
+function flattenOutline(nodes: OutlineNode[]): OutlineRow[] {
+  const rows: OutlineRow[] = [];
+  const visit = (items: OutlineNode[]) => {
+    items.forEach((item) => {
+      rows.push({
+        node_id: item.node_id,
+        title: item.title,
+        description: item.description,
+        level: item.level,
+      });
+      visit(item.children ?? []);
+    });
+  };
+  visit(nodes);
+  return rows;
+}
+
+function buildOutlineTree(rows: OutlineRow[]): OutlineNode[] {
+  const roots: OutlineNode[] = [];
+  const stack: OutlineNode[] = [];
+  rows.forEach((row) => {
+    const node: OutlineNode = {
+      node_id: row.node_id,
+      title: row.title,
+      description: row.description,
+      level: row.level,
+      children: [],
+    };
+    while (stack.length && stack[stack.length - 1].level >= row.level) {
+      stack.pop();
+    }
+    if (stack.length) {
+      stack[stack.length - 1].children.push(node);
+    } else {
+      roots.push(node);
+    }
+    stack.push(node);
+  });
+  return roots;
+}
+
+function addSibling(rows: OutlineRow[], nodeId: string): OutlineRow[] {
+  const index = rows.findIndex((row) => row.node_id === nodeId);
+  if (index < 0) {
+    return rows;
+  }
+  const insertAt = findSubtreeEnd(rows, index);
+  const target = rows[index];
+  const next = [...rows];
+  next.splice(insertAt, 0, createRow(target.level));
+  return next;
+}
+
+function addChild(rows: OutlineRow[], nodeId: string): OutlineRow[] {
+  const index = rows.findIndex((row) => row.node_id === nodeId);
+  if (index < 0) {
+    return rows;
+  }
+  const target = rows[index];
+  const next = [...rows];
+  next.splice(index + 1, 0, createRow(target.level + 1));
+  return next;
+}
+
+function removeBlock(rows: OutlineRow[], nodeId: string): OutlineRow[] {
+  const index = rows.findIndex((row) => row.node_id === nodeId);
+  if (index < 0) {
+    return rows;
+  }
+  const end = findSubtreeEnd(rows, index);
+  return [...rows.slice(0, index), ...rows.slice(end)];
+}
+
+function moveBlock(rows: OutlineRow[], nodeId: string, direction: "up" | "down"): OutlineRow[] {
+  const index = rows.findIndex((row) => row.node_id === nodeId);
+  if (index < 0) {
+    return rows;
+  }
+  const end = findSubtreeEnd(rows, index);
+  const block = rows.slice(index, end);
+  if (direction === "up") {
+    const previous = findPreviousSiblingIndex(rows, index);
+    if (previous < 0) {
+      return rows;
+    }
+    return [...rows.slice(0, previous), ...block, ...rows.slice(previous, index), ...rows.slice(end)];
+  }
+  const nextSibling = findNextSiblingIndex(rows, index);
+  if (nextSibling < 0) {
+    return rows;
+  }
+  const nextEnd = findSubtreeEnd(rows, nextSibling);
+  return [...rows.slice(0, index), ...rows.slice(end, nextEnd), ...block, ...rows.slice(nextEnd)];
+}
+
+function shiftLevel(rows: OutlineRow[], nodeId: string, delta: -1 | 1): OutlineRow[] {
+  const index = rows.findIndex((row) => row.node_id === nodeId);
+  if (index < 0) {
+    return rows;
+  }
+  if (delta === 1 && index === 0) {
+    return rows;
+  }
+  const end = findSubtreeEnd(rows, index);
+  const next = [...rows];
+  const maxLevel = delta === 1 ? Math.max(1, next[index - 1].level + 1) : undefined;
+  for (let cursor = index; cursor < end; cursor += 1) {
+    if (delta === -1) {
+      next[cursor] = { ...next[cursor], level: Math.max(1, next[cursor].level - 1) };
+    } else {
+      const proposed = next[cursor].level + 1;
+      next[cursor] = { ...next[cursor], level: Math.min(proposed, maxLevel ?? proposed) };
+    }
+  }
+  return next;
+}
+
+function findSubtreeEnd(rows: OutlineRow[], index: number) {
+  const level = rows[index].level;
+  let cursor = index + 1;
+  while (cursor < rows.length && rows[cursor].level > level) {
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function findPreviousSiblingIndex(rows: OutlineRow[], index: number) {
+  const level = rows[index].level;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (rows[cursor].level === level) {
+      return cursor;
+    }
+    if (rows[cursor].level < level) {
+      return -1;
+    }
+  }
+  return -1;
+}
+
+function findNextSiblingIndex(rows: OutlineRow[], index: number) {
+  const level = rows[index].level;
+  const end = findSubtreeEnd(rows, index);
+  for (let cursor = end; cursor < rows.length; cursor += 1) {
+    if (rows[cursor].level === level) {
+      return cursor;
+    }
+    if (rows[cursor].level < level) {
+      return -1;
+    }
+  }
+  return -1;
+}
+
+function createRow(level: number): OutlineRow {
+  const nodeId = `node-${Math.random().toString(36).slice(2, 10)}`;
+  return {
+    node_id: nodeId,
+    title: "新章节",
+    description: "",
+    level: Math.max(1, level),
+  };
 }

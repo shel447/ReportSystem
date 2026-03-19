@@ -12,6 +12,7 @@ from ..ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGatew
 from ..chat_flow_service import (
     apply_template_selection,
     build_ask_param_action,
+    build_review_outline_action,
     build_review_params_action,
     reset_slots,
     rewind_slots_for_param,
@@ -23,6 +24,7 @@ from ..database import get_db
 from ..document_service import create_markdown_document, serialize_document
 from ..infrastructure.dependencies import build_instance_application_service
 from ..models import ChatSession, ReportTemplate, gen_id
+from ..outline_review_service import build_pending_outline_review, merge_outline_override
 from ..param_dialog_service import (
     build_missing_required,
     build_param_prompt,
@@ -46,6 +48,7 @@ class ChatMessage(BaseModel):
     param_values: Optional[List[str]] = None
     command: Optional[str] = None
     target_param_id: Optional[str] = None
+    outline_override: Optional[List[Dict[str, Any]]] = None
 
 
 @router.post("")
@@ -156,8 +159,16 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                 )
                 if data.command == "reset_params":
                     state = reset_slots(state)
+                    report = state.get("report") or {}
+                    report["pending_outline_review"] = []
+                    report["outline_review_warnings"] = []
+                    state["report"] = report
                 elif data.command == "edit_param" and data.target_param_id:
                     state = rewind_slots_for_param(state, template_params, data.target_param_id)
+                    report = state.get("report") or {}
+                    report["pending_outline_review"] = []
+                    report["outline_review_warnings"] = []
+                    state["report"] = report
 
                 collected = {key: slot.get("value") for key, slot in (state.get("slots") or {}).items()}
                 updates: Dict[str, Any] = {}
@@ -195,7 +206,17 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                 missing["required"] = missing_required
                 state["missing"] = missing
 
-                if data.command == "confirm_generation":
+                if data.command == "edit_param" and not data.target_param_id and (state.get("flow") or {}).get("stage") == "outline_review":
+                    reply = "请确认需要调整的参数。"
+                    action = build_review_params_action(state, template_params)
+                    report = state.get("report") or {}
+                    report["pending_outline_review"] = []
+                    report["outline_review_warnings"] = []
+                    state["report"] = report
+                    flow = state.get("flow") or {}
+                    flow["stage"] = "review_ready"
+                    state["flow"] = flow
+                elif data.command in {"prepare_outline_review", "confirm_generation"}:
                     if missing_required:
                         action = build_ask_param_action(state, template_params)
                         target_id = action.get("param", {}).get("id") if action else None
@@ -209,11 +230,57 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                         flow["stage"] = "required_collection"
                         state["flow"] = flow
                     else:
+                        outline_review, outline_warnings = build_pending_outline_review(
+                            build_instance_application_service(db).template_reader.get_by_id(template.template_id),
+                            merged,
+                        )
+                        report = state.get("report") or {}
+                        report["pending_outline_review"] = outline_review
+                        report["outline_review_warnings"] = outline_warnings
+                        state["report"] = report
+                        reply = "参数已确认，请检查报告大纲。"
+                        action = build_review_outline_action(state, template_params)
+                        flow = state.get("flow") or {}
+                        flow["stage"] = "outline_review"
+                        state["flow"] = flow
+                        summary = state.get("summary") or {}
+                        summary["open_question"] = reply
+                        state["summary"] = summary
+                elif data.command == "edit_outline":
+                    report = state.get("report") or {}
+                    pending_outline = report.get("pending_outline_review") or []
+                    report["pending_outline_review"] = merge_outline_override(pending_outline, data.outline_override or [])
+                    state["report"] = report
+                    reply = "报告大纲已更新，请继续确认。"
+                    action = build_review_outline_action(state, template_params)
+                    flow = state.get("flow") or {}
+                    flow["stage"] = "outline_review"
+                    state["flow"] = flow
+                elif data.command == "confirm_outline_generation":
+                    if missing_required:
+                        action = build_ask_param_action(state, template_params)
+                        target_id = action.get("param", {}).get("id") if action else None
+                        prompt = ""
+                        if target_id:
+                            target_param = next((p for p in template_params if p.get("id") == target_id), None)
+                            if target_param:
+                                prompt = build_param_prompt(target_param)
+                        reply = prompt or "请先补充完所有必填参数。"
+                        flow = state.get("flow") or {}
+                        flow["stage"] = "required_collection"
+                        state["flow"] = flow
+                    else:
+                        report = state.get("report") or {}
+                        pending_outline = report.get("pending_outline_review") or []
+                        if data.outline_override:
+                            pending_outline = merge_outline_override(pending_outline, data.outline_override)
+                            report["pending_outline_review"] = pending_outline
+                            state["report"] = report
                         app_service = build_instance_application_service(db)
                         created = app_service.create_instance(
                             template_id=template.template_id,
                             input_params=merged,
-                            outline_override=None,
+                            outline_override=pending_outline,
                         )
                         document = create_markdown_document(db, created["instance_id"])
                         reply = "报告已生成，可以下载 Markdown 文档。"
@@ -244,7 +311,7 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                     summary["open_question"] = reply
                     state["summary"] = summary
                 else:
-                    reply = "参数已收集完成，请确认后生成报告。"
+                    reply = "参数已收集完成，请确认后生成大纲。"
                     action = build_review_params_action(state, template_params)
                     flow = state.get("flow") or {}
                     flow["stage"] = "review_ready"

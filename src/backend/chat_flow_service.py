@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from .outline_review_service import build_frontend_outline
+
 
 def apply_template_selection(
     state: Dict[str, Any],
@@ -112,6 +114,32 @@ def build_review_params_action(state: Dict[str, Any], params: List[Dict[str, Any
         "template_name": state.get("report", {}).get("template_name", ""),
         "params": collected,
         "missing_required": list(state.get("missing", {}).get("required") or []),
+    }
+
+
+def build_review_outline_action(state: Dict[str, Any], params: List[Dict[str, Any]]) -> Dict[str, Any]:
+    report = state.get("report") or {}
+    slots = state.get("slots") or {}
+    snapshot = []
+    for param in params:
+        param_id = str(param.get("id") or "")
+        if not param_id or param_id not in slots:
+            continue
+        snapshot.append(
+            {
+                "id": param_id,
+                "label": param.get("label") or param_id,
+                "value": slots[param_id].get("value"),
+            }
+        )
+
+    return {
+        "type": "review_outline",
+        "template_id": report.get("template_id", ""),
+        "template_name": report.get("template_name", ""),
+        "outline": build_frontend_outline(report.get("pending_outline_review") or []),
+        "warnings": list(report.get("outline_review_warnings") or []),
+        "params_snapshot": snapshot,
     }
 
 
