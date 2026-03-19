@@ -268,7 +268,7 @@ def _build_outline_node(
                     path_prefix=f"{path_prefix}-{index}",
                     level=node_level + 1,
                 )
-            )
+        )
         node["section_kind"] = "group"
         node["node_kind"] = "group"
         node["display_text"] = _outline_display_text(title, description)
@@ -286,7 +286,14 @@ def _build_outline_node(
         node["section_kind"] = "freeform_leaf"
         node["node_kind"] = "freeform_leaf"
         node["ai_generated"] = True
-    node["display_text"] = _outline_display_text(title, description)
+    node["display_text"] = _outline_leaf_display_text(
+        title,
+        description,
+        node["section_kind"],
+        node.get("content"),
+        params,
+        locals_ctx,
+    )
     return [node]
 
 
@@ -1007,6 +1014,46 @@ def _outline_display_text(title: Any, description: Any) -> str:
     if title_text and description_text:
         return f"{title_text}：{description_text}"
     return title_text or description_text
+
+
+def _outline_leaf_display_text(
+    title: Any,
+    description: Any,
+    section_kind: str,
+    content: Any,
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+) -> str:
+    preview = str(description or "").strip()
+    if not preview and section_kind == "structured_leaf" and isinstance(content, dict):
+        preview = _content_preview_text(content, params, locals_ctx)
+    if not preview and section_kind == "freeform_leaf":
+        preview = "系统生成本节内容"
+    return _outline_display_text(title, preview)
+
+
+def _content_preview_text(content: Dict[str, Any], params: Dict[str, Any], locals_ctx: Dict[str, Any]) -> str:
+    presentation = content.get("presentation") if isinstance(content.get("presentation"), dict) else {}
+    presentation_type = str(presentation.get("type") or "").strip()
+    if presentation_type == "text":
+        template = str(presentation.get("template") or "").strip()
+        rendered = _collapse_preview_text(_render_text(template, params, locals_ctx))
+        if rendered:
+            return rendered
+    if presentation_type == "value":
+        return "展示关键指标"
+    if presentation_type == "simple_table":
+        return "展示数据表格"
+    if presentation_type == "chart":
+        return "展示图表摘要"
+    if presentation_type == "composite_table":
+        return "展示复合表格"
+    return "展示章节内容"
+
+
+def _collapse_preview_text(text: str) -> str:
+    collapsed = re.sub(r"\s+", " ", str(text or "")).strip()
+    return collapsed
 
 
 def _content_uses_ai(content: Dict[str, Any]) -> bool:

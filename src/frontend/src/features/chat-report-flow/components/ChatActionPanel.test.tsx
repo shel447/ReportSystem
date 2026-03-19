@@ -115,9 +115,9 @@ describe("ChatActionPanel", () => {
                 {
                   node_id: "node-2",
                   title: "二级小节",
-                  description: "补充说明",
+                  description: "",
                   level: 2,
-                  display_text: "二级小节：补充说明",
+                  display_text: "二级小节：系统生成本节内容",
                   node_kind: "freeform_leaf",
                   ai_generated: true,
                   children: [],
@@ -137,10 +137,12 @@ describe("ChatActionPanel", () => {
     expect(screen.queryByText("章节说明")).not.toBeInTheDocument();
     expect(screen.getByText("AI")).toBeInTheDocument();
     expect(screen.getByText("总部概览：巡检范围")).toBeInTheDocument();
-    expect(screen.getByText("二级小节：补充说明")).toBeInTheDocument();
+    expect(screen.getByText("二级小节：系统生成本节内容")).toBeInTheDocument();
+    expect(screen.queryByText("新增同级")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新增同级章节 node-1" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "折叠章节 node-1" }));
-    expect(screen.queryByText("二级小节：补充说明")).not.toBeInTheDocument();
+    expect(screen.queryByText("二级小节：系统生成本节内容")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "展开章节 node-1" }));
 
     fireEvent.click(screen.getByText("总部概览：巡检范围"));

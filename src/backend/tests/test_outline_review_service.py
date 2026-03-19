@@ -142,6 +142,46 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(children[3]["node_kind"], "freeform_leaf")
         self.assertTrue(children[3]["ai_generated"])
 
+    def test_build_pending_outline_review_derives_leaf_content_preview(self):
+        template = ReportTemplateEntity(
+            template_id="tpl-4",
+            name="巡检报告",
+            description="",
+            report_type="special",
+            scenario="总部",
+            match_keywords=[],
+            content_params=[],
+            version="1.0",
+            outline=[],
+            parameters=[],
+            sections=[
+                {
+                    "title": "文字章节",
+                    "content": {
+                        "presentation": {"type": "text", "template": "统计 {scene} 的重点指标"},
+                    },
+                },
+                {
+                    "title": "表格章节",
+                    "content": {
+                        "datasets": [{"id": "d1", "source": {"kind": "sql", "sql": "select 1"}}],
+                        "presentation": {"type": "simple_table"},
+                    },
+                },
+                {
+                    "title": "自由章节",
+                },
+            ],
+            schema_version="v2.0",
+        )
+
+        outline, warnings = build_pending_outline_review(template, {"scene": "总部"})
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(outline[0]["display_text"], "文字章节：统计 总部 的重点指标")
+        self.assertEqual(outline[1]["display_text"], "表格章节：展示数据表格")
+        self.assertEqual(outline[2]["display_text"], "自由章节：系统生成本节内容")
+
     def test_merge_outline_override_preserves_structured_content_and_marks_new_nodes(self):
         current = [
             {

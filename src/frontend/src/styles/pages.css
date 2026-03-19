@@ -406,10 +406,36 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms ease;
+}
+
+.outline-tree__tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  padding: 0;
+  border: 1px solid rgba(27, 36, 48, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.outline-tree__tool:hover:not(:disabled) {
+  border-color: rgba(37, 109, 130, 0.18);
+  color: var(--accent-strong);
+}
+
+.outline-tree__tool:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .outline-tree__node:hover .outline-tree__toolbar,

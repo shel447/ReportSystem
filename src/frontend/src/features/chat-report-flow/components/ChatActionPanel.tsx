@@ -504,6 +504,15 @@ function OutlineTreeNodeView({
   const collapsed = collapsedNodeIds.has(node.node_id);
   const editing = editingNodeId === node.node_id;
   const selected = selectedNodeId === node.node_id || editing;
+  const tools = [
+    { label: "新增同级章节", icon: "+", action: () => onAddSibling(node.node_id), disabled: disabled },
+    { label: "新增子级章节", icon: "↳", action: () => onAddChild(node.node_id), disabled: disabled },
+    { label: "上移章节", icon: "↑", action: () => onMoveUp(node.node_id), disabled: disabled },
+    { label: "下移章节", icon: "↓", action: () => onMoveDown(node.node_id), disabled: disabled },
+    { label: "提升层级章节", icon: "←", action: () => onPromote(node.node_id), disabled: disabled || node.level <= 1 },
+    { label: "降低层级章节", icon: "→", action: () => onDemote(node.node_id), disabled: disabled },
+    { label: "删除章节", icon: "×", action: () => onDelete(node.node_id), disabled: disabled },
+  ];
 
   return (
     <div className={`outline-tree__node${selected ? " is-selected" : ""}`} style={{ paddingInlineStart: `${(node.level - 1) * 18}px` }}>
@@ -561,27 +570,19 @@ function OutlineTreeNodeView({
         )}
 
         <div className="outline-tree__toolbar" aria-hidden={disabled}>
-          <button type="button" className="ghost-button" disabled={disabled} onClick={() => onAddSibling(node.node_id)}>
-            新增同级
-          </button>
-          <button type="button" className="ghost-button" disabled={disabled} onClick={() => onAddChild(node.node_id)}>
-            新增子级
-          </button>
-          <button type="button" className="ghost-button" disabled={disabled} onClick={() => onMoveUp(node.node_id)}>
-            上移
-          </button>
-          <button type="button" className="ghost-button" disabled={disabled} onClick={() => onMoveDown(node.node_id)}>
-            下移
-          </button>
-          <button type="button" className="ghost-button" disabled={disabled || node.level <= 1} onClick={() => onPromote(node.node_id)}>
-            提升层级
-          </button>
-          <button type="button" className="ghost-button" disabled={disabled} onClick={() => onDemote(node.node_id)}>
-            降低层级
-          </button>
-          <button type="button" className="ghost-button" disabled={disabled} onClick={() => onDelete(node.node_id)}>
-            删除
-          </button>
+          {tools.map((tool) => (
+            <button
+              key={tool.label}
+              type="button"
+              className="outline-tree__tool"
+              aria-label={`${tool.label} ${node.node_id}`}
+              title={tool.label}
+              disabled={tool.disabled}
+              onClick={tool.action}
+            >
+              {tool.icon}
+            </button>
+          ))}
         </div>
       </div>
 
