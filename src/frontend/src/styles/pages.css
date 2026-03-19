@@ -152,10 +152,13 @@
 
 .chat-compose {
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
 }
 
 .chat-compose textarea {
+  grid-column: 1;
   min-height: 64px;
   max-height: 144px;
   background: rgba(255, 255, 255, 0.96);
@@ -168,14 +171,8 @@
   cursor: not-allowed;
 }
 
-.compose-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
 .chat-send-button {
+  grid-column: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -522,13 +519,18 @@
     --chat-compose-width: calc(100vw - 40px);
   }
 
+  .chat-compose {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .message-bubble {
     max-inline-size: 100%;
     inline-size: 100%;
   }
 
-  .compose-footer {
-    justify-content: flex-end;
+  .chat-send-button {
+    grid-column: 1;
+    justify-self: end;
   }
 
   .summary-strip {

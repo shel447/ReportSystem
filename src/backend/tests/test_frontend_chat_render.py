@@ -44,6 +44,7 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("param_values", chat_content)
         self.assertIn("chat-send-button", chat_content)
         self.assertIn("message-bubble--pending", chat_content)
+        self.assertNotIn("默认工作区", chat_content)
         self.assertNotIn("发送中...", chat_content)
         self.assertNotIn("支持直接输入自然语言需求", chat_content)
         self.assertIn("multi_select", panel_content)
@@ -70,6 +71,9 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("min-height: 64px", styles)
         self.assertIn(".chat-compose-dock {", styles)
         self.assertIn("position: fixed;", styles)
+        self.assertIn(".chat-compose {\n  display: grid;\n  grid-template-columns: minmax(0, 1fr) auto;", styles)
+        self.assertIn(".chat-compose textarea {\n  grid-column: 1;", styles)
+        self.assertIn(".chat-send-button {\n  grid-column: 2;", styles)
         self.assertIn(".chat-send-button {", styles)
         self.assertIn(".chat-send-button.is-pending .chat-send-button__glyph {", styles)
         self.assertIn(".chat-stream-card:hover {", styles)
@@ -95,6 +99,7 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn(".header-feedback-link {", styles)
         self.assertIn("app-header__actions", shell_content)
         self.assertIn("header-feedback-link", shell_content)
+        self.assertNotIn("默认工作区", shell_content)
 
     def test_settings_page_uses_inline_action_feedback(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

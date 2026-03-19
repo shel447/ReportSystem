@@ -79,5 +79,6 @@ describe("App shell", () => {
     expect(sidebarFooter?.textContent).toContain("系统设置");
     expect(sidebarFooter?.textContent).not.toContain("提意见");
     expect(headerActions?.textContent).toContain("提意见");
+    expect(screen.queryByText("默认工作区")).not.toBeInTheDocument();
   });
 });

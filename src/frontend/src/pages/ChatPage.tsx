@@ -239,19 +239,17 @@ export function ChatPage() {
                     }
                   }}
                 />
-                <div className="compose-footer">
-                  <button
-                    className={`chat-send-button${chatMutation.isPending ? " is-pending" : ""}`}
-                    type="button"
-                    onClick={submitMessage}
-                    disabled={chatMutation.isPending}
-                    aria-label="发送"
-                    aria-busy={chatMutation.isPending}
-                  >
-                    <span className="chat-send-button__glyph" aria-hidden="true" />
-                    <span className="sr-only">发送</span>
-                  </button>
-                </div>
+                <button
+                  className={`chat-send-button${chatMutation.isPending ? " is-pending" : ""}`}
+                  type="button"
+                  onClick={submitMessage}
+                  disabled={chatMutation.isPending}
+                  aria-label="发送"
+                  aria-busy={chatMutation.isPending}
+                >
+                  <span className="chat-send-button__glyph" aria-hidden="true" />
+                  <span className="sr-only">发送</span>
+                </button>
               </div>
             </SurfaceCard>
           </div>

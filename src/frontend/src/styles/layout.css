@@ -132,14 +132,6 @@
   text-transform: uppercase;
 }
 
-.user-pill {
-  padding: 10px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.82);
-  color: var(--text-secondary);
-}
-
 .header-feedback-link {
   border: 0;
   padding: 0;

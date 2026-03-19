@@ -68,7 +68,6 @@ export function AppShell({ pathname, children }: AppShellProps) {
             <button className="header-feedback-link" type="button" onClick={() => setFeedbackOpen(true)}>
               提意见
             </button>
-            <div className="user-pill">默认工作区</div>
           </div>
         </header>
         <section className="page-body">{children}</section>
