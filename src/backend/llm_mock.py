@@ -117,7 +117,7 @@ def generate_chat_response(user_message: str, context: dict) -> str:
         )
 
     if any(kw in msg_lower for kw in ["模板", "列表", "有什么"]):
-        return "您可以在‘模板管理’页查看已有报告模板，或直接描述您要生成的报告类型。"
+        return "您可以在‘报告模板’页查看已有报告模板，或直接描述您要生成的报告类型。"
 
     if any(kw in msg_lower for kw in ["定时", "自动", "周期"]):
         return "可以。您可以在‘定时任务’页创建一次性或周期性任务。"

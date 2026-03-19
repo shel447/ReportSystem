@@ -83,7 +83,7 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     previous_state = deepcopy(state)
 
     if templates_count == 0:
-        reply = "当前还没有可用模板，请先在“模板管理”中创建报告模板。"
+        reply = "当前还没有可用模板，请先在“报告模板”中创建报告模板。"
     elif not settings["is_ready"]:
         reply = "系统设置尚未完成，请先到“系统设置”中配置 Completion 与 Embedding 接口，再开始对话生成。"
     else:

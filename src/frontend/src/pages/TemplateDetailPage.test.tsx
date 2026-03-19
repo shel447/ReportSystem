@@ -91,8 +91,15 @@ describe("TemplateDetailPage", () => {
     const exportLink = screen.getByRole("link", { name: "导出 JSON" });
     expect(exportLink).toHaveAttribute("href", "/api/templates/tpl-1/export");
 
-    fireEvent.click(screen.getByRole("button", { name: /设备列表/ }));
-    fireEvent.change(await screen.findByLabelText("设备列表预览值"), {
+    const devicesButton = screen.getByRole("button", { name: /设备列表/ });
+    fireEvent.click(devicesButton);
+
+    await waitFor(() => {
+      expect(devicesButton).toHaveClass("active");
+    });
+
+    const previewInput = await screen.findByLabelText("设备列表预览值");
+    fireEvent.change(previewInput, {
       target: { value: "A站设备, B站设备" },
     });
 

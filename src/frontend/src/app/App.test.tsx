@@ -29,7 +29,7 @@ describe("App shell", () => {
 
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /对话助手/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /模板管理/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /报告模板/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /模板实例/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /报告实例/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "对话助手", level: 1 })).toBeInTheDocument();
@@ -40,20 +40,20 @@ describe("App shell", () => {
     const view = renderApp("/chat");
     const navItems = Array.from(view.container.querySelectorAll(".nav-item")).map((item) => item.textContent?.trim() ?? "");
 
-    expect(navItems).toEqual(["CH对话助手", "TP模板管理", "TI模板实例", "IN报告实例", "DOC报告文档", "TSK定时任务"]);
+    expect(navItems).toEqual(["CH对话助手", "TP报告模板", "TI模板实例", "IN报告实例", "DOC报告文档", "TSK定时任务"]);
   });
 
   it("resolves template detail routes without redirecting to chat", () => {
     renderApp("/templates/abc-123");
 
-    expect(screen.getByRole("heading", { name: "模板管理", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "报告模板", level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "对话助手", level: 1 })).not.toBeInTheDocument();
   });
 
   it("resolves template creation route without redirecting to chat", () => {
     renderApp("/templates/new");
 
-    expect(screen.getByRole("heading", { name: "模板管理", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "报告模板", level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "对话助手", level: 1 })).not.toBeInTheDocument();
   });
 
