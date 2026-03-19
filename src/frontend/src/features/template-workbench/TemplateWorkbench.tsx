@@ -58,6 +58,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
   const [selectedSectionKey, setSelectedSectionKey] = useState("");
   const [selectedDatasetKey, setSelectedDatasetKey] = useState("");
   const [selectedCompositeKey, setSelectedCompositeKey] = useState("");
+  const [previewTab, setPreviewTab] = useState<"structure" | "json">("structure");
   const [feedbackMessage, setFeedbackMessage] = useState("");
 
   const validationErrors = useMemo(() => validateWorkbench(value), [value]);
@@ -444,7 +445,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
         </StatusBanner>
       ) : null}
       <div className="template-workbench__grid">
-        <SurfaceCard>
+        <SurfaceCard className="template-workbench__parameters">
           <div className="list-header">
             <div>
               <p className="section-kicker">Parameters</p>
@@ -827,7 +828,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
             </div>
           </div>
         </SurfaceCard>
-        <SurfaceCard>
+        <SurfaceCard className="template-workbench__preview">
           <div className="list-header">
             <div>
               <p className="section-kicker">Preview</p>
@@ -835,46 +836,59 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
               <p className="muted-text">展示参数替换和 foreach 展开后的结构效果。</p>
             </div>
           </div>
-          <div className="preview-stack">
-            {preview.sections.length ? (
-              preview.sections.map((item, index) => (
-                <article key={`${item.title}-${index}`} className="preview-section" data-level={item.level}>
-                  <strong>{item.title || `章节 ${index + 1}`}</strong>
-                  {item.description ? <p>{item.description}</p> : null}
-                  {item.content ? <div className="preview-section__content">{item.content}</div> : null}
-                </article>
-              ))
-            ) : (
-              <EmptyState title="预览为空" description="请先添加章节或示例值。" />
-            )}
+          <div className="preview-tabs" role="tablist" aria-label="结构预览切换">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={previewTab === "structure"}
+              className={`preview-tab ${previewTab === "structure" ? "is-active" : ""}`}
+              onClick={() => setPreviewTab("structure")}
+            >
+              结构预览
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={previewTab === "json"}
+              className={`preview-tab ${previewTab === "json" ? "is-active" : ""}`}
+              onClick={() => setPreviewTab("json")}
+            >
+              模板 JSON
+            </button>
           </div>
-        </SurfaceCard>
-        <SurfaceCard>
-          <div className="list-header">
-            <div>
-              <p className="section-kicker">Compatibility</p>
-              <h3>兼容迁移</h3>
-              <p className="muted-text">旧版字段不再作为主编辑入口，仅保留迁移提示和只读 JSON。</p>
+          {previewTab === "structure" ? (
+            <div className="preview-stack" role="tabpanel" aria-label="结构预览">
+              {preview.sections.length ? (
+                preview.sections.map((item, index) => (
+                  <article key={`${item.title}-${index}`} className="preview-section" data-level={item.level}>
+                    <strong>{item.title || `章节 ${index + 1}`}</strong>
+                    {item.description ? <p>{item.description}</p> : null}
+                    {item.content ? <div className="preview-section__content">{item.content}</div> : null}
+                  </article>
+                ))
+              ) : (
+                <EmptyState title="预览为空" description="请先添加章节或示例值。" />
+              )}
             </div>
-          </div>
-          <div className="inline-panel">
-            <p>{value.meta.compatibility.migratedFromLegacy ? "该模板来自旧版结构，保存后将按新版结构维护。" : "当前模板已按新版结构维护。"}</p>
-            {validationErrors.length ? (
-              <ul className="validation-list">
-                {validationErrors.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            ) : null}
-            <details>
-              <summary>查看模板 JSON</summary>
+          ) : (
+            <div className="inline-panel" role="tabpanel" aria-label="模板 JSON">
+              <p>{value.meta.compatibility.migratedFromLegacy ? "该模板来自旧版结构，保存后将按新版结构维护。" : "当前模板已按新版结构维护。"}</p>
+              {validationErrors.length ? (
+                <ul className="validation-list">
+                  {validationErrors.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
               <pre>{exportJson}</pre>
-            </details>
-          </div>
-          <div className="action-row">
-            <button className="primary-button" type="button" onClick={onSave} disabled={saveDisabled}>{savePending ? "保存中..." : "保存模板"}</button>
-          </div>
+            </div>
+          )}
         </SurfaceCard>
+      </div>
+      <div className="template-workbench__footer">
+        <div className="action-row">
+          <button className="primary-button" type="button" onClick={onSave} disabled={saveDisabled}>{savePending ? "保存中..." : "保存模板"}</button>
+        </div>
       </div>
     </div>
   );

@@ -80,20 +80,29 @@ describe("TemplateDetailPage", () => {
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
     expect(screen.getByText("参数工作台")).toBeInTheDocument();
     expect(screen.getByText("章节工作台")).toBeInTheDocument();
-    expect(screen.getByText("结构预览")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "结构预览" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "结构预览" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "模板 JSON" })).toBeInTheDocument();
+    expect(screen.queryByText("兼容迁移")).not.toBeInTheDocument();
     expect(screen.queryByText("parameters")).not.toBeInTheDocument();
     expect(screen.queryByText("sections")).not.toBeInTheDocument();
+    expect(screen.getByText("参数工作台").closest(".surface-card")).toHaveClass("template-workbench__parameters");
 
     const exportLink = screen.getByRole("link", { name: "导出 JSON" });
     expect(exportLink).toHaveAttribute("href", "/api/templates/tpl-1/export");
 
     fireEvent.click(screen.getByRole("button", { name: /设备列表/ }));
-    fireEvent.change(screen.getByLabelText("设备列表预览值"), {
+    fireEvent.change(await screen.findByLabelText("设备列表预览值"), {
       target: { value: "A站设备, B站设备" },
     });
 
     expect(await screen.findByText("设备 A站设备")).toBeInTheDocument();
     expect(screen.getByText("设备 B站设备")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "模板 JSON" }));
+    const jsonPanel = screen.getByRole("tabpanel", { name: "模板 JSON" });
+    expect(jsonPanel).toHaveTextContent("当前模板已按新版结构维护。");
+    expect(jsonPanel).toHaveTextContent('"name": "设备巡检报告"');
   });
 
   it("saves the structured workbench payload after editing metadata", async () => {
@@ -243,6 +252,7 @@ describe("TemplateDetailPage", () => {
       target: { value: "date" },
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "模板 JSON" }));
     expect(await screen.findByText("参数标识不能重复：date")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存模板" })).toBeDisabled();
   });

@@ -46,6 +46,9 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("TemplateWorkbench", template_detail_content)
         self.assertIn("预览示例值", workbench_content)
         self.assertIn("数据准备", workbench_content)
+        self.assertIn("模板 JSON", workbench_content)
+        self.assertIn("template-workbench__parameters", workbench_content)
+        self.assertNotIn("<h3>兼容迁移</h3>", workbench_content)
 
     def test_chat_styles_keep_message_stream_balanced(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
