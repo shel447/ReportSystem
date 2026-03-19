@@ -65,6 +65,18 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertNotIn("max-width: 1220px", styles)
         self.assertNotIn("max-width: 1040px", styles)
 
+    def test_settings_page_uses_inline_action_feedback(self):
+        base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        settings_page_path = os.path.join(base, "frontend", "src", "pages", "SettingsPage.tsx")
+        pages_css_path = os.path.join(base, "frontend", "src", "styles", "pages.css")
+        with open(settings_page_path, "r", encoding="utf-8") as f:
+            settings_content = f.read()
+        with open(pages_css_path, "r", encoding="utf-8") as f:
+            styles = f.read()
+        self.assertNotIn('title="操作反馈"', settings_content)
+        self.assertIn("settings-action-feedback", settings_content)
+        self.assertIn(".settings-action-feedback {", styles)
+
 
 if __name__ == "__main__":
     unittest.main()

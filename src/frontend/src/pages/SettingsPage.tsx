@@ -10,7 +10,6 @@ import {
 import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
 import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 import { PageSection } from "../shared/ui/PageSection";
-import { StatusBanner } from "../shared/ui/StatusBanner";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
 
 type SettingsForm = {
@@ -39,10 +38,19 @@ const EMPTY_FORM: SettingsForm = {
   useCompletionAuth: true,
 };
 
+const FEEDBACK_TIMEOUT_MS = 3000;
+
+type FeedbackTone = "success" | "error" | "info";
+
+type ActionFeedback = {
+  tone: FeedbackTone;
+  text: string;
+};
+
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<SettingsForm>(EMPTY_FORM);
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState<ActionFeedback | null>(null);
 
   const settingsQuery = useQuery({
     queryKey: ["system-settings"],
@@ -67,6 +75,20 @@ export function SettingsPage() {
     });
   }, [settingsQuery.data]);
 
+  useEffect(() => {
+    if (!feedback) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedback(null);
+    }, FEEDBACK_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [feedback]);
+
   const saveMutation = useMutation({
     mutationFn: () =>
       updateSystemSettings({
@@ -86,44 +108,50 @@ export function SettingsPage() {
         },
       }),
     onSuccess: async () => {
-      setMessage("系统设置已保存。");
       await queryClient.invalidateQueries({ queryKey: ["system-settings"] });
+      setFeedback({ tone: "success", text: "系统设置已保存" });
     },
     onError: (error) => {
-      setMessage(error instanceof Error ? error.message : "系统设置保存失败。");
+      setFeedback({
+        tone: "error",
+        text: `系统设置保存失败：${extractErrorMessage(error, "请稍后重试")}`,
+      });
     },
   });
 
   const testMutation = useMutation({
     mutationFn: (target: "completion" | "embedding" | "both") => testSystemSettings(target),
     onSuccess: (result) => {
-      setMessage(JSON.stringify(result, null, 2));
+      setFeedback(summarizeConnectivityTestResult(result));
     },
     onError: (error) => {
-      setMessage(error instanceof Error ? error.message : "连接测试失败。");
+      setFeedback({
+        tone: "error",
+        text: `连接测试失败：${extractErrorMessage(error, "请检查配置后重试")}`,
+      });
     },
   });
 
   const reindexMutation = useMutation({
     mutationFn: rebuildTemplateIndex,
     onSuccess: async (result) => {
-      setMessage(result.message);
       await queryClient.invalidateQueries({ queryKey: ["system-settings"] });
+      setFeedback({
+        tone: "success",
+        text: result.message ? trimSentenceEnding(result.message) : "模板索引已重建",
+      });
     },
     onError: (error) => {
-      setMessage(error instanceof Error ? error.message : "重建索引失败。");
+      setFeedback({
+        tone: "error",
+        text: `重建模板索引失败：${extractErrorMessage(error, "请稍后重试")}`,
+      });
     },
   });
 
   return (
     <div className="settings-page">
       <PageSection description="集中配置 Completion、Embedding 与模板索引状态。">
-        {message ? (
-          <StatusBanner tone="info" title="操作反馈">
-            <span className="pre-wrap">{message}</span>
-          </StatusBanner>
-        ) : null}
-
         <DetailPageLayout
           intro={
             <PageIntroBar
@@ -263,20 +291,31 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="action-row">
-                  <button className="primary-button" type="button" onClick={() => saveMutation.mutate()}>
-                    {saveMutation.isPending ? "保存中..." : "保存设置"}
-                  </button>
-                  <button className="secondary-button" type="button" onClick={() => testMutation.mutate("both")}>
-                    {testMutation.isPending ? "测试中..." : "测试连接"}
-                  </button>
-                  <button
-                    className="ghost-button ghost-button--inline"
-                    type="button"
-                    onClick={() => reindexMutation.mutate()}
-                  >
-                    {reindexMutation.isPending ? "重建中..." : "重建模板索引"}
-                  </button>
+                <div className="settings-actions-panel">
+                  <div className="action-row">
+                    <button className="primary-button" type="button" onClick={() => saveMutation.mutate()}>
+                      {saveMutation.isPending ? "保存中..." : "保存设置"}
+                    </button>
+                    <button className="secondary-button" type="button" onClick={() => testMutation.mutate("both")}>
+                      {testMutation.isPending ? "测试中..." : "测试连接"}
+                    </button>
+                    <button
+                      className="ghost-button ghost-button--inline"
+                      type="button"
+                      onClick={() => reindexMutation.mutate()}
+                    >
+                      {reindexMutation.isPending ? "重建中..." : "重建模板索引"}
+                    </button>
+                  </div>
+                  {feedback ? (
+                    <div
+                      className={`settings-action-feedback settings-action-feedback--${feedback.tone}`}
+                      data-testid="settings-action-feedback"
+                      role="status"
+                    >
+                      {feedback.text}
+                    </div>
+                  ) : null}
                 </div>
               </SurfaceCard>
             </div>
@@ -285,4 +324,65 @@ export function SettingsPage() {
       </PageSection>
     </div>
   );
+}
+
+function summarizeConnectivityTestResult(result: Record<string, unknown>): ActionFeedback {
+  const target = typeof result.target === "string" ? result.target : "both";
+  const completion = readProviderTestResult(result.completion);
+  const embedding = readProviderTestResult(result.embedding);
+
+  if (target === "completion") {
+    return completion?.ok
+      ? { tone: "success", text: "连接测试成功：Completion 可用" }
+      : { tone: "error", text: `连接测试失败：Completion ${normalizeProviderError(completion?.error)}` };
+  }
+
+  if (target === "embedding") {
+    return embedding?.ok
+      ? { tone: "success", text: "连接测试成功：Embedding 可用" }
+      : { tone: "error", text: `连接测试失败：Embedding ${normalizeProviderError(embedding?.error)}` };
+  }
+
+  if (completion?.ok && embedding?.ok) {
+    return { tone: "success", text: "连接测试成功：Completion、Embedding 均可用" };
+  }
+
+  const failures: string[] = [];
+  if (!completion?.ok) {
+    failures.push(`Completion ${normalizeProviderError(completion?.error)}`);
+  }
+  if (!embedding?.ok) {
+    failures.push(`Embedding ${normalizeProviderError(embedding?.error)}`);
+  }
+
+  return {
+    tone: "error",
+    text: `连接测试失败：${failures.join("；") || "请检查配置后重试"}`,
+  };
+}
+
+function readProviderTestResult(value: unknown): { ok: boolean; error: string } | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    ok: record.ok === true,
+    error: typeof record.error === "string" ? record.error : "",
+  };
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return trimSentenceEnding(error.message.trim());
+  }
+  return fallback;
+}
+
+function normalizeProviderError(error: string | undefined): string {
+  return trimSentenceEnding(error?.trim() || "测试失败");
+}
+
+function trimSentenceEnding(text: string): string {
+  return text.replace(/[。.!！]+$/u, "");
 }

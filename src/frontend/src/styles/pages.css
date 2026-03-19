@@ -345,6 +345,32 @@
   gap: 18px;
 }
 
+.settings-actions-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-action-feedback {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.settings-action-feedback--success {
+  color: #256d4c;
+}
+
+.settings-action-feedback--error {
+  color: #9c3423;
+}
+
+.settings-action-feedback--info {
+  color: var(--accent-strong);
+}
+
 .summary-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
