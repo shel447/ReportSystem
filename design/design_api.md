@@ -66,7 +66,7 @@ sequenceDiagram
 
 ---
 
-## 2. 报告模板管理
+## 2. 报告模板
 
 ```
 POST   /api/templates              # 创建报告模板

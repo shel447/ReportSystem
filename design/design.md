@@ -23,7 +23,7 @@
 
 | 角色 | 定义 | 职责边界 |
 |------|------|----------|
-| **产品 (Product)** | 上游集成方 | 面向最终用户，提供业务场景化的报告服务。通过调用本系统 API 完成模板管理、对话生成、定时任务配置、报告实例管理及文档下载 |
+| **产品 (Product)** | 上游集成方 | 面向最终用户，提供业务场景化的报告服务。通过调用本系统 API 完成报告模板、对话生成、定时任务配置、报告实例管理及文档下载 |
 | **平台 (Platform)** | 本系统 | 报告模板定义、对话式报告生成、定时任务调度、数据采集编排、LLM 生成逻辑调度、实例生命周期管理及文档导出 |
 | **推理系统 (Reasoning System)** | 下游能力提供方 | 提供大语言模型 (LLM) 推理接口、Embedding 向量化接口等 AI 原子能力 |
 
@@ -45,7 +45,7 @@ graph LR
         EMB["Embedding 接口"]
     end
 
-    P -- "模板管理 API<br/>CRUD templates" --> API
+    P -- "报告模板 API<br/>CRUD templates" --> API
     P -- "对话交互 API<br/>POST chat" --> API
     P -- "定时任务管理 API<br/>CRUD scheduled-tasks" --> API
     P -- "报告实例管理 API<br/>GET/PUT/DELETE instances" --> API

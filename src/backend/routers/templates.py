@@ -1,4 +1,4 @@
-"""报告模板管理路由"""
+"""报告模板路由"""
 import json
 import re
 from typing import Any, List, Optional
