@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
-from .routers import chat, design, documents, feedback, instances, system_settings, tasks, templates
+from .routers import chat, design, documents, feedback, instances, system_settings, tasks, template_instances, templates
 
 API_PREFIX = "/api"
 BACKEND_DIR = os.path.dirname(__file__)
@@ -20,6 +20,7 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="Smart Report System", version="1.6.0")
 
     app.include_router(templates.router, prefix=API_PREFIX)
+    app.include_router(template_instances.router, prefix=API_PREFIX)
     app.include_router(instances.router, prefix=API_PREFIX)
     app.include_router(documents.router, prefix=API_PREFIX)
     app.include_router(tasks.router, prefix=API_PREFIX)

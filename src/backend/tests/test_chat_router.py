@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.database import Base
-from backend.models import ChatSession, ReportTemplate
+from backend.models import ChatSession, ReportTemplate, TemplateInstance
 from backend.routers.chat import ChatMessage, send_message
 
 
@@ -100,6 +100,21 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["type"], "review_outline")
         self.assertEqual(second["action"]["outline"][0]["title"], "总部概述")
         self.assertEqual(second["action"]["outline"][1]["title"], "设备 A001")
+        self.assertEqual(self.db.query(TemplateInstance).count(), 0)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            saved = send_message(
+                ChatMessage(session_id=first["session_id"], command="edit_outline", outline_override=second["action"]["outline"]),
+                db=self.db,
+            )
+
+        self.assertEqual(saved["action"]["type"], "review_outline")
+        saved_record = self.db.query(TemplateInstance).filter(TemplateInstance.capture_stage == "outline_saved").first()
+        self.assertIsNotNone(saved_record)
+        self.assertEqual(saved_record.template_id, "tpl-1")
+        self.assertEqual(saved_record.session_id, first["session_id"])
+        self.assertEqual(saved_record.report_instance_id, None)
+        self.assertEqual(len(saved_record.outline_snapshot or []), 2)
 
         fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
         fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", template_id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
@@ -130,6 +145,9 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(third["action"]["type"], "download_document")
         self.assertEqual(third["action"]["document"]["document_id"], "doc-1")
+        confirmed_record = self.db.query(TemplateInstance).filter(TemplateInstance.capture_stage == "outline_confirmed").first()
+        self.assertIsNotNone(confirmed_record)
+        self.assertEqual(confirmed_record.report_instance_id, "inst-1")
 
     def test_send_message_reset_params_restarts_required_collection(self):
         with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \

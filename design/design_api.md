@@ -87,9 +87,21 @@ GET    /api/chat/{session_id}      # 获取对话历史
 DELETE /api/chat/{session_id}      # 结束对话会话
 ```
 
+> 对话生成链路在“大纲确认”阶段会先形成模板实例快照：`edit_outline` 追加 `outline_saved`，`confirm_outline_generation` 在生成报告实例后追加 `outline_confirmed`。
+
 ---
 
-## 4. 报告实例管理
+## 4. 模板实例管理
+
+```
+GET    /api/template-instances     # 列出模板实例快照（只读）
+```
+
+返回摘要字段包括模板名、阶段、参数数、章节节点数、大纲预览以及关联的报告实例 ID（若存在）。
+
+---
+
+## 5. 报告实例管理
 
 ```
 POST   /api/instances              # 生成报告实例
@@ -102,7 +114,7 @@ POST   /api/instances/{id}/finalize  # 确认实例，准备生成文档
 
 ---
 
-## 5. 报告文档管理
+## 6. 报告文档管理
 
 ```
 POST   /api/documents              # 生成报告文档
@@ -115,7 +127,7 @@ GET    /api/instances/{id}/documents  # 列出实例关联的所有文档
 
 ---
 
-## 6. 数据源管理
+## 7. 数据源管理
 
 ```
 POST   /api/data-sources           # 注册数据源
@@ -128,7 +140,7 @@ POST   /api/data-sources/{id}/test  # 测试连接
 
 ---
 
-## 7. 定时任务管理
+## 8. 定时任务管理
 
 ```
 POST   /api/scheduled-tasks              # 创建定时任务
@@ -150,7 +162,7 @@ GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 
 ---
 
-## 8. 待细化内容
+## 9. 待细化内容
 
 > 以下内容将在后续迭代中逐步细化：
 

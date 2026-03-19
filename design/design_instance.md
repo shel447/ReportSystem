@@ -4,9 +4,43 @@
 
 ---
 
-## 1. 报告实例 (ReportInstance)
+## 1. 模板实例 (TemplateInstance)
 
-### 1.1 类图
+模板实例是位于“报告模板”和“报告实例”之间的中间快照。它只在对话式生成流程中产生，用于记录用户在大纲确认阶段显式保存下来的状态，不替代 `ReportInstance`。
+
+### 1.1 数据结构
+
+```python
+@dataclass
+class TemplateInstance:
+    template_instance_id: str
+    template_id: str
+    template_version: str
+    session_id: str
+    capture_stage: str  # outline_saved / outline_confirmed
+
+    input_params_snapshot: Dict[str, Any]
+    outline_snapshot: List[Dict[str, Any]]
+    warnings: List[str]
+
+    report_instance_id: Optional[str] = None
+    created_at: datetime
+    created_by: str
+```
+
+### 1.2 生命周期说明
+
+- `prepare_outline_review`：仅进入大纲确认，不落模板实例
+- `edit_outline`：每次显式保存大纲，追加一条 `outline_saved` 记录
+- `confirm_outline_generation`：生成报告实例后，再追加一条 `outline_confirmed` 记录，并关联 `report_instance_id`
+
+> 模板实例采用追加式历史记录，不做覆盖更新，也不回写模板。
+
+---
+
+## 2. 报告实例 (ReportInstance)
+
+### 2.1 类图
 
 ```mermaid
 classDiagram
@@ -58,7 +92,7 @@ classDiagram
     SectionContent "1" *-- "0..1" TraceInfo
 ```
 
-### 1.2 数据结构
+### 2.2 数据结构
 
 ```python
 @dataclass
@@ -128,9 +162,9 @@ class TraceInfo:
 
 ---
 
-## 2. 报告文档 (ReportDocument)
+## 3. 报告文档 (ReportDocument)
 
-### 2.1 类图
+### 3.1 类图
 
 ```mermaid
 classDiagram
@@ -160,7 +194,7 @@ classDiagram
     ReportDocument "1" --> "1" ReportInstance : 关联
 ```
 
-### 2.2 数据结构
+### 3.2 数据结构
 
 ```python
 @dataclass
@@ -187,3 +221,4 @@ class ReportDocument:
 
 - 报告实例示例请参见 `instance_example.json`
 - 报告文档样例请参见 `report_sample.md`
+- 模板实例用于承接“模板 -> 实例”的生成前快照，不承担报告内容重生成职责

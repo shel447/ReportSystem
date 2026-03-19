@@ -45,6 +45,23 @@ class ReportInstance(Base):
     created_by = Column(String, default="system")
 
 
+class TemplateInstance(Base):
+    __tablename__ = "template_instances"
+
+    template_instance_id = Column(String, primary_key=True, default=gen_id)
+    template_id = Column(String, nullable=False)
+    template_name = Column(String, default="")
+    template_version = Column(String, default="1.0")
+    session_id = Column(String, default="")
+    capture_stage = Column(String, default="outline_saved")
+    input_params_snapshot = Column(JSON, default=dict)
+    outline_snapshot = Column(JSON, default=list)
+    warnings = Column(JSON, default=list)
+    report_instance_id = Column(String, nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+    created_by = Column(String, default="system")
+
+
 class ReportDocument(Base):
     __tablename__ = "report_documents"
 

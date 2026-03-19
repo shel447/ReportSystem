@@ -34,6 +34,7 @@ from ..param_dialog_service import (
     validate_and_merge_params,
 )
 from ..system_settings_service import get_settings_payload
+from ..template_instance_service import capture_template_instance
 from ..template_index_service import TemplateIndexUnavailableError, match_templates
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -250,6 +251,16 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                     report = state.get("report") or {}
                     pending_outline = report.get("pending_outline_review") or []
                     report["pending_outline_review"] = merge_outline_override(pending_outline, data.outline_override or [])
+                    capture_template_instance(
+                        db,
+                        template=template,
+                        session_id=session.session_id,
+                        capture_stage="outline_saved",
+                        input_params_snapshot=merged,
+                        outline_snapshot=report["pending_outline_review"],
+                        warnings=report.get("outline_review_warnings") or [],
+                        created_by=session.user_id or "system",
+                    )
                     state["report"] = report
                     reply = "报告大纲已更新，请继续确认。"
                     action = build_review_outline_action(state, template_params)
@@ -281,6 +292,17 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                             template_id=template.template_id,
                             input_params=merged,
                             outline_override=pending_outline,
+                        )
+                        capture_template_instance(
+                            db,
+                            template=template,
+                            session_id=session.session_id,
+                            capture_stage="outline_confirmed",
+                            input_params_snapshot=merged,
+                            outline_snapshot=pending_outline,
+                            warnings=report.get("outline_review_warnings") or [],
+                            report_instance_id=created["instance_id"],
+                            created_by=session.user_id or "system",
                         )
                         document = create_markdown_document(db, created["instance_id"])
                         reply = "报告已生成，可以下载 Markdown 文档。"

@@ -1,5 +1,5 @@
-**版本**: v1.1  
-**最后更新**: 2026-03-04  
+**版本**: v1.2
+**最后更新**: 2026-03-19
 **状态**: 已归档 (同步代码实现)
 
 
@@ -66,7 +66,7 @@ graph LR
     style EMB fill:#f3e5f5,stroke:#7b1fa2
 ```
 
-> **说明**：报告实例的**创建**不直接暴露为独立 API——它在对话交互流程或定时任务执行流程中自动产生。产品侧可通过实例管理 API 对已生成的报告实例进行查询、修改和删除。
+> **说明**：报告实例的**创建**不直接暴露为独立 API——它在对话交互流程或定时任务执行流程中自动产生。对话式流程在真正创建报告实例之前，会先落一份“模板实例”中间快照，用于记录参数确认后、报告实例生成前的大纲状态。
 
 ---
 
@@ -121,7 +121,15 @@ sequenceDiagram
     Chat->>Template: 获取模板的 content_params
     Template-->>Chat: 返回参数定义
 
-    %% 阶段 3: 生成报告实例
+    %% 阶段 3: 大纲确认
+    User->>Chat: 确认参数
+    Chat->>Template: 展开模板大纲 (参数替换 + foreach 展开)
+    Template-->>Chat: 返回待确认大纲
+    Chat->>User: 展示实例级大纲
+    User->>Chat: 保存/确认大纲
+    Chat->>Template: 保存模板实例快照
+
+    %% 阶段 4: 生成报告实例
     User->>Chat: 确认生成
     Chat->>Instance: 创建报告实例
     Instance->>Data: 采集数据 (根据 data_requirements)
@@ -131,7 +139,7 @@ sequenceDiagram
     Instance-->>Chat: 返回报告实例
     Chat->>User: 展示报告预览
 
-    %% 阶段 4: 修改与重新生成
+    %% 阶段 5: 修改与重新生成
     User->>Chat: 修改某节内容/重新生成
     Chat->>Instance: 重新生成指定 section
     Instance->>Data: 重新采集数据 (可选)
@@ -140,7 +148,7 @@ sequenceDiagram
     Instance-->>Chat: 更新报告实例
     Chat->>User: 展示更新后的内容
 
-    %% 阶段 5: 生成文档
+    %% 阶段 6: 生成文档
     User->>Chat: 确认无误，生成文档
     Chat->>Instance: 确认实例 (finalize)
     Instance->>Doc: 生成报告文档 (Word/PDF)
@@ -156,30 +164,37 @@ sequenceDiagram
 | 概念 | 定义 | 补充说明 |
 |------|------|----------|
 | **报告模板** | 用户预先定义的报告模板。包括报告类型、报告场景、报告内容参数、报告大纲 | 静态的、可复用的元数据定义 |
+| **模板实例** | 对话式生成流程中，在大纲确认阶段保存下来的模板级快照。包含模板、已确认参数和实例级大纲 | 追加式历史记录，位于模板与报告实例之间，只作用于当前生成过程 |
 | **报告实例** | 在报告模板的基础上，填充报告内容参数后，使用大语言模型技术栈生成报告实例 | 中间态，可编辑、可预览、支持局部重新生成 |
 | **报告文档** | 报告实例的物理载体，文档类型可以是 Word、PDF | 最终态，只读、可下载、可分享 |
 
-### 3.1 三者关系
+### 3.1 四者关系
 
 ```mermaid
 graph LR
-    A[报告模板<br/>Template] -->|实例化<br/>填充参数 + LLM 生成 | B[报告实例<br/>Instance]
-    B -->|固化/导出 | C[报告文档<br/>Document]
+    A[报告模板<br/>Template] -->|参数确认 + 大纲展开| B[模板实例<br/>Template Instance]
+    B -->|确认生成<br/>数据采集 + LLM 生成 | C[报告实例<br/>Instance]
+    C -->|固化/导出 | D[报告文档<br/>Document]
     
     style A fill:#e1f5fe
     style B fill:#fff3e0
-    style C fill:#f3e5f5
+    style C fill:#fff3e0
+    style D fill:#f3e5f5
     
     subgraph 静态定义
         A
     end
     
-    subgraph 中间态 - 可编辑
+    subgraph 中间态 - 生成前快照
         B
     end
     
-    subgraph 最终态 - 只读
+    subgraph 中间态 - 可编辑
         C
+    end
+
+    subgraph 最终态 - 只读
+        D
     end
 ```
 
@@ -335,4 +350,3 @@ graph TD
 | v0.9 | 2026-03-02 | Antigravity | 修正上下文交互图：增加定时任务管理与报告实例管理 API，移除独立的报告生成 API |
 | v1.0 | 2026-03-02 | Antigravity | 按总-分结构拆分为总设计文档 + 4 个模块设计文档 |
 | v1.1 | 2026-03-04 | Antigravity | 同步 UI 重构：默认沉浸式对话 + 表格化列表；修正 API 前缀为 /api/ |
-
