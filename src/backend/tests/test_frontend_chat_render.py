@@ -27,6 +27,7 @@ class FrontendChatRenderTests(unittest.TestCase):
         template_catalog_path = os.path.join(base, "frontend", "src", "pages", "TemplatesPage.tsx")
         template_detail_path = os.path.join(base, "frontend", "src", "pages", "TemplateDetailPage.tsx")
         workbench_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "TemplateWorkbench.tsx")
+        workbench_css_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "templateWorkbench.css")
         panel_path = os.path.join(base, "frontend", "src", "features", "chat-report-flow", "components", "ChatActionPanel.tsx")
         with open(chat_page_path, "r", encoding="utf-8") as f:
             chat_content = f.read()
@@ -36,6 +37,8 @@ class FrontendChatRenderTests(unittest.TestCase):
             template_detail_content = f.read()
         with open(workbench_path, "r", encoding="utf-8") as f:
             workbench_content = f.read()
+        with open(workbench_css_path, "r", encoding="utf-8") as f:
+            workbench_styles = f.read()
         with open(panel_path, "r", encoding="utf-8") as f:
             panel_content = f.read()
         self.assertIn("param_values", chat_content)
@@ -49,6 +52,8 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("模板 JSON", workbench_content)
         self.assertIn("template-workbench__parameters", workbench_content)
         self.assertNotIn("<h3>兼容迁移</h3>", workbench_content)
+        self.assertIn("grid-template-columns: minmax(220px, 0.8fr) 1px minmax(0, 1.4fr);", workbench_styles)
+        self.assertIn(".workbench-split::before {", workbench_styles)
 
     def test_chat_styles_keep_message_stream_balanced(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
