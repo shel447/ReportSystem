@@ -26,6 +26,7 @@ class FrontendChatRenderTests(unittest.TestCase):
         chat_page_path = os.path.join(base, "frontend", "src", "pages", "ChatPage.tsx")
         template_catalog_path = os.path.join(base, "frontend", "src", "pages", "TemplatesPage.tsx")
         template_detail_path = os.path.join(base, "frontend", "src", "pages", "TemplateDetailPage.tsx")
+        workbench_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "TemplateWorkbench.tsx")
         panel_path = os.path.join(base, "frontend", "src", "features", "chat-report-flow", "components", "ChatActionPanel.tsx")
         with open(chat_page_path, "r", encoding="utf-8") as f:
             chat_content = f.read()
@@ -33,6 +34,8 @@ class FrontendChatRenderTests(unittest.TestCase):
             template_catalog_content = f.read()
         with open(template_detail_path, "r", encoding="utf-8") as f:
             template_detail_content = f.read()
+        with open(workbench_path, "r", encoding="utf-8") as f:
+            workbench_content = f.read()
         with open(panel_path, "r", encoding="utf-8") as f:
             panel_content = f.read()
         self.assertIn("param_values", chat_content)
@@ -40,7 +43,9 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("single_select", panel_content)
         self.assertIn("/templates/new", template_catalog_content)
         self.assertIn("schemaVersion", template_detail_content)
-        self.assertIn("sectionsText", template_detail_content)
+        self.assertIn("TemplateWorkbench", template_detail_content)
+        self.assertIn("预览示例值", workbench_content)
+        self.assertIn("数据准备", workbench_content)
 
     def test_chat_styles_keep_message_stream_balanced(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

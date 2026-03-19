@@ -35,6 +35,9 @@ describe("TemplatesPage", () => {
               scenario: "集团",
               type: "巡检",
               scene: "总部",
+              schema_version: "v2.0",
+              parameter_count: 3,
+              top_level_section_count: 4,
             },
           ],
         };
@@ -49,6 +52,9 @@ describe("TemplatesPage", () => {
       "href",
       "/templates/tpl-1",
     );
+    expect(screen.getByText("3 个参数")).toBeInTheDocument();
+    expect(screen.getByText("4 个顶层章节")).toBeInTheDocument();
+    expect(screen.getByText("v2.0")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "新建模板" })).toHaveAttribute("href", "/templates/new");
     expect(screen.queryByLabelText("模板名称")).not.toBeInTheDocument();
   });

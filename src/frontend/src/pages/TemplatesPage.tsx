@@ -48,6 +48,11 @@ export function TemplatesPage() {
                         <span key={item}>{item}</span>
                       ))}
                     </div>
+                    <div className="template-card__meta">
+                      <span>{template.parameter_count ?? 0} 个参数</span>
+                      <span>{template.top_level_section_count ?? 0} 个顶层章节</span>
+                      {template.schema_version ? <span>{template.schema_version}</span> : null}
+                    </div>
                   </Link>
                 ))}
               </div>

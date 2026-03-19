@@ -1,13 +1,16 @@
-﻿"""报告模板管理路由"""
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+"""报告模板管理路由"""
+import json
+import re
+from typing import Any, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
-from typing import Optional, List, Any
+from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import ReportTemplate, gen_id
-from ..template_schema_service import validate_template_payload
 from ..template_index_service import delete_template_index, mark_template_index_stale
+from ..template_schema_service import validate_template_payload
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -61,16 +64,22 @@ def create_template(data: TemplateCreate, db: Session = Depends(get_db)):
 @router.get("")
 def list_templates(db: Session = Depends(get_db)):
     templates = db.query(ReportTemplate).all()
-    return [{
-        "template_id": item.template_id,
-        "name": item.name,
-        "description": item.description,
-        "report_type": item.report_type,
-        "scenario": item.scenario,
-        "type": item.template_type or "",
-        "scene": item.scene or "",
-        "created_at": str(item.created_at),
-    } for item in templates]
+    return [
+        {
+            "template_id": item.template_id,
+            "name": item.name,
+            "description": item.description,
+            "report_type": item.report_type,
+            "scenario": item.scenario,
+            "type": item.template_type or "",
+            "scene": item.scene or "",
+            "schema_version": item.schema_version or "",
+            "parameter_count": len(item.parameters or []),
+            "top_level_section_count": len(item.sections or []),
+            "created_at": str(item.created_at),
+        }
+        for item in templates
+    ]
 
 
 @router.get("/{template_id}")
@@ -79,6 +88,20 @@ def get_template(template_id: str, db: Session = Depends(get_db)):
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
     return _template_detail(template)
+
+
+@router.get("/{template_id}/export")
+def export_template_definition(template_id: str, db: Session = Depends(get_db)):
+    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    payload = _export_template_payload(template)
+    filename = _build_export_filename(template)
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.put("/{template_id}")
@@ -109,7 +132,6 @@ def delete_template(template_id: str, db: Session = Depends(get_db)):
     return {"message": "deleted"}
 
 
-
 def _template_detail(template: ReportTemplate):
     return {
         "template_id": template.template_id,
@@ -128,6 +150,22 @@ def _template_detail(template: ReportTemplate):
         "output_formats": template.output_formats,
         "created_at": str(template.created_at),
         "version": template.version,
+    }
+
+
+def _export_template_payload(template: ReportTemplate):
+    return {
+        "name": template.name,
+        "description": template.description,
+        "report_type": template.report_type,
+        "scenario": template.scenario,
+        "type": template.template_type or "",
+        "scene": template.scene or "",
+        "match_keywords": _normalize_keywords(template.match_keywords),
+        "parameters": template.parameters or [],
+        "sections": template.sections or [],
+        "schema_version": template.schema_version or "",
+        "output_formats": template.output_formats or [],
     }
 
 
@@ -154,3 +192,10 @@ def _normalize_keywords(items):
         seen.add(text)
         normalized.append(text)
     return normalized
+
+
+def _build_export_filename(template: ReportTemplate) -> str:
+    base = re.sub(r"[^0-9A-Za-z._-]+", "-", str(template.name or "").strip()).strip("-")
+    if not base:
+        base = f"template-{template.template_id}"
+    return f"{base}.json"
