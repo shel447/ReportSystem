@@ -42,6 +42,9 @@ class FrontendChatRenderTests(unittest.TestCase):
         with open(panel_path, "r", encoding="utf-8") as f:
             panel_content = f.read()
         self.assertIn("param_values", chat_content)
+        self.assertIn("chat-send-button", chat_content)
+        self.assertNotIn("发送中...", chat_content)
+        self.assertNotIn("支持直接输入自然语言需求", chat_content)
         self.assertIn("multi_select", panel_content)
         self.assertIn("single_select", panel_content)
         self.assertIn("/templates/new", template_catalog_content)
@@ -66,8 +69,12 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("min-height: 64px", styles)
         self.assertIn(".chat-compose-dock {", styles)
         self.assertIn("position: fixed;", styles)
+        self.assertIn(".chat-send-button {", styles)
+        self.assertIn(".chat-send-button.is-pending .chat-send-button__glyph {", styles)
         self.assertIn(".chat-stream-shell {", styles)
         self.assertIn("padding-bottom: calc(var(--chat-compose-reserve", styles)
+        self.assertIn("background: transparent;", styles)
+        self.assertIn("box-shadow: none;", styles)
 
     def test_shared_layouts_no_longer_cap_page_widths(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

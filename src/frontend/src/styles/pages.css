@@ -38,6 +38,10 @@
 .chat-stream-card {
   display: grid;
   min-height: 320px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .chat-compose-dock {
@@ -51,12 +55,7 @@
 }
 
 .chat-compose-dock::before {
-  content: "";
-  position: absolute;
-  inset: -18px -18px 0;
-  background: linear-gradient(180deg, rgba(246, 243, 235, 0) 0%, rgba(246, 243, 235, 0.92) 38%, rgba(246, 243, 235, 0.98) 100%);
-  pointer-events: none;
-  z-index: -1;
+  content: none;
 }
 
 .message-list {
@@ -107,7 +106,7 @@
 
 .chat-compose {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .chat-compose textarea {
@@ -117,15 +116,65 @@
   resize: none;
 }
 
+.chat-compose textarea:disabled {
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
 .compose-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 12px;
 }
 
-.compose-hint {
-  color: var(--text-secondary);
+.chat-send-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 52px;
+  block-size: 52px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
+  box-shadow: 0 16px 28px rgba(37, 109, 130, 0.18);
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+.chat-send-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 30px rgba(37, 109, 130, 0.22);
+}
+
+.chat-send-button:disabled {
+  cursor: default;
+}
+
+.chat-send-button__glyph {
+  inline-size: 16px;
+  block-size: 16px;
+  background: currentColor;
+  clip-path: polygon(0 14%, 100% 50%, 0 86%, 28% 56%, 28% 44%);
+  transform: translateX(1px);
+}
+
+.chat-send-button.is-pending {
+  transform: none;
+  box-shadow: 0 10px 20px rgba(27, 36, 48, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(27, 36, 48, 0.12);
+  color: var(--text-primary);
+}
+
+.chat-send-button.is-pending .chat-send-button__glyph {
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 2px;
+  clip-path: none;
+  transform: none;
 }
 
 .action-card {
@@ -420,8 +469,7 @@
   }
 
   .compose-footer {
-    align-items: stretch;
-    flex-direction: column;
+    justify-content: flex-end;
   }
 
   .summary-strip {

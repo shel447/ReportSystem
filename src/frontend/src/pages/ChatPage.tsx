@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -17,6 +17,7 @@ export function ChatPage() {
   const [sessionId, setSessionId] = useState("");
   const chatPageRef = useRef<HTMLDivElement | null>(null);
   const composeDockRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
   const [messages, setMessages] = useState<ChatMessageItem[]>([
     {
       role: "assistant",
@@ -37,15 +38,6 @@ export function ChatPage() {
 
   const chatMutation = useMutation({
     mutationFn: (payload: ChatRequest) => sendChatMessage(payload),
-    onSuccess: (response) => {
-      setErrorMessage("");
-      setSessionId(response.session_id);
-      setMessages(buildVisibleMessages(response));
-      setDraft("");
-    },
-    onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
-    },
   });
 
   const latestAction = useMemo(() => {
@@ -56,6 +48,10 @@ export function ChatPage() {
       }
     }
     return null;
+  }, [messages]);
+
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView?.({ block: "end" });
   }, [messages]);
 
   useLayoutEffect(() => {
@@ -109,21 +105,45 @@ export function ChatPage() {
     };
   }, []);
 
-  const submitMessage = () => {
-    if (!draft.trim() || chatMutation.isPending) {
-      return;
-    }
-    chatMutation.mutate({
+  const sendPayload = (payload: Omit<ChatRequest, "session_id">, optimisticContent: string) => {
+    const request: ChatRequest = {
       session_id: sessionId || undefined,
-      message: draft.trim(),
+      ...payload,
+    };
+
+    setErrorMessage("");
+    if (optimisticContent) {
+      setMessages((current) => appendOptimisticMessage(current, optimisticContent));
+    }
+
+    chatMutation.mutate(request, {
+      onSuccess: (response) => {
+        setErrorMessage("");
+        setSessionId(response.session_id);
+        setMessages(buildVisibleMessages(response, optimisticContent));
+      },
+      onError: (error) => {
+        setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
+      },
     });
   };
 
+  const submitMessage = () => {
+    const nextMessage = draft.trim();
+    if (!nextMessage || chatMutation.isPending) {
+      return;
+    }
+    setDraft("");
+    sendPayload(
+      {
+        message: nextMessage,
+      },
+      nextMessage,
+    );
+  };
+
   const runAction = (payload: Omit<ChatRequest, "session_id">) => {
-    chatMutation.mutate({
-      session_id: sessionId || undefined,
-      ...payload,
-    });
+    sendPayload(payload, buildOptimisticActionMessage(payload, latestAction));
   };
 
   const chatPageStyle = {
@@ -163,6 +183,7 @@ export function ChatPage() {
                       <div className="message-bubble__action">
                         <ChatActionPanel
                           action={message.action}
+                          disabled={chatMutation.isPending}
                           onSubmitParam={(paramId, value) => {
                             if (Array.isArray(value)) {
                               runAction({ param_id: paramId, param_values: value });
@@ -179,6 +200,7 @@ export function ChatPage() {
                     ) : null}
                   </article>
                 ))}
+                <div ref={messageEndRef} />
               </div>
             </SurfaceCard>
           </div>
@@ -195,6 +217,7 @@ export function ChatPage() {
                   rows={3}
                   placeholder={INPUT_PLACEHOLDER}
                   value={draft}
+                  disabled={chatMutation.isPending}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey) {
@@ -204,16 +227,16 @@ export function ChatPage() {
                   }}
                 />
                 <div className="compose-footer">
-                  <span className="compose-hint">
-                    {latestAction?.type === "ask_param" ? "当前处于结构化补参阶段" : "支持直接输入自然语言需求"}
-                  </span>
                   <button
-                    className="primary-button"
+                    className={`chat-send-button${chatMutation.isPending ? " is-pending" : ""}`}
                     type="button"
                     onClick={submitMessage}
                     disabled={chatMutation.isPending}
+                    aria-label="发送"
+                    aria-busy={chatMutation.isPending}
                   >
-                    {chatMutation.isPending ? "发送中..." : "发送"}
+                    <span className="chat-send-button__glyph" aria-hidden="true" />
+                    <span className="sr-only">发送</span>
                   </button>
                 </div>
               </div>
@@ -223,6 +246,37 @@ export function ChatPage() {
       />
     </div>
   );
+}
+
+function buildOptimisticActionMessage(payload: Omit<ChatRequest, "session_id">, latestAction: ChatAction | null) {
+  if (payload.param_values?.length) {
+    return payload.param_values.join("、");
+  }
+  if (payload.param_value?.trim()) {
+    return payload.param_value.trim();
+  }
+  if (payload.selected_template_id && latestAction?.type === "show_template_candidates") {
+    const candidate = latestAction.candidates.find((item) => item.template_id === payload.selected_template_id);
+    return candidate ? `选择模板：${candidate.template_name}` : "选择模板";
+  }
+  if (payload.command === "confirm_generation") {
+    return "确认生成";
+  }
+  if (payload.command === "reset_params") {
+    return "重置参数";
+  }
+  if (payload.command === "edit_param" && latestAction?.type === "review_params") {
+    const param = latestAction.params.find((item) => item.id === payload.target_param_id);
+    return param ? `编辑参数：${param.label}` : "编辑参数";
+  }
+  return "";
+}
+
+function appendOptimisticMessage(messages: ChatMessageItem[], content: string) {
+  if (!content) {
+    return messages;
+  }
+  return [...messages, { role: "user" as const, content }];
 }
 
 type ChatInlineBannerProps = {
@@ -239,7 +293,7 @@ function ChatInlineBanner({ title, children }: ChatInlineBannerProps) {
   );
 }
 
-function buildVisibleMessages(response: ChatResponse): ChatMessageItem[] {
+function buildVisibleMessages(response: ChatResponse, fallbackUserContent = ""): ChatMessageItem[] {
   const source = response.messages ?? [];
   const normalized = source
     .filter((item) => {
@@ -255,7 +309,8 @@ function buildVisibleMessages(response: ChatResponse): ChatMessageItem[] {
     }));
 
   if (!normalized.length) {
-    return [{ role: "assistant", content: response.reply, action: response.action ?? null }];
+    const fallback = fallbackUserContent ? [{ role: "user" as const, content: fallbackUserContent }] : [];
+    return [...fallback, { role: "assistant", content: response.reply, action: response.action ?? null }];
   }
   return normalized;
 }

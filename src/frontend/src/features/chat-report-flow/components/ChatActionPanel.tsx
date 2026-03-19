@@ -13,6 +13,7 @@ type ChatActionPanelProps = {
   onSubmitParam: (paramId: string, value: string | string[]) => void;
   onSelectTemplate: (templateId: string) => void;
   onCommand: (command: "confirm_generation" | "reset_params" | "edit_param", targetParamId?: string) => void;
+  disabled?: boolean;
 };
 
 export function ChatActionPanel({
@@ -20,15 +21,16 @@ export function ChatActionPanel({
   onSubmitParam,
   onSelectTemplate,
   onCommand,
+  disabled = false,
 }: ChatActionPanelProps) {
   if (action.type === "show_template_candidates") {
-    return <CandidatePanel action={action} onSelectTemplate={onSelectTemplate} />;
+    return <CandidatePanel action={action} onSelectTemplate={onSelectTemplate} disabled={disabled} />;
   }
   if (action.type === "ask_param") {
-    return <AskParamPanel action={action} onSubmitParam={onSubmitParam} />;
+    return <AskParamPanel action={action} onSubmitParam={onSubmitParam} disabled={disabled} />;
   }
   if (action.type === "review_params") {
-    return <ReviewPanel action={action} onCommand={onCommand} />;
+    return <ReviewPanel action={action} onCommand={onCommand} disabled={disabled} />;
   }
   if (action.type === "download_document") {
     return <DownloadPanel action={action} />;
@@ -39,9 +41,11 @@ export function ChatActionPanel({
 function CandidatePanel({
   action,
   onSelectTemplate,
+  disabled,
 }: {
   action: ShowTemplateCandidatesAction;
   onSelectTemplate: (templateId: string) => void;
+  disabled: boolean;
 }) {
   const [selectedId, setSelectedId] = useState(action.selected_template_id ?? action.candidates[0]?.template_id ?? "");
   const selected = action.candidates.find((item) => item.template_id === selectedId) ?? action.candidates[0];
@@ -51,7 +55,7 @@ function CandidatePanel({
       <p className="section-kicker">候选模板</p>
       <label className="field">
         <span className="field-label">相关模板</span>
-        <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+        <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} disabled={disabled}>
           {action.candidates.map((item) => (
             <option key={item.template_id} value={item.template_id}>
               {item.template_name}
@@ -72,7 +76,7 @@ function CandidatePanel({
         </div>
       ) : null}
       <div className="action-row">
-        <button className="primary-button" type="button" onClick={() => onSelectTemplate(selectedId)}>
+        <button className="primary-button" type="button" onClick={() => onSelectTemplate(selectedId)} disabled={disabled}>
           使用此模板
         </button>
       </div>
@@ -83,9 +87,11 @@ function CandidatePanel({
 function AskParamPanel({
   action,
   onSubmitParam,
+  disabled,
 }: {
   action: AskParamAction;
   onSubmitParam: (paramId: string, value: string | string[]) => void;
+  disabled: boolean;
 }) {
   const initialValue = action.selected_values?.[0] ?? "";
   const initialList = action.selected_values ?? [];
@@ -124,6 +130,7 @@ function AskParamPanel({
             aria-label={action.param.label}
             type="date"
             value={value}
+            disabled={disabled}
             onChange={(event) => setValue(event.target.value)}
           />
         ) : null}
@@ -132,11 +139,17 @@ function AskParamPanel({
             aria-label={action.param.label}
             type="text"
             value={value}
+            disabled={disabled}
             onChange={(event) => setValue(event.target.value)}
           />
         ) : null}
         {action.widget.kind === "single_select" ? (
-          <select aria-label={action.param.label} value={value} onChange={(event) => setValue(event.target.value)}>
+          <select
+            aria-label={action.param.label}
+            value={value}
+            disabled={disabled}
+            onChange={(event) => setValue(event.target.value)}
+          >
             <option value="">请选择</option>
             {(action.param.options ?? []).map((option) => (
               <option key={option} value={option}>
@@ -154,6 +167,7 @@ function AskParamPanel({
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={disabled}
                     onChange={(event) => {
                       setValues((current) =>
                         event.target.checked ? [...current, option] : current.filter((item) => item !== option),
@@ -168,7 +182,7 @@ function AskParamPanel({
         ) : null}
       </label>
       <div className="action-row">
-        <button className="primary-button" type="button" onClick={submit}>
+        <button className="primary-button" type="button" onClick={submit} disabled={disabled}>
           提交
         </button>
       </div>
@@ -179,9 +193,11 @@ function AskParamPanel({
 function ReviewPanel({
   action,
   onCommand,
+  disabled,
 }: {
   action: ReviewParamsAction;
   onCommand: (command: "confirm_generation" | "reset_params" | "edit_param", targetParamId?: string) => void;
+  disabled: boolean;
 }) {
   return (
     <section className="action-card">
@@ -199,17 +215,27 @@ function ReviewPanel({
               <strong>{param.label}</strong>
               <p>{formatParamValue(param.value)}</p>
             </div>
-            <button className="secondary-button" type="button" onClick={() => onCommand("edit_param", param.id)}>
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={disabled}
+              onClick={() => onCommand("edit_param", param.id)}
+            >
               编辑
             </button>
           </div>
         ))}
       </div>
       <div className="action-row">
-        <button className="secondary-button" type="button" onClick={() => onCommand("reset_params")}>
+        <button className="secondary-button" type="button" disabled={disabled} onClick={() => onCommand("reset_params")}>
           重置参数
         </button>
-        <button className="primary-button" type="button" onClick={() => onCommand("confirm_generation")}>
+        <button
+          className="primary-button"
+          type="button"
+          disabled={disabled}
+          onClick={() => onCommand("confirm_generation")}
+        >
           确认生成
         </button>
       </div>
