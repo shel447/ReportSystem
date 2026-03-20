@@ -31,6 +31,7 @@ export function ChatPage() {
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [menuSessionId, setMenuSessionId] = useState("");
   const [menuMessageId, setMenuMessageId] = useState("");
+  const viewRevisionRef = useRef(0);
   const chatWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const chatHistoryRailRef = useRef<HTMLDivElement | null>(null);
   const composeDockRef = useRef<HTMLDivElement | null>(null);
@@ -38,6 +39,8 @@ export function ChatPage() {
   const autoOpenedSessionRef = useRef("");
   const [messages, setMessages] = useState<ChatMessageItem[]>(DEFAULT_MESSAGES);
   const [errorMessage, setErrorMessage] = useState("");
+  const [viewRevision, setViewRevision] = useState(0);
+  const [pendingViewRevisions, setPendingViewRevisions] = useState<number[]>([]);
   const [composeLayout, setComposeLayout] = useState(() => ({
     left: 0,
     width: typeof window !== "undefined" ? window.innerWidth : 0,
@@ -83,6 +86,14 @@ export function ChatPage() {
     }
     return null;
   }, [messages]);
+
+  const isCurrentViewPending = pendingViewRevisions.includes(viewRevision);
+
+  const advanceViewRevision = () => {
+    viewRevisionRef.current += 1;
+    setViewRevision(viewRevisionRef.current);
+    return viewRevisionRef.current;
+  };
 
   useEffect(() => {
     messageEndRef.current?.scrollIntoView?.({ block: "end" });
@@ -151,6 +162,7 @@ export function ChatPage() {
   }, [historyCollapsed]);
 
   const resetToEmptyConversation = () => {
+    advanceViewRevision();
     setDraft("");
     setSessionId("");
     setActiveSessionId("");
@@ -178,21 +190,34 @@ export function ChatPage() {
   };
 
   const sendPayload = (payload: Omit<ChatRequest, "session_id">, optimisticContent: string) => {
+    const requestViewRevision = viewRevisionRef.current;
     const request: ChatRequest = {
       session_id: sessionId || undefined,
       ...payload,
     };
 
     setErrorMessage("");
+    setPendingViewRevisions((current) =>
+      current.includes(requestViewRevision) ? current : [...current, requestViewRevision],
+    );
     if (optimisticContent) {
       setMessages((current) => appendOptimisticMessage(current, optimisticContent));
     }
 
     chatMutation.mutate(request, {
       onSuccess: (response) => {
+        setPendingViewRevisions((current) => current.filter((value) => value !== requestViewRevision));
+        if (requestViewRevision !== viewRevisionRef.current) {
+          void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+          return;
+        }
         syncChatResponse(response, optimisticContent);
       },
       onError: (error) => {
+        setPendingViewRevisions((current) => current.filter((value) => value !== requestViewRevision));
+        if (requestViewRevision !== viewRevisionRef.current) {
+          return;
+        }
         setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
       },
     });
@@ -200,7 +225,7 @@ export function ChatPage() {
 
   const submitMessage = () => {
     const nextMessage = draft.trim();
-    if (!nextMessage || chatMutation.isPending) {
+    if (!nextMessage || isCurrentViewPending) {
       return;
     }
     setDraft("");
@@ -217,12 +242,16 @@ export function ChatPage() {
   };
 
   const openSession = (nextSessionId: string) => {
-    if (chatMutation.isPending || loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
+    if (loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
       return;
     }
+    const nextViewRevision = advanceViewRevision();
     setErrorMessage("");
     loadSessionMutation.mutate(nextSessionId, {
       onSuccess: (session) => {
+        if (viewRevisionRef.current !== nextViewRevision) {
+          return;
+        }
         setSessionId(session.session_id);
         setActiveSessionId(session.session_id);
         setSessionTitle(session.title ?? "");
@@ -232,13 +261,16 @@ export function ChatPage() {
         setMessages(buildVisibleMessagesFromSession(session));
       },
       onError: (error) => {
+        if (viewRevisionRef.current !== nextViewRevision) {
+          return;
+        }
         setErrorMessage(error instanceof Error ? error.message : "加载历史会话失败。");
       },
     });
   };
 
   const removeSession = (nextSessionId: string) => {
-    if (chatMutation.isPending || loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
+    if (loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
       return;
     }
     deleteSessionMutation.mutate(nextSessionId, {
@@ -270,7 +302,7 @@ export function ChatPage() {
 
   const runForkFromMessage = (messageId: string) => {
     const sourceSessionId = activeSessionId || sessionId;
-    if (!sourceSessionId || forkSessionMutation.isPending || chatMutation.isPending) {
+    if (!sourceSessionId || forkSessionMutation.isPending) {
       return;
     }
     forkSessionMutation.mutate(
@@ -300,13 +332,12 @@ export function ChatPage() {
       requestedSessionId === activeSessionId
       || requestedSessionId === autoOpenedSessionRef.current
       || loadSessionMutation.isPending
-      || chatMutation.isPending
     ) {
       return;
     }
     autoOpenedSessionRef.current = requestedSessionId;
     openSession(requestedSessionId);
-  }, [activeSessionId, chatMutation.isPending, loadSessionMutation.isPending, searchParams]);
+  }, [activeSessionId, loadSessionMutation.isPending, searchParams]);
 
   const chatPageStyle = {
     "--chat-compose-left": `${composeLayout.left}px`,
@@ -333,7 +364,6 @@ export function ChatPage() {
                       type="button"
                       aria-label="新建会话"
                       onClick={resetToEmptyConversation}
-                      disabled={chatMutation.isPending}
                     >
                       <span className="chat-history-panel__new-icon" aria-hidden="true">+</span>
                       <span>新建</span>
@@ -475,7 +505,7 @@ export function ChatPage() {
                                 <div className="message-bubble__action">
                                   <ChatActionPanel
                                     action={message.action}
-                                    disabled={chatMutation.isPending}
+                                    disabled={isCurrentViewPending}
                                     onSubmitParam={(paramId, value) => {
                                       if (Array.isArray(value)) {
                                         runAction({ param_id: paramId, param_values: value });
@@ -499,7 +529,7 @@ export function ChatPage() {
                         </div>
                       );
                     })}
-                    {chatMutation.isPending ? (
+                    {isCurrentViewPending ? (
                       <div className="message-entry message-entry--assistant">
                         <div className="message-entry__role">助手</div>
                         <div className="message-entry__body">
@@ -533,7 +563,7 @@ export function ChatPage() {
                       rows={3}
                       placeholder={INPUT_PLACEHOLDER}
                       value={draft}
-                      disabled={chatMutation.isPending}
+                      disabled={isCurrentViewPending}
                       onChange={(event) => setDraft(event.target.value)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" && !event.shiftKey) {
@@ -543,12 +573,12 @@ export function ChatPage() {
                       }}
                     />
                     <button
-                      className={`chat-send-button${chatMutation.isPending ? " is-pending" : ""}`}
+                      className={`chat-send-button${isCurrentViewPending ? " is-pending" : ""}`}
                       type="button"
                       onClick={submitMessage}
-                      disabled={chatMutation.isPending}
+                      disabled={isCurrentViewPending}
                       aria-label="发送"
-                      aria-busy={chatMutation.isPending}
+                      aria-busy={isCurrentViewPending}
                     >
                       <span className="chat-send-button__glyph" aria-hidden="true" />
                       <span className="sr-only">发送</span>

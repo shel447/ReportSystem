@@ -546,5 +546,136 @@ describe("ChatPage", () => {
       expect(screen.getByRole("button", { name: "打开会话：制作设备巡检报告 copy_ab12cd" })).toBeInTheDocument();
     });
   });
+
+  it("allows switching sessions while a chat response is pending without stale response taking over", async () => {
+    let resolveChat: ((value: unknown) => void) | undefined;
+    const chatResponse = new Promise((resolve) => {
+      resolveChat = resolve;
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([
+          {
+            session_id: "s-1",
+            title: "历史会话",
+            created_at: "2026-03-20T09:00:00Z",
+            updated_at: "2026-03-20T09:05:00Z",
+            message_count: 2,
+            last_message_preview: "已存在的回复",
+            matched_template_id: null,
+            instance_id: null,
+          },
+        ]));
+      }
+      if (url === "/api/chat" && init?.method === "POST") {
+        return Promise.resolve(createJsonResponse(chatResponse));
+      }
+      if (url === "/api/chat/s-1" && !init?.method) {
+        return Promise.resolve(createJsonResponse({
+          session_id: "s-1",
+          title: "历史会话",
+          matched_template_id: null,
+          messages: [
+            { role: "user", content: "老问题", message_id: "msg-old-u" },
+            { role: "assistant", content: "已存在的回复", message_id: "msg-old-a" },
+          ],
+        }));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage();
+
+    expect(await screen.findByRole("button", { name: "打开会话：历史会话" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("输入消息，例如：制作设备巡检报告"), {
+      target: { value: "新的处理中请求" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(screen.getByText("正在处理中")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开会话：历史会话" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("已存在的回复")).toBeInTheDocument();
+    });
+
+    resolveChat?.({
+      session_id: "s-new",
+      title: "新的处理中请求",
+      reply: "这是一条迟到的回复",
+      messages: [
+        { role: "user", content: "新的处理中请求", message_id: "msg-new-u" },
+        { role: "assistant", content: "这是一条迟到的回复", message_id: "msg-new-a" },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("已存在的回复")).toBeInTheDocument();
+    expect(screen.queryByText("这是一条迟到的回复")).not.toBeInTheDocument();
+  });
+
+  it("allows resetting to a new conversation while pending without stale response replacing the empty state", async () => {
+    let resolveChat: ((value: unknown) => void) | undefined;
+    const chatResponse = new Promise((resolve) => {
+      resolveChat = resolve;
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat" && init?.method === "POST") {
+        return Promise.resolve(createJsonResponse(chatResponse));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage();
+
+    fireEvent.change(screen.getByPlaceholderText("输入消息，例如：制作设备巡检报告"), {
+      target: { value: "会被放弃的请求" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(screen.getByText("会被放弃的请求")).toBeInTheDocument();
+    expect(screen.getByText("正在处理中")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建会话" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
+    });
+
+    resolveChat?.({
+      session_id: "s-abandoned",
+      title: "会被放弃的请求",
+      reply: "迟到的回复不应覆盖空态",
+      messages: [
+        { role: "user", content: "会被放弃的请求", message_id: "msg-user" },
+        { role: "assistant", content: "迟到的回复不应覆盖空态", message_id: "msg-assistant" },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
+    expect(screen.queryByText("迟到的回复不应覆盖空态")).not.toBeInTheDocument();
+  });
 });
 
