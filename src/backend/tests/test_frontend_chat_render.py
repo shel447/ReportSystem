@@ -33,8 +33,9 @@ class FrontendChatRenderTests(unittest.TestCase):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
         chat_page_path = os.path.join(base, "frontend", "src", "pages", "ChatPage.tsx")
         template_catalog_path = os.path.join(base, "frontend", "src", "pages", "TemplatesPage.tsx")
-        template_instances_path = os.path.join(base, "frontend", "src", "pages", "TemplateInstancesPage.tsx")
         template_detail_path = os.path.join(base, "frontend", "src", "pages", "TemplateDetailPage.tsx")
+        instances_page_path = os.path.join(base, "frontend", "src", "pages", "InstancesPage.tsx")
+        instance_detail_path = os.path.join(base, "frontend", "src", "pages", "InstanceDetailPage.tsx")
         navigation_path = os.path.join(base, "frontend", "src", "shared", "navigation.ts")
         workbench_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "TemplateWorkbench.tsx")
         workbench_css_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "templateWorkbench.css")
@@ -43,10 +44,12 @@ class FrontendChatRenderTests(unittest.TestCase):
             chat_content = f.read()
         with open(template_catalog_path, "r", encoding="utf-8") as f:
             template_catalog_content = f.read()
-        with open(template_instances_path, "r", encoding="utf-8") as f:
-            template_instances_content = f.read()
         with open(template_detail_path, "r", encoding="utf-8") as f:
             template_detail_content = f.read()
+        with open(instances_page_path, "r", encoding="utf-8") as f:
+            instances_page_content = f.read()
+        with open(instance_detail_path, "r", encoding="utf-8") as f:
+            instance_detail_content = f.read()
         with open(navigation_path, "r", encoding="utf-8") as f:
             navigation_content = f.read()
         with open(workbench_path, "r", encoding="utf-8") as f:
@@ -85,11 +88,16 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn('"展开" : "折叠"', panel_content)
         self.assertIn("AI", panel_content)
         self.assertIn("/templates/new", template_catalog_content)
-        self.assertIn("模板实例", navigation_content)
-        self.assertIn("/template-instances", navigation_content)
-        self.assertIn("outline_preview", template_instances_content)
-        self.assertIn("capture_stage", template_instances_content)
-        self.assertIn("Fork 到对话助手", template_instances_content)
+        self.assertNotIn("模板实例", navigation_content)
+        self.assertNotIn("/template-instances", navigation_content)
+        self.assertIn("supports_update_chat", instances_page_content)
+        self.assertIn("supports_fork_chat", instances_page_content)
+        self.assertIn("updateInstanceChat", instances_page_content)
+        self.assertIn("fetchInstanceForkSources", instances_page_content)
+        self.assertIn("forkInstanceChat", instances_page_content)
+        self.assertIn("查看确认大纲", instance_detail_content)
+        self.assertIn("fetchInstanceBaseline", instance_detail_content)
+        self.assertIn("确认大纲：生成基线", instance_detail_content)
         self.assertIn("schemaVersion", template_detail_content)
         self.assertIn("TemplateWorkbench", template_detail_content)
         self.assertIn("预览示例值", workbench_content)
@@ -200,4 +208,3 @@ class FrontendChatRenderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

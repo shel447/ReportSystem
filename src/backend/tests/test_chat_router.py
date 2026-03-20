@@ -110,12 +110,7 @@ class ChatRouterTests(unittest.TestCase):
             )
 
         self.assertEqual(saved["action"]["type"], "review_outline")
-        saved_record = self.db.query(TemplateInstance).filter(TemplateInstance.capture_stage == "outline_saved").first()
-        self.assertIsNotNone(saved_record)
-        self.assertEqual(saved_record.template_id, "tpl-1")
-        self.assertEqual(saved_record.session_id, first["session_id"])
-        self.assertEqual(saved_record.report_instance_id, None)
-        self.assertEqual(len(saved_record.outline_snapshot or []), 2)
+        self.assertEqual(self.db.query(TemplateInstance).count(), 0)
 
         fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
         fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", template_id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
@@ -146,9 +141,11 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(third["action"]["type"], "download_document")
         self.assertEqual(third["action"]["document"]["document_id"], "doc-1")
-        confirmed_record = self.db.query(TemplateInstance).filter(TemplateInstance.capture_stage == "outline_confirmed").first()
+        confirmed_record = self.db.query(TemplateInstance).filter(TemplateInstance.report_instance_id == "inst-1").first()
         self.assertIsNotNone(confirmed_record)
         self.assertEqual(confirmed_record.report_instance_id, "inst-1")
+        self.assertEqual(confirmed_record.capture_stage, "generation_baseline")
+        self.assertEqual(len(self.db.query(TemplateInstance).all()), 1)
 
     def test_send_message_reset_params_restarts_required_collection(self):
         with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
@@ -486,5 +483,4 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 

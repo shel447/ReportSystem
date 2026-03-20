@@ -29,7 +29,7 @@ from ..context_state_service import compress_state, new_context_state, persist_s
 from ..database import get_db
 from ..document_service import create_markdown_document, serialize_document
 from ..infrastructure.dependencies import build_instance_application_service
-from ..models import ChatSession, ReportTemplate, TemplateInstance, gen_id
+from ..models import ChatSession, ReportInstance, ReportTemplate, TemplateInstance, gen_id
 from ..outline_review_service import build_pending_outline_review, merge_outline_override
 from ..param_dialog_service import (
     build_missing_required,
@@ -40,7 +40,7 @@ from ..param_dialog_service import (
     validate_and_merge_params,
 )
 from ..system_settings_service import get_settings_payload
-from ..template_instance_service import capture_template_instance
+from ..template_instance_service import capture_generation_baseline
 from ..template_index_service import TemplateIndexUnavailableError, match_templates
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -296,16 +296,6 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                     report = state.get("report") or {}
                     pending_outline = report.get("pending_outline_review") or []
                     report["pending_outline_review"] = merge_outline_override(pending_outline, data.outline_override or [])
-                    capture_template_instance(
-                        db,
-                        template=template,
-                        session_id=session.session_id,
-                        capture_stage="outline_saved",
-                        input_params_snapshot=merged,
-                        outline_snapshot=report["pending_outline_review"],
-                        warnings=report.get("outline_review_warnings") or [],
-                        created_by=session.user_id or "system",
-                    )
                     state["report"] = report
                     reply = "报告大纲已更新，请继续确认。"
                     action = build_review_outline_action(state, template_params)
@@ -338,17 +328,28 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                             input_params=merged,
                             outline_override=pending_outline,
                         )
-                        capture_template_instance(
-                            db,
-                            template=template,
-                            session_id=session.session_id,
-                            capture_stage="outline_confirmed",
-                            input_params_snapshot=merged,
-                            outline_snapshot=pending_outline,
-                            warnings=report.get("outline_review_warnings") or [],
-                            report_instance_id=created["instance_id"],
-                            created_by=session.user_id or "system",
-                        )
+                        try:
+                            capture_generation_baseline(
+                                db,
+                                template=template,
+                                session_id=session.session_id,
+                                report_instance_id=created["instance_id"],
+                                input_params_snapshot=merged,
+                                outline_snapshot=pending_outline,
+                                warnings=report.get("outline_review_warnings") or [],
+                                created_by=session.user_id or "system",
+                            )
+                            db.commit()
+                        except Exception:
+                            created_instance = (
+                                db.query(ReportInstance)
+                                .filter(ReportInstance.instance_id == created["instance_id"])
+                                .first()
+                            )
+                            if created_instance is not None:
+                                db.delete(created_instance)
+                                db.commit()
+                            raise
                         document = create_markdown_document(db, created["instance_id"])
                         reply = "报告已生成，可以下载 Markdown 文档。"
                         action = {
@@ -497,5 +498,3 @@ def delete_session(session_id: str, db: Session = Depends(get_db)):
     db.delete(session)
     db.commit()
     return {"message": "deleted"}
-
-

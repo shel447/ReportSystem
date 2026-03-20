@@ -84,18 +84,18 @@ POST   /api/templates/{id}/clone   # 克隆模板
 ```
 GET    /api/chat                   # 列出对话历史会话摘要
 POST   /api/chat                   # 发送对话消息
-POST   /api/chat/forks             # 基于消息或模板实例 fork 新会话
+POST   /api/chat/forks             # 基于消息或内部生成基线 fork 新会话
 GET    /api/chat/{session_id}      # 获取单个会话历史
 DELETE /api/chat/{session_id}      # 删除对话会话
 ```
 
 > 聊天页进入 `/chat` 时保持空态，不自动恢复最近会话，也不预创建会话。只有首条真实用户消息发送后才创建 `ChatSession`，并以该首条用户消息生成会话标题。
 >
-> 对话生成链路在“大纲确认”阶段会先形成模板实例快照：`edit_outline` 追加 `outline_saved`，`confirm_outline_generation` 在生成报告实例后追加 `outline_confirmed`。
+> 对话生成链路在“大纲确认”阶段只更新当前对话上下文；真正点击“确认生成”后，系统会在创建 `ReportInstance` 的同时生成一份内部 `generation_baseline` 快照。
 >
 > `POST /api/chat/forks` 支持两类来源：
 > - `session_message`：基于某条历史消息 fork 新会话。消息锚点使用稳定 `message_id`，用户消息 fork 会同时把该消息内容回填到输入框。
-> - `template_instance`：仅允许 `outline_saved` 模板实例 fork 回对话助手，直接恢复到 `review_outline` 阶段。
+> - `template_instance`：内部使用的生成基线来源，用于从报告实例恢复到 `review_outline` 阶段。
 >
 > 聊天消息和会话摘要额外返回：
 > - `message_id`
@@ -103,30 +103,31 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 
 ---
 
-## 4. 模板实例管理
-
-```
-GET    /api/template-instances     # 列出模板实例快照（只读）
-```
-
-返回摘要字段包括模板名、阶段、参数数、章节节点数、大纲预览以及关联的报告实例 ID（若存在）。
-
----
-
-## 5. 报告实例管理
+## 4. 报告实例管理
 
 ```
 POST   /api/instances              # 生成报告实例
 GET    /api/instances              # 列出报告实例 (新增)
 GET    /api/instances/{id}         # 获取实例详情
+GET    /api/instances/{id}/baseline      # 获取确认大纲/生成基线
+POST   /api/instances/{id}/update-chat   # 基于生成基线恢复对话
+GET    /api/instances/{id}/fork-sources  # 获取来源对话里的可 fork 消息节点
+POST   /api/instances/{id}/fork-chat     # 基于指定消息节点 fork 新对话
 PUT    /api/instances/{id}         # 更新实例
 POST   /api/instances/{id}/regenerate/{section_id}  # 重新生成某节
 POST   /api/instances/{id}/finalize  # 确认实例，准备生成文档
 ```
 
+> `GET /api/instances`、`GET /api/instances/{id}` 额外返回能力标识：
+> - `has_generation_baseline`
+> - `supports_update_chat`
+> - `supports_fork_chat`
+>
+> 对于历史数据，若实例没有内部生成基线，则这些能力标识为 `false`。
+
 ---
 
-## 6. 报告文档管理
+## 5. 报告文档管理
 
 ```
 POST   /api/documents              # 生成报告文档
@@ -139,7 +140,7 @@ GET    /api/instances/{id}/documents  # 列出实例关联的所有文档
 
 ---
 
-## 7. 数据源管理
+## 6. 数据源管理
 
 ```
 POST   /api/data-sources           # 注册数据源
@@ -152,7 +153,7 @@ POST   /api/data-sources/{id}/test  # 测试连接
 
 ---
 
-## 8. 定时任务管理
+## 7. 定时任务管理
 
 ```
 POST   /api/scheduled-tasks              # 创建定时任务
@@ -174,7 +175,7 @@ GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 
 ---
 
-## 9. 待细化内容
+## 8. 待细化内容
 
 > 以下内容将在后续迭代中逐步细化：
 
@@ -182,4 +183,3 @@ GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 - [ ] 分页、排序、过滤的通用查询参数规范
 - [ ] 错误码与异常响应格式统一规范
 - [ ] WebSocket/SSE 实时推送接口（报告生成进度）
-

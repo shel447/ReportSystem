@@ -45,7 +45,49 @@ describe("InstanceDetailPage", () => {
             ],
             created_at: "2026-03-18T10:00:00",
             updated_at: "2026-03-18T10:01:00",
+            has_generation_baseline: true,
+            supports_update_chat: true,
+            supports_fork_chat: true,
           }),
+        };
+      }
+      if (url === "/api/instances/inst-1/baseline" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => ({
+            instance_id: "inst-1",
+            params_snapshot: { report_date: "2026-03-18" },
+            outline: [
+              {
+                node_id: "node-1",
+                title: "确认大纲",
+                description: "生成基线",
+                display_text: "确认大纲：生成基线",
+                level: 1,
+                children: [],
+              },
+            ],
+          }),
+        };
+      }
+      if (url === "/api/instances/inst-1/update-chat" && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({ session_id: "sess-update" }),
+        };
+      }
+      if (url === "/api/instances/inst-1/fork-sources" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => [
+            { message_id: "msg-a1", role: "assistant", preview: "请输入参数", action_type: "ask_param" },
+          ],
+        };
+      }
+      if (url === "/api/instances/inst-1/fork-chat" && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({ session_id: "sess-fork" }),
         };
       }
       if (url === "/api/templates" && !init?.method) {
@@ -95,6 +137,13 @@ describe("InstanceDetailPage", () => {
 
     expect(await screen.findByText("概览")).toBeInTheDocument();
     expect(screen.getByText("查看调试信息")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fork" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看确认大纲" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看确认大纲" }));
+
+    expect(await screen.findByText("确认大纲：生成基线")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "生成 Markdown" }));
 
@@ -136,6 +185,9 @@ describe("InstanceDetailPage", () => {
               ],
               created_at: "2026-03-18T10:00:00",
               updated_at: "2026-03-18T10:01:00",
+              has_generation_baseline: false,
+              supports_update_chat: false,
+              supports_fork_chat: false,
             }),
           };
         }
@@ -165,5 +217,7 @@ describe("InstanceDetailPage", () => {
 
     expect(await screen.findByText("旧版章节")).toBeInTheDocument();
     expect(screen.queryByText("unknown")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "更新" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Fork" })).not.toBeInTheDocument();
   });
 });
