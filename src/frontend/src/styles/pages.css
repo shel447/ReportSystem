@@ -82,13 +82,9 @@
 .message-entry__body {
   display: grid;
   gap: 6px;
-  width: fit-content;
-  max-inline-size: 76%;
+  inline-size: 75%;
+  max-inline-size: 75%;
   max-width: 100%;
-}
-
-.message-entry--user .message-entry__body {
-  max-inline-size: 74%;
 }
 
 .message-entry__role {
@@ -116,7 +112,7 @@
 
 .message-bubble {
   max-inline-size: 100%;
-  inline-size: fit-content;
+  inline-size: 100%;
   display: grid;
   gap: 10px;
   padding: 16px 18px;
@@ -748,7 +744,7 @@
 
   .message-entry__body,
   .message-entry--user .message-entry__body {
-    width: 100%;
+    inline-size: 100%;
     max-inline-size: 100%;
   }
 
