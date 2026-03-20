@@ -156,6 +156,7 @@ describe("ChatPage", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "打开会话：制作设备巡检报告" })).toBeInTheDocument();
     });
+    expect(screen.queryByText("请提供参数")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "打开会话：制作设备巡检报告" }));
 
@@ -163,7 +164,9 @@ describe("ChatPage", () => {
       expect(screen.getByText("请提供参数。")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "删除会话：制作设备巡检报告" }));
+    fireEvent.click(screen.getByRole("button", { name: "更多操作：制作设备巡检报告" }));
+    expect(screen.getByRole("button", { name: "重命名（暂未开放）" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "删除会话" }));
 
     await waitFor(() => {
       expect(screen.getByText("暂无历史会话")).toBeInTheDocument();

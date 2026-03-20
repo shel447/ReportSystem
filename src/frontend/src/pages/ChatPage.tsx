@@ -9,7 +9,6 @@ import { ChatActionPanel } from "../features/chat-report-flow/components/ChatAct
 import { ConversationLayout } from "../shared/layouts/ConversationLayout";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
-import { formatDateTime } from "../shared/utils/format";
 
 const WELCOME_MESSAGE = "您好！我是您的智能报告助手。";
 const INPUT_PLACEHOLDER = "输入消息，例如：制作设备巡检报告";
@@ -26,6 +25,7 @@ export function ChatPage() {
   const [sessionId, setSessionId] = useState("");
   const [activeSessionId, setActiveSessionId] = useState("");
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const [menuSessionId, setMenuSessionId] = useState("");
   const chatWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const composeDockRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
@@ -128,6 +128,7 @@ export function ChatPage() {
     setDraft("");
     setSessionId("");
     setActiveSessionId("");
+    setMenuSessionId("");
     setMessages(DEFAULT_MESSAGES);
     setErrorMessage("");
   };
@@ -188,6 +189,7 @@ export function ChatPage() {
       onSuccess: (session) => {
         setSessionId(session.session_id);
         setActiveSessionId(session.session_id);
+        setMenuSessionId("");
         setMessages(buildVisibleMessagesFromSession(session));
       },
       onError: (error) => {
@@ -202,6 +204,7 @@ export function ChatPage() {
     }
     deleteSessionMutation.mutate(nextSessionId, {
       onSuccess: () => {
+        setMenuSessionId("");
         if (nextSessionId === sessionId || nextSessionId === activeSessionId) {
           resetToEmptyConversation();
         }
@@ -229,12 +232,14 @@ export function ChatPage() {
                 <strong>会话记录</strong>
                 <div className="chat-history-panel__actions">
                   <button
-                    className="ghost-button"
+                    className="chat-history-panel__new"
                     type="button"
+                    aria-label="新建会话"
                     onClick={resetToEmptyConversation}
                     disabled={chatMutation.isPending}
                   >
-                    新建会话
+                    <span className="chat-history-panel__new-icon" aria-hidden="true">+</span>
+                    <span>新建</span>
                   </button>
                 </div>
               </div>
@@ -254,20 +259,31 @@ export function ChatPage() {
                           aria-label={`打开会话：${item.title}`}
                           onClick={() => openSession(item.session_id)}
                         >
-                          <div className="chat-history-item__title-row">
-                            <strong>{item.title}</strong>
-                            <span>{formatDateTime(item.updated_at)}</span>
-                          </div>
-                          <p>{item.last_message_preview || "暂无摘要"}</p>
+                          <strong title={item.title}>{item.title}</strong>
                         </button>
-                        <button
-                          type="button"
-                          className="chat-history-item__delete"
-                          aria-label={`删除会话：${item.title}`}
-                          onClick={() => removeSession(item.session_id)}
-                        >
-                          ×
-                        </button>
+                        <div className="chat-history-item__menu-wrap">
+                          <button
+                            type="button"
+                            className="chat-history-item__menu-trigger"
+                            aria-label={`更多操作：${item.title}`}
+                            aria-expanded={menuSessionId === item.session_id}
+                            onClick={() =>
+                              setMenuSessionId((current) => (current === item.session_id ? "" : item.session_id))
+                            }
+                          >
+                            ...
+                          </button>
+                          {menuSessionId === item.session_id ? (
+                            <div className="chat-history-item__menu" role="menu" aria-label={`会话操作：${item.title}`}>
+                              <button type="button" disabled>
+                                重命名（暂未开放）
+                              </button>
+                              <button type="button" aria-label="删除会话" onClick={() => removeSession(item.session_id)}>
+                                删除会话
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </article>
                     ))}
                   </div>
