@@ -94,6 +94,7 @@ export type ChatMessageItem = {
   role: "user" | "assistant";
   content: string;
   action?: ChatAction | null;
+  created_at?: string;
 };
 
 export type ChatSessionSummary = {
@@ -114,6 +115,7 @@ export type ChatSessionDetail = {
     role: "user" | "assistant";
     content: string;
     action?: ChatAction | null;
+    created_at?: string;
     meta?: unknown;
   }>;
 };
@@ -126,6 +128,7 @@ export type ChatResponse = {
     role: "user" | "assistant";
     content: string;
     action?: ChatAction | null;
+    created_at?: string;
     meta?: unknown;
   }>;
 };

@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from backend.database import Base
 from backend.models import ChatSession, ReportTemplate, TemplateInstance
-from backend.routers.chat import ChatMessage, list_sessions, send_message
+from backend.routers.chat import ChatMessage, get_session, list_sessions, send_message
 
 
 class ChatRouterTests(unittest.TestCase):
@@ -242,6 +242,39 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(response["session_id"], "")
         self.assertEqual(response["messages"], [])
         self.assertEqual(self.db.query(ChatSession).count(), 0)
+
+    def test_send_message_persists_message_timestamps(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部", "devices": ["A001", "A002"]},
+             ):
+            response = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        visible_response_messages = [
+            item for item in response["messages"]
+            if item.get("role") in {"user", "assistant"} and (item.get("meta") or {}).get("type") != "context_state"
+        ]
+        self.assertGreaterEqual(len(visible_response_messages), 2)
+        self.assertTrue(all(item.get("created_at") for item in visible_response_messages))
+
+        session_payload = get_session(response["session_id"], db=self.db)
+        visible_session_messages = [
+            item for item in session_payload["messages"]
+            if item.get("role") in {"user", "assistant"} and (item.get("meta") or {}).get("type") != "context_state"
+        ]
+        self.assertGreaterEqual(len(visible_session_messages), 2)
+        self.assertTrue(all(item.get("created_at") for item in visible_session_messages))
+
     def test_list_sessions_returns_recent_summaries_with_generated_title(self):
         first = ChatSession(
             session_id="s-1",

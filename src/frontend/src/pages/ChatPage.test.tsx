@@ -28,8 +28,24 @@ function createJsonResponse(payload: unknown): MockResponse {
   };
 }
 
+function formatExpectedChatTimestamp(iso: string) {
+  const value = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    value.getFullYear() === now.getFullYear()
+    && value.getMonth() === now.getMonth()
+    && value.getDate() === now.getDate();
+  const pad = (part: number) => String(part).padStart(2, "0");
+  const time = `${pad(value.getHours())}:${pad(value.getMinutes())}`;
+  if (sameDay) {
+    return time;
+  }
+  return `${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${time}`;
+}
+
 describe("ChatPage", () => {
   it("renders empty history rail and sends message through chat api", async () => {
+    const assistantTimestamp = new Date().toISOString();
     let resolveChat: ((value: unknown) => void) | undefined;
     const chatResponse = new Promise((resolve) => {
       resolveChat = resolve;
@@ -91,6 +107,22 @@ describe("ChatPage", () => {
     resolveChat?.({
       session_id: "s-1",
       reply: "请提供参数「报告日期」的取值。",
+      messages: [
+        { role: "user", content: "制作设备巡检报告", created_at: assistantTimestamp },
+        {
+          role: "assistant",
+          content: "请提供参数「报告日期」的取值。",
+          created_at: assistantTimestamp,
+          action: {
+            type: "ask_param",
+            template_name: "设备巡检报告",
+            param: { id: "report_date", label: "报告日期", input_type: "date", multi: false, options: [] },
+            widget: { kind: "date" },
+            selected_values: [],
+            progress: { collected: 0, required: 2 },
+          },
+        },
+      ],
       action: {
         type: "ask_param",
         template_name: "设备巡检报告",
@@ -105,6 +137,7 @@ describe("ChatPage", () => {
       expect(screen.getByText("请提供参数「报告日期」的取值。")).toBeInTheDocument();
     });
 
+    expect(screen.getAllByText(formatExpectedChatTimestamp(assistantTimestamp)).length).toBeGreaterThan(0);
     expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
     expect(composer).not.toBeDisabled();
     expect(fetchMock).toHaveBeenCalledWith(

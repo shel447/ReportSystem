@@ -330,46 +330,53 @@ export function ChatPage() {
                         className={`message-entry message-entry--${message.role}`}
                       >
                         <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
-                        <article
-                          className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
-                        >
-                          {message.content ? <p>{message.content}</p> : null}
-                          {message.action ? (
-                            <div className="message-bubble__action">
-                              <ChatActionPanel
-                                action={message.action}
-                                disabled={chatMutation.isPending}
-                                onSubmitParam={(paramId, value) => {
-                                  if (Array.isArray(value)) {
-                                    runAction({ param_id: paramId, param_values: value });
-                                    return;
+                        <div className="message-entry__body">
+                          <article
+                            className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
+                          >
+                            {message.content ? <p>{message.content}</p> : null}
+                            {message.action ? (
+                              <div className="message-bubble__action">
+                                <ChatActionPanel
+                                  action={message.action}
+                                  disabled={chatMutation.isPending}
+                                  onSubmitParam={(paramId, value) => {
+                                    if (Array.isArray(value)) {
+                                      runAction({ param_id: paramId, param_values: value });
+                                      return;
+                                    }
+                                    runAction({ param_id: paramId, param_value: value });
+                                  }}
+                                  onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
+                                  onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
+                                  onCommand={(command, targetParamId) =>
+                                    runAction({ command, target_param_id: targetParamId })
                                   }
-                                  runAction({ param_id: paramId, param_value: value });
-                                }}
-                                onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
-                                onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
-                                onCommand={(command, targetParamId) =>
-                                  runAction({ command, target_param_id: targetParamId })
-                                }
-                              />
-                            </div>
+                                />
+                              </div>
+                            ) : null}
+                          </article>
+                          {message.created_at ? (
+                            <div className="message-entry__time">{formatChatTimestamp(message.created_at)}</div>
                           ) : null}
-                        </article>
+                        </div>
                       </div>
                     ))}
                     {chatMutation.isPending ? (
                       <div className="message-entry message-entry--assistant">
                         <div className="message-entry__role">助手</div>
-                        <article className="message-bubble message-bubble--assistant message-bubble--pending" aria-live="polite">
-                          <div className="message-pending" role="status">
-                            <span>正在处理中</span>
-                            <span className="message-pending__dots" aria-hidden="true">
-                              <i />
-                              <i />
-                              <i />
-                            </span>
-                          </div>
-                        </article>
+                        <div className="message-entry__body">
+                          <article className="message-bubble message-bubble--assistant message-bubble--pending" aria-live="polite">
+                            <div className="message-pending" role="status">
+                              <span>正在处理中</span>
+                              <span className="message-pending__dots" aria-hidden="true">
+                                <i />
+                                <i />
+                                <i />
+                              </span>
+                            </div>
+                          </article>
+                        </div>
                       </div>
                     ) : null}
                     <div ref={messageEndRef} />
@@ -457,7 +464,7 @@ function appendOptimisticMessage(messages: ChatMessageItem[], content: string) {
   if (!content) {
     return messages;
   }
-  return [...messages, { role: "user" as const, content }];
+  return [...messages, { role: "user" as const, content, created_at: new Date().toISOString() }];
 }
 
 type ChatInlineBannerProps = {
@@ -483,7 +490,7 @@ function buildVisibleMessagesFromSession(session: ChatSessionDetail): ChatMessag
 }
 
 function normalizeVisibleMessages(
-  source: Array<{ role: "user" | "assistant"; content: string; action?: ChatAction | null; meta?: unknown }>,
+  source: Array<{ role: "user" | "assistant"; content: string; action?: ChatAction | null; created_at?: string; meta?: unknown }>,
   fallbackUserContent = "",
   fallbackReply = "",
   fallbackAction: ChatAction | null = null,
@@ -502,10 +509,13 @@ function normalizeVisibleMessages(
       role: item.role,
       content: item.content ?? "",
       action: item.action ?? null,
+      created_at: item.created_at,
     }));
 
   if (!normalized.length) {
-    const fallback = fallbackUserContent ? [{ role: "user" as const, content: fallbackUserContent }] : [];
+    const fallback = fallbackUserContent
+      ? [{ role: "user" as const, content: fallbackUserContent, created_at: new Date().toISOString() }]
+      : [];
     if (!fallbackReply && !fallbackAction) {
       return DEFAULT_MESSAGES;
     }
@@ -516,4 +526,24 @@ function normalizeVisibleMessages(
 
 function isContextStateMessage(meta: unknown) {
   return typeof meta === "object" && meta !== null && "type" in meta && (meta as { type?: string }).type === "context_state";
+}
+
+function formatChatTimestamp(timestamp: string) {
+  const value = new Date(timestamp);
+  if (Number.isNaN(value.getTime())) {
+    return "";
+  }
+  const now = new Date();
+  const sameDay =
+    value.getFullYear() === now.getFullYear()
+    && value.getMonth() === now.getMonth()
+    && value.getDate() === now.getDate();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  if (sameDay) {
+    return `${hours}:${minutes}`;
+  }
+  return `${month}-${day} ${hours}:${minutes}`;
 }

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -53,6 +54,22 @@ class ChatMessage(BaseModel):
     outline_override: Optional[List[Dict[str, Any]]] = None
 
 
+def build_message_payload(
+    role: str,
+    content: str,
+    *,
+    action: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "role": role,
+        "content": content,
+        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+    }
+    if action:
+        payload["action"] = action
+    return payload
+
+
 @router.get("")
 def list_sessions(db: Session = Depends(get_db)):
     return list_chat_sessions(db)
@@ -87,7 +104,7 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
 
     messages = list(session.messages or [])
     if user_message or data.param_id or data.selected_template_id or data.command:
-        messages.append({"role": "user", "content": user_message})
+        messages.append(build_message_payload("user", user_message))
 
     state = restore_state_from_history(messages) or new_context_state(session.session_id)
     state.setdefault("meta", {})["session_id"] = session.session_id
@@ -385,7 +402,7 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
         except AIRequestError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    messages.append({"role": "assistant", "content": reply, **({"action": action} if action else {})})
+    messages.append(build_message_payload("assistant", reply, action=action))
     if action:
         flow = state.get("flow") or {}
         target = ""

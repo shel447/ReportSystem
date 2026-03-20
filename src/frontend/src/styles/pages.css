@@ -79,6 +79,13 @@
   justify-items: end;
 }
 
+.message-entry__body {
+  display: grid;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+}
+
 .message-entry__role {
   padding-inline: 2px;
   color: var(--text-muted);
@@ -87,6 +94,18 @@
 }
 
 .message-entry--user .message-entry__role {
+  text-align: right;
+}
+
+.message-entry__time {
+  justify-self: end;
+  padding-inline: 2px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+.message-entry--assistant .message-entry__time {
   text-align: right;
 }
 
