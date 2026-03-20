@@ -103,6 +103,8 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn(".message-entry__time {", styles)
         self.assertIn(".message-entry--assistant .message-entry__time {", styles)
         self.assertIn(".message-entry--user .message-entry__role {", styles)
+        self.assertIn("inline-size: min(84ch, 88%);", styles)
+        self.assertIn("max-inline-size: min(76ch, 82%);", styles)
         self.assertIn("flex-direction: column;", styles)
         self.assertIn("min-height: 320px", styles)
         self.assertIn("min-height: 64px", styles)
