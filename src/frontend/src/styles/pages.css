@@ -82,8 +82,13 @@
 .message-entry__body {
   display: grid;
   gap: 6px;
-  inline-size: min(84ch, 88%);
+  width: fit-content;
+  max-inline-size: 76%;
   max-width: 100%;
+}
+
+.message-entry--user .message-entry__body {
+  max-inline-size: 74%;
 }
 
 .message-entry__role {
@@ -110,8 +115,8 @@
 }
 
 .message-bubble {
-  max-inline-size: min(76ch, 82%);
-  inline-size: 100%;
+  max-inline-size: 100%;
+  inline-size: fit-content;
   display: grid;
   gap: 10px;
   padding: 16px 18px;
@@ -143,7 +148,6 @@
 }
 
 .message-bubble--user {
-  max-inline-size: min(74ch, 80%);
   background: rgba(37, 109, 130, 0.08);
 }
 
@@ -740,6 +744,12 @@
   .message-bubble {
     max-inline-size: 100%;
     inline-size: 100%;
+  }
+
+  .message-entry__body,
+  .message-entry--user .message-entry__body {
+    width: 100%;
+    max-inline-size: 100%;
   }
 
   .chat-send-button {
