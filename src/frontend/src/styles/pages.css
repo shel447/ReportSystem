@@ -87,6 +87,11 @@
   max-width: 100%;
 }
 
+.message-entry--user .message-entry__body {
+  width: fit-content;
+  max-inline-size: 40%;
+}
+
 .message-entry__role {
   padding-inline: 2px;
   color: var(--text-muted);
@@ -144,6 +149,7 @@
 }
 
 .message-bubble--user {
+  inline-size: fit-content;
   background: rgba(37, 109, 130, 0.08);
 }
 
