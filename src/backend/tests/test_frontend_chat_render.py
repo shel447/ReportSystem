@@ -138,8 +138,10 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn(".app-sidebar {\n  position: sticky;", styles)
         self.assertIn(".app-header__actions {", styles)
         self.assertIn(".header-feedback-link {", styles)
+        self.assertIn(".header-feedback-link__icon {", styles)
         self.assertIn("app-header__actions", shell_content)
         self.assertIn("header-feedback-link", shell_content)
+        self.assertIn("header-feedback-link__icon", shell_content)
         self.assertNotIn("默认工作区", shell_content)
 
     def test_settings_page_uses_inline_action_feedback(self):

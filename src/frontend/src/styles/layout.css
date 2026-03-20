@@ -133,6 +133,9 @@
 }
 
 .header-feedback-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -145,6 +148,19 @@
 .header-feedback-link:hover {
   color: var(--accent-strong);
   transform: translateY(-1px);
+}
+
+.header-feedback-link__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .page-body {

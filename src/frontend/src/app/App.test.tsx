@@ -81,9 +81,11 @@ describe("App shell", () => {
     const view = renderApp("/chat");
     const sidebarFooter = view.container.querySelector(".sidebar-footer");
     const headerActions = view.container.querySelector(".app-header__actions");
+    const feedbackIcon = view.container.querySelector(".header-feedback-link__icon");
 
     expect(sidebarFooter).not.toBeNull();
     expect(headerActions).not.toBeNull();
+    expect(feedbackIcon).not.toBeNull();
     expect(sidebarFooter?.textContent).toContain("系统设置");
     expect(sidebarFooter?.textContent).not.toContain("提意见");
     expect(headerActions?.textContent).toContain("提意见");

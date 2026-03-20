@@ -66,6 +66,9 @@ export function AppShell({ pathname, children }: AppShellProps) {
           </div>
           <div className="app-header__actions">
             <button className="header-feedback-link" type="button" onClick={() => setFeedbackOpen(true)}>
+              <span className="header-feedback-link__icon" aria-hidden="true">
+                ?
+              </span>
               提意见
             </button>
           </div>
