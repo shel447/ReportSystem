@@ -222,70 +222,72 @@ export function ChatPage() {
   return (
     <div className="chat-page" style={chatPageStyle}>
       <div className={`chat-page__shell${historyCollapsed ? " is-history-collapsed" : ""}`}>
-        <aside className="chat-history-panel">
-          <div className="chat-history-panel__header">
-            {!historyCollapsed ? <strong>会话记录</strong> : null}
-            <div className="chat-history-panel__actions">
-              <button
-                className="ghost-button"
-                type="button"
-                onClick={resetToEmptyConversation}
-                disabled={chatMutation.isPending}
-              >
-                {historyCollapsed ? "+" : "新建会话"}
-              </button>
-              <button
-                className="chat-history-panel__toggle"
-                type="button"
-                aria-label={historyCollapsed ? "展开会话栏" : "折叠会话栏"}
-                onClick={() => setHistoryCollapsed((current) => !current)}
-              >
-                {historyCollapsed ? "›" : "‹"}
-              </button>
-            </div>
-          </div>
+        <aside className={`chat-history-panel${historyCollapsed ? " is-collapsed" : ""}`}>
           {!historyCollapsed ? (
-            <div className="chat-history-panel__body">
-              {chatSessionsQuery.isLoading ? (
-                <p className="muted-text">正在加载会话记录…</p>
-              ) : chatSessionsQuery.data?.length ? (
-                <div className="chat-history-list">
-                  {chatSessionsQuery.data.map((item) => (
-                    <article
-                      key={item.session_id}
-                      className={`chat-history-item${item.session_id === activeSessionId ? " is-active" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        className="chat-history-item__main"
-                        aria-label={`打开会话：${item.title}`}
-                        onClick={() => openSession(item.session_id)}
-                      >
-                        <div className="chat-history-item__title-row">
-                          <strong>{item.title}</strong>
-                          <span>{formatDateTime(item.updated_at)}</span>
-                        </div>
-                        <p>{item.last_message_preview || "暂无摘要"}</p>
-                      </button>
-                      <button
-                        type="button"
-                        className="chat-history-item__delete"
-                        aria-label={`删除会话：${item.title}`}
-                        onClick={() => removeSession(item.session_id)}
-                      >
-                        ×
-                      </button>
-                    </article>
-                  ))}
+            <>
+              <div className="chat-history-panel__header">
+                <strong>会话记录</strong>
+                <div className="chat-history-panel__actions">
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={resetToEmptyConversation}
+                    disabled={chatMutation.isPending}
+                  >
+                    新建会话
+                  </button>
                 </div>
-              ) : (
-                <EmptyState
-                  title="暂无历史会话"
-                  description="发送第一条消息后，这里会记录你的对话历史。"
-                />
-              )}
-            </div>
+              </div>
+              <div className="chat-history-panel__body">
+                {chatSessionsQuery.isLoading ? (
+                  <p className="muted-text">正在加载会话记录…</p>
+                ) : chatSessionsQuery.data?.length ? (
+                  <div className="chat-history-list">
+                    {chatSessionsQuery.data.map((item) => (
+                      <article
+                        key={item.session_id}
+                        className={`chat-history-item${item.session_id === activeSessionId ? " is-active" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          className="chat-history-item__main"
+                          aria-label={`打开会话：${item.title}`}
+                          onClick={() => openSession(item.session_id)}
+                        >
+                          <div className="chat-history-item__title-row">
+                            <strong>{item.title}</strong>
+                            <span>{formatDateTime(item.updated_at)}</span>
+                          </div>
+                          <p>{item.last_message_preview || "暂无摘要"}</p>
+                        </button>
+                        <button
+                          type="button"
+                          className="chat-history-item__delete"
+                          aria-label={`删除会话：${item.title}`}
+                          onClick={() => removeSession(item.session_id)}
+                        >
+                          ×
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="暂无历史会话"
+                    description="发送第一条消息后，这里会记录你的对话历史。"
+                  />
+                )}
+              </div>
+            </>
           ) : null}
+          <button
+            className="chat-history-panel__divider-toggle"
+            type="button"
+            aria-label={historyCollapsed ? "展开会话栏" : "折叠会话栏"}
+            onClick={() => setHistoryCollapsed((current) => !current)}
+          >
+            <span aria-hidden="true">{historyCollapsed ? ">>" : "<<"}</span>
+          </button>
         </aside>
         <div ref={chatWorkspaceRef} className="chat-page__workspace">
           <ConversationLayout

@@ -58,6 +58,13 @@ describe("ChatPage", () => {
     await waitFor(() => {
       expect(screen.getByText("暂无历史会话")).toBeInTheDocument();
     });
+    fireEvent.click(screen.getByRole("button", { name: "折叠会话栏" }));
+    expect(screen.queryByText("暂无历史会话")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开会话栏" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "展开会话栏" }));
+    await waitFor(() => {
+      expect(screen.getByText("暂无历史会话")).toBeInTheDocument();
+    });
     expect(fetchMock).toHaveBeenCalledWith("/api/system-settings", undefined);
     expect(fetchMock).toHaveBeenCalledWith("/api/chat", undefined);
     expect(fetchMock).not.toHaveBeenCalledWith(
