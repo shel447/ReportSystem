@@ -324,49 +324,55 @@ export function ChatPage() {
               <div className="chat-stream-shell" data-testid="chat-stream-shell">
                 <SurfaceCard className="chat-stream-card">
                   <div className="message-list">
-                    {messages.map((message, index) => (
-                      (() => {
-                        const isCompactAssistantMessage = message.role === "assistant" && !message.action;
-                        return (
-                      <div
-                        key={`${message.role}-${index}-${message.content}`}
-                        className={`message-entry message-entry--${message.role}`}
-                      >
-                        <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
-                        <div className={`message-entry__body${isCompactAssistantMessage ? " message-entry__body--compact" : ""}`}>
-                          <article
-                            className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
-                          >
-                            {message.content ? <p>{message.content}</p> : null}
-                            {message.action ? (
-                              <div className="message-bubble__action">
-                                <ChatActionPanel
-                                  action={message.action}
-                                  disabled={chatMutation.isPending}
-                                  onSubmitParam={(paramId, value) => {
-                                    if (Array.isArray(value)) {
-                                      runAction({ param_id: paramId, param_values: value });
-                                      return;
+                    {messages.map((message, index) => {
+                      const isCompactAssistantMessage = message.role === "assistant" && !message.action;
+                      const bodyClassName = [
+                        "message-entry__body",
+                        isCompactAssistantMessage ? "message-entry__body--compact" : "",
+                        message.action ? "message-entry__body--has-action" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
+
+                      return (
+                        <div
+                          key={`${message.role}-${index}-${message.content}`}
+                          className={`message-entry message-entry--${message.role}`}
+                        >
+                          <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
+                          <div className={bodyClassName}>
+                            <article
+                              className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
+                            >
+                              {message.content ? <p>{message.content}</p> : null}
+                              {message.action ? (
+                                <div className="message-bubble__action">
+                                  <ChatActionPanel
+                                    action={message.action}
+                                    disabled={chatMutation.isPending}
+                                    onSubmitParam={(paramId, value) => {
+                                      if (Array.isArray(value)) {
+                                        runAction({ param_id: paramId, param_values: value });
+                                        return;
+                                      }
+                                      runAction({ param_id: paramId, param_value: value });
+                                    }}
+                                    onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
+                                    onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
+                                    onCommand={(command, targetParamId) =>
+                                      runAction({ command, target_param_id: targetParamId })
                                     }
-                                    runAction({ param_id: paramId, param_value: value });
-                                  }}
-                                  onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
-                                  onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
-                                  onCommand={(command, targetParamId) =>
-                                    runAction({ command, target_param_id: targetParamId })
-                                  }
-                                />
-                              </div>
+                                  />
+                                </div>
+                              ) : null}
+                            </article>
+                            {message.created_at ? (
+                              <div className="message-entry__time">{formatChatTimestamp(message.created_at)}</div>
                             ) : null}
-                          </article>
-                          {message.created_at ? (
-                            <div className="message-entry__time">{formatChatTimestamp(message.created_at)}</div>
-                          ) : null}
+                          </div>
                         </div>
-                      </div>
-                        );
-                      })()
-                    ))}
+                      );
+                    })}
                     {chatMutation.isPending ? (
                       <div className="message-entry message-entry--assistant">
                         <div className="message-entry__role">助手</div>
