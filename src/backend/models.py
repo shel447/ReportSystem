@@ -121,7 +121,9 @@ class ChatSession(Base):
 
     session_id = Column(String, primary_key=True, default=gen_id)
     user_id = Column(String, default="default")
+    title = Column(String, default="")
     messages = Column(JSON, default=list)
+    fork_meta = Column(JSON, default=dict)
     matched_template_id = Column(String, nullable=True)
     instance_id = Column(String, nullable=True)
     status = Column(String, default="active")

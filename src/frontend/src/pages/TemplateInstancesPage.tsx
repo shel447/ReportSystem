@@ -1,5 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
+import { forkChatSession } from "../entities/chat/api";
 import { fetchTemplateInstances } from "../entities/template-instances/api";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { PageSection } from "../shared/ui/PageSection";
@@ -13,9 +15,13 @@ const CAPTURE_STAGE_LABELS = {
 } as const;
 
 export function TemplateInstancesPage() {
+  const navigate = useNavigate();
   const templateInstancesQuery = useQuery({
     queryKey: ["template-instances"],
     queryFn: fetchTemplateInstances,
+  });
+  const forkMutation = useMutation({
+    mutationFn: forkChatSession,
   });
 
   return (
@@ -56,6 +62,30 @@ export function TemplateInstancesPage() {
                       <p className="template-instance-card__linkage">
                         关联报告实例：{item.report_instance_id}
                       </p>
+                    ) : null}
+                    {item.capture_stage === "outline_saved" ? (
+                      <div className="template-instance-card__actions">
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          onClick={() =>
+                            forkMutation.mutate(
+                              {
+                                source_kind: "template_instance",
+                                template_instance_id: item.template_instance_id,
+                              },
+                              {
+                                onSuccess: (payload) => {
+                                  navigate(`/chat?session_id=${payload.session_id}`);
+                                },
+                              },
+                            )
+                          }
+                          disabled={forkMutation.isPending}
+                        >
+                          Fork 到对话助手
+                        </button>
+                      </div>
                     ) : null}
                   </article>
                 ))}

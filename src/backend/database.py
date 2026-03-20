@@ -47,6 +47,10 @@ def _ensure_sqlite_columns():
             "sections": "JSON DEFAULT '[]'",
             "schema_version": "TEXT DEFAULT ''",
         },
+        "chat_sessions": {
+            "title": "TEXT DEFAULT ''",
+            "fork_meta": "JSON DEFAULT '{}'",
+        },
     }
     with engine.begin() as connection:
         for table_name, columns in additions.items():

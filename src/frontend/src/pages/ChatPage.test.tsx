@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { ChatPage } from "./ChatPage";
 
@@ -8,7 +9,7 @@ type MockResponse = {
   json: () => Promise<unknown>;
 };
 
-function renderChatPage() {
+function renderChatPage(route = "/chat") {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -16,7 +17,11 @@ function renderChatPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ChatPage />
+      <MemoryRouter initialEntries={[route]}>
+        <Routes>
+          <Route path="/chat" element={<ChatPage />} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -411,6 +416,135 @@ describe("ChatPage", () => {
 
     expect(screen.getByRole("button", { name: "保存大纲" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "确认生成" })).toBeEnabled();
+  });
+
+  it("loads an explicit forked session from query parameter and shows source badge", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat/s-forked" && !init?.method) {
+        return Promise.resolve(createJsonResponse({
+          session_id: "s-forked",
+          title: "设备巡检报告 copy_ab12cd",
+          matched_template_id: "tpl-1",
+          fork_meta: {
+            source_kind: "session_message",
+            source_title: "设备巡检报告",
+            source_preview: "制作设备巡检报告",
+            source_session_id: "s-1",
+            source_message_id: "msg-1",
+          },
+          messages: [
+            {
+              role: "assistant",
+              content: "请提供参数。",
+              message_id: "msg-a1",
+              created_at: "2026-03-20T12:00:00Z",
+            },
+          ],
+        }));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage("/chat?session_id=s-forked");
+
+    expect(await screen.findByText("请提供参数。")).toBeInTheDocument();
+    expect(screen.getByText("来源：设备巡检报告 copy_ab12cd · 来自历史消息")).toBeInTheDocument();
+  });
+
+  it("forks a user message into a new session and prefills the compose draft", async () => {
+    let sessionList = [
+      {
+        session_id: "s-1",
+        title: "制作设备巡检报告",
+        created_at: "2026-03-20T09:00:00Z",
+        updated_at: "2026-03-20T09:05:00Z",
+        message_count: 2,
+        last_message_preview: "请提供参数",
+        matched_template_id: "tpl-1",
+        instance_id: null,
+      },
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse(sessionList));
+      }
+      if (url === "/api/chat/s-1" && !init?.method) {
+        return Promise.resolve(createJsonResponse({
+          session_id: "s-1",
+          title: "制作设备巡检报告",
+          matched_template_id: "tpl-1",
+          messages: [
+            { role: "user", content: "制作设备巡检报告", message_id: "msg-u1" },
+            { role: "assistant", content: "请提供参数。", message_id: "msg-a1" },
+          ],
+        }));
+      }
+      if (url === "/api/chat/forks" && init?.method === "POST") {
+        sessionList = [
+          {
+            session_id: "s-fork",
+            title: "制作设备巡检报告 copy_ab12cd",
+            created_at: "2026-03-20T10:00:00Z",
+            updated_at: "2026-03-20T10:00:00Z",
+            message_count: 1,
+            last_message_preview: "制作设备巡检报告",
+            matched_template_id: "tpl-1",
+            instance_id: null,
+          },
+          ...sessionList,
+        ];
+        return Promise.resolve(createJsonResponse({
+          session_id: "s-fork",
+          title: "制作设备巡检报告 copy_ab12cd",
+          matched_template_id: "tpl-1",
+          draft_message: "制作设备巡检报告",
+          fork_meta: {
+            source_kind: "session_message",
+            source_title: "制作设备巡检报告",
+            source_preview: "制作设备巡检报告",
+            source_session_id: "s-1",
+            source_message_id: "msg-u1",
+          },
+          messages: [
+            { role: "user", content: "制作设备巡检报告", message_id: "msg-u1-copy" },
+          ],
+        }));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage();
+
+    expect(await screen.findByRole("button", { name: "打开会话：制作设备巡检报告" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "打开会话：制作设备巡检报告" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("请提供参数。")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "更多操作：消息 msg-u1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fork 为新会话" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("来源：制作设备巡检报告 copy_ab12cd · 来自历史消息")).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue("制作设备巡检报告")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "打开会话：制作设备巡检报告 copy_ab12cd" })).toBeInTheDocument();
+    });
   });
 });
 

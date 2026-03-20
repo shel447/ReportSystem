@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 
-import { deleteChatSession, fetchChatSession, fetchChatSessions, sendChatMessage } from "../entities/chat/api";
-import type { ChatAction, ChatMessageItem, ChatRequest, ChatResponse, ChatSessionDetail } from "../entities/chat/types";
+import { deleteChatSession, fetchChatSession, fetchChatSessions, forkChatSession, sendChatMessage } from "../entities/chat/api";
+import type { ChatAction, ChatForkMeta, ChatForkResponse, ChatMessageItem, ChatRequest, ChatResponse, ChatSessionDetail } from "../entities/chat/types";
 import { fetchSystemSettings } from "../entities/system-settings/api";
 import { ChatActionPanel } from "../features/chat-report-flow/components/ChatActionPanel";
 import { ConversationLayout } from "../shared/layouts/ConversationLayout";
@@ -21,15 +22,20 @@ const DEFAULT_MESSAGES: ChatMessageItem[] = [
 
 export function ChatPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [activeSessionId, setActiveSessionId] = useState("");
+  const [sessionTitle, setSessionTitle] = useState("");
+  const [activeForkMeta, setActiveForkMeta] = useState<ChatForkMeta | null>(null);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [menuSessionId, setMenuSessionId] = useState("");
+  const [menuMessageId, setMenuMessageId] = useState("");
   const chatWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const chatHistoryRailRef = useRef<HTMLDivElement | null>(null);
   const composeDockRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const autoOpenedSessionRef = useRef("");
   const [messages, setMessages] = useState<ChatMessageItem[]>(DEFAULT_MESSAGES);
   const [errorMessage, setErrorMessage] = useState("");
   const [composeLayout, setComposeLayout] = useState(() => ({
@@ -58,6 +64,10 @@ export function ChatPage() {
 
   const deleteSessionMutation = useMutation({
     mutationFn: (nextSessionId: string) => deleteChatSession(nextSessionId),
+  });
+
+  const forkSessionMutation = useMutation({
+    mutationFn: forkChatSession,
   });
 
   const chatMutation = useMutation({
@@ -144,15 +154,25 @@ export function ChatPage() {
     setDraft("");
     setSessionId("");
     setActiveSessionId("");
+    setSessionTitle("");
+    setActiveForkMeta(null);
     setMenuSessionId("");
+    setMenuMessageId("");
     setMessages(DEFAULT_MESSAGES);
     setErrorMessage("");
+    setSearchParams({});
   };
 
   const syncChatResponse = (response: ChatResponse, optimisticContent: string) => {
     setErrorMessage("");
     setSessionId(response.session_id);
     setActiveSessionId(response.session_id);
+    if (response.title) {
+      setSessionTitle(response.title);
+    }
+    if (response.fork_meta !== undefined) {
+      setActiveForkMeta(response.fork_meta ?? null);
+    }
     setMessages(buildVisibleMessages(response, optimisticContent));
     void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
   };
@@ -197,7 +217,7 @@ export function ChatPage() {
   };
 
   const openSession = (nextSessionId: string) => {
-    if (chatMutation.isPending || loadSessionMutation.isPending || deleteSessionMutation.isPending) {
+    if (chatMutation.isPending || loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
       return;
     }
     setErrorMessage("");
@@ -205,7 +225,10 @@ export function ChatPage() {
       onSuccess: (session) => {
         setSessionId(session.session_id);
         setActiveSessionId(session.session_id);
+        setSessionTitle(session.title ?? "");
+        setActiveForkMeta(session.fork_meta ?? null);
         setMenuSessionId("");
+        setMenuMessageId("");
         setMessages(buildVisibleMessagesFromSession(session));
       },
       onError: (error) => {
@@ -215,7 +238,7 @@ export function ChatPage() {
   };
 
   const removeSession = (nextSessionId: string) => {
-    if (chatMutation.isPending || loadSessionMutation.isPending || deleteSessionMutation.isPending) {
+    if (chatMutation.isPending || loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
       return;
     }
     deleteSessionMutation.mutate(nextSessionId, {
@@ -231,6 +254,59 @@ export function ChatPage() {
       },
     });
   };
+
+  const applyForkedSession = (payload: ChatForkResponse) => {
+    setSessionId(payload.session_id);
+    setActiveSessionId(payload.session_id);
+    setSessionTitle(payload.title);
+    setActiveForkMeta(payload.fork_meta ?? null);
+    setDraft(payload.draft_message ?? "");
+    setMenuMessageId("");
+    setMenuSessionId("");
+    setErrorMessage("");
+    setMessages(buildVisibleMessagesFromSession(payload));
+    void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+  };
+
+  const runForkFromMessage = (messageId: string) => {
+    const sourceSessionId = activeSessionId || sessionId;
+    if (!sourceSessionId || forkSessionMutation.isPending || chatMutation.isPending) {
+      return;
+    }
+    forkSessionMutation.mutate(
+      {
+        source_kind: "session_message",
+        source_session_id: sourceSessionId,
+        source_message_id: messageId,
+      },
+      {
+        onSuccess: (payload) => {
+          applyForkedSession(payload);
+        },
+        onError: (error) => {
+          setErrorMessage(error instanceof Error ? error.message : "Fork 会话失败。");
+        },
+      },
+    );
+  };
+
+  useEffect(() => {
+    const requestedSessionId = searchParams.get("session_id") ?? "";
+    if (!requestedSessionId) {
+      autoOpenedSessionRef.current = "";
+      return;
+    }
+    if (
+      requestedSessionId === activeSessionId
+      || requestedSessionId === autoOpenedSessionRef.current
+      || loadSessionMutation.isPending
+      || chatMutation.isPending
+    ) {
+      return;
+    }
+    autoOpenedSessionRef.current = requestedSessionId;
+    openSession(requestedSessionId);
+  }, [activeSessionId, chatMutation.isPending, loadSessionMutation.isPending, searchParams]);
 
   const chatPageStyle = {
     "--chat-compose-left": `${composeLayout.left}px`,
@@ -340,6 +416,12 @@ export function ChatPage() {
                 {errorMessage ? (
                   <ChatInlineBanner title="请求失败">{errorMessage}</ChatInlineBanner>
                 ) : null}
+
+                {activeForkMeta ? (
+                  <ChatInlineBanner title="Fork 来源">
+                    {`来源：${sessionTitle || "未命名分支"} · ${activeForkMeta.source_kind === "template_instance" ? "来自模板实例" : "来自历史消息"}`}
+                  </ChatInlineBanner>
+                ) : null}
               </>
             }
             stream={
@@ -363,6 +445,28 @@ export function ChatPage() {
                         >
                           <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
                           <div className={bodyClassName}>
+                            {message.message_id ? (
+                              <div className="message-entry__menu-wrap">
+                                <button
+                                  type="button"
+                                  className="message-entry__menu-trigger"
+                                  aria-label={`更多操作：消息 ${message.message_id}`}
+                                  aria-expanded={menuMessageId === message.message_id}
+                                  onClick={() =>
+                                    setMenuMessageId((current) => (current === message.message_id ? "" : message.message_id ?? ""))
+                                  }
+                                >
+                                  ...
+                                </button>
+                                {menuMessageId === message.message_id ? (
+                                  <div className="message-entry__menu" role="menu" aria-label={`消息操作：${message.message_id}`}>
+                                    <button type="button" onClick={() => runForkFromMessage(message.message_id ?? "")}>
+                                      Fork 为新会话
+                                    </button>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
                             <article
                               className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
                             >
@@ -523,7 +627,7 @@ function buildVisibleMessagesFromSession(session: ChatSessionDetail): ChatMessag
 }
 
 function normalizeVisibleMessages(
-  source: Array<{ role: "user" | "assistant"; content: string; action?: ChatAction | null; created_at?: string; meta?: unknown }>,
+  source: Array<{ role: "user" | "assistant"; content: string; action?: ChatAction | null; created_at?: string; message_id?: string; meta?: unknown }>,
   fallbackUserContent = "",
   fallbackReply = "",
   fallbackAction: ChatAction | null = null,
@@ -543,6 +647,7 @@ function normalizeVisibleMessages(
       content: item.content ?? "",
       action: item.action ?? null,
       created_at: item.created_at,
+      message_id: item.message_id,
     }));
 
   if (!normalized.length) {

@@ -84,6 +84,7 @@ POST   /api/templates/{id}/clone   # 克隆模板
 ```
 GET    /api/chat                   # 列出对话历史会话摘要
 POST   /api/chat                   # 发送对话消息
+POST   /api/chat/forks             # 基于消息或模板实例 fork 新会话
 GET    /api/chat/{session_id}      # 获取单个会话历史
 DELETE /api/chat/{session_id}      # 删除对话会话
 ```
@@ -91,6 +92,14 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 > 聊天页进入 `/chat` 时保持空态，不自动恢复最近会话，也不预创建会话。只有首条真实用户消息发送后才创建 `ChatSession`，并以该首条用户消息生成会话标题。
 >
 > 对话生成链路在“大纲确认”阶段会先形成模板实例快照：`edit_outline` 追加 `outline_saved`，`confirm_outline_generation` 在生成报告实例后追加 `outline_confirmed`。
+>
+> `POST /api/chat/forks` 支持两类来源：
+> - `session_message`：基于某条历史消息 fork 新会话。消息锚点使用稳定 `message_id`，用户消息 fork 会同时把该消息内容回填到输入框。
+> - `template_instance`：仅允许 `outline_saved` 模板实例 fork 回对话助手，直接恢复到 `review_outline` 阶段。
+>
+> 聊天消息和会话摘要额外返回：
+> - `message_id`
+> - `fork_meta`
 
 ---
 

@@ -90,11 +90,21 @@ export type ChatAction =
   | ShowTemplateCandidatesAction
   | DownloadDocumentAction;
 
+export type ChatForkMeta = {
+  source_kind: "session_message" | "template_instance";
+  source_title: string;
+  source_preview: string;
+  source_session_id?: string;
+  source_message_id?: string;
+  source_template_instance_id?: string;
+};
+
 export type ChatMessageItem = {
   role: "user" | "assistant";
   content: string;
   action?: ChatAction | null;
   created_at?: string;
+  message_id?: string;
 };
 
 export type ChatSessionSummary = {
@@ -106,31 +116,54 @@ export type ChatSessionSummary = {
   last_message_preview: string;
   matched_template_id?: string | null;
   instance_id?: string | null;
+  fork_meta?: ChatForkMeta | null;
 };
 
 export type ChatSessionDetail = {
   session_id: string;
+  title?: string;
   matched_template_id?: string | null;
+  fork_meta?: ChatForkMeta | null;
   messages: Array<{
     role: "user" | "assistant";
     content: string;
     action?: ChatAction | null;
     created_at?: string;
+    message_id?: string;
     meta?: unknown;
   }>;
 };
 export type ChatResponse = {
   session_id: string;
   reply: string;
+  title?: string;
   action?: ChatAction | null;
   matched_template_id?: string | null;
+  fork_meta?: ChatForkMeta | null;
   messages?: Array<{
     role: "user" | "assistant";
     content: string;
     action?: ChatAction | null;
     created_at?: string;
+    message_id?: string;
     meta?: unknown;
   }>;
+};
+
+export type ChatForkResponse = {
+  session_id: string;
+  title: string;
+  matched_template_id?: string | null;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: string;
+    action?: ChatAction | null;
+    created_at?: string;
+    message_id?: string;
+    meta?: unknown;
+  }>;
+  draft_message?: string;
+  fork_meta?: ChatForkMeta | null;
 };
 
 export type ChatRequest = {
@@ -149,5 +182,12 @@ export type ChatRequest = {
     | "edit_param";
   target_param_id?: string;
   outline_override?: OutlineNode[];
+};
+
+export type ChatForkRequest = {
+  source_kind: "session_message" | "template_instance";
+  source_session_id?: string;
+  source_message_id?: string;
+  template_instance_id?: string;
 };
 

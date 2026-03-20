@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -19,13 +18,18 @@ from ..chat_flow_service import (
     rewind_slots_for_param,
     upsert_slots_from_params,
 )
+from ..chat_fork_service import (
+    build_visible_message_payload,
+    fork_session_from_message,
+    fork_session_from_template_instance,
+)
 from ..chat_response_service import generate_chat_reply
-from ..chat_session_service import list_chat_sessions
+from ..chat_session_service import ensure_session_metadata, list_chat_sessions, serialize_chat_session_detail
 from ..context_state_service import compress_state, new_context_state, persist_state_to_history, restore_state_from_history
 from ..database import get_db
 from ..document_service import create_markdown_document, serialize_document
 from ..infrastructure.dependencies import build_instance_application_service
-from ..models import ChatSession, ReportTemplate, gen_id
+from ..models import ChatSession, ReportTemplate, TemplateInstance, gen_id
 from ..outline_review_service import build_pending_outline_review, merge_outline_override
 from ..param_dialog_service import (
     build_missing_required,
@@ -54,20 +58,20 @@ class ChatMessage(BaseModel):
     outline_override: Optional[List[Dict[str, Any]]] = None
 
 
+class ChatForkRequest(BaseModel):
+    source_kind: str
+    source_session_id: Optional[str] = None
+    source_message_id: Optional[str] = None
+    template_instance_id: Optional[str] = None
+
+
 def build_message_payload(
     role: str,
     content: str,
     *,
     action: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {
-        "role": role,
-        "content": content,
-        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-    }
-    if action:
-        payload["action"] = action
-    return payload
+    return build_visible_message_payload(role, content, action=action)
 
 
 @router.get("")
@@ -88,6 +92,9 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     session = None
     if data.session_id:
         session = db.query(ChatSession).filter(ChatSession.session_id == data.session_id).first()
+        if session and ensure_session_metadata(session):
+            db.commit()
+            db.refresh(session)
     if not session and not has_request_intent:
         return {
             "session_id": "",
@@ -422,6 +429,9 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
     messages = persist_state_to_history(messages, state, previous_state=previous_state, min_turns=3)
 
     session.messages = messages
+    if not (session.title or "").strip() and user_message.strip():
+        from ..chat_session_service import derive_session_title
+        session.title = derive_session_title(messages)
     template_id = state.get("report", {}).get("template_id")
     if template_id:
         session.matched_template_id = template_id
@@ -446,11 +456,37 @@ def get_session(session_id: str, db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {
-        "session_id": session.session_id,
-        "messages": session.messages,
-        "matched_template_id": session.matched_template_id,
-    }
+    if ensure_session_metadata(session):
+        db.commit()
+        db.refresh(session)
+    return serialize_chat_session_detail(session)
+
+
+@router.post("/forks")
+def fork_session(data: ChatForkRequest, db: Session = Depends(get_db)):
+    if data.source_kind == "session_message":
+        if not data.source_session_id or not data.source_message_id:
+            raise HTTPException(status_code=404, detail="Source session or message not found")
+        source_session = db.query(ChatSession).filter(ChatSession.session_id == data.source_session_id).first()
+        if not source_session:
+            raise HTTPException(status_code=404, detail="Source session not found")
+        return fork_session_from_message(
+            db,
+            source_session=source_session,
+            source_message_id=data.source_message_id,
+        )
+
+    if data.source_kind == "template_instance":
+        if not data.template_instance_id:
+            raise HTTPException(status_code=404, detail="Template instance not found")
+        record = db.query(TemplateInstance).filter(
+            TemplateInstance.template_instance_id == data.template_instance_id
+        ).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Template instance not found")
+        return fork_session_from_template_instance(db, template_instance=record)
+
+    raise HTTPException(status_code=404, detail="Unsupported fork source")
 
 
 @router.delete("/{session_id}")

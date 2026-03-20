@@ -33,8 +33,20 @@ class TemplateInstance:
 - `prepare_outline_review`：仅进入大纲确认，不落模板实例
 - `edit_outline`：每次显式保存大纲，追加一条 `outline_saved` 记录
 - `confirm_outline_generation`：生成报告实例后，再追加一条 `outline_confirmed` 记录，并关联 `report_instance_id`
+- `outline_saved -> ChatSession Fork`：可从模板实例列表发起“Fork 到对话助手”，恢复到 `outline_review` 阶段继续调整大纲或生成报告
 
 > 模板实例采用追加式历史记录，不做覆盖更新，也不回写模板。
+
+### 1.3 与对话分支的关系
+
+- `outline_saved` 模板实例可以作为对话分支的来源
+- fork 后生成新的 `ChatSession`，并记录来源模板实例 ID
+- fork 回对话助手时恢复：
+  - `matched_template_id`
+  - 参数快照
+  - 待确认大纲
+  - 大纲 warnings
+- 该恢复会话继续走对话式流程，不直接替代 `ReportInstance`
 
 ---
 
