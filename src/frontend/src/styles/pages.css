@@ -703,6 +703,13 @@
   box-shadow: var(--shadow-hover);
 }
 
+.instance-card__link {
+  display: grid;
+  gap: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
 .instance-card__header {
   display: flex;
   align-items: flex-start;
@@ -739,9 +746,50 @@
   font-size: 0.84rem;
 }
 
+.instance-card__actions {
+  margin-top: auto;
+}
+
 .instance-detail-grid {
   display: grid;
   gap: 18px;
+}
+
+.summary-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.instance-fork-picker {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(37, 109, 130, 0.04);
+  border: 1px solid rgba(37, 109, 130, 0.08);
+}
+
+.instance-fork-picker__list {
+  display: grid;
+  gap: 8px;
+}
+
+.instance-fork-picker__item {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 10px 12px;
+  border: 1px solid rgba(27, 36, 48, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.instance-fork-picker__item:hover {
+  border-color: rgba(37, 109, 130, 0.18);
 }
 
 .settings-actions-panel {

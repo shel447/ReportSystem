@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { createDocument, fetchDocuments } from "../entities/documents/api";
 import type { ReportDocument } from "../entities/documents/types";
-import { fetchInstance, regenerateSection } from "../entities/instances/api";
-import type { InstanceSection } from "../entities/instances/types";
+import {
+  fetchInstance,
+  fetchInstanceBaseline,
+  fetchInstanceForkSources,
+  forkInstanceChat,
+  regenerateSection,
+  updateInstanceChat,
+} from "../entities/instances/api";
+import type { InstanceForkSource, InstanceSection } from "../entities/instances/types";
 import { fetchTemplates } from "../entities/templates/api";
 import { formatDateTime, formatFileSize, prettyJson } from "../shared/utils/format";
 import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
@@ -16,10 +23,13 @@ import { StatusBanner } from "../shared/ui/StatusBanner";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
 
 export function InstanceDetailPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { instanceId } = useParams<{ instanceId: string }>();
   const [errorMessage, setErrorMessage] = useState("");
   const [latestDocument, setLatestDocument] = useState<ReportDocument | null>(null);
+  const [showBaseline, setShowBaseline] = useState(false);
+  const [showForkPicker, setShowForkPicker] = useState(false);
 
   const instanceDetailQuery = useQuery({
     queryKey: ["instance-detail", instanceId],
@@ -34,6 +44,16 @@ export function InstanceDetailPage() {
   const templatesQuery = useQuery({
     queryKey: ["templates"],
     queryFn: fetchTemplates,
+  });
+  const baselineQuery = useQuery({
+    queryKey: ["instance-baseline", instanceId],
+    queryFn: () => fetchInstanceBaseline(instanceId!),
+    enabled: Boolean(instanceId && showBaseline),
+  });
+  const forkSourcesQuery = useQuery({
+    queryKey: ["instance-fork-sources", instanceId],
+    queryFn: () => fetchInstanceForkSources(instanceId!),
+    enabled: Boolean(instanceId && showForkPicker),
   });
 
   useEffect(() => {
@@ -67,6 +87,27 @@ export function InstanceDetailPage() {
     },
   });
 
+  const updateChatMutation = useMutation({
+    mutationFn: () => updateInstanceChat(instanceId!),
+    onSuccess: (payload) => {
+      navigate(`/chat?session_id=${payload.session_id}`);
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : "无法打开更新会话。");
+    },
+  });
+
+  const forkChatMutation = useMutation({
+    mutationFn: (sourceMessageId: string) => forkInstanceChat(instanceId!, sourceMessageId),
+    onSuccess: (payload) => {
+      setShowForkPicker(false);
+      navigate(`/chat?session_id=${payload.session_id}`);
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : "无法从该节点分支。");
+    },
+  });
+
   const templateNameMap = useMemo(() => {
     const entries = templatesQuery.data ?? [];
     return new Map(entries.map((item) => [item.template_id, item.name]));
@@ -96,31 +137,82 @@ export function InstanceDetailPage() {
                 description={templateName}
                 badge={currentInstance.status}
                 actions={
-                  <Link className="ghost-button button-link" to="/instances">
-                    返回列表
-                  </Link>
+                  <div className="action-row action-row--compact">
+                    {currentInstance.supports_update_chat ? (
+                      <button className="ghost-button" type="button" onClick={() => updateChatMutation.mutate()}>
+                        更新
+                      </button>
+                    ) : null}
+                    {currentInstance.supports_fork_chat ? (
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => setShowForkPicker((value) => !value)}
+                      >
+                        Fork
+                      </button>
+                    ) : null}
+                    <Link className="ghost-button button-link" to="/instances">
+                      返回列表
+                    </Link>
+                  </div>
                 }
               />
             }
             summary={
-              <SurfaceCard className="summary-strip">
-                <div className="summary-strip__item">
-                  <span>创建时间</span>
-                  <strong>{formatDateTime(currentInstance.created_at)}</strong>
-                </div>
-                <div className="summary-strip__item">
-                  <span>更新时间</span>
-                  <strong>{formatDateTime(currentInstance.updated_at)}</strong>
-                </div>
-                <div className="summary-strip__item">
-                  <span>模板 ID</span>
-                  <strong>{currentInstance.template_id}</strong>
-                </div>
-                <div className="summary-strip__item">
-                  <span>章节数</span>
-                  <strong>{currentInstance.outline_content?.length ?? 0}</strong>
-                </div>
-              </SurfaceCard>
+              <div className="summary-stack">
+                <SurfaceCard className="summary-strip">
+                  <div className="summary-strip__item">
+                    <span>创建时间</span>
+                    <strong>{formatDateTime(currentInstance.created_at)}</strong>
+                  </div>
+                  <div className="summary-strip__item">
+                    <span>更新时间</span>
+                    <strong>{formatDateTime(currentInstance.updated_at)}</strong>
+                  </div>
+                  <div className="summary-strip__item">
+                    <span>模板 ID</span>
+                    <strong>{currentInstance.template_id}</strong>
+                  </div>
+                  <div className="summary-strip__item">
+                    <span>章节数</span>
+                    <strong>{currentInstance.outline_content?.length ?? 0}</strong>
+                  </div>
+                </SurfaceCard>
+                {currentInstance.has_generation_baseline ? (
+                  <SurfaceCard>
+                    <div className="action-row action-row--compact">
+                      <button className="ghost-button" type="button" onClick={() => setShowBaseline((value) => !value)}>
+                        查看确认大纲
+                      </button>
+                    </div>
+                    {showBaseline && baselineQuery.data ? (
+                      <div className="detail-block detail-block--wide">
+                        <p className="muted-text">确认大纲：生成基线</p>
+                        <pre>{prettyJson({ params: baselineQuery.data.params_snapshot, outline: baselineQuery.data.outline })}</pre>
+                      </div>
+                    ) : null}
+                    {showForkPicker ? (
+                      <div className="instance-fork-picker">
+                        <p className="muted-text">选择来源消息节点</p>
+                        <div className="instance-fork-picker__list">
+                          {(forkSourcesQuery.data ?? []).map((source: InstanceForkSource) => (
+                            <button
+                              key={source.message_id}
+                              type="button"
+                              className="instance-fork-picker__item"
+                              onClick={() => forkChatMutation.mutate(source.message_id)}
+                            >
+                              <strong>{source.role === "assistant" ? "助手" : "我"}</strong>
+                              <span>{source.preview}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </SurfaceCard>
+                ) : null}
+              </div>
             }
             content={
               <div className="instance-detail-grid">

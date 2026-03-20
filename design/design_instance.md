@@ -4,9 +4,13 @@
 
 ---
 
-## 1. 模板实例 (TemplateInstance)
+## 1. 内部模板实例 (TemplateInstance)
 
-模板实例是位于“报告模板”和“报告实例”之间的中间快照。它只在对话式生成流程中产生，用于记录用户在大纲确认阶段显式保存下来的状态，不替代 `ReportInstance`。
+`TemplateInstance` 仍然存在，但它已经从用户侧模块退回为**内部生成基线快照**。它不再作为独立页面或独立术语暴露给用户，而是作为 `ReportInstance` 的生成前基线被内部保存，用于支持：
+
+- 从报告实例重新打开一轮“更新”对话
+- 查看该实例生成时所确认的大纲与参数
+- 基于来源会话节点继续 `Fork` 对话分支
 
 ### 1.1 数据结构
 
@@ -17,13 +21,13 @@ class TemplateInstance:
     template_id: str
     template_version: str
     session_id: str
-    capture_stage: str  # outline_saved / outline_confirmed
+    capture_stage: str  # generation_baseline
 
     input_params_snapshot: Dict[str, Any]
     outline_snapshot: List[Dict[str, Any]]
     warnings: List[str]
 
-    report_instance_id: Optional[str] = None
+    report_instance_id: str
     created_at: datetime
     created_by: str
 ```
@@ -31,22 +35,23 @@ class TemplateInstance:
 ### 1.2 生命周期说明
 
 - `prepare_outline_review`：仅进入大纲确认，不落模板实例
-- `edit_outline`：每次显式保存大纲，追加一条 `outline_saved` 记录
-- `confirm_outline_generation`：生成报告实例后，再追加一条 `outline_confirmed` 记录，并关联 `report_instance_id`
-- `outline_saved -> ChatSession Fork`：可从模板实例列表发起“Fork 到对话助手”，恢复到 `outline_review` 阶段继续调整大纲或生成报告
+- `edit_outline`：只更新当前对话上下文中的待确认大纲
+- `confirm_outline_generation`：生成报告实例时，同时创建其唯一的 `generation_baseline` 快照
+- `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改
 
-> 模板实例采用追加式历史记录，不做覆盖更新，也不回写模板。
+> `TemplateInstance` 现在不再是追加式历史记录。对每个新 `ReportInstance`，系统只保留一份对应的内部生成基线。
 
 ### 1.3 与对话分支的关系
 
-- `outline_saved` 模板实例可以作为对话分支的来源
-- fork 后生成新的 `ChatSession`，并记录来源模板实例 ID
-- fork 回对话助手时恢复：
+- `generation_baseline` 内部模板实例可以作为“更新会话”的来源
+- 报告实例的 `Fork` 入口则基于其来源对话中的消息节点发起分支
+- 恢复/分支后生成新的 `ChatSession`，并记录来源信息
+- 基于内部模板实例恢复时，聊天页会恢复：
   - `matched_template_id`
   - 参数快照
   - 待确认大纲
   - 大纲 warnings
-- 该恢复会话继续走对话式流程，不直接替代 `ReportInstance`
+- 该恢复会话继续走对话式流程，但不会修改原始报告实例
 
 ---
 
@@ -233,4 +238,4 @@ class ReportDocument:
 
 - 报告实例示例请参见 `instance_example.json`
 - 报告文档样例请参见 `report_sample.md`
-- 模板实例用于承接“模板 -> 实例”的生成前快照，不承担报告内容重生成职责
+- 内部模板实例用于承接“模板 -> 实例”的生成基线，不承担报告内容重生成职责

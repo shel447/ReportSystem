@@ -8,7 +8,6 @@ import { InstancesPage } from "../pages/InstancesPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { TasksPage } from "../pages/TasksPage";
 import { TemplateDetailPage } from "../pages/TemplateDetailPage";
-import { TemplateInstancesPage } from "../pages/TemplateInstancesPage";
 import { TemplatesPage } from "../pages/TemplatesPage";
 
 export function App() {
@@ -22,7 +21,7 @@ export function App() {
         <Route path="/templates" element={<TemplatesPage />} />
         <Route path="/templates/new" element={<TemplateDetailPage />} />
         <Route path="/templates/:templateId" element={<TemplateDetailPage />} />
-        <Route path="/template-instances" element={<TemplateInstancesPage />} />
+        <Route path="/template-instances" element={<Navigate to="/instances" replace />} />
         <Route path="/instances" element={<InstancesPage />} />
         <Route path="/instances/:instanceId" element={<InstanceDetailPage />} />
         <Route path="/documents" element={<DocumentsPage />} />

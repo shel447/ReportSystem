@@ -102,8 +102,9 @@ def fork_session_from_template_instance(
     *,
     template_instance: TemplateInstance,
 ) -> Dict[str, Any]:
-    if (template_instance.capture_stage or "") != "outline_saved":
-        raise HTTPException(status_code=409, detail="Only outline_saved template instances can be forked")
+    capture_stage = str(template_instance.capture_stage or "")
+    if capture_stage not in {"outline_saved", "generation_baseline"}:
+        raise HTTPException(status_code=409, detail="Only outline review snapshots can be forked")
 
     template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_instance.template_id).first()
     if not template:
@@ -144,13 +145,13 @@ def fork_session_from_template_instance(
     fork_meta = {
         "source_kind": "template_instance",
         "source_template_instance_id": template_instance.template_instance_id,
-        "source_title": template_instance.template_name or template.name or "模板实例",
-        "source_preview": "已保存大纲",
+        "source_title": template_instance.template_name or template.name or "确认大纲",
+        "source_preview": "确认大纲" if capture_stage == "generation_baseline" else "已保存大纲",
     }
     forked = ChatSession(
         session_id=fork_session_id,
         user_id="default",
-        title=_fork_title(template_instance.template_name or template.name or "模板实例"),
+        title=_fork_title(template_instance.template_name or template.name or "确认大纲"),
         messages=messages,
         fork_meta=fork_meta,
         matched_template_id=template.template_id,

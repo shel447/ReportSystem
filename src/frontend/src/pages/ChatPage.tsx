@@ -449,7 +449,7 @@ export function ChatPage() {
 
                 {activeForkMeta ? (
                   <ChatInlineBanner title="Fork 来源">
-                    {`来源：${sessionTitle || "未命名分支"} · ${activeForkMeta.source_kind === "template_instance" ? "来自模板实例" : "来自历史消息"}`}
+                    {`来源：${sessionTitle || "未命名分支"} · ${activeForkMeta.source_kind === "template_instance" ? "来自确认大纲" : "来自历史消息"}`}
                   </ChatInlineBanner>
                 ) : null}
               </>
