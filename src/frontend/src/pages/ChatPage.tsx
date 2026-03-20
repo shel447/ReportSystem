@@ -325,46 +325,52 @@ export function ChatPage() {
                 <SurfaceCard className="chat-stream-card">
                   <div className="message-list">
                     {messages.map((message, index) => (
-                      <article
+                      <div
                         key={`${message.role}-${index}-${message.content}`}
-                        className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
+                        className={`message-entry message-entry--${message.role}`}
                       >
-                        <div className="message-bubble__meta">{message.role === "assistant" ? "助手" : "我"}</div>
-                        {message.content ? <p>{message.content}</p> : null}
-                        {message.action ? (
-                          <div className="message-bubble__action">
-                            <ChatActionPanel
-                              action={message.action}
-                              disabled={chatMutation.isPending}
-                              onSubmitParam={(paramId, value) => {
-                                if (Array.isArray(value)) {
-                                  runAction({ param_id: paramId, param_values: value });
-                                  return;
+                        <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
+                        <article
+                          className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
+                        >
+                          {message.content ? <p>{message.content}</p> : null}
+                          {message.action ? (
+                            <div className="message-bubble__action">
+                              <ChatActionPanel
+                                action={message.action}
+                                disabled={chatMutation.isPending}
+                                onSubmitParam={(paramId, value) => {
+                                  if (Array.isArray(value)) {
+                                    runAction({ param_id: paramId, param_values: value });
+                                    return;
+                                  }
+                                  runAction({ param_id: paramId, param_value: value });
+                                }}
+                                onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
+                                onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
+                                onCommand={(command, targetParamId) =>
+                                  runAction({ command, target_param_id: targetParamId })
                                 }
-                                runAction({ param_id: paramId, param_value: value });
-                              }}
-                              onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
-                              onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
-                              onCommand={(command, targetParamId) =>
-                                runAction({ command, target_param_id: targetParamId })
-                              }
-                            />
-                          </div>
-                        ) : null}
-                      </article>
+                              />
+                            </div>
+                          ) : null}
+                        </article>
+                      </div>
                     ))}
                     {chatMutation.isPending ? (
-                      <article className="message-bubble message-bubble--assistant message-bubble--pending" aria-live="polite">
-                        <div className="message-bubble__meta">助手</div>
-                        <div className="message-pending" role="status">
-                          <span>正在处理中</span>
-                          <span className="message-pending__dots" aria-hidden="true">
-                            <i />
-                            <i />
-                            <i />
-                          </span>
-                        </div>
-                      </article>
+                      <div className="message-entry message-entry--assistant">
+                        <div className="message-entry__role">助手</div>
+                        <article className="message-bubble message-bubble--assistant message-bubble--pending" aria-live="polite">
+                          <div className="message-pending" role="status">
+                            <span>正在处理中</span>
+                            <span className="message-pending__dots" aria-hidden="true">
+                              <i />
+                              <i />
+                              <i />
+                            </span>
+                          </div>
+                        </article>
+                      </div>
                     ) : null}
                     <div ref={messageEndRef} />
                   </div>

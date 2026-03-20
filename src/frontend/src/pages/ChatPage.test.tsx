@@ -49,7 +49,7 @@ describe("ChatPage", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    renderChatPage();
+    const view = renderChatPage();
 
     expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
     expect(screen.getByTestId("chat-stream-shell")).toBeInTheDocument();
@@ -80,6 +80,9 @@ describe("ChatPage", () => {
 
     expect(screen.getByText("制作设备巡检报告")).toBeInTheDocument();
     expect(screen.getByText("正在处理中")).toBeInTheDocument();
+    expect(view.container.querySelector(".message-entry")).not.toBeNull();
+    expect(view.container.querySelector(".message-entry__role")?.textContent).toBe("助手");
+    expect(view.container.querySelector(".message-bubble__meta")).toBeNull();
     expect(composer.value).toBe("");
     expect(composer).toBeDisabled();
     expect(screen.getByRole("button", { name: "发送" })).toHaveClass("chat-send-button", "is-pending");
