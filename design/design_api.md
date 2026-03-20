@@ -82,11 +82,14 @@ POST   /api/templates/{id}/clone   # 克隆模板
 ## 3. 对话交互
 
 ```
+GET    /api/chat                   # 列出对话历史会话摘要
 POST   /api/chat                   # 发送对话消息
-GET    /api/chat/{session_id}      # 获取对话历史
-DELETE /api/chat/{session_id}      # 结束对话会话
+GET    /api/chat/{session_id}      # 获取单个会话历史
+DELETE /api/chat/{session_id}      # 删除对话会话
 ```
 
+> 聊天页进入 `/chat` 时保持空态，不自动恢复最近会话，也不预创建会话。只有首条真实用户消息发送后才创建 `ChatSession`，并以该首条用户消息生成会话标题。
+>
 > 对话生成链路在“大纲确认”阶段会先形成模板实例快照：`edit_outline` 追加 `outline_saved`，`confirm_outline_generation` 在生成报告实例后追加 `outline_confirmed`。
 
 ---
@@ -170,3 +173,4 @@ GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 - [ ] 分页、排序、过滤的通用查询参数规范
 - [ ] 错误码与异常响应格式统一规范
 - [ ] WebSocket/SSE 实时推送接口（报告生成进度）
+

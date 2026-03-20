@@ -96,6 +96,27 @@ export type ChatMessageItem = {
   action?: ChatAction | null;
 };
 
+export type ChatSessionSummary = {
+  session_id: string;
+  title: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  message_count: number;
+  last_message_preview: string;
+  matched_template_id?: string | null;
+  instance_id?: string | null;
+};
+
+export type ChatSessionDetail = {
+  session_id: string;
+  matched_template_id?: string | null;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: string;
+    action?: ChatAction | null;
+    meta?: unknown;
+  }>;
+};
 export type ChatResponse = {
   session_id: string;
   reply: string;
@@ -126,3 +147,4 @@ export type ChatRequest = {
   target_param_id?: string;
   outline_override?: OutlineNode[];
 };
+

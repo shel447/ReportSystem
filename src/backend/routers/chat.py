@@ -19,6 +19,7 @@ from ..chat_flow_service import (
     upsert_slots_from_params,
 )
 from ..chat_response_service import generate_chat_reply
+from ..chat_session_service import list_chat_sessions
 from ..context_state_service import compress_state, new_context_state, persist_state_to_history, restore_state_from_history
 from ..database import get_db
 from ..document_service import create_markdown_document, serialize_document
@@ -52,11 +53,32 @@ class ChatMessage(BaseModel):
     outline_override: Optional[List[Dict[str, Any]]] = None
 
 
+@router.get("")
+def list_sessions(db: Session = Depends(get_db)):
+    return list_chat_sessions(db)
+
+
 @router.post("")
 def send_message(data: ChatMessage, db: Session = Depends(get_db)):
+    user_message = str(data.message or "")
+    has_request_intent = bool(
+        user_message.strip()
+        or data.param_id
+        or data.selected_template_id
+        or data.command
+    )
+
     session = None
     if data.session_id:
         session = db.query(ChatSession).filter(ChatSession.session_id == data.session_id).first()
+    if not session and not has_request_intent:
+        return {
+            "session_id": "",
+            "reply": "",
+            "action": None,
+            "matched_template_id": None,
+            "messages": [],
+        }
     if not session:
         session = ChatSession(session_id=gen_id(), messages=[])
         db.add(session)
@@ -64,7 +86,6 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
         db.refresh(session)
 
     messages = list(session.messages or [])
-    user_message = str(data.message or "")
     if user_message or data.param_id or data.selected_template_id or data.command:
         messages.append({"role": "user", "content": user_message})
 
@@ -423,3 +444,5 @@ def delete_session(session_id: str, db: Session = Depends(get_db)):
     db.delete(session)
     db.commit()
     return {"message": "deleted"}
+
+

@@ -3,6 +3,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { ChatPage } from "./ChatPage";
 
+type MockResponse = {
+  ok: boolean;
+  json: () => Promise<unknown>;
+};
+
 function renderChatPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -16,21 +21,32 @@ function renderChatPage() {
   );
 }
 
+function createJsonResponse(payload: unknown): MockResponse {
+  return {
+    ok: true,
+    json: async () => payload,
+  };
+}
+
 describe("ChatPage", () => {
-  it("keeps the chat workspace focused and sends message through chat api", async () => {
+  it("renders empty history rail and sends message through chat api", async () => {
     let resolveChat: ((value: unknown) => void) | undefined;
     const chatResponse = new Promise((resolve) => {
       resolveChat = resolve;
     });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ is_ready: true, index_status: { ready_count: 1 } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => chatResponse,
-      });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat" && init?.method === "POST") {
+        return Promise.resolve(createJsonResponse(chatResponse));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     renderChatPage();
@@ -38,15 +54,16 @@ describe("ChatPage", () => {
     expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
     expect(screen.getByTestId("chat-stream-shell")).toBeInTheDocument();
     expect(screen.getByTestId("chat-compose-dock")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "对话助手" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Conversation Workflow")).not.toBeInTheDocument();
-    expect(screen.queryByText("模板匹配")).not.toBeInTheDocument();
-    expect(screen.queryByText("补参")).not.toBeInTheDocument();
-    expect(screen.queryByText("确认")).not.toBeInTheDocument();
-    expect(screen.queryByText("生成")).not.toBeInTheDocument();
-    expect(screen.queryByText("下载")).not.toBeInTheDocument();
-    expect(screen.queryByText("从自然语言需求进入模板匹配、结构化补参与文档下载的完整链路。")).not.toBeInTheDocument();
-    expect(screen.queryByText("支持直接输入自然语言需求")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建会话" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("暂无历史会话")).toBeInTheDocument();
+    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/system-settings", undefined);
+    expect(fetchMock).toHaveBeenCalledWith("/api/chat", undefined);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/chat",
+      expect.objectContaining({ method: "POST" }),
+    );
 
     const composer = screen.getByPlaceholderText("输入消息，例如：制作设备巡检报告") as HTMLTextAreaElement;
     fireEvent.change(composer, {
@@ -80,14 +97,73 @@ describe("ChatPage", () => {
 
     expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
     expect(composer).not.toBeDisabled();
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/system-settings", undefined);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/chat",
       expect.objectContaining({
         method: "POST",
       }),
     );
+  });
+
+  it("loads a historical session and deleting it returns to empty state", async () => {
+    let sessionList = [
+      {
+        session_id: "s-1",
+        title: "制作设备巡检报告",
+        created_at: "2026-03-20T09:00:00Z",
+        updated_at: "2026-03-20T09:05:00Z",
+        message_count: 2,
+        last_message_preview: "请提供参数",
+        matched_template_id: "tpl-1",
+        instance_id: null,
+      },
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse(sessionList));
+      }
+      if (url === "/api/chat/s-1" && !init?.method) {
+        return Promise.resolve(createJsonResponse({
+          session_id: "s-1",
+          matched_template_id: "tpl-1",
+          messages: [
+            { role: "user", content: "制作设备巡检报告" },
+            { role: "assistant", content: "请提供参数。" },
+          ],
+        }));
+      }
+      if (url === "/api/chat/s-1" && init?.method === "DELETE") {
+        sessionList = [];
+        return Promise.resolve(createJsonResponse({ message: "deleted" }));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "打开会话：制作设备巡检报告" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "打开会话：制作设备巡检报告" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("请提供参数。")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "删除会话：制作设备巡检报告" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("暂无历史会话")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("您好！我是您的智能报告助手。")).toBeInTheDocument();
+    expect(screen.queryByText("请提供参数。")).not.toBeInTheDocument();
   });
 
   it("optimistically appends structured parameter submissions while pending", async () => {
@@ -99,19 +175,23 @@ describe("ChatPage", () => {
     const secondChatResponse = new Promise((resolve) => {
       resolveSecondChat = resolve;
     });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ is_ready: true, index_status: { ready_count: 1 } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => firstChatResponse,
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => secondChatResponse,
-      });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body ?? "{}"));
+        if (body.message) {
+          return Promise.resolve(createJsonResponse(firstChatResponse));
+        }
+        return Promise.resolve(createJsonResponse(secondChatResponse));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     renderChatPage();
@@ -193,19 +273,23 @@ describe("ChatPage", () => {
     const secondChatResponse = new Promise((resolve) => {
       resolveSecondChat = resolve;
     });
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ is_ready: true, index_status: { ready_count: 1 } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => firstChatResponse,
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => secondChatResponse,
-      });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat" && init?.method === "POST") {
+        const body = JSON.parse(String(init.body ?? "{}"));
+        if (body.message) {
+          return Promise.resolve(createJsonResponse(firstChatResponse));
+        }
+        return Promise.resolve(createJsonResponse(secondChatResponse));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     renderChatPage();
@@ -283,3 +367,4 @@ describe("ChatPage", () => {
     expect(screen.getByRole("button", { name: "确认生成" })).toBeEnabled();
   });
 });
+

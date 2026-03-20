@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from backend.database import Base
 from backend.models import ChatSession, ReportTemplate, TemplateInstance
-from backend.routers.chat import ChatMessage, send_message
+from backend.routers.chat import ChatMessage, list_sessions, send_message
 
 
 class ChatRouterTests(unittest.TestCase):
@@ -236,6 +236,49 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(third["action"]["type"], "review_params")
 
+    def test_send_message_empty_payload_does_not_create_session(self):
+        response = send_message(ChatMessage(), db=self.db)
+
+        self.assertEqual(response["session_id"], "")
+        self.assertEqual(response["messages"], [])
+        self.assertEqual(self.db.query(ChatSession).count(), 0)
+    def test_list_sessions_returns_recent_summaries_with_generated_title(self):
+        first = ChatSession(
+            session_id="s-1",
+            messages=[
+                {"role": "user", "content": "制作设备巡检报告并输出总部结果"},
+                {"role": "assistant", "content": "请补充参数。"},
+            ],
+            matched_template_id="tpl-1",
+            instance_id="inst-1",
+        )
+        second = ChatSession(
+            session_id="s-2",
+            messages=[
+                {"role": "user", "content": "统计昨日告警"},
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "meta": {"type": "context_state", "schema_version": "ctx.v1", "state": {}},
+                },
+                {"role": "assistant", "content": "已生成结果。"},
+            ],
+        )
+        self.db.add_all([first, second])
+        self.db.commit()
+
+        sessions = list_sessions(db=self.db)
+
+        self.assertEqual([item["session_id"] for item in sessions], ["s-2", "s-1"])
+        self.assertEqual(sessions[0]["title"], "统计昨日告警")
+        self.assertEqual(sessions[0]["message_count"], 2)
+        self.assertEqual(sessions[0]["last_message_preview"], "已生成结果。")
+        self.assertEqual(sessions[1]["title"], "制作设备巡检报告并输出总部结果")
+        self.assertEqual(sessions[1]["matched_template_id"], "tpl-1")
+        self.assertEqual(sessions[1]["instance_id"], "inst-1")
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
