@@ -92,6 +92,11 @@
   max-inline-size: 40%;
 }
 
+.message-entry__body--compact {
+  width: fit-content;
+  max-inline-size: 40%;
+}
+
 .message-entry__role {
   padding-inline: 2px;
   color: var(--text-muted);
@@ -749,9 +754,11 @@
   }
 
   .message-entry__body,
-  .message-entry--user .message-entry__body {
+  .message-entry--user .message-entry__body,
+  .message-entry__body--compact {
     inline-size: 100%;
     max-inline-size: 100%;
+    width: 100%;
   }
 
   .chat-send-button {

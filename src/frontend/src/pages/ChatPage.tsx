@@ -325,12 +325,15 @@ export function ChatPage() {
                 <SurfaceCard className="chat-stream-card">
                   <div className="message-list">
                     {messages.map((message, index) => (
+                      (() => {
+                        const isCompactAssistantMessage = message.role === "assistant" && !message.action;
+                        return (
                       <div
                         key={`${message.role}-${index}-${message.content}`}
                         className={`message-entry message-entry--${message.role}`}
                       >
                         <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
-                        <div className="message-entry__body">
+                        <div className={`message-entry__body${isCompactAssistantMessage ? " message-entry__body--compact" : ""}`}>
                           <article
                             className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
                           >
@@ -361,6 +364,8 @@ export function ChatPage() {
                           ) : null}
                         </div>
                       </div>
+                        );
+                      })()
                     ))}
                     {chatMutation.isPending ? (
                       <div className="message-entry message-entry--assistant">
