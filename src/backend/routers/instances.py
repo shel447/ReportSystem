@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
-from ..chat_fork_service import fork_session_from_message, fork_session_from_template_instance
+from ..chat_fork_service import fork_session_from_message, fork_session_from_template_instance, update_session_from_template_instance
 from ..chat_session_service import ensure_session_metadata, truncate_text, visible_chat_messages
 from ..database import get_db
 from ..infrastructure.dependencies import build_instance_application_service
@@ -69,7 +69,7 @@ def get_instance_baseline(instance_id: str, db: Session = Depends(get_db)):
 def update_instance_chat(instance_id: str, db: Session = Depends(get_db)):
     _instance = _require_instance(db, instance_id)
     baseline = _require_generation_baseline(db, instance_id)
-    return fork_session_from_template_instance(db, template_instance=baseline)
+    return update_session_from_template_instance(db, template_instance=baseline)
 
 
 @router.get("/{instance_id}/fork-sources")

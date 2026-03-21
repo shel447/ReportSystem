@@ -22,6 +22,7 @@ from .param_dialog_service import normalize_parameters
 
 FORK_SUFFIX_LENGTH = 6
 FORK_ASSISTANT_REPLY = "参数已确认，请检查报告大纲。"
+UPDATE_ASSISTANT_REPLY = "已恢复确认大纲，请继续修改。"
 
 
 def build_visible_message_payload(
@@ -102,8 +103,45 @@ def fork_session_from_template_instance(
     *,
     template_instance: TemplateInstance,
 ) -> Dict[str, Any]:
+    return _build_outline_review_session_from_template_instance(
+        db,
+        template_instance=template_instance,
+        allowed_capture_stages={"outline_saved", "generation_baseline"},
+        reply_text=FORK_ASSISTANT_REPLY,
+        source_kind="template_instance",
+        source_preview=_template_instance_preview(template_instance),
+        source_report_instance_id=None,
+    )
+
+
+def update_session_from_template_instance(
+    db: Session,
+    *,
+    template_instance: TemplateInstance,
+) -> Dict[str, Any]:
+    return _build_outline_review_session_from_template_instance(
+        db,
+        template_instance=template_instance,
+        allowed_capture_stages={"outline_saved", "outline_confirmed", "generation_baseline"},
+        reply_text=UPDATE_ASSISTANT_REPLY,
+        source_kind="update_from_instance",
+        source_preview=_template_instance_preview(template_instance, for_update=True),
+        source_report_instance_id=template_instance.report_instance_id or None,
+    )
+
+
+def _build_outline_review_session_from_template_instance(
+    db: Session,
+    *,
+    template_instance: TemplateInstance,
+    allowed_capture_stages: set[str],
+    reply_text: str,
+    source_kind: str,
+    source_preview: str,
+    source_report_instance_id: str | None,
+) -> Dict[str, Any]:
     capture_stage = str(template_instance.capture_stage or "")
-    if capture_stage not in {"outline_saved", "generation_baseline"}:
+    if capture_stage not in allowed_capture_stages:
         raise HTTPException(status_code=409, detail="Only outline review snapshots can be forked")
 
     template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_instance.template_id).first()
@@ -139,14 +177,15 @@ def fork_session_from_template_instance(
     state["report"]["outline_review_warnings"] = warnings
 
     action = build_review_outline_action(state, template_params)
-    messages = [build_visible_message_payload("assistant", FORK_ASSISTANT_REPLY, action=action)]
+    messages = [build_visible_message_payload("assistant", reply_text, action=action)]
     messages = persist_state_to_history(messages, state, previous_state=None, min_turns=3)
 
     fork_meta = {
-        "source_kind": "template_instance",
+        "source_kind": source_kind,
         "source_template_instance_id": template_instance.template_instance_id,
+        "source_report_instance_id": source_report_instance_id,
         "source_title": template_instance.template_name or template.name or "确认大纲",
-        "source_preview": "确认大纲" if capture_stage == "generation_baseline" else "已保存大纲",
+        "source_preview": source_preview,
     }
     forked = ChatSession(
         session_id=fork_session_id,
@@ -163,6 +202,15 @@ def fork_session_from_template_instance(
     payload = serialize_chat_session_detail(forked)
     payload["draft_message"] = ""
     return payload
+
+
+def _template_instance_preview(template_instance: TemplateInstance, *, for_update: bool = False) -> str:
+    capture_stage = str(template_instance.capture_stage or "")
+    if for_update:
+        if capture_stage == "outline_confirmed":
+            return "确认大纲"
+        return "生成基线"
+    return "确认大纲" if capture_stage == "generation_baseline" else "已保存大纲"
 
 
 def _find_message_index(messages: List[Dict[str, Any]], message_id: str) -> int:

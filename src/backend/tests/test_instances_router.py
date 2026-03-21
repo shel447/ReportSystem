@@ -119,11 +119,40 @@ class InstancesRouterTests(unittest.TestCase):
             input_params={"scene": "旧实例"},
             outline_content=[],
         )
+        self.legacy_confirmed_instance = ReportInstance(
+            instance_id="inst-legacy-confirmed",
+            template_id="tpl-1",
+            input_params={"scene": "旧确认实例"},
+            outline_content=[],
+        )
         self.db.add(self.template)
         self.db.add(self.instance)
         self.db.add(self.source_session)
         self.db.add(self.template_instance)
         self.db.add(self.legacy_instance)
+        self.db.add(self.legacy_confirmed_instance)
+        self.db.add(
+            TemplateInstance(
+                template_instance_id="ti-legacy-confirmed",
+                template_id="tpl-1",
+                template_name="设备巡检报告",
+                template_version="1.0",
+                session_id="sess-legacy-confirmed",
+                capture_stage="outline_confirmed",
+                input_params_snapshot={"scene": "旧确认实例"},
+                outline_snapshot=[
+                    {
+                        "node_id": "legacy-node-1",
+                        "title": "旧确认章节",
+                        "description": "旧确认说明",
+                        "display_text": "旧确认章节：旧确认说明",
+                        "level": 1,
+                        "children": [],
+                    }
+                ],
+                report_instance_id="inst-legacy-confirmed",
+            )
+        )
         self.db.commit()
 
     def tearDown(self):
@@ -165,13 +194,28 @@ class InstancesRouterTests(unittest.TestCase):
     def test_update_instance_chat_restores_outline_review_from_generation_baseline(self):
         payload = update_instance_chat("inst-1", db=self.db)
 
-        self.assertEqual(payload["matched_template_id"], "tpl-1")
         visible = [
             item for item in payload["messages"]
             if item.get("role") in {"user", "assistant"} and (item.get("meta") or {}).get("type") != "context_state"
         ]
+
+        self.assertEqual(payload["matched_template_id"], "tpl-1")
+        self.assertEqual(len(visible), 1)
+        self.assertEqual(visible[0]["role"], "assistant")
         self.assertEqual(visible[-1]["action"]["type"], "review_outline")
-        self.assertEqual(payload["fork_meta"]["source_kind"], "template_instance")
+        self.assertEqual(payload["fork_meta"]["source_kind"], "update_from_instance")
+
+    def test_update_instance_chat_accepts_outline_confirmed_baseline(self):
+        payload = update_instance_chat("inst-legacy-confirmed", db=self.db)
+
+        visible = [
+            item for item in payload["messages"]
+            if item.get("role") in {"user", "assistant"} and (item.get("meta") or {}).get("type") != "context_state"
+        ]
+
+        self.assertEqual(len(visible), 1)
+        self.assertEqual(visible[0]["action"]["type"], "review_outline")
+        self.assertEqual(payload["fork_meta"]["source_kind"], "update_from_instance")
 
     def test_list_instance_fork_sources_and_fork_instance_chat_use_source_session(self):
         sources = list_instance_fork_sources("inst-1", db=self.db)
