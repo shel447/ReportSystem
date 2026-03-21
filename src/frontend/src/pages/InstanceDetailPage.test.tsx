@@ -182,6 +182,10 @@ describe("InstanceDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "查看确认大纲" }));
 
     expect(await screen.findByText("确认大纲：生成基线")).toBeInTheDocument();
+    expect(screen.getByText("report_date：2026-03-18")).toBeInTheDocument();
+    expect(screen.getByRole("tree")).toBeInTheDocument();
+    expect(screen.queryByText('"node_id": "node-1"')).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "新增同级章节 node-1" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "生成 Markdown" }));
 
@@ -303,6 +307,9 @@ describe("InstanceDetailPage", () => {
     renderInstanceDetailPage("/instances/inst-1?intent=update");
 
     expect(await screen.findByText("确认大纲：生成基线")).toBeInTheDocument();
+    expect(screen.getByText("report_date：2026-03-18")).toBeInTheDocument();
+    expect(screen.getByRole("tree")).toBeInTheDocument();
+    expect(screen.queryByText('"node_id": "node-1"')).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续到对话助手修改" })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(
       "/api/instances/inst-1/update-chat",

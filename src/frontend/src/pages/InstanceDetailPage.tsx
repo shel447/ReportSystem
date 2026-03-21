@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import type { OutlineNode } from "../entities/chat/types";
 import { createDocument, fetchDocuments } from "../entities/documents/api";
 import type { ReportDocument } from "../entities/documents/types";
 import {
@@ -12,8 +13,9 @@ import {
   regenerateSection,
   updateInstanceChat,
 } from "../entities/instances/api";
-import type { InstanceForkSource, InstanceSection } from "../entities/instances/types";
+import type { InstanceBaselineNode, InstanceForkSource, InstanceSection } from "../entities/instances/types";
 import { fetchTemplates } from "../entities/templates/api";
+import { OutlineTree } from "../features/chat-report-flow/components/OutlineTree";
 import { formatDateTime, formatFileSize, prettyJson } from "../shared/utils/format";
 import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
 import { PageIntroBar } from "../shared/layouts/PageIntroBar";
@@ -199,8 +201,15 @@ export function InstanceDetailPage() {
                     {showBaseline && baselineQuery.data ? (
                       <div className="detail-block detail-block--wide">
                         <p className="muted-text">更新预览：确认大纲 / 生成基线</p>
-                        <p className="muted-text">{buildOutlinePreviewLine(baselineQuery.data.outline)}</p>
-                        <pre>{prettyJson({ params: baselineQuery.data.params_snapshot, outline: baselineQuery.data.outline })}</pre>
+                        <div className="inline-panel">
+                          <strong>已确认参数</strong>
+                          <div className="reason-list">
+                            {formatBaselineParams(baselineQuery.data.params_snapshot).map((item) => (
+                              <span key={item}>{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <OutlineTree mode="readonly" nodes={toOutlineNodes(baselineQuery.data.outline)} />
                         {currentInstance.supports_update_chat ? (
                           <div className="action-row action-row--compact">
                             <button
@@ -369,18 +378,34 @@ function formatDataStatus(status: string) {
   return status;
 }
 
-function buildOutlinePreviewLine(nodes: Array<{ title?: string; description?: string; display_text?: string; children?: unknown[] }>) {
-  const firstNode = nodes && nodes.length > 0 ? nodes[0] : null;
-  if (!firstNode) {
-    return "确认大纲为空";
+function formatBaselineParams(paramsSnapshot: Record<string, unknown>) {
+  const entries = Object.entries(paramsSnapshot ?? {});
+  if (!entries.length) {
+    return ["暂无已确认参数"];
   }
-  if (typeof firstNode.display_text === "string" && firstNode.display_text.trim()) {
-    return firstNode.display_text;
+  return entries.map(([key, value]) => `${key}：${formatBaselineValue(value)}`);
+}
+
+function formatBaselineValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).join("、");
   }
-  const title = String(firstNode.title ?? "").trim();
-  const description = String(firstNode.description ?? "").trim();
-  if (title && description) {
-    return `${title}：${description}`;
+  if (value == null) {
+    return "";
   }
-  return title || description || "确认大纲";
+  return String(value);
+}
+
+function toOutlineNodes(nodes: InstanceBaselineNode[]): OutlineNode[] {
+  return (nodes ?? []).map((node) => ({
+    node_id: node.node_id,
+    title: node.title ?? "",
+    description: node.description ?? "",
+    level: node.level,
+    children: toOutlineNodes(node.children ?? []),
+    ...(node.display_text ? { display_text: node.display_text } : {}),
+    ...(node.dynamic_meta ? { dynamic_meta: node.dynamic_meta } : {}),
+    ...(typeof node.ai_generated === "boolean" ? { ai_generated: node.ai_generated } : {}),
+    ...(node.node_kind ? { node_kind: node.node_kind } : {}),
+  }));
 }

@@ -560,6 +560,12 @@
   color: var(--accent-strong);
 }
 
+.outline-tree__text {
+  min-width: 0;
+  color: var(--text-primary);
+  line-height: 1.7;
+}
+
 .outline-tree__inline-input {
   min-height: 40px;
   padding: 0 12px;
@@ -607,6 +613,10 @@
 .outline-tree__node.is-selected .outline-tree__toolbar {
   opacity: 1;
   pointer-events: auto;
+}
+
+.outline-tree--readonly .outline-tree__row {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
 .template-catalog-grid {

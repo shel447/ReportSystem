@@ -24,6 +24,9 @@ export type InstanceBaselineNode = {
   description?: string;
   display_text?: string;
   level: number;
+  dynamic_meta?: Record<string, unknown>;
+  ai_generated?: boolean;
+  node_kind?: "group" | "structured_leaf" | "freeform_leaf";
   children: InstanceBaselineNode[];
 };
 
