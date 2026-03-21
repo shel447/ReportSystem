@@ -9,7 +9,15 @@ type MockResponse = {
   json: () => Promise<unknown>;
 };
 
-function renderChatPage(route = "/chat") {
+type ChatRouteEntry =
+  | string
+  | {
+      pathname: string;
+      search?: string;
+      state?: unknown;
+    };
+
+function renderChatPage(route: ChatRouteEntry = "/chat") {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -457,6 +465,116 @@ describe("ChatPage", () => {
 
     expect(await screen.findByText("请提供参数。")).toBeInTheDocument();
     expect(screen.getByText("来源：设备巡检报告 copy_ab12cd · 来自历史消息")).toBeInTheDocument();
+  });
+
+  it("hydrates a prefetched update session immediately and labels the source as update", async () => {
+    let resolveSession: ((value: unknown) => void) | undefined;
+    const sessionResponse = new Promise((resolve) => {
+      resolveSession = resolve;
+    });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat/s-update" && !init?.method) {
+        return Promise.resolve(createJsonResponse(sessionResponse));
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage({
+      pathname: "/chat",
+      search: "?session_id=s-update",
+      state: {
+        prefetchedSession: {
+          session_id: "s-update",
+          title: "设备巡检报告 copy_ab12cd",
+          matched_template_id: "tpl-1",
+          fork_meta: {
+            source_kind: "update_from_instance",
+            source_title: "设备巡检报告",
+            source_preview: "确认大纲：生成基线",
+            source_report_instance_id: "inst-1",
+          },
+          messages: [
+            {
+              role: "assistant",
+              content: "参数已确认，请检查报告大纲。",
+              action: {
+                type: "review_outline",
+                template_name: "设备巡检报告",
+                template_id: "tpl-1",
+                warnings: [],
+                params_snapshot: [{ id: "report_date", label: "报告日期", value: "2026-03-19" }],
+                outline: [
+                  {
+                    node_id: "node-1",
+                    title: "确认大纲",
+                    description: "生成基线",
+                    display_text: "确认大纲：生成基线",
+                    level: 1,
+                    children: [],
+                  },
+                ],
+              },
+              created_at: "2026-03-20T12:00:00Z",
+              message_id: "msg-update-1",
+            },
+          ],
+        },
+      },
+    });
+
+    expect(await screen.findByText("参数已确认，请检查报告大纲。")).toBeInTheDocument();
+    expect(screen.getByText("更新来源")).toBeInTheDocument();
+    expect(screen.getByText("来源：设备巡检报告 · 来自确认大纲")).toBeInTheDocument();
+    expect(screen.queryByText("Fork 来源")).not.toBeInTheDocument();
+
+    resolveSession?.({
+      session_id: "s-update",
+      title: "设备巡检报告 copy_ab12cd",
+      matched_template_id: "tpl-1",
+      fork_meta: {
+        source_kind: "update_from_instance",
+        source_title: "设备巡检报告",
+        source_preview: "确认大纲：生成基线",
+        source_report_instance_id: "inst-1",
+      },
+      messages: [
+        {
+          role: "assistant",
+          content: "参数已确认，请检查报告大纲。",
+          action: {
+            type: "review_outline",
+            template_name: "设备巡检报告",
+            template_id: "tpl-1",
+            warnings: [],
+            params_snapshot: [{ id: "report_date", label: "报告日期", value: "2026-03-19" }],
+            outline: [
+              {
+                node_id: "node-1",
+                title: "确认大纲",
+                description: "生成基线",
+                display_text: "确认大纲：生成基线",
+                level: 1,
+                children: [],
+              },
+            ],
+          },
+          created_at: "2026-03-20T12:00:00Z",
+          message_id: "msg-update-1",
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/chat/s-update", undefined);
+    });
   });
 
   it("forks a user message into a new session and prefills the compose draft", async () => {

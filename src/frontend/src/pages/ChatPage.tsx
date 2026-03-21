@@ -1,10 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 
 import { deleteChatSession, fetchChatSession, fetchChatSessions, forkChatSession, sendChatMessage } from "../entities/chat/api";
-import type { ChatAction, ChatForkMeta, ChatForkResponse, ChatMessageItem, ChatRequest, ChatResponse, ChatSessionDetail } from "../entities/chat/types";
+import type {
+  ChatAction,
+  ChatForkMeta,
+  ChatForkResponse,
+  ChatMessageItem,
+  ChatRequest,
+  ChatResponse,
+  ChatSessionDetail,
+  ChatSessionPayload,
+} from "../entities/chat/types";
 import { fetchSystemSettings } from "../entities/system-settings/api";
 import { ChatActionPanel } from "../features/chat-report-flow/components/ChatActionPanel";
 import { ConversationLayout } from "../shared/layouts/ConversationLayout";
@@ -20,8 +29,13 @@ const DEFAULT_MESSAGES: ChatMessageItem[] = [
   },
 ];
 
+type ChatPageLocationState = {
+  prefetchedSession?: ChatSessionPayload | null;
+};
+
 export function ChatPage() {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [draft, setDraft] = useState("");
   const [sessionId, setSessionId] = useState("");
@@ -76,6 +90,8 @@ export function ChatPage() {
   const chatMutation = useMutation({
     mutationFn: (payload: ChatRequest) => sendChatMessage(payload),
   });
+  const prefetchedSession = (location.state as ChatPageLocationState | null | undefined)?.prefetchedSession ?? null;
+  const sessionSourceBanner = getSessionSourceBanner(activeForkMeta, sessionTitle);
 
   const latestAction = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -189,6 +205,19 @@ export function ChatPage() {
     void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
   };
 
+  const hydrateSessionSnapshot = (session: ChatSessionPayload) => {
+    setSessionId(session.session_id);
+    setActiveSessionId(session.session_id);
+    setSessionTitle(session.title ?? "");
+    setActiveForkMeta(session.fork_meta ?? null);
+    setDraft(session.draft_message ?? "");
+    setMenuMessageId("");
+    setMenuSessionId("");
+    setErrorMessage("");
+    setMessages(buildVisibleMessagesFromSession(session));
+    void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+  };
+
   const sendPayload = (payload: Omit<ChatRequest, "session_id">, optimisticContent: string) => {
     const requestViewRevision = viewRevisionRef.current;
     const request: ChatRequest = {
@@ -252,13 +281,7 @@ export function ChatPage() {
         if (viewRevisionRef.current !== nextViewRevision) {
           return;
         }
-        setSessionId(session.session_id);
-        setActiveSessionId(session.session_id);
-        setSessionTitle(session.title ?? "");
-        setActiveForkMeta(session.fork_meta ?? null);
-        setMenuSessionId("");
-        setMenuMessageId("");
-        setMessages(buildVisibleMessagesFromSession(session));
+        hydrateSessionSnapshot(session);
       },
       onError: (error) => {
         if (viewRevisionRef.current !== nextViewRevision) {
@@ -288,17 +311,18 @@ export function ChatPage() {
   };
 
   const applyForkedSession = (payload: ChatForkResponse) => {
-    setSessionId(payload.session_id);
-    setActiveSessionId(payload.session_id);
-    setSessionTitle(payload.title);
-    setActiveForkMeta(payload.fork_meta ?? null);
-    setDraft(payload.draft_message ?? "");
-    setMenuMessageId("");
-    setMenuSessionId("");
-    setErrorMessage("");
-    setMessages(buildVisibleMessagesFromSession(payload));
-    void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+    hydrateSessionSnapshot(payload);
   };
+
+  useEffect(() => {
+    if (!prefetchedSession) {
+      return;
+    }
+    if (prefetchedSession.session_id === activeSessionId && prefetchedSession.session_id === sessionId) {
+      return;
+    }
+    hydrateSessionSnapshot(prefetchedSession);
+  }, [activeSessionId, prefetchedSession, sessionId]);
 
   const runForkFromMessage = (messageId: string) => {
     const sourceSessionId = activeSessionId || sessionId;
@@ -447,9 +471,9 @@ export function ChatPage() {
                   <ChatInlineBanner title="请求失败">{errorMessage}</ChatInlineBanner>
                 ) : null}
 
-                {activeForkMeta ? (
-                  <ChatInlineBanner title="Fork 来源">
-                    {`来源：${sessionTitle || "未命名分支"} · ${activeForkMeta.source_kind === "template_instance" ? "来自确认大纲" : "来自历史消息"}`}
+                {sessionSourceBanner ? (
+                  <ChatInlineBanner title={sessionSourceBanner.title}>
+                    {sessionSourceBanner.body}
                   </ChatInlineBanner>
                 ) : null}
               </>
@@ -652,7 +676,7 @@ function buildVisibleMessages(response: ChatResponse, fallbackUserContent = ""):
   return normalizeVisibleMessages(response.messages ?? [], fallbackUserContent, response.reply, response.action ?? null);
 }
 
-function buildVisibleMessagesFromSession(session: ChatSessionDetail): ChatMessageItem[] {
+function buildVisibleMessagesFromSession(session: ChatSessionPayload | ChatSessionDetail): ChatMessageItem[] {
   return normalizeVisibleMessages(session.messages ?? []);
 }
 
@@ -694,6 +718,24 @@ function normalizeVisibleMessages(
 
 function isContextStateMessage(meta: unknown) {
   return typeof meta === "object" && meta !== null && "type" in meta && (meta as { type?: string }).type === "context_state";
+}
+
+function getSessionSourceBanner(meta: ChatForkMeta | null, sessionTitle: string) {
+  if (!meta) {
+    return null;
+  }
+
+  if (meta.source_kind === "update_from_instance") {
+    return {
+      title: "更新来源",
+      body: `来源：${meta.source_title || sessionTitle || "未命名会话"} · 来自确认大纲`,
+    };
+  }
+
+  return {
+    title: "Fork 来源",
+    body: `来源：${sessionTitle || meta.source_title || "未命名分支"} · ${meta.source_kind === "session_message" ? "来自历史消息" : "来自确认大纲"}`,
+  };
 }
 
 function formatChatTimestamp(timestamp: string) {

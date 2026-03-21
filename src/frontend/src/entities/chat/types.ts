@@ -91,12 +91,29 @@ export type ChatAction =
   | DownloadDocumentAction;
 
 export type ChatForkMeta = {
-  source_kind: "session_message" | "template_instance";
+  source_kind: "session_message" | "template_instance" | "update_from_instance";
   source_title: string;
   source_preview: string;
   source_session_id?: string;
   source_message_id?: string;
   source_template_instance_id?: string;
+  source_report_instance_id?: string;
+};
+
+export type ChatSessionPayload = {
+  session_id: string;
+  title?: string;
+  matched_template_id?: string | null;
+  fork_meta?: ChatForkMeta | null;
+  draft_message?: string;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: string;
+    action?: ChatAction | null;
+    created_at?: string;
+    message_id?: string;
+    meta?: unknown;
+  }>;
 };
 
 export type ChatMessageItem = {
@@ -124,14 +141,7 @@ export type ChatSessionDetail = {
   title?: string;
   matched_template_id?: string | null;
   fork_meta?: ChatForkMeta | null;
-  messages: Array<{
-    role: "user" | "assistant";
-    content: string;
-    action?: ChatAction | null;
-    created_at?: string;
-    message_id?: string;
-    meta?: unknown;
-  }>;
+  messages: ChatSessionPayload["messages"];
 };
 export type ChatResponse = {
   session_id: string;
@@ -140,28 +150,14 @@ export type ChatResponse = {
   action?: ChatAction | null;
   matched_template_id?: string | null;
   fork_meta?: ChatForkMeta | null;
-  messages?: Array<{
-    role: "user" | "assistant";
-    content: string;
-    action?: ChatAction | null;
-    created_at?: string;
-    message_id?: string;
-    meta?: unknown;
-  }>;
+  messages?: ChatSessionPayload["messages"];
 };
 
 export type ChatForkResponse = {
   session_id: string;
   title: string;
   matched_template_id?: string | null;
-  messages: Array<{
-    role: "user" | "assistant";
-    content: string;
-    action?: ChatAction | null;
-    created_at?: string;
-    message_id?: string;
-    meta?: unknown;
-  }>;
+  messages: ChatSessionPayload["messages"];
   draft_message?: string;
   fork_meta?: ChatForkMeta | null;
 };

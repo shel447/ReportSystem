@@ -15,10 +15,15 @@ function renderInstanceDetailPage(pathname = "/instances/inst-1") {
       <MemoryRouter initialEntries={[pathname]}>
         <Routes>
           <Route path="/instances/:instanceId" element={<InstanceDetailPage />} />
+          <Route path="/chat" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function LocationProbe() {
+  return <div data-testid="chat-location">chat-route</div>;
 }
 
 describe("InstanceDetailPage", () => {
@@ -73,7 +78,40 @@ describe("InstanceDetailPage", () => {
       if (url === "/api/instances/inst-1/update-chat" && init?.method === "POST") {
         return {
           ok: true,
-          json: async () => ({ session_id: "sess-update" }),
+          json: async () => ({
+            session_id: "sess-update",
+            title: "设备巡检报告 copy_ab12cd",
+            matched_template_id: "tpl-1",
+            fork_meta: {
+              source_kind: "update_from_instance",
+              source_title: "设备巡检报告",
+              source_preview: "确认大纲",
+              source_report_instance_id: "inst-1",
+            },
+            messages: [
+              {
+                role: "assistant",
+                content: "已恢复确认大纲，请继续修改。",
+                action: {
+                  type: "review_outline",
+                  template_name: "设备巡检报告",
+                  template_id: "tpl-1",
+                  warnings: [],
+                  params_snapshot: [{ id: "report_date", label: "报告日期", value: "2026-03-18" }],
+                  outline: [
+                    {
+                      node_id: "node-1",
+                      title: "确认大纲",
+                      description: "生成基线",
+                      display_text: "确认大纲：生成基线",
+                      level: 1,
+                      children: [],
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
         };
       }
       if (url === "/api/instances/inst-1/fork-sources" && !init?.method) {
@@ -160,6 +198,128 @@ describe("InstanceDetailPage", () => {
       "href",
       "/api/documents/doc-1/download",
     );
+  });
+
+  it("auto-expands update preview from intent query and only creates chat on explicit continue", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/instances/inst-1" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => ({
+            instance_id: "inst-1",
+            template_id: "tpl-1",
+            status: "generated",
+            input_params: { report_date: "2026-03-18" },
+            outline_content: [],
+            created_at: "2026-03-18T10:00:00",
+            updated_at: "2026-03-18T10:01:00",
+            has_generation_baseline: true,
+            supports_update_chat: true,
+            supports_fork_chat: true,
+          }),
+        };
+      }
+      if (url === "/api/instances/inst-1/baseline" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => ({
+            instance_id: "inst-1",
+            params_snapshot: { report_date: "2026-03-18" },
+            outline: [
+              {
+                node_id: "node-1",
+                title: "确认大纲",
+                description: "生成基线",
+                display_text: "确认大纲：生成基线",
+                level: 1,
+                children: [],
+              },
+            ],
+          }),
+        };
+      }
+      if (url === "/api/instances/inst-1/update-chat" && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({
+            session_id: "sess-update",
+            title: "设备巡检报告 copy_ab12cd",
+            matched_template_id: "tpl-1",
+            fork_meta: {
+              source_kind: "update_from_instance",
+              source_title: "设备巡检报告",
+              source_preview: "确认大纲",
+              source_report_instance_id: "inst-1",
+            },
+            messages: [
+              {
+                role: "assistant",
+                content: "已恢复确认大纲，请继续修改。",
+                action: {
+                  type: "review_outline",
+                  template_name: "设备巡检报告",
+                  template_id: "tpl-1",
+                  warnings: [],
+                  params_snapshot: [{ id: "report_date", label: "报告日期", value: "2026-03-18" }],
+                  outline: [
+                    {
+                      node_id: "node-1",
+                      title: "确认大纲",
+                      description: "生成基线",
+                      display_text: "确认大纲：生成基线",
+                      level: 1,
+                      children: [],
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        };
+      }
+      if (url === "/api/templates" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => [{ template_id: "tpl-1", name: "设备巡检报告", report_type: "daily" }],
+        };
+      }
+      if (url === "/api/documents?instance_id=inst-1" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => [],
+        };
+      }
+      if (url === "/api/instances/inst-1/fork-sources" && !init?.method) {
+        return {
+          ok: true,
+          json: async () => [],
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderInstanceDetailPage("/instances/inst-1?intent=update");
+
+    expect(await screen.findByText("确认大纲：生成基线")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "继续到对话助手修改" })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/instances/inst-1/update-chat",
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "继续到对话助手修改" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/instances/inst-1/update-chat",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-location")).toBeInTheDocument();
+    });
   });
 
   it("omits placeholder status chips for legacy sections without runtime markers", async () => {

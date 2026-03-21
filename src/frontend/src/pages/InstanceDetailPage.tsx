@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { createDocument, fetchDocuments } from "../entities/documents/api";
 import type { ReportDocument } from "../entities/documents/types";
@@ -24,12 +24,14 @@ import { SurfaceCard } from "../shared/ui/SurfaceCard";
 
 export function InstanceDetailPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { instanceId } = useParams<{ instanceId: string }>();
   const [errorMessage, setErrorMessage] = useState("");
   const [latestDocument, setLatestDocument] = useState<ReportDocument | null>(null);
   const [showBaseline, setShowBaseline] = useState(false);
   const [showForkPicker, setShowForkPicker] = useState(false);
+  const intent = useMemo(() => new URLSearchParams(location.search).get("intent") ?? "", [location.search]);
 
   const instanceDetailQuery = useQuery({
     queryKey: ["instance-detail", instanceId],
@@ -61,6 +63,12 @@ export function InstanceDetailPage() {
     setLatestDocument(latest);
   }, [documentsQuery.data]);
 
+  useEffect(() => {
+    if (intent === "update") {
+      setShowBaseline(true);
+    }
+  }, [intent]);
+
   const regenerateMutation = useMutation({
     mutationFn: ({ sectionIndex }: { sectionIndex: number }) => regenerateSection(instanceId!, sectionIndex),
     onSuccess: async (updated) => {
@@ -90,7 +98,9 @@ export function InstanceDetailPage() {
   const updateChatMutation = useMutation({
     mutationFn: () => updateInstanceChat(instanceId!),
     onSuccess: (payload) => {
-      navigate(`/chat?session_id=${payload.session_id}`);
+      navigate(`/chat?session_id=${payload.session_id}`, {
+        state: { prefetchedSession: payload },
+      });
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : "无法打开更新会话。");
@@ -139,7 +149,7 @@ export function InstanceDetailPage() {
                 actions={
                   <div className="action-row action-row--compact">
                     {currentInstance.supports_update_chat ? (
-                      <button className="ghost-button" type="button" onClick={() => updateChatMutation.mutate()}>
+                      <button className="ghost-button" type="button" onClick={() => setShowBaseline(true)}>
                         更新
                       </button>
                     ) : null}
@@ -188,8 +198,21 @@ export function InstanceDetailPage() {
                     </div>
                     {showBaseline && baselineQuery.data ? (
                       <div className="detail-block detail-block--wide">
-                        <p className="muted-text">确认大纲：生成基线</p>
+                        <p className="muted-text">更新预览：确认大纲 / 生成基线</p>
+                        <p className="muted-text">{buildOutlinePreviewLine(baselineQuery.data.outline)}</p>
                         <pre>{prettyJson({ params: baselineQuery.data.params_snapshot, outline: baselineQuery.data.outline })}</pre>
+                        {currentInstance.supports_update_chat ? (
+                          <div className="action-row action-row--compact">
+                            <button
+                              className="primary-button"
+                              type="button"
+                              onClick={() => updateChatMutation.mutate()}
+                              disabled={updateChatMutation.isPending}
+                            >
+                              {updateChatMutation.isPending ? "正在创建会话..." : "继续到对话助手修改"}
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                     {showForkPicker ? (
@@ -344,4 +367,20 @@ function formatDataStatus(status: string) {
     return "查询失败";
   }
   return status;
+}
+
+function buildOutlinePreviewLine(nodes: Array<{ title?: string; description?: string; display_text?: string; children?: unknown[] }>) {
+  const firstNode = nodes && nodes.length > 0 ? nodes[0] : null;
+  if (!firstNode) {
+    return "确认大纲为空";
+  }
+  if (typeof firstNode.display_text === "string" && firstNode.display_text.trim()) {
+    return firstNode.display_text;
+  }
+  const title = String(firstNode.title ?? "").trim();
+  const description = String(firstNode.description ?? "").trim();
+  if (title && description) {
+    return `${title}：${description}`;
+  }
+  return title || description || "确认大纲";
 }

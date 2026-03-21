@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import { InstancesPage } from "./InstancesPage";
 
@@ -12,11 +12,19 @@ function renderInstancesPage() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <InstancesPage />
+      <MemoryRouter initialEntries={["/instances"]}>
+        <Routes>
+          <Route path="/instances" element={<InstancesPage />} />
+          <Route path="/instances/:instanceId" element={<LocationProbe />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-probe">{`${location.pathname}${location.search}`}</div>;
 }
 
 describe("InstancesPage", () => {
@@ -40,12 +48,6 @@ describe("InstancesPage", () => {
               supports_fork_chat: true,
             },
           ],
-        };
-      }
-      if (url === "/api/instances/inst-1/update-chat") {
-        return {
-          ok: true,
-          json: async () => ({ session_id: "sess-updated" }),
         };
       }
       if (url === "/api/instances/inst-1/fork-sources") {
@@ -95,10 +97,7 @@ describe("InstancesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "更新" }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/instances/inst-1/update-chat",
-        expect.objectContaining({ method: "POST" }),
-      );
+      expect(screen.getByTestId("location-probe")).toHaveTextContent("/instances/inst-1?intent=update");
     });
   });
 });

@@ -100,6 +100,8 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 > 聊天消息和会话摘要额外返回：
 > - `message_id`
 > - `fork_meta`
+>
+> 当会话来源是报告实例更新时，`fork_meta.source_kind = update_from_instance`，聊天页应展示“更新来源”文案，而不是“Fork 来源”。
 
 ---
 
@@ -124,6 +126,10 @@ POST   /api/instances/{id}/finalize  # 确认实例，准备生成文档
 > - `supports_fork_chat`
 >
 > 对于历史数据，若实例没有内部生成基线，则这些能力标识为 `false`。
+>
+> `POST /api/instances/{id}/update-chat` 返回完整 `ChatSessionDetail`，而不是仅返回 `session_id`。返回会话的可见消息固定为 1 条 `assistant/review_outline`，并附带隐藏 `context_state`，用于直接继续大纲确认。
+>
+> 前端约定的交互流程为：实例列表点击“更新”先进入 `/instances/{id}?intent=update` 进行基线预览，用户显式点击“继续到对话助手修改”后才调用 `update-chat` 并跳转 `/chat?session_id=...`。
 
 ---
 

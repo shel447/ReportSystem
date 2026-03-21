@@ -37,7 +37,7 @@ class TemplateInstance:
 - `prepare_outline_review`：仅进入大纲确认，不落模板实例
 - `edit_outline`：只更新当前对话上下文中的待确认大纲
 - `confirm_outline_generation`：生成报告实例时，同时创建其唯一的 `generation_baseline` 快照
-- `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改
+- `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改（用户侧先在实例详情预览确认大纲，再显式进入对话）
 
 > `TemplateInstance` 现在不再是追加式历史记录。对每个新 `ReportInstance`，系统只保留一份对应的内部生成基线。
 
@@ -52,6 +52,10 @@ class TemplateInstance:
   - 待确认大纲
   - 大纲 warnings
 - 该恢复会话继续走对话式流程，但不会修改原始报告实例
+
+> 更新会话与 Fork 会话语义分离：
+> - 更新会话：`source_kind = update_from_instance`，只注入一个可见 `review_outline` 节点（不回放原会话前后消息）
+> - Fork 会话：沿用消息锚点分支语义，保留分支上下文链
 
 ---
 

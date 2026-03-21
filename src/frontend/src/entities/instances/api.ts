@@ -1,4 +1,5 @@
 import { postJson, requestJson } from "../../shared/api/http";
+import type { ChatSessionPayload } from "../chat/types";
 import type { InstanceBaseline, InstanceForkSource, ReportInstance } from "./types";
 
 export function fetchInstances() {
@@ -14,7 +15,7 @@ export function fetchInstanceBaseline(instanceId: string) {
 }
 
 export function updateInstanceChat(instanceId: string) {
-  return postJson<{ session_id: string }>(`/api/instances/${instanceId}/update-chat`, {});
+  return postJson<ChatSessionPayload>(`/api/instances/${instanceId}/update-chat`, {});
 }
 
 export function fetchInstanceForkSources(instanceId: string) {

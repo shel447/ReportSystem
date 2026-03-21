@@ -6,7 +6,6 @@ import {
   fetchInstanceForkSources,
   fetchInstances,
   forkInstanceChat,
-  updateInstanceChat,
 } from "../entities/instances/api";
 import type { InstanceForkSource } from "../entities/instances/types";
 import { fetchTemplates } from "../entities/templates/api";
@@ -30,13 +29,6 @@ export function InstancesPage() {
   const templatesQuery = useQuery({
     queryKey: ["templates"],
     queryFn: fetchTemplates,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: updateInstanceChat,
-    onSuccess: (payload) => {
-      navigate(`/chat?session_id=${payload.session_id}`);
-    },
   });
 
   const forkSourcesMutation = useMutation({
@@ -95,7 +87,7 @@ export function InstancesPage() {
                             <button
                               className="ghost-button"
                               type="button"
-                              onClick={() => updateMutation.mutate(instance.instance_id)}
+                              onClick={() => navigate(`/instances/${instance.instance_id}?intent=update`)}
                             >
                               更新
                             </button>
