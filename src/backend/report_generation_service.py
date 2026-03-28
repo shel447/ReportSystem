@@ -216,12 +216,16 @@ def _finalize_section(
         "status": status,
         "data_status": data_status,
         "debug": {
+            "strategy": str(debug.get("strategy") or "legacy"),
             "nl_request": str(debug.get("nl_request") or ""),
+            "schema_candidates": list(debug.get("schema_candidates") or []),
+            "query_spec": dict(debug.get("query_spec") or {}),
             "ibis_code": str(debug.get("ibis_code") or ""),
             "compiled_sql": str(debug.get("compiled_sql") or ""),
             "attempts": int(debug.get("attempts") or 0),
             "row_count": int(debug.get("row_count") or 0),
             "sample_rows": list(debug.get("sample_rows") or []),
+            "error_stage": str(debug.get("error_stage") or ""),
             "error_message": str(debug.get("error_message") or ""),
         },
     }

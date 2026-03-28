@@ -1,0 +1,44 @@
+[
+  {
+    "case_id": "site-list-top2",
+    "question": "列出前2个站点名称",
+    "category": "detail",
+    "expected_tables": ["dim_site"],
+    "expected_sql_features": ["FROM dim_site", "LIMIT 2"]
+  },
+  {
+    "case_id": "asset-count-by-category",
+    "question": "统计各资产类别数量",
+    "category": "aggregate",
+    "expected_tables": ["fact_asset_inventory"],
+    "expected_sql_features": ["GROUP BY", "COUNT("]
+  },
+  {
+    "case_id": "alarm-top-sites",
+    "question": "按告警数量统计 TOP 5 站点",
+    "category": "ranking",
+    "expected_tables": ["fact_alarm_event", "dim_site"],
+    "expected_sql_features": ["JOIN", "GROUP BY", "LIMIT 5"]
+  },
+  {
+    "case_id": "inspection-by-date",
+    "question": "查询 2026-03-06 的巡检站点列表",
+    "category": "time_filter",
+    "expected_tables": ["fact_site_inspection", "dim_site"],
+    "expected_sql_features": ["inspection_date", "2026-03-06"]
+  },
+  {
+    "case_id": "kpi-by-tech",
+    "question": "按制式统计平均 PRB 利用率",
+    "category": "join_aggregate",
+    "expected_tables": ["fact_cell_kpi_daily", "dim_cell"],
+    "expected_sql_features": ["JOIN", "GROUP BY", "AVG("]
+  },
+  {
+    "case_id": "report-section-site-status",
+    "question": "为巡检日报生成站点状态概览查询",
+    "category": "report_section",
+    "expected_tables": ["fact_site_inspection", "dim_site"],
+    "expected_sql_features": ["FROM", "JOIN"]
+  }
+]

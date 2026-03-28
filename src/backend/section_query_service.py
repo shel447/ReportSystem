@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List
 import ibis
 
 from .ai_gateway import AIRequestError, OpenAICompatGateway, ProviderConfig
+from .query_engine import QueryRequest, run_query
 from .telecom_demo_service import get_demo_db_path, get_schema_registry_text, open_demo_connection
 
 MAX_QUERY_RETRIES = 3
@@ -116,53 +117,29 @@ def generate_section_evidence(
     query_hint = str(section.get("data_query_hint") or "").strip()
     nl_request = _build_nl_request(template_context, section, params, query_hint, dynamic_meta)
 
-    last_error = ""
-    last_code = ""
-    last_sql = ""
-    attempts = 0
-
-    for attempt in range(1, MAX_QUERY_RETRIES + 1):
-        attempts = attempt
-        response = gateway.chat_completion(
-            config,
-            [
-                {
-                    "role": "system",
-                    "content": (
-                        "你是电信网络运维数据分析助手，负责把中文查询意图转成可执行的 Ibis Python 代码。"
-                        "你只能输出 Python 代码，不要解释，不要 Markdown 围栏。"
-                    ),
-                },
-                {"role": "user", "content": _build_query_prompt(nl_request, last_error)},
-            ],
-            temperature=min(config.temperature, 0.1),
-            max_tokens=900,
-        )
-        last_code = _extract_code_block(response["content"])
-        try:
-            execution = execute_ibis_code(last_code)
-            return {
-                "title": title,
-                "description": description,
-                "level": max(1, min(6, int(section.get("level") or 1))),
-                "dynamic_meta": dynamic_meta,
-                "data_status": "success",
-                "status": "generated",
-                "debug": {
-                    "nl_request": nl_request,
-                    "ibis_code": execution.ibis_code,
-                    "compiled_sql": execution.compiled_sql,
-                    "attempts": attempts,
-                    "row_count": execution.row_count,
-                    "sample_rows": execution.sample_rows,
-                    "error_message": "",
-                },
-                "query_model": response["model"],
-            }
-        except SectionQueryError as exc:
-            last_error = str(exc)
-            last_sql = _extract_sql_from_error(last_error, last_sql)
-
+    query_result = run_query(
+        gateway=gateway,
+        config=config,
+        request=QueryRequest(
+            nl_request=nl_request,
+            template_context=template_context,
+            section=section,
+            params=params,
+            query_hint=query_hint,
+            dynamic_meta=dynamic_meta,
+        ),
+    )
+    if query_result.success:
+        return {
+            "title": title,
+            "description": description,
+            "level": max(1, min(6, int(section.get("level") or 1))),
+            "dynamic_meta": dynamic_meta,
+            "data_status": "success",
+            "status": "generated",
+            "debug": query_result.debug,
+            "query_model": query_result.model,
+        }
     return {
         "title": title,
         "description": description,
@@ -170,16 +147,8 @@ def generate_section_evidence(
         "dynamic_meta": dynamic_meta,
         "data_status": "failed",
         "status": "failed",
-        "debug": {
-            "nl_request": nl_request,
-            "ibis_code": last_code,
-            "compiled_sql": last_sql,
-            "attempts": attempts,
-            "row_count": 0,
-            "sample_rows": [],
-            "error_message": last_error or "未生成出可执行查询。",
-        },
-        "query_model": config.model,
+        "debug": query_result.debug,
+        "query_model": query_result.model,
     }
 
 
@@ -431,4 +400,3 @@ class IbisAstValidator(ast.NodeVisitor):
                 raise SectionQueryError('访问 tables 时必须使用字符串字面量，例如 tables["dim_site"]。')
         self.visit(node.value)
         self.visit(node.slice)
-
