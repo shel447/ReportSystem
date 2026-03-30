@@ -75,6 +75,8 @@ const TIME_RANGE_WIDGET_LABELS = {
   relative_range: "相对时间",
 } as const;
 
+const OPERATOR_OPTIONS = [">=", ">", "<=", "<", "=", "!=", "包含", "不包含"] as const;
+
 const SELECTABLE_OUTLINE_BLOCK_TYPES = new Set<OutlineBlockType>(["indicator", "scope", "enum_select"]);
 
 const OUTLINE_SYNC_STATUS_LABELS = {
@@ -1284,7 +1286,61 @@ function OutlineBlockEditor({
           </>
         ) : null}
 
-        {!SELECTABLE_OUTLINE_BLOCK_TYPES.has(block.type) && block.type !== "param_ref" && block.type !== "time_range" ? (
+        {(block.type === "number" || block.type === "threshold") ? (
+          <label className="field">
+            <span className="field-label">数值默认值</span>
+            <input
+              aria-label={`数值默认值 ${blockLabel}`}
+              type="number"
+              value={block.defaultValue}
+              onChange={(event) => onChange((current) => {
+                current.defaultValue = event.target.value;
+              })}
+              placeholder="默认数值"
+            />
+          </label>
+        ) : null}
+
+        {block.type === "boolean" ? (
+          <label className="field">
+            <span className="field-label">布尔默认值</span>
+            <select
+              aria-label={`布尔默认值 ${blockLabel}`}
+              value={normalizeBooleanValue(block.defaultValue)}
+              onChange={(event) => onChange((current) => {
+                current.defaultValue = event.target.value;
+              })}
+            >
+              <option value="false">否</option>
+              <option value="true">是</option>
+            </select>
+          </label>
+        ) : null}
+
+        {block.type === "operator" ? (
+          <label className="field">
+            <span className="field-label">运算符默认值</span>
+            <select
+              aria-label={`运算符默认值 ${blockLabel}`}
+              value={normalizeOperatorValue(block.defaultValue)}
+              onChange={(event) => onChange((current) => {
+                current.defaultValue = event.target.value;
+              })}
+            >
+              {OPERATOR_OPTIONS.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {!SELECTABLE_OUTLINE_BLOCK_TYPES.has(block.type)
+          && block.type !== "param_ref"
+          && block.type !== "time_range"
+          && block.type !== "number"
+          && block.type !== "threshold"
+          && block.type !== "boolean"
+          && block.type !== "operator" ? (
           <label className="field">
             <span className="field-label">控件形态</span>
             <input
@@ -1298,7 +1354,7 @@ function OutlineBlockEditor({
           </label>
         ) : null}
 
-        {(block.type === "boolean" || block.type === "free_text" || block.type === "number" || block.type === "threshold" || block.type === "operator") ? (
+        {block.type === "free_text" ? (
           <label className="field field--checkbox">
             <input
               aria-label={`允许多值 ${blockLabel}`}
@@ -1416,6 +1472,14 @@ function normalizeTimeRangeWidget(widget: string) {
     return widget;
   }
   return "date_range";
+}
+
+function normalizeBooleanValue(value: string) {
+  return value === "true" ? "true" : "false";
+}
+
+function normalizeOperatorValue(value: string) {
+  return OPERATOR_OPTIONS.includes(value as (typeof OPERATOR_OPTIONS)[number]) ? value : ">=";
 }
 
 function cloneSection(section: WorkbenchSection): WorkbenchSection {

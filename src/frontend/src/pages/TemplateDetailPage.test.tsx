@@ -66,6 +66,30 @@ function buildTemplatePayload(name = "设备巡检报告") {
               hint: "场景来源",
               param_id: "scene",
             },
+            {
+              id: "top_n",
+              type: "number",
+              hint: "Top N",
+              default: "5",
+            },
+            {
+              id: "alarm_threshold",
+              type: "threshold",
+              hint: "阈值",
+              default: "80",
+            },
+            {
+              id: "include_closed_loop",
+              type: "boolean",
+              hint: "是否包含闭环",
+              default: "true",
+            },
+            {
+              id: "compare_operator",
+              type: "operator",
+              hint: "比较符",
+              default: ">=",
+            },
           ],
         },
         content: {
@@ -341,5 +365,36 @@ describe("TemplateDetailPage", () => {
 
     expect(await screen.findByLabelText("动态来源 focus_metric")).toBeInTheDocument();
     expect(screen.queryByLabelText("固定选项 focus_metric")).not.toBeInTheDocument();
+  });
+
+  it("renders specialized controls for number, threshold, boolean, and operator blocks", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/templates/tpl-1" && !init?.method) {
+          return {
+            ok: true,
+            json: async () => buildTemplatePayload(),
+          };
+        }
+        throw new Error(`Unexpected fetch ${url}`);
+      }),
+    );
+
+    renderTemplateDetailPage();
+
+    expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
+
+    expect(screen.getByLabelText("数值默认值 top_n")).toHaveAttribute("type", "number");
+    expect(screen.getByLabelText("数值默认值 alarm_threshold")).toHaveAttribute("type", "number");
+    expect(screen.getByLabelText("布尔默认值 include_closed_loop")).toHaveValue("true");
+    expect(screen.getByLabelText("运算符默认值 compare_operator")).toHaveValue(">=");
+
+    expect(screen.queryByLabelText("控件形态 top_n")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("控件形态 alarm_threshold")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("控件形态 include_closed_loop")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("控件形态 compare_operator")).not.toBeInTheDocument();
   });
 });
