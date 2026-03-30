@@ -67,8 +67,22 @@ describe("InstanceDetailPage", () => {
                 node_id: "node-1",
                 title: "确认大纲",
                 description: "生成基线",
-                display_text: "确认大纲：生成基线",
+                display_text: "分析 总部 的巡检情况",
                 level: 1,
+                node_kind: "structured_leaf",
+                ai_generated: false,
+                outline_instance: {
+                  document_template: "分析 {@target_scene} 的巡检情况",
+                  rendered_document: "分析 总部 的巡检情况",
+                  segments: [
+                    { kind: "text", text: "分析 " },
+                    { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                    { kind: "text", text: " 的巡检情况" },
+                  ],
+                  blocks: [
+                    { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
+                  ],
+                },
                 children: [],
               },
             ],
@@ -181,7 +195,9 @@ describe("InstanceDetailPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "查看确认大纲" }));
 
-    expect(await screen.findByText("确认大纲：生成基线")).toBeInTheDocument();
+    expect(await screen.findByText("分析")).toBeInTheDocument();
+    expect(screen.getByText("总部")).toHaveClass("outline-tree__block-chip--readonly");
+    expect(screen.getByText("总部")).toHaveAttribute("title", "参数：场景（scene）");
     expect(screen.getByText("report_date：2026-03-18")).toBeInTheDocument();
     expect(screen.getByRole("tree")).toBeInTheDocument();
     expect(screen.queryByText('"node_id": "node-1"')).not.toBeInTheDocument();
@@ -235,8 +251,22 @@ describe("InstanceDetailPage", () => {
                 node_id: "node-1",
                 title: "确认大纲",
                 description: "生成基线",
-                display_text: "确认大纲：生成基线",
+                display_text: "分析 总部 的巡检情况",
                 level: 1,
+                node_kind: "structured_leaf",
+                ai_generated: false,
+                outline_instance: {
+                  document_template: "分析 {@target_scene} 的巡检情况",
+                  rendered_document: "分析 总部 的巡检情况",
+                  segments: [
+                    { kind: "text", text: "分析 " },
+                    { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                    { kind: "text", text: " 的巡检情况" },
+                  ],
+                  blocks: [
+                    { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
+                  ],
+                },
                 children: [],
               },
             ],
@@ -306,7 +336,8 @@ describe("InstanceDetailPage", () => {
 
     renderInstanceDetailPage("/instances/inst-1?intent=update");
 
-    expect(await screen.findByText("确认大纲：生成基线")).toBeInTheDocument();
+    expect(await screen.findByText("分析")).toBeInTheDocument();
+    expect(screen.getByText("总部")).toHaveAttribute("title", "参数：场景（scene）");
     expect(screen.getByText("report_date：2026-03-18")).toBeInTheDocument();
     expect(screen.getByRole("tree")).toBeInTheDocument();
     expect(screen.queryByText('"node_id": "node-1"')).not.toBeInTheDocument();

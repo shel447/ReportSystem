@@ -379,6 +379,35 @@ function OutlineTreeNodeView({
     );
   };
 
+  const renderReadonlyContent = () => {
+    if (node.outline_instance?.segments?.length) {
+      return (
+        <div className="outline-tree__readonly-block">
+          {node.outline_instance.segments.map((segment, index) => {
+            if (segment.kind === "text") {
+              return (
+                <span key={`${node.node_id}-readonly-text-${index}`} className="outline-tree__segment-text">
+                  {segment.text}
+                </span>
+              );
+            }
+            const block = blockLookup.get(segment.block_id);
+            return (
+              <span
+                key={`${node.node_id}-readonly-block-${segment.block_id}-${index}`}
+                className="outline-tree__block-chip outline-tree__block-chip--readonly"
+                title={buildBlockTooltip(block, segment.block_id)}
+              >
+                {segment.value || block?.hint || segment.block_id}
+              </span>
+            );
+          })}
+        </div>
+      );
+    }
+    return <span className="outline-tree__text">{node.display_text}</span>;
+  };
+
   return (
     <div className={`outline-tree__node${selected ? " is-selected" : ""}`} style={{ paddingInlineStart: `${(node.level - 1) * 18}px` }}>
       <div className="outline-tree__row" role="treeitem" aria-expanded={hasChildren ? !collapsed : undefined} aria-level={node.level}>
@@ -399,11 +428,7 @@ function OutlineTreeNodeView({
           {node.ai_generated ? <span className="outline-tree__ai-badge">AI</span> : null}
         </div>
 
-        {mode === "editable" ? (
-          renderEditableContent()
-        ) : (
-          <span className="outline-tree__text">{node.display_text}</span>
-        )}
+        {mode === "editable" ? renderEditableContent() : renderReadonlyContent()}
 
         {mode === "editable" ? (
           <div className="outline-tree__toolbar" aria-hidden={disabled}>

@@ -27,6 +27,29 @@ export type InstanceBaselineNode = {
   dynamic_meta?: Record<string, unknown>;
   ai_generated?: boolean;
   node_kind?: "group" | "structured_leaf" | "freeform_leaf";
+  outline_instance?: {
+    document_template?: string;
+    rendered_document?: string;
+    segments?: Array<
+      | { kind: "text"; text: string }
+      | { kind: "block"; block_id: string; block_type?: string; value?: string }
+    >;
+    blocks?: Array<{
+      id: string;
+      type?: string;
+      hint?: string;
+      value?: string;
+      default?: string;
+      param_id?: string;
+      widget?: string;
+      source?: string;
+      options?: string[];
+    }>;
+  };
+  execution_bindings?: Array<{
+    block_id: string;
+    targets: string[];
+  }>;
   children: InstanceBaselineNode[];
 };
 

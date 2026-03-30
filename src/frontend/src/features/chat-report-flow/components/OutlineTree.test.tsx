@@ -45,6 +45,44 @@ describe("OutlineTree", () => {
     expect(screen.getByText("执行摘要：系统生成本节内容")).toBeInTheDocument();
   });
 
+  it("renders readonly structured blueprint nodes with readonly block chips and tooltip", () => {
+    render(
+      <OutlineTree
+        mode="readonly"
+        nodes={[
+          {
+            node_id: "node-readonly-structured",
+            title: "范围分析",
+            description: "",
+            level: 1,
+            display_text: "分析 总部 的巡检情况",
+            node_kind: "structured_leaf",
+            ai_generated: false,
+            children: [],
+            outline_instance: {
+              document_template: "分析 {@target_scene} 的巡检情况",
+              rendered_document: "分析 总部 的巡检情况",
+              segments: [
+                { kind: "text", text: "分析 " },
+                { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                { kind: "text", text: " 的巡检情况" },
+              ],
+              blocks: [
+                { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
+              ],
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("分析")).toBeInTheDocument();
+    const chip = screen.getByText("总部");
+    expect(chip).toHaveClass("outline-tree__block-chip", "outline-tree__block-chip--readonly");
+    expect(chip).toHaveAttribute("title", "参数：场景（scene）");
+    expect(screen.queryByText("分析 总部 的巡检情况")).not.toBeInTheDocument();
+  });
+
   it("renders editable blueprint nodes with inline block chips", () => {
     render(
       <OutlineTree

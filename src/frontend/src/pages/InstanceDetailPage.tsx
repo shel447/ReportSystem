@@ -407,5 +407,7 @@ function toOutlineNodes(nodes: InstanceBaselineNode[]): OutlineNode[] {
     ...(node.dynamic_meta ? { dynamic_meta: node.dynamic_meta } : {}),
     ...(typeof node.ai_generated === "boolean" ? { ai_generated: node.ai_generated } : {}),
     ...(node.node_kind ? { node_kind: node.node_kind } : {}),
+    ...(node.outline_instance ? { outline_instance: node.outline_instance } : {}),
+    ...(node.execution_bindings ? { execution_bindings: node.execution_bindings } : {}),
   }));
 }
