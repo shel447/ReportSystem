@@ -45,6 +45,7 @@ type OutlineDraftRow = {
   description: string;
   display_text: string;
   level: number;
+  outline_mode?: "structured" | "freeform";
   ai_generated: boolean;
   node_kind: "group" | "structured_leaf" | "freeform_leaf";
   dynamic_meta?: Record<string, unknown>;
@@ -328,14 +329,27 @@ function ReviewOutlinePanel({
   };
 
   const commitInlineEdit = (nodeId: string) => {
-    const { title, description } = parseDisplayText(draftDisplayText);
     setOutlineTree((current) =>
-      mapOutlineTree(current, nodeId, (node) => ({
-        ...node,
-        title,
-        description,
-        display_text: buildDisplayText(title, description),
-      })),
+      mapOutlineTree(current, nodeId, (node) => {
+        const nextDisplayText = draftDisplayText.trim();
+        const preserved = tryPreserveStructuredSentence(node, nextDisplayText);
+        if (preserved) {
+          return preserved;
+        }
+        const { title, description } = parseDisplayText(nextDisplayText);
+        const degradedNode: OutlineDraftNode = {
+          ...node,
+          title,
+          description,
+          display_text: buildDisplayText(title, description),
+          outline_mode: "freeform",
+          node_kind: node.children.length ? "group" : "freeform_leaf",
+          ai_generated: false,
+        };
+        delete degradedNode.outline_instance;
+        delete degradedNode.execution_bindings;
+        return degradedNode;
+      }),
     );
     setEditingNodeId(null);
     setDraftDisplayText("");
@@ -366,6 +380,7 @@ function ReviewOutlinePanel({
         return {
           ...node,
           display_text: renderedDocument || node.display_text,
+          outline_mode: undefined,
           outline_instance: {
             ...node.outline_instance,
             rendered_document: renderedDocument,
@@ -583,6 +598,7 @@ function flattenOutlineTree(nodes: OutlineDraftNode[]): OutlineDraftRow[] {
         description: item.description,
         display_text: item.display_text ?? buildDisplayText(item.title, item.description),
         level: item.level,
+        outline_mode: item.outline_mode,
         ai_generated: Boolean(item.ai_generated),
         node_kind: item.node_kind ?? (item.children?.length ? "group" : "freeform_leaf"),
         ...(item.dynamic_meta ? { dynamic_meta: item.dynamic_meta } : {}),
@@ -605,6 +621,7 @@ function buildOutlineTree(rows: OutlineDraftRow[]): OutlineDraftNode[] {
       description: row.description,
       display_text: row.display_text,
       level: row.level,
+      outline_mode: row.outline_mode,
       children: [],
       ai_generated: row.ai_generated,
       node_kind: row.node_kind,
@@ -636,6 +653,76 @@ function addSibling(rows: OutlineDraftRow[], nodeId: string): OutlineDraftRow[] 
   const next = [...rows];
   next.splice(insertAt, 0, createRow(target.level));
   return next;
+}
+
+function tryPreserveStructuredSentence(node: OutlineDraftNode, nextDisplayText: string): OutlineDraftNode | null {
+  if (!node.outline_instance?.segments?.length) {
+    return null;
+  }
+  const parsed = parseStructuredSentence(node.outline_instance.segments, nextDisplayText);
+  if (!parsed) {
+    return null;
+  }
+  const nextBlocks = (node.outline_instance.blocks ?? []).map((block) => ({
+    ...block,
+    value: parsed.blockValues.get(block.id) ?? block.value ?? "",
+  }));
+  const nextSegments = (node.outline_instance.segments ?? []).map((segment) =>
+    segment.kind === "block"
+      ? { ...segment, value: parsed.blockValues.get(segment.block_id) ?? segment.value ?? "" }
+      : segment,
+  );
+  const preservedNode: OutlineDraftNode = {
+    ...node,
+    display_text: nextDisplayText,
+    outline_mode: undefined,
+    outline_instance: {
+      ...node.outline_instance,
+      rendered_document: nextDisplayText,
+      blocks: nextBlocks,
+      segments: nextSegments,
+    },
+  };
+  return preservedNode;
+}
+
+function parseStructuredSentence(
+  segments: NonNullable<NonNullable<OutlineDraftNode["outline_instance"]>["segments"]>,
+  sentence: string,
+) {
+  const blockIds: string[] = [];
+  const pattern = segments
+    .map((segment) => {
+      if (segment.kind === "text") {
+        return escapeRegex(segment.text);
+      }
+      blockIds.push(segment.block_id);
+      return "(.*?)";
+    })
+    .join("");
+  const matcher = new RegExp(`^${pattern}$`);
+  const matched = sentence.match(matcher);
+  if (!matched) {
+    return null;
+  }
+  const blockValues = new Map<string, string>();
+  blockIds.forEach((blockId, index) => {
+    const nextValue = matched[index + 1] ?? "";
+    const currentValue = blockValues.get(blockId);
+    if (currentValue !== undefined && currentValue !== nextValue) {
+      blockValues.set(blockId, "__MISMATCH__");
+      return;
+    }
+    blockValues.set(blockId, nextValue);
+  });
+  if ([...blockValues.values()].some((value) => value === "__MISMATCH__")) {
+    return null;
+  }
+  return { blockValues };
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function addChild(rows: OutlineDraftRow[], nodeId: string): OutlineDraftRow[] {

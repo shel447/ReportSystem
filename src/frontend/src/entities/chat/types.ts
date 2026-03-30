@@ -49,6 +49,7 @@ export type OutlineNode = {
   description: string;
   level: number;
   children: OutlineNode[];
+  outline_mode?: "structured" | "freeform";
   dynamic_meta?: Record<string, unknown>;
   display_text?: string;
   ai_generated?: boolean;

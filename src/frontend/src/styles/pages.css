@@ -626,6 +626,11 @@
   background: rgba(37, 109, 130, 0.12);
 }
 
+.outline-tree__block-chip--param-ref {
+  border-style: dashed;
+  background: rgba(37, 109, 130, 0.06);
+}
+
 .outline-tree__block-chip--readonly {
   cursor: default;
   background: rgba(27, 36, 48, 0.06);

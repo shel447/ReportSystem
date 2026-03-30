@@ -333,6 +333,60 @@ class OutlineReviewServiceTests(unittest.TestCase):
             "展示 湿度",
         )
 
+    def test_merge_outline_override_degrades_structured_node_to_freeform(self):
+        current = [
+            {
+                "node_id": "node-2",
+                "title": "分析章节",
+                "description": "",
+                "level": 1,
+                "children": [],
+                "section_kind": "structured_leaf",
+                "source_kind": "v2",
+                "content": {
+                    "presentation": {
+                        "type": "text",
+                        "template": "展示 {@focus_metric}",
+                    }
+                },
+                "execution_bindings": [{"block_id": "focus_metric", "targets": ["presentation.template"]}],
+                "outline_instance": {
+                    "document_template": "分析 {@focus_metric} 的变化",
+                    "rendered_document": "分析 温度 的变化",
+                    "segments": [
+                        {"kind": "text", "text": "分析 "},
+                        {"kind": "block", "block_id": "focus_metric", "block_type": "indicator", "value": "温度"},
+                        {"kind": "text", "text": " 的变化"},
+                    ],
+                    "blocks": [
+                        {"id": "focus_metric", "type": "indicator", "hint": "指标", "value": "温度"},
+                    ],
+                },
+            }
+        ]
+        override = [
+            {
+                "node_id": "node-2",
+                "title": "重点分析 湿度 的变化",
+                "description": "",
+                "level": 1,
+                "children": [],
+                "outline_mode": "freeform",
+            }
+        ]
+
+        merged = merge_outline_override(current, override)
+        frontend = build_frontend_outline(merged)
+
+        self.assertEqual(merged[0]["section_kind"], "freeform_leaf")
+        self.assertEqual(merged[0]["source_kind"], "manual")
+        self.assertNotIn("outline_instance", merged[0])
+        self.assertNotIn("content", merged[0])
+        self.assertNotIn("resolved_content", merged[0])
+        self.assertNotIn("execution_bindings", merged[0])
+        self.assertEqual(frontend[0]["display_text"], "重点分析 湿度 的变化")
+        self.assertNotIn("outline_instance", frontend[0])
+
 
 if __name__ == "__main__":
     unittest.main()

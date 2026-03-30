@@ -158,7 +158,7 @@ describe("OutlineTree", () => {
     expect(screen.queryByLabelText("编辑区块值 period")).not.toBeInTheDocument();
   });
 
-  it("renders param_ref blocks as readonly chips", () => {
+  it("renders param_ref blocks as editable chips with hover tooltip", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -213,8 +213,9 @@ describe("OutlineTree", () => {
       />,
     );
 
-    expect(screen.getByText("总部")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "编辑区块 target_scene" })).not.toBeInTheDocument();
-    expect(screen.getByText("来自参数 scene")).toBeInTheDocument();
+    const chip = screen.getByRole("button", { name: "编辑区块 target_scene" });
+    expect(chip).toHaveTextContent("总部");
+    expect(chip).toHaveAttribute("title", "参数：场景（scene）");
+    expect(screen.queryByText("来自参数 scene")).not.toBeInTheDocument();
   });
 });

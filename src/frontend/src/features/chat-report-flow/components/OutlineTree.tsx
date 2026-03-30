@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { OutlineNode } from "../../../entities/chat/types";
 
 type OutlineBlock = NonNullable<NonNullable<OutlineNode["outline_instance"]>["blocks"]>[number];
-type BlockEditorMode = "readonly_param_ref" | "date_range" | "select" | "text";
+type BlockEditorMode = "date_range" | "select" | "text";
 
 export type OutlineDraftNode = Omit<OutlineNode, "children" | "display_text" | "ai_generated" | "node_kind"> & {
   display_text: string;
@@ -193,7 +193,7 @@ function OutlineTreeNodeView({
       : [];
 
   const renderEditableContent = () => {
-    if (editing && !hasStructuredOutline) {
+    if (editing) {
       return (
         <input
           className="outline-tree__inline-input"
@@ -220,7 +220,20 @@ function OutlineTreeNodeView({
 
     if (hasStructuredOutline) {
       return (
-        <div className="outline-tree__segments">
+        <div
+          className="outline-tree__segments"
+          onClick={(event) => {
+            if (disabled) {
+              return;
+            }
+            const target = event.target as HTMLElement;
+            if (target.closest("button,select,input")) {
+              return;
+            }
+            onSelectNode?.(node.node_id);
+            onBeginEdit?.(node);
+          }}
+        >
           {(node.outline_instance?.segments ?? []).map((segment, index) => {
             if (segment.kind === "text") {
               return (
@@ -234,16 +247,6 @@ function OutlineTreeNodeView({
             const editorMode = getBlockEditorMode(block);
             const options = block?.options ?? [];
             const isEditingBlock = editingBlockKey === blockKey;
-            if (editorMode === "readonly_param_ref") {
-              return (
-                <span key={blockKey} className="outline-tree__readonly-block">
-                  <span className="outline-tree__block-chip outline-tree__block-chip--readonly">
-                    {segment.value || block?.hint || segment.block_id}
-                  </span>
-                  <span className="outline-tree__block-meta">来自参数 {block?.param_id || segment.block_id}</span>
-                </span>
-              );
-            }
             if (isEditingBlock && editorMode === "date_range") {
               const draftRange = parseDateRangeValue(blockDraftValue);
               return (
@@ -341,10 +344,12 @@ function OutlineTreeNodeView({
               <button
                 key={blockKey}
                 type="button"
-                className="outline-tree__block-chip"
+                className={`outline-tree__block-chip${block?.type === "param_ref" ? " outline-tree__block-chip--param-ref" : ""}`}
                 aria-label={`编辑区块 ${segment.block_id}`}
+                title={buildBlockTooltip(block, segment.block_id)}
                 disabled={disabled}
-                onClick={() => {
+                onClick={(event) => {
+                  event.stopPropagation();
                   onSelectNode?.(node.node_id);
                   onBeginBlockEdit?.(node, segment.block_id);
                 }}
@@ -467,6 +472,7 @@ export function serializeOutlineTree(nodes: OutlineDraftNode[]): OutlineNode[] {
     description: node.description,
     level: node.level,
     children: serializeOutlineTree(node.children),
+    ...(node.outline_mode ? { outline_mode: node.outline_mode } : {}),
     ...(node.dynamic_meta ? { dynamic_meta: node.dynamic_meta } : {}),
     ...(node.outline_instance ? { outline_instance: node.outline_instance } : {}),
   }));
@@ -558,9 +564,6 @@ export function buildEditingBlockKey(nodeId: string, blockId: string) {
 function getBlockEditorMode(block: OutlineBlock | undefined): BlockEditorMode {
   const type = String(block?.type || "").trim();
   const widget = String(block?.widget || "").trim();
-  if (type === "param_ref") {
-    return "readonly_param_ref";
-  }
   if (type === "time_range" || widget === "date_range") {
     return "date_range";
   }
@@ -587,4 +590,16 @@ function formatDateRangeValue(start: string, end: string) {
     return `${start} 至 ${end}`;
   }
   return start || end || "";
+}
+
+function buildBlockTooltip(block: OutlineBlock | undefined, blockId: string) {
+  if (String(block?.type || "").trim() !== "param_ref") {
+    return undefined;
+  }
+  const hint = String(block?.hint || "").trim();
+  const paramId = String(block?.param_id || blockId).trim();
+  if (hint && paramId) {
+    return `参数：${hint}（${paramId}）`;
+  }
+  return paramId ? `参数：${paramId}` : "参数";
 }

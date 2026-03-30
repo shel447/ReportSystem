@@ -87,12 +87,22 @@ def _merge_outline_list(
             current["description"] = str(raw.get("description") or "").strip()
             current["level"] = level
             current["children"] = children
-        merged_outline_instance = _merge_outline_instance(raw.get("outline_instance"), current.get("outline_instance"))
-        if merged_outline_instance:
-            current["outline_instance"] = merged_outline_instance
+        outline_mode = str(raw.get("outline_mode") or "").strip()
+        if outline_mode == "freeform":
+            current.pop("outline_instance", None)
+            current.pop("execution_bindings", None)
+            current.pop("content", None)
+            current.pop("resolved_content", None)
+            current["source_kind"] = "manual"
+            current["section_kind"] = "group" if children else "freeform_leaf"
+        else:
+            merged_outline_instance = _merge_outline_instance(raw.get("outline_instance"), current.get("outline_instance"))
+            if merged_outline_instance:
+                current["outline_instance"] = merged_outline_instance
         current.pop("display_text", None)
         current.pop("ai_generated", None)
         current.pop("node_kind", None)
+        current.pop("outline_mode", None)
 
         if children:
             current["section_kind"] = "group"
