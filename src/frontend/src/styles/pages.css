@@ -604,8 +604,17 @@
   line-height: 1.7;
 }
 
+.outline-tree__segments--editing-block {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-inline-size: 100%;
+  scrollbar-width: thin;
+}
+
 .outline-tree__segment-text {
   color: var(--text-primary);
+  white-space: pre;
 }
 
 .outline-tree__block-chip {
@@ -654,6 +663,8 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .outline-tree__date-separator {
@@ -667,12 +678,14 @@
   min-width: 96px;
   padding: 0 10px;
   border-radius: 12px;
+  flex: 0 0 auto;
 }
 
 .outline-tree__block-date {
   min-height: 34px;
   padding: 0 10px;
   border-radius: 12px;
+  flex: 0 0 auto;
 }
 
 .outline-tree__inline-input {

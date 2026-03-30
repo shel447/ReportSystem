@@ -179,6 +179,8 @@ function OutlineTreeNodeView({
     (node.outline_instance?.blocks ?? []).map((block) => [block.id, block]),
   );
   const hasStructuredOutline = mode === "editable" && Boolean(node.outline_instance?.segments?.length);
+  const isEditingBlockWithinNode =
+    mode === "editable" && Boolean(editingBlockKey && editingBlockKey.startsWith(`${node.node_id}:`));
   const tools =
     mode === "editable"
       ? [
@@ -221,7 +223,7 @@ function OutlineTreeNodeView({
     if (hasStructuredOutline) {
       return (
         <div
-          className="outline-tree__segments"
+          className={`outline-tree__segments${isEditingBlockWithinNode ? " outline-tree__segments--editing-block" : ""}`}
           onClick={(event) => {
             if (disabled) {
               return;

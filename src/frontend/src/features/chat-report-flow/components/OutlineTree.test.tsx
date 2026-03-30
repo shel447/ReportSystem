@@ -218,4 +218,62 @@ describe("OutlineTree", () => {
     expect(chip).toHaveAttribute("title", "参数：场景（scene）");
     expect(screen.queryByText("来自参数 scene")).not.toBeInTheDocument();
   });
+
+  it("keeps structured sentence in single-line mode while a block is being edited", () => {
+    const { container } = render(
+      <OutlineTree
+        mode="editable"
+        nodes={[
+          {
+            node_id: "node-inline",
+            title: "范围分析",
+            description: "",
+            level: 1,
+            display_text: "分析 总部 的巡检情况",
+            node_kind: "structured_leaf",
+            ai_generated: false,
+            children: [],
+            outline_instance: {
+              document_template: "分析 {@target_scene} 的巡检情况",
+              rendered_document: "分析 总部 的巡检情况",
+              segments: [
+                { kind: "text", text: "分析 " },
+                { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                { kind: "text", text: " 的巡检情况" },
+              ],
+              blocks: [
+                { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
+              ],
+            },
+          },
+        ]}
+        collapsedNodeIds={new Set()}
+        editingNodeId={null}
+        selectedNodeId={null}
+        draftDisplayText=""
+        disabled={false}
+        onToggleCollapse={() => undefined}
+        onSelectNode={() => undefined}
+        onBeginEdit={() => undefined}
+        onDraftChange={() => undefined}
+        onCommitEdit={() => undefined}
+        onCancelEdit={() => undefined}
+        onAddSibling={() => undefined}
+        onAddChild={() => undefined}
+        onMoveUp={() => undefined}
+        onMoveDown={() => undefined}
+        onPromote={() => undefined}
+        onDemote={() => undefined}
+        onDelete={() => undefined}
+        onBeginBlockEdit={() => undefined}
+        onBlockDraftChange={() => undefined}
+        onCommitBlockEdit={() => undefined}
+        onCancelBlockEdit={() => undefined}
+        editingBlockKey={"node-inline:target_scene"}
+        blockDraftValue="总部"
+      />,
+    );
+
+    expect(container.querySelector(".outline-tree__segments--editing-block")).not.toBeNull();
+  });
 });
