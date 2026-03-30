@@ -35,6 +35,7 @@ function buildTemplatePayload(name = "设备巡检报告") {
     content_params: [],
     parameters: [
       { id: "date", label: "日期", input_type: "date", required: true },
+      { id: "scene", label: "场景", input_type: "enum", required: true, options: ["总部", "区域"] },
       { id: "devices", label: "设备列表", input_type: "dynamic", required: true, multi: true, source: "devices" },
     ],
     outline: [],
@@ -51,6 +52,19 @@ function buildTemplatePayload(name = "设备巡检报告") {
               default: "温度",
               options: ["温度", "湿度"],
               widget: "select",
+            },
+            {
+              id: "analysis_period",
+              type: "time_range",
+              hint: "分析周期",
+              default: "2026-03-01 至 2026-03-07",
+              widget: "date_range",
+            },
+            {
+              id: "target_scene",
+              type: "param_ref",
+              hint: "场景来源",
+              param_id: "scene",
             },
           ],
         },
@@ -101,6 +115,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.queryByText("parameters")).not.toBeInTheDocument();
     expect(screen.queryByText("sections")).not.toBeInTheDocument();
     expect(screen.getByText("参数工作台").closest(".surface-card")).toHaveClass("template-workbench__parameters");
+    fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
     expect(screen.getByRole("tab", { name: "蓝图" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "执行链路" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "同步状态" })).toBeInTheDocument();
@@ -287,5 +302,44 @@ describe("TemplateDetailPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "模板 JSON" }));
     expect(await screen.findByText("参数标识不能重复：date")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "保存模板" })).toBeDisabled();
+  });
+
+  it("renders typed outline block config controls in blueprint workbench", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/templates/tpl-1" && !init?.method) {
+          return {
+            ok: true,
+            json: async () => buildTemplatePayload(),
+          };
+        }
+        throw new Error(`Unexpected fetch ${url}`);
+      }),
+    );
+
+    renderTemplateDetailPage();
+
+    expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
+
+    expect(screen.getByLabelText("时间控件 analysis_period")).toHaveValue("date_range");
+    expect(screen.queryByLabelText("动态来源 analysis_period")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("固定选项 analysis_period")).not.toBeInTheDocument();
+
+    expect(screen.getByLabelText("绑定参数 target_scene")).toHaveValue("scene");
+    expect(screen.queryByLabelText("固定选项 target_scene")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("动态来源 target_scene")).not.toBeInTheDocument();
+
+    expect(screen.getByLabelText("选项来源 focus_metric")).toHaveValue("options");
+    expect(screen.getByLabelText("固定选项 focus_metric")).toHaveValue("温度, 湿度");
+
+    fireEvent.change(screen.getByLabelText("选项来源 focus_metric"), {
+      target: { value: "source" },
+    });
+
+    expect(await screen.findByLabelText("动态来源 focus_metric")).toBeInTheDocument();
+    expect(screen.queryByLabelText("固定选项 focus_metric")).not.toBeInTheDocument();
   });
 });

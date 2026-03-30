@@ -69,6 +69,14 @@ const OUTLINE_BLOCK_LABELS: Record<OutlineBlockType, string> = {
   param_ref: "参数引用",
 };
 
+const TIME_RANGE_WIDGET_LABELS = {
+  date: "单日期",
+  date_range: "日期区间",
+  relative_range: "相对时间",
+} as const;
+
+const SELECTABLE_OUTLINE_BLOCK_TYPES = new Set<OutlineBlockType>(["indicator", "scope", "enum_select"]);
+
 const OUTLINE_SYNC_STATUS_LABELS = {
   not_configured: "未启用蓝图",
   stale: "待同步",
@@ -706,34 +714,16 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                             onAdd={() => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.push(createOutlineBlock(section.outline.blocks)); } })}
                             onRemove={(index) => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.splice(index, 1); } })}
                             renderRow={(item, index) => (
-                              <div className="array-editor__stack">
-                                <div className="array-editor__inline-grid array-editor__inline-grid--triple">
-                                  <input value={item.id} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.id = event.target.value; } })} placeholder="区块 ID" />
-                                  <select value={item.type} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.type = event.target.value as OutlineBlockType; if (current.type !== "param_ref") { current.paramId = ""; } } })}>
-                                    {Object.entries(OUTLINE_BLOCK_LABELS).map(([key, label]) => (
-                                      <option key={key} value={key}>{label}</option>
-                                    ))}
-                                  </select>
-                                  <input value={item.hint} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.hint = event.target.value; } })} placeholder="提示语" />
-                                </div>
-                                <div className="array-editor__inline-grid array-editor__inline-grid--triple">
-                                  <input value={item.defaultValue} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.defaultValue = event.target.value; } })} placeholder="默认值" />
-                                  {item.type === "param_ref" ? (
-                                    <select value={item.paramId} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.paramId = event.target.value; } })}>
-                                      <option value="">绑定参数</option>
-                                      {value.parameters.map((parameter) => (
-                                        <option key={parameter.uiKey} value={parameter.id}>{parameter.label || parameter.id}</option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <input value={item.source} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.source = event.target.value; } })} placeholder="动态来源" />
-                                  )}
-                                  <input value={item.widget} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.widget = event.target.value; } })} placeholder="控件形态" />
-                                </div>
-                                {item.type !== "param_ref" ? (
-                                  <input value={item.options.join(", ")} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.options = splitCsv(event.target.value); } })} placeholder="候选项（逗号分隔）" />
-                                ) : null}
-                              </div>
+                              <OutlineBlockEditor
+                                block={item}
+                                parameters={value.parameters}
+                                onChange={(mutator) => updateSelectedSection((section) => {
+                                  const current = section.outline?.blocks[index];
+                                  if (current) {
+                                    mutator(current);
+                                  }
+                                })}
+                              />
                             )}
                           />
                         </div>
@@ -1147,6 +1137,185 @@ function FieldArrayEditor<T>({
   );
 }
 
+function OutlineBlockEditor({
+  block,
+  parameters,
+  onChange,
+}: {
+  block: WorkbenchOutlineBlock;
+  parameters: WorkbenchParameter[];
+  onChange: (mutator: (block: WorkbenchOutlineBlock) => void) => void;
+}) {
+  const blockLabel = block.id || block.uiKey;
+  const optionsMode = getOutlineBlockOptionsMode(block);
+
+  return (
+    <div className="outline-block-editor">
+      <div className="array-editor__inline-grid array-editor__inline-grid--triple">
+        <label className="field">
+          <span className="field-label">区块 ID</span>
+          <input
+            aria-label={`区块 ID ${blockLabel}`}
+            value={block.id}
+            onChange={(event) => onChange((current) => {
+              current.id = event.target.value;
+            })}
+            placeholder="区块 ID"
+          />
+        </label>
+        <label className="field">
+          <span className="field-label">区块类型</span>
+          <select
+            aria-label={`区块类型 ${blockLabel}`}
+            value={block.type}
+            onChange={(event) => onChange((current) => {
+              applyOutlineBlockType(current, event.target.value as OutlineBlockType);
+            })}
+          >
+            {Object.entries(OUTLINE_BLOCK_LABELS).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span className="field-label">提示语</span>
+          <input
+            aria-label={`提示语 ${blockLabel}`}
+            value={block.hint}
+            onChange={(event) => onChange((current) => {
+              current.hint = event.target.value;
+            })}
+            placeholder="提示语"
+          />
+        </label>
+      </div>
+
+      <div className="outline-block-editor__typed">
+        <label className="field">
+          <span className="field-label">默认值</span>
+          <input
+            aria-label={`默认值 ${blockLabel}`}
+            value={block.defaultValue}
+            onChange={(event) => onChange((current) => {
+              current.defaultValue = event.target.value;
+            })}
+            placeholder="默认值"
+          />
+        </label>
+
+        {block.type === "time_range" ? (
+          <label className="field">
+            <span className="field-label">时间控件</span>
+            <select
+              aria-label={`时间控件 ${blockLabel}`}
+              value={normalizeTimeRangeWidget(block.widget)}
+              onChange={(event) => onChange((current) => {
+                current.widget = event.target.value;
+              })}
+            >
+              {Object.entries(TIME_RANGE_WIDGET_LABELS).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {block.type === "param_ref" ? (
+          <>
+            <label className="field">
+              <span className="field-label">绑定参数</span>
+              <select
+                aria-label={`绑定参数 ${blockLabel}`}
+                value={block.paramId}
+                onChange={(event) => onChange((current) => {
+                  current.paramId = event.target.value;
+                })}
+              >
+                <option value="">绑定参数</option>
+                {parameters.map((parameter) => (
+                  <option key={parameter.uiKey} value={parameter.id}>{parameter.label || parameter.id}</option>
+                ))}
+              </select>
+            </label>
+            <p className="outline-block-editor__hint">该区块的取值直接来自全局参数，不在章节蓝图内重复配置选项。</p>
+          </>
+        ) : null}
+
+        {SELECTABLE_OUTLINE_BLOCK_TYPES.has(block.type) ? (
+          <>
+            <label className="field">
+              <span className="field-label">选项来源</span>
+              <select
+                aria-label={`选项来源 ${blockLabel}`}
+                value={optionsMode}
+                onChange={(event) => onChange((current) => {
+                  applyOutlineBlockOptionsMode(current, event.target.value as "options" | "source");
+                })}
+              >
+                <option value="options">固定选项</option>
+                <option value="source">动态来源</option>
+              </select>
+            </label>
+            {optionsMode === "options" ? (
+              <label className="field field--full">
+                <span className="field-label">固定选项</span>
+                <input
+                  aria-label={`固定选项 ${blockLabel}`}
+                  value={block.options.join(", ")}
+                  onChange={(event) => onChange((current) => {
+                    current.options = splitCsv(event.target.value);
+                  })}
+                  placeholder="候选项（逗号分隔）"
+                />
+              </label>
+            ) : (
+              <label className="field field--full">
+                <span className="field-label">动态来源</span>
+                <input
+                  aria-label={`动态来源 ${blockLabel}`}
+                  value={block.source}
+                  onChange={(event) => onChange((current) => {
+                    current.source = event.target.value;
+                  })}
+                  placeholder="动态来源"
+                />
+              </label>
+            )}
+          </>
+        ) : null}
+
+        {!SELECTABLE_OUTLINE_BLOCK_TYPES.has(block.type) && block.type !== "param_ref" && block.type !== "time_range" ? (
+          <label className="field">
+            <span className="field-label">控件形态</span>
+            <input
+              aria-label={`控件形态 ${blockLabel}`}
+              value={block.widget}
+              onChange={(event) => onChange((current) => {
+                current.widget = event.target.value;
+              })}
+              placeholder="控件形态"
+            />
+          </label>
+        ) : null}
+
+        {(block.type === "boolean" || block.type === "free_text" || block.type === "number" || block.type === "threshold" || block.type === "operator") ? (
+          <label className="field field--checkbox">
+            <input
+              aria-label={`允许多值 ${blockLabel}`}
+              type="checkbox"
+              checked={block.multi}
+              onChange={(event) => onChange((current) => {
+                current.multi = event.target.checked;
+              })}
+            />
+            <span>允许多值</span>
+          </label>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function createSection(): WorkbenchSection {
   return {
     uiKey: createUiKey("section"),
@@ -1192,6 +1361,61 @@ function createOutlineBlock(existing: WorkbenchOutlineBlock[]): WorkbenchOutline
     multi: false,
     widget: "",
   };
+}
+
+function applyOutlineBlockType(block: WorkbenchOutlineBlock, nextType: OutlineBlockType) {
+  block.type = nextType;
+  block.multi = false;
+
+  if (nextType === "param_ref") {
+    block.options = [];
+    block.source = "";
+    block.widget = "";
+    return;
+  }
+
+  block.paramId = "";
+
+  if (nextType === "time_range") {
+    block.options = [];
+    block.source = "";
+    block.widget = normalizeTimeRangeWidget(block.widget);
+    return;
+  }
+
+  if (SELECTABLE_OUTLINE_BLOCK_TYPES.has(nextType)) {
+    if (block.source.trim()) {
+      block.options = [];
+      block.widget = "dynamic_source";
+    } else {
+      block.source = "";
+      if (!block.widget.trim() || block.widget === "dynamic_source") {
+        block.widget = "select";
+      }
+    }
+    return;
+  }
+}
+
+function getOutlineBlockOptionsMode(block: WorkbenchOutlineBlock): "options" | "source" {
+  return block.widget === "dynamic_source" || block.source.trim() ? "source" : "options";
+}
+
+function applyOutlineBlockOptionsMode(block: WorkbenchOutlineBlock, mode: "options" | "source") {
+  if (mode === "options") {
+    block.source = "";
+    block.widget = "select";
+    return;
+  }
+  block.options = [];
+  block.widget = "dynamic_source";
+}
+
+function normalizeTimeRangeWidget(widget: string) {
+  if (widget === "date" || widget === "relative_range" || widget === "date_range") {
+    return widget;
+  }
+  return "date_range";
 }
 
 function cloneSection(section: WorkbenchSection): WorkbenchSection {
