@@ -361,6 +361,124 @@ describe("ChatActionPanel", () => {
     expect(degradedNode).not.toHaveProperty("outline_instance");
   });
 
+  it("commits pending sentence edits before confirm generation", () => {
+    const onSubmitOutline = vi.fn();
+    render(
+      <ChatActionPanel
+        action={{
+          type: "review_outline",
+          template_id: "tpl-5",
+          template_name: "指标分析报告",
+          warnings: [],
+          params_snapshot: [],
+          outline: [
+            {
+              node_id: "node-6",
+              title: "指标分析",
+              description: "",
+              level: 1,
+              display_text: "分析 温度 的变化",
+              node_kind: "structured_leaf",
+              ai_generated: false,
+              children: [],
+              outline_instance: {
+                document_template: "分析 {@metric} 的变化",
+                rendered_document: "分析 温度 的变化",
+                segments: [
+                  { kind: "text", text: "分析 " },
+                  { kind: "block", block_id: "metric", block_type: "indicator", value: "温度" },
+                  { kind: "text", text: " 的变化" },
+                ],
+                blocks: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
+              },
+            },
+          ],
+        }}
+        onSubmitParam={vi.fn()}
+        onSubmitOutline={onSubmitOutline}
+        onSelectTemplate={vi.fn()}
+        onCommand={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("分析"));
+    const input = screen.getByLabelText("编辑章节 node-6");
+    fireEvent.change(input, { target: { value: "重点分析 湿度 的变化" } });
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
+
+    expect(onSubmitOutline).toHaveBeenCalledWith(
+      "confirm_outline_generation",
+      expect.arrayContaining([
+        expect.objectContaining({
+          node_id: "node-6",
+          title: "重点分析 湿度 的变化",
+          description: "",
+          outline_mode: "freeform",
+        }),
+      ]),
+    );
+    const degradedNode = onSubmitOutline.mock.calls.at(-1)?.[1]?.[0];
+    expect(degradedNode).not.toHaveProperty("outline_instance");
+  });
+
+  it("commits pending block edits before confirm generation", () => {
+    const onSubmitOutline = vi.fn();
+    render(
+      <ChatActionPanel
+        action={{
+          type: "review_outline",
+          template_id: "tpl-6",
+          template_name: "指标分析报告",
+          warnings: [],
+          params_snapshot: [],
+          outline: [
+            {
+              node_id: "node-7",
+              title: "指标分析",
+              description: "",
+              level: 1,
+              display_text: "分析 总部 的变化",
+              node_kind: "structured_leaf",
+              ai_generated: false,
+              children: [],
+              outline_instance: {
+                document_template: "分析 {@target_scene} 的变化",
+                rendered_document: "分析 总部 的变化",
+                segments: [
+                  { kind: "text", text: "分析 " },
+                  { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                  { kind: "text", text: " 的变化" },
+                ],
+                blocks: [{ id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" }],
+              },
+            },
+          ],
+        }}
+        onSubmitParam={vi.fn()}
+        onSubmitOutline={onSubmitOutline}
+        onSelectTemplate={vi.fn()}
+        onCommand={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块 target_scene" }));
+    const input = screen.getByLabelText("编辑区块值 target_scene");
+    fireEvent.change(input, { target: { value: "分部" } });
+    fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
+
+    expect(onSubmitOutline).toHaveBeenCalledWith(
+      "confirm_outline_generation",
+      expect.arrayContaining([
+        expect.objectContaining({
+          outline_instance: expect.objectContaining({
+            rendered_document: "分析 分部 的变化",
+            blocks: expect.arrayContaining([expect.objectContaining({ id: "target_scene", value: "分部" })]),
+          }),
+        }),
+      ]),
+    );
+  });
+
   it("renders confirm_task_switch and triggers confirm or cancel commands", () => {
     const onCommand = vi.fn();
     render(

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type {
   AskParamAction,
@@ -311,92 +311,91 @@ function ReviewOutlinePanel({
   const [draftDisplayText, setDraftDisplayText] = useState("");
   const [editingBlockKey, setEditingBlockKey] = useState<string | null>(null);
   const [blockDraftValue, setBlockDraftValue] = useState("");
+  const outlineTreeRef = useRef<OutlineDraftNode[]>(normalizeOutlineTree(action.outline));
+  const editingNodeIdRef = useRef<string | null>(null);
+  const editingBlockKeyRef = useRef<string | null>(null);
+  const draftDisplayTextRef = useRef("");
+  const blockDraftValueRef = useRef("");
 
   useEffect(() => {
-    setOutlineTree(normalizeOutlineTree(action.outline));
+    const nextOutlineTree = normalizeOutlineTree(action.outline);
+    outlineTreeRef.current = nextOutlineTree;
+    setOutlineTree(nextOutlineTree);
     setCollapsedNodeIds(buildCollapsedNodeIds(action.outline));
     setEditingNodeId(null);
+    editingNodeIdRef.current = null;
     setSelectedNodeId(null);
     setDraftDisplayText("");
     setEditingBlockKey(null);
+    editingBlockKeyRef.current = null;
     setBlockDraftValue("");
+    draftDisplayTextRef.current = "";
+    blockDraftValueRef.current = "";
   }, [action]);
-
-  const currentOutline = serializeOutlineTree(outlineTree);
-
+  const syncOutlineTree = (nextTree: OutlineDraftNode[]) => {
+    outlineTreeRef.current = nextTree;
+    setOutlineTree(nextTree);
+    return nextTree;
+  };
+  const syncEditingNodeId = (value: string | null) => {
+    editingNodeIdRef.current = value;
+    setEditingNodeId(value);
+  };
+  const syncEditingBlockKey = (value: string | null) => {
+    editingBlockKeyRef.current = value;
+    setEditingBlockKey(value);
+  };
   const updateTree = (updater: (rows: OutlineDraftRow[]) => OutlineDraftRow[]) => {
-    setOutlineTree((current) => buildOutlineTree(updater(flattenOutlineTree(current))));
+    syncOutlineTree(buildOutlineTree(updater(flattenOutlineTree(outlineTreeRef.current))));
   };
 
   const commitInlineEdit = (nodeId: string) => {
-    setOutlineTree((current) =>
-      mapOutlineTree(current, nodeId, (node) => {
-        const nextDisplayText = draftDisplayText.trim();
-        const preserved = tryPreserveStructuredSentence(node, nextDisplayText);
-        if (preserved) {
-          return preserved;
-        }
-        const { title, description } = parseDisplayText(nextDisplayText);
-        const degradedNode: OutlineDraftNode = {
-          ...node,
-          title,
-          description,
-          display_text: buildDisplayText(title, description),
-          outline_mode: "freeform",
-          node_kind: node.children.length ? "group" : "freeform_leaf",
-          ai_generated: false,
-        };
-        delete degradedNode.outline_instance;
-        delete degradedNode.execution_bindings;
-        return degradedNode;
-      }),
-    );
-    setEditingNodeId(null);
+    syncOutlineTree(applyInlineEditToTree(outlineTreeRef.current, nodeId, draftDisplayTextRef.current));
+    syncEditingNodeId(null);
     setDraftDisplayText("");
+    draftDisplayTextRef.current = "";
   };
 
   const cancelInlineEdit = () => {
-    setEditingNodeId(null);
+    syncEditingNodeId(null);
     setDraftDisplayText("");
+    draftDisplayTextRef.current = "";
   };
 
   const commitBlockEdit = (nodeId: string, blockId: string) => {
-    const nextValue = blockDraftValue.trim();
-    setOutlineTree((current) =>
-      mapOutlineTree(current, nodeId, (node) => {
-        if (!node.outline_instance) {
-          return node;
-        }
-        const nextBlocks = (node.outline_instance.blocks ?? []).map((block) =>
-          block.id === blockId ? { ...block, value: nextValue } : block,
-        );
-        const nextSegments = (node.outline_instance.segments ?? []).map((segment) =>
-          segment.kind === "block" && segment.block_id === blockId ? { ...segment, value: nextValue } : segment,
-        );
-        const renderedDocument = nextSegments
-          .map((segment) => (segment.kind === "text" ? segment.text : segment.value ?? ""))
-          .join("")
-          .trim();
-        return {
-          ...node,
-          display_text: renderedDocument || node.display_text,
-          outline_mode: undefined,
-          outline_instance: {
-            ...node.outline_instance,
-            rendered_document: renderedDocument,
-            blocks: nextBlocks,
-            segments: nextSegments,
-          },
-        };
-      }),
-    );
-    setEditingBlockKey(null);
+    syncOutlineTree(applyBlockEditToTree(outlineTreeRef.current, nodeId, blockId, blockDraftValueRef.current));
+    syncEditingBlockKey(null);
     setBlockDraftValue("");
+    blockDraftValueRef.current = "";
   };
 
   const cancelBlockEdit = () => {
-    setEditingBlockKey(null);
+    syncEditingBlockKey(null);
     setBlockDraftValue("");
+    blockDraftValueRef.current = "";
+  };
+
+  const flushPendingOutlineEdits = () => {
+    let nextTree = outlineTreeRef.current;
+    if (editingNodeIdRef.current) {
+      nextTree = applyInlineEditToTree(nextTree, editingNodeIdRef.current, draftDisplayTextRef.current);
+    }
+    if (editingBlockKeyRef.current) {
+      const [nodeId, blockId] = editingBlockKeyRef.current.split(":");
+      if (nodeId && blockId) {
+        nextTree = applyBlockEditToTree(nextTree, nodeId, blockId, blockDraftValueRef.current);
+      }
+    }
+    if (nextTree !== outlineTreeRef.current) {
+      syncOutlineTree(nextTree);
+    }
+    syncEditingNodeId(null);
+    setDraftDisplayText("");
+    draftDisplayTextRef.current = "";
+    syncEditingBlockKey(null);
+    setBlockDraftValue("");
+    blockDraftValueRef.current = "";
+    return serializeOutlineTree(nextTree);
   };
 
   return (
@@ -458,21 +457,31 @@ function ReviewOutlinePanel({
         onSelectNode={setSelectedNodeId}
         onBeginEdit={(node) => {
           setSelectedNodeId(node.node_id);
-          setEditingBlockKey(null);
-          setEditingNodeId(node.node_id);
+          syncEditingBlockKey(null);
+          blockDraftValueRef.current = "";
+          syncEditingNodeId(node.node_id);
           setDraftDisplayText(node.display_text);
+          draftDisplayTextRef.current = node.display_text;
         }}
-        onDraftChange={setDraftDisplayText}
+        onDraftChange={(value) => {
+          draftDisplayTextRef.current = value;
+          setDraftDisplayText(value);
+        }}
         onCommitEdit={commitInlineEdit}
         onCancelEdit={cancelInlineEdit}
         onBeginBlockEdit={(node, blockId) => {
           const block = (node.outline_instance?.blocks ?? []).find((item) => item.id === blockId);
           setSelectedNodeId(node.node_id);
-          setEditingNodeId(null);
-          setEditingBlockKey(buildEditingBlockKey(node.node_id, blockId));
+          syncEditingNodeId(null);
+          draftDisplayTextRef.current = "";
+          syncEditingBlockKey(buildEditingBlockKey(node.node_id, blockId));
           setBlockDraftValue(block?.value ?? "");
+          blockDraftValueRef.current = block?.value ?? "";
         }}
-        onBlockDraftChange={setBlockDraftValue}
+        onBlockDraftChange={(value) => {
+          blockDraftValueRef.current = value;
+          setBlockDraftValue(value);
+        }}
         onCommitBlockEdit={commitBlockEdit}
         onCancelBlockEdit={cancelBlockEdit}
         onAddSibling={(nodeId) => updateTree((rows) => addSibling(rows, nodeId))}
@@ -498,7 +507,8 @@ function ReviewOutlinePanel({
           className="secondary-button"
           type="button"
           disabled={disabled}
-          onClick={() => onSubmitOutline("edit_outline", currentOutline)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSubmitOutline("edit_outline", flushPendingOutlineEdits())}
         >
           保存大纲
         </button>
@@ -506,7 +516,8 @@ function ReviewOutlinePanel({
           className="primary-button"
           type="button"
           disabled={disabled}
-          onClick={() => onSubmitOutline("confirm_outline_generation", currentOutline)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSubmitOutline("confirm_outline_generation", flushPendingOutlineEdits())}
         >
           确认生成
         </button>
@@ -653,6 +664,59 @@ function addSibling(rows: OutlineDraftRow[], nodeId: string): OutlineDraftRow[] 
   const next = [...rows];
   next.splice(insertAt, 0, createRow(target.level));
   return next;
+}
+
+function applyInlineEditToTree(nodes: OutlineDraftNode[], nodeId: string, draftDisplayText: string) {
+  return mapOutlineTree(nodes, nodeId, (node) => {
+    const nextDisplayText = draftDisplayText.trim();
+    const preserved = tryPreserveStructuredSentence(node, nextDisplayText);
+    if (preserved) {
+      return preserved;
+    }
+    const { title, description } = parseDisplayText(nextDisplayText);
+    const degradedNode: OutlineDraftNode = {
+      ...node,
+      title,
+      description,
+      display_text: buildDisplayText(title, description),
+      outline_mode: "freeform",
+      node_kind: node.children.length ? "group" : "freeform_leaf",
+      ai_generated: false,
+    };
+    delete degradedNode.outline_instance;
+    delete degradedNode.execution_bindings;
+    return degradedNode;
+  });
+}
+
+function applyBlockEditToTree(nodes: OutlineDraftNode[], nodeId: string, blockId: string, draftValue: string) {
+  const nextValue = draftValue.trim();
+  return mapOutlineTree(nodes, nodeId, (node) => {
+    if (!node.outline_instance) {
+      return node;
+    }
+    const nextBlocks = (node.outline_instance.blocks ?? []).map((block) =>
+      block.id === blockId ? { ...block, value: nextValue } : block,
+    );
+    const nextSegments = (node.outline_instance.segments ?? []).map((segment) =>
+      segment.kind === "block" && segment.block_id === blockId ? { ...segment, value: nextValue } : segment,
+    );
+    const renderedDocument = nextSegments
+      .map((segment) => (segment.kind === "text" ? segment.text : segment.value ?? ""))
+      .join("")
+      .trim();
+    return {
+      ...node,
+      display_text: renderedDocument || node.display_text,
+      outline_mode: undefined,
+      outline_instance: {
+        ...node.outline_instance,
+        rendered_document: renderedDocument,
+        blocks: nextBlocks,
+        segments: nextSegments,
+      },
+    };
+  });
 }
 
 function tryPreserveStructuredSentence(node: OutlineDraftNode, nextDisplayText: string): OutlineDraftNode | null {
