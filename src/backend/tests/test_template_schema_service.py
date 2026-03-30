@@ -139,6 +139,43 @@ class TemplateSchemaServiceTests(unittest.TestCase):
 
         self.assertEqual(validated["sections"][0]["content"]["presentation"]["dataset_id"], "inventory")
 
+    def test_validate_template_payload_accepts_section_outline_blueprint(self):
+        payload = {
+            "name": "设备健康报告",
+            "type": "设备健康评估",
+            "scene": "总部",
+            "parameters": [
+                {"id": "device_id", "label": "设备编号", "required": True, "input_type": "free_text"}
+            ],
+            "sections": [
+                {
+                    "title": "趋势分析",
+                    "outline": {
+                        "document": "分析 {@target_device} 在 {@analysis_period} 内的振动趋势",
+                        "blocks": [
+                            {"id": "target_device", "type": "param_ref", "hint": "目标设备", "param_id": "device_id"},
+                            {"id": "analysis_period", "type": "time_range", "hint": "分析周期", "default": "最近7天", "widget": "date_range"},
+                        ],
+                    },
+                    "content": {
+                        "datasets": [
+                            {
+                                "id": "trend",
+                                "source": {"kind": "nl2sql", "description": "查询 {@target_device} 在 {@analysis_period} 内的振动趋势"},
+                            }
+                        ],
+                        "presentation": {"type": "chart", "dataset_id": "trend", "chart_type": "line"},
+                    },
+                }
+            ],
+        }
+
+        validated = validate_template_payload(payload)
+
+        self.assertEqual(validated["sections"][0]["outline"]["document"], "分析 {@target_device} 在 {@analysis_period} 内的振动趋势")
+        self.assertEqual(validated["sections"][0]["outline"]["blocks"][0]["id"], "target_device")
+        self.assertEqual(validated["sections"][0]["outline"]["blocks"][1]["type"], "time_range")
+
     def test_validate_template_payload_rejects_invalid_v2_template(self):
         payload = {
             "name": "设备健康报告",

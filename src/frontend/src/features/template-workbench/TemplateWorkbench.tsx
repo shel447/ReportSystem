@@ -4,15 +4,18 @@ import { EmptyState } from "../../shared/ui/EmptyState";
 import { StatusBanner } from "../../shared/ui/StatusBanner";
 import { SurfaceCard } from "../../shared/ui/SurfaceCard";
 import { prettyJson } from "../../shared/utils/format";
-import { buildStructuralPreview } from "./preview";
+import { summarizeSectionOutlineBindings } from "./outlineBindings";
+import { buildBlueprintPreview, buildStructuralPreview } from "./preview";
 import type {
   DatasetSourceKind,
   LayoutType,
+  OutlineBlockType,
   ParameterInputType,
   TemplateWorkbenchState,
   WorkbenchCompositeSection,
   WorkbenchDataset,
   WorkbenchLayout,
+  WorkbenchOutlineBlock,
   WorkbenchParameter,
   WorkbenchSection,
 } from "./state";
@@ -53,12 +56,33 @@ const PRESENTATION_LABELS: Record<string, string> = {
   composite_table: "复合表",
 };
 
+const OUTLINE_BLOCK_LABELS: Record<OutlineBlockType, string> = {
+  indicator: "指标",
+  time_range: "时间范围",
+  scope: "范围",
+  threshold: "阈值",
+  operator: "运算符",
+  enum_select: "枚举选择",
+  number: "数值",
+  boolean: "布尔",
+  free_text: "自由文本",
+  param_ref: "参数引用",
+};
+
+const OUTLINE_SYNC_STATUS_LABELS = {
+  not_configured: "未启用蓝图",
+  stale: "待同步",
+  in_sync: "已同步",
+  compile_error: "引用异常",
+} as const;
+
 export function TemplateWorkbench({ value, onChange, onSave, savePending = false }: Props) {
   const [selectedParamKey, setSelectedParamKey] = useState("");
   const [selectedSectionKey, setSelectedSectionKey] = useState("");
   const [selectedDatasetKey, setSelectedDatasetKey] = useState("");
   const [selectedCompositeKey, setSelectedCompositeKey] = useState("");
-  const [previewTab, setPreviewTab] = useState<"structure" | "json">("structure");
+  const [selectedSectionTab, setSelectedSectionTab] = useState<"outline" | "execution" | "sync">("outline");
+  const [previewTab, setPreviewTab] = useState<"blueprint" | "execution" | "json">("blueprint");
   const [feedbackMessage, setFeedbackMessage] = useState("");
 
   const validationErrors = useMemo(() => validateWorkbench(value), [value]);
@@ -79,9 +103,14 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
   const selectedSection = useMemo(() => findSection(value.sections, selectedSectionKey), [selectedSectionKey, value.sections]);
   const selectedDataset = selectedSection?.content?.datasets.find((item) => item.uiKey === selectedDatasetKey) ?? null;
   const selectedCompositeSection = selectedSection?.content?.presentation.sections.find((item) => item.uiKey === selectedCompositeKey) ?? null;
-  const preview = useMemo(() => buildStructuralPreview(value), [value]);
+  const blueprintPreview = useMemo(() => buildBlueprintPreview(value), [value]);
+  const executionPreview = useMemo(() => buildStructuralPreview(value), [value]);
   const exportJson = useMemo(() => prettyJson(toTemplatePayload(value)), [value]);
   const foreachDisabled = selectedSection ? hasForeachAncestor(value.sections, selectedSection.uiKey) : false;
+  const selectedOutlineSummary = useMemo(
+    () => (selectedSection ? summarizeSectionOutlineBindings(selectedSection) : null),
+    [selectedSection],
+  );
   const saveDisabled = savePending || validationErrors.length > 0;
 
   useEffect(() => {
@@ -576,49 +605,152 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
             <div className="workbench-pane">
               {selectedSection ? (
                 <div className="template-workbench__detail">
-                  <div className="form-grid">
-                    <label className="field">
-                      <span className="field-label">章节标题</span>
-                      <input value={selectedSection.title} onChange={(event) => updateSelectedSection((section) => { section.title = event.target.value; })} />
-                    </label>
-                    <label className="field">
-                      <span className="field-label">章节模式</span>
-                      <select value={selectedSection.kind} onChange={(event) => updateSelectedSection((section) => { section.kind = event.target.value as WorkbenchSection["kind"]; if (section.kind === "group") { section.content = null; } else if (!section.content) { section.content = createSection().content; } })}>
-                        <option value="content">内容章节</option>
-                        <option value="group">目录章节</option>
-                      </select>
-                    </label>
-                    <label className="field field--full">
-                      <span className="field-label">章节说明</span>
-                      <textarea rows={3} value={selectedSection.description} onChange={(event) => updateSelectedSection((section) => { section.description = event.target.value; })} />
-                    </label>
+                  <div className="section-detail-tabs" role="tablist" aria-label="章节配置切换">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={selectedSectionTab === "outline"}
+                      className={`preview-tab ${selectedSectionTab === "outline" ? "is-active" : ""}`}
+                      onClick={() => setSelectedSectionTab("outline")}
+                    >
+                      蓝图
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={selectedSectionTab === "execution"}
+                      className={`preview-tab ${selectedSectionTab === "execution" ? "is-active" : ""}`}
+                      onClick={() => setSelectedSectionTab("execution")}
+                    >
+                      执行链路
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={selectedSectionTab === "sync"}
+                      className={`preview-tab ${selectedSectionTab === "sync" ? "is-active" : ""}`}
+                      onClick={() => setSelectedSectionTab("sync")}
+                    >
+                      同步状态
+                    </button>
                   </div>
-                  <div className="inline-panel">
-                    <label className="field field--checkbox">
-                      <span className="field-label">按参数重复生成章节</span>
-                      <label className="choice-chip active">
-                        <input type="checkbox" checked={selectedSection.foreachEnabled} onChange={(event) => updateSelectedSection((section) => { section.foreachEnabled = event.target.checked; if (!event.target.checked) { section.foreachParam = ""; section.foreachAlias = "item"; } })} />
-                        <span>开启 foreach</span>
-                      </label>
-                    </label>
-                    {selectedSection.foreachEnabled && (
+
+                  {selectedSectionTab === "outline" ? (
+                    <div className="template-workbench__detail" role="tabpanel" aria-label="蓝图">
                       <div className="form-grid">
                         <label className="field">
-                          <span className="field-label">来源参数</span>
-                          <select value={selectedSection.foreachParam} onChange={(event) => updateSelectedSection((section) => { section.foreachParam = event.target.value; })}>
-                            <option value="">请选择多值参数</option>
-                            {value.parameters.filter((item) => item.multi).map((item) => (
-                              <option key={item.uiKey} value={item.id}>{item.label || item.id}</option>
-                            ))}
-                          </select>
+                          <span className="field-label">章节标题</span>
+                          <input value={selectedSection.title} onChange={(event) => updateSelectedSection((section) => { section.title = event.target.value; })} />
                         </label>
                         <label className="field">
-                          <span className="field-label">循环别名</span>
-                          <input value={selectedSection.foreachAlias} onChange={(event) => updateSelectedSection((section) => { section.foreachAlias = event.target.value; })} />
+                          <span className="field-label">章节模式</span>
+                          <select value={selectedSection.kind} onChange={(event) => updateSelectedSection((section) => { section.kind = event.target.value as WorkbenchSection["kind"]; if (section.kind === "group") { section.content = null; } else if (!section.content) { section.content = createSection().content; } })}>
+                            <option value="content">内容章节</option>
+                            <option value="group">目录章节</option>
+                          </select>
+                        </label>
+                        <label className="field field--full">
+                          <span className="field-label">章节说明</span>
+                          <textarea rows={3} value={selectedSection.description} onChange={(event) => updateSelectedSection((section) => { section.description = event.target.value; })} />
                         </label>
                       </div>
-                    )}
-                  </div>
+                      <div className="inline-panel">
+                        <label className="field field--checkbox">
+                          <span className="field-label">按参数重复生成章节</span>
+                          <label className="choice-chip active">
+                            <input type="checkbox" checked={selectedSection.foreachEnabled} onChange={(event) => updateSelectedSection((section) => { section.foreachEnabled = event.target.checked; if (!event.target.checked) { section.foreachParam = ""; section.foreachAlias = "item"; } })} />
+                            <span>开启 foreach</span>
+                          </label>
+                        </label>
+                        {selectedSection.foreachEnabled ? (
+                          <div className="form-grid">
+                            <label className="field">
+                              <span className="field-label">来源参数</span>
+                              <select value={selectedSection.foreachParam} onChange={(event) => updateSelectedSection((section) => { section.foreachParam = event.target.value; })}>
+                                <option value="">请选择多值参数</option>
+                                {value.parameters.filter((item) => item.multi).map((item) => (
+                                  <option key={item.uiKey} value={item.id}>{item.label || item.id}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="field">
+                              <span className="field-label">循环别名</span>
+                              <input value={selectedSection.foreachAlias} onChange={(event) => updateSelectedSection((section) => { section.foreachAlias = event.target.value; })} />
+                            </label>
+                          </div>
+                        ) : null}
+                      </div>
+                      {selectedSection.outline ? (
+                        <div className="editor-block">
+                          <div className="list-header">
+                            <div>
+                              <p className="section-kicker">Outline</p>
+                              <h4>蓝图定义</h4>
+                              <p className="muted-text">面向用户的章节文稿，支持插入 {`{@block_id}`} 与全局参数占位符。</p>
+                            </div>
+                            <div className="action-row action-row--compact">
+                              <button className="secondary-button" type="button" onClick={() => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.push(createOutlineBlock(section.outline.blocks)); } })}>新增区块</button>
+                              <button className="ghost-button" type="button" onClick={() => updateSelectedSection((section) => { section.outline = null; })}>移除蓝图</button>
+                            </div>
+                          </div>
+                          <div className="form-grid">
+                            <label className="field field--full">
+                              <span className="field-label">蓝图文稿</span>
+                              <textarea aria-label="蓝图文稿" rows={4} value={selectedSection.outline.document} onChange={(event) => updateSelectedSection((section) => { if (section.outline) { section.outline.document = event.target.value; } })} />
+                            </label>
+                          </div>
+                          <FieldArrayEditor
+                            title="蓝图区块"
+                            actionLabel="新增区块"
+                            items={selectedSection.outline.blocks}
+                            onAdd={() => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.push(createOutlineBlock(section.outline.blocks)); } })}
+                            onRemove={(index) => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.splice(index, 1); } })}
+                            renderRow={(item, index) => (
+                              <div className="array-editor__stack">
+                                <div className="array-editor__inline-grid array-editor__inline-grid--triple">
+                                  <input value={item.id} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.id = event.target.value; } })} placeholder="区块 ID" />
+                                  <select value={item.type} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.type = event.target.value as OutlineBlockType; if (current.type !== "param_ref") { current.paramId = ""; } } })}>
+                                    {Object.entries(OUTLINE_BLOCK_LABELS).map(([key, label]) => (
+                                      <option key={key} value={key}>{label}</option>
+                                    ))}
+                                  </select>
+                                  <input value={item.hint} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.hint = event.target.value; } })} placeholder="提示语" />
+                                </div>
+                                <div className="array-editor__inline-grid array-editor__inline-grid--triple">
+                                  <input value={item.defaultValue} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.defaultValue = event.target.value; } })} placeholder="默认值" />
+                                  {item.type === "param_ref" ? (
+                                    <select value={item.paramId} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.paramId = event.target.value; } })}>
+                                      <option value="">绑定参数</option>
+                                      {value.parameters.map((parameter) => (
+                                        <option key={parameter.uiKey} value={parameter.id}>{parameter.label || parameter.id}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <input value={item.source} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.source = event.target.value; } })} placeholder="动态来源" />
+                                  )}
+                                  <input value={item.widget} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.widget = event.target.value; } })} placeholder="控件形态" />
+                                </div>
+                                {item.type !== "param_ref" ? (
+                                  <input value={item.options.join(", ")} onChange={(event) => updateSelectedSection((section) => { const current = section.outline?.blocks[index]; if (current) { current.options = splitCsv(event.target.value); } })} placeholder="候选项（逗号分隔）" />
+                                ) : null}
+                              </div>
+                            )}
+                          />
+                        </div>
+                      ) : (
+                        <div className="inline-panel">
+                          <p>当前章节尚未启用蓝图。启用后可配置 document + blocks[] 作为用户侧大纲抽象。</p>
+                          <button className="secondary-button" type="button" onClick={() => updateSelectedSection((section) => { section.outline = createOutlineBlueprint(); })}>启用蓝图</button>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {selectedSectionTab === "execution" ? (
+                    <div role="tabpanel" aria-label="执行链路">
+                      <div className="inline-panel">
+                        <p>执行链路面向系统内部生成。这里可以继续使用 {`{param}`}、{`{$var}`} 与 {`{@block_id}`} 引用蓝图值。</p>
+                      </div>
                   {selectedSection.kind === "content" && selectedSection.content ? (
                     <div className="template-workbench__detail">
                       <div className="editor-block">
@@ -821,6 +953,52 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                   ) : (
                     <div className="inline-panel"><p>当前为目录章节，仅维护子章节结构。</p></div>
                   )}
+                    </div>
+                  ) : null}
+
+                  {selectedSectionTab === "sync" ? (
+                    <div className="inline-panel sync-panel" role="tabpanel" aria-label="同步状态">
+                      <div className="sync-panel__header">
+                        <span className={`status-chip status-chip--${selectedOutlineSummary?.status ?? "not_configured"}`}>{OUTLINE_SYNC_STATUS_LABELS[selectedOutlineSummary?.status ?? "not_configured"]}</span>
+                        <span className="muted-text">
+                          {selectedOutlineSummary?.status === "in_sync" ? `执行链路已引用 ${selectedOutlineSummary.bindings.length} 个蓝图区块。` : null}
+                          {selectedOutlineSummary?.status === "stale" ? "已配置蓝图，但执行链路还没有使用任何蓝图区块引用。" : null}
+                          {selectedOutlineSummary?.status === "not_configured" ? "当前章节尚未启用蓝图。执行链路仍可独立维护。" : null}
+                          {selectedOutlineSummary?.status === "compile_error" ? "执行链路中存在无法解析的 {@block_id} 引用。" : null}
+                        </span>
+                      </div>
+                      {selectedOutlineSummary?.bindings.length ? (
+                        <div className="sync-panel__group">
+                          <strong>已引用区块</strong>
+                          <ul className="validation-list">
+                            {selectedOutlineSummary.bindings.map((binding) => (
+                              <li key={binding.blockId}>{binding.blockId} · {binding.targets.join(" / ")}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {selectedOutlineSummary?.invalidBlockIds.length ? (
+                        <div className="sync-panel__group">
+                          <strong>异常引用</strong>
+                          <ul className="validation-list">
+                            {selectedOutlineSummary.invalidBlockIds.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {selectedSection.outline?.blocks.length ? (
+                        <div className="sync-panel__group">
+                          <strong>当前蓝图区块</strong>
+                          <div className="chip-grid">
+                            {selectedSection.outline.blocks.map((block) => (
+                              <span key={block.uiKey} className="inline-badge">{block.id || "未命名区块"}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyState title="未选择章节" description="从左侧选择一个章节进行编辑。" />
@@ -833,18 +1011,27 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
             <div>
               <p className="section-kicker">Preview</p>
               <h3>结构预览</h3>
-              <p className="muted-text">展示参数替换和 foreach 展开后的结构效果。</p>
+              <p className="muted-text">切换查看蓝图层、执行层和模板 JSON。</p>
             </div>
           </div>
           <div className="preview-tabs" role="tablist" aria-label="结构预览切换">
             <button
               type="button"
               role="tab"
-              aria-selected={previewTab === "structure"}
-              className={`preview-tab ${previewTab === "structure" ? "is-active" : ""}`}
-              onClick={() => setPreviewTab("structure")}
+              aria-selected={previewTab === "blueprint"}
+              className={`preview-tab ${previewTab === "blueprint" ? "is-active" : ""}`}
+              onClick={() => setPreviewTab("blueprint")}
             >
-              结构预览
+              蓝图预览
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={previewTab === "execution"}
+              className={`preview-tab ${previewTab === "execution" ? "is-active" : ""}`}
+              onClick={() => setPreviewTab("execution")}
+            >
+              执行预览
             </button>
             <button
               type="button"
@@ -856,10 +1043,10 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
               模板 JSON
             </button>
           </div>
-          {previewTab === "structure" ? (
-            <div className="preview-stack" role="tabpanel" aria-label="结构预览">
-              {preview.sections.length ? (
-                preview.sections.map((item, index) => (
+          {previewTab === "blueprint" ? (
+            <div className="preview-stack" role="tabpanel" aria-label="蓝图预览">
+              {blueprintPreview.sections.length ? (
+                blueprintPreview.sections.map((item, index) => (
                   <article key={`${item.title}-${index}`} className="preview-section" data-level={item.level}>
                     <strong>{item.title || `章节 ${index + 1}`}</strong>
                     {item.description ? <p>{item.description}</p> : null}
@@ -867,10 +1054,26 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                   </article>
                 ))
               ) : (
-                <EmptyState title="预览为空" description="请先添加章节或示例值。" />
+                <EmptyState title="蓝图预览为空" description="请先添加蓝图文稿或示例值。" />
               )}
             </div>
-          ) : (
+          ) : null}
+          {previewTab === "execution" ? (
+            <div className="preview-stack" role="tabpanel" aria-label="执行预览">
+              {executionPreview.sections.length ? (
+                executionPreview.sections.map((item, index) => (
+                  <article key={`${item.title}-${index}`} className="preview-section" data-level={item.level}>
+                    <strong>{item.title || `章节 ${index + 1}`}</strong>
+                    {item.description ? <p>{item.description}</p> : null}
+                    {item.content ? <div className="preview-section__content">{item.content}</div> : null}
+                  </article>
+                ))
+              ) : (
+                <EmptyState title="执行预览为空" description="请先添加章节或示例值。" />
+              )}
+            </div>
+          ) : null}
+          {previewTab === "json" ? (
             <div className="inline-panel" role="tabpanel" aria-label="模板 JSON">
               <p>{value.meta.compatibility.migratedFromLegacy ? "该模板来自旧版结构，保存后将按新版结构维护。" : "当前模板已按新版结构维护。"}</p>
               {validationErrors.length ? (
@@ -882,7 +1085,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
               ) : null}
               <pre>{exportJson}</pre>
             </div>
-          )}
+          ) : null}
         </SurfaceCard>
       </div>
       <div className="template-workbench__footer">
@@ -953,6 +1156,7 @@ function createSection(): WorkbenchSection {
     foreachParam: "",
     foreachAlias: "item",
     kind: "content",
+    outline: null,
     content: {
       datasets: [],
       presentation: {
@@ -965,6 +1169,28 @@ function createSection(): WorkbenchSection {
       },
     },
     children: [],
+  };
+}
+
+function createOutlineBlueprint() {
+  return {
+    document: "",
+    blocks: [createOutlineBlock([])],
+  };
+}
+
+function createOutlineBlock(existing: WorkbenchOutlineBlock[]): WorkbenchOutlineBlock {
+  return {
+    uiKey: createUiKey("outline-block"),
+    id: suggestId(existing.map((item) => item.id), "block"),
+    type: "free_text",
+    hint: "",
+    defaultValue: "",
+    options: [],
+    source: "",
+    paramId: "",
+    multi: false,
+    widget: "",
   };
 }
 
@@ -1036,6 +1262,9 @@ function createLayout(type: LayoutType): WorkbenchLayout {
 
 function assignSectionKeys(section: WorkbenchSection) {
   section.uiKey = createUiKey("section");
+  section.outline?.blocks.forEach((block) => {
+    block.uiKey = createUiKey("outline-block");
+  });
   section.children.forEach(assignSectionKeys);
   section.content?.datasets.forEach((dataset) => {
     dataset.uiKey = createUiKey("dataset");

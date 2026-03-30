@@ -77,6 +77,12 @@ DELETE /api/templates/{id}         # 删除模板
 POST   /api/templates/{id}/clone   # 克隆模板
 ```
 
+> 模板主结构以 `parameters / sections` 为准；每个 `section` 节点同时支持：
+> - `outline.document + outline.blocks[]`：面向用户的章节蓝图
+> - `content.datasets + presentation`：面向系统的执行链路
+>
+> 兼容字段 `content_params / outline` 仍可读取，但保存后统一按新版结构维护。
+
 ---
 
 ## 3. 对话交互
@@ -103,6 +109,25 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 >
 > 当会话来源是报告实例更新时，`fork_meta.source_kind = update_from_instance`，聊天页应展示“更新来源”文案，而不是“Fork 来源”。
 
+### 3.1 报告生成对话中的大纲确认
+
+`POST /api/chat` 在报告生成能力下，会经历：
+
+- 模板匹配
+- 必填参数收集
+- 大纲确认
+- 确认生成
+
+其中 `review_outline` action 当前返回的是**实例级蓝图树**，而不是简单标题列表。节点除基础结构外，还会带：
+
+- `display_text`
+- `outline_instance`
+- `execution_bindings`
+- `ai_generated`
+- `node_kind`
+
+前端展示时只使用可视化树信息；内部执行链路字段不会直接暴露为 JSON 编辑入口。
+
 ---
 
 ## 4. 报告实例管理
@@ -126,6 +151,8 @@ POST   /api/instances/{id}/finalize  # 确认实例，准备生成文档
 > - `supports_fork_chat`
 >
 > 对于历史数据，若实例没有内部生成基线，则这些能力标识为 `false`。
+
+> `GET /api/instances/{id}/baseline` 返回用户可查看的“确认大纲/生成基线”视图数据；其内部快照除实例级蓝图树外，还包含已解析的执行基线，用于后续生成与章节重生成，但前端默认只展示可视化大纲。
 >
 > `POST /api/instances/{id}/update-chat` 返回完整 `ChatSessionDetail`，而不是仅返回 `session_id`。返回会话的可见消息固定为 1 条 `assistant/review_outline`，并附带隐藏 `context_state`，用于直接继续大纲确认。
 >

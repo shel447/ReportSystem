@@ -1,4 +1,5 @@
 import type { TemplateWorkbenchState, WorkbenchSection } from "./state";
+import { summarizeSectionOutlineBindings } from "./outlineBindings";
 
 export function validateWorkbench(state: TemplateWorkbenchState): string[] {
   const errors: string[] = [];
@@ -51,6 +52,15 @@ export function collectParameterReferences(state: TemplateWorkbenchState, parame
       references.push(`${breadcrumb}（标题或说明）`);
     }
 
+    if (section.outline) {
+      if (containsToken(section.outline.document, token)) {
+        references.push(`${breadcrumb}（蓝图文稿）`);
+      }
+      if (section.outline.blocks.some((block) => block.paramId === parameterId)) {
+        references.push(`${breadcrumb}（蓝图区块）`);
+      }
+    }
+
     if (section.content) {
       const presentation = section.content.presentation;
       if (containsToken(presentation.template, token) || containsToken(presentation.anchor, token)) {
@@ -82,6 +92,7 @@ function validateSection(
   ancestorForeach: boolean,
 ) {
   const sectionTitle = section.title || "未命名章节";
+  validateOutline(section, sectionTitle, parametersById, errors);
 
   if (section.foreachEnabled) {
     if (ancestorForeach) {
@@ -107,6 +118,48 @@ function validateSection(
 
   validateContentSection(section, errors);
   section.children.forEach((child) => validateSection(child, parametersById, errors, ancestorForeach || section.foreachEnabled));
+}
+
+function validateOutline(
+  section: WorkbenchSection,
+  sectionTitle: string,
+  parametersById: Map<string, TemplateWorkbenchState["parameters"][number]>,
+  errors: string[],
+) {
+  if (!section.outline) {
+    const summaryWithoutOutline = summarizeSectionOutlineBindings(section);
+    summaryWithoutOutline.invalidBlockIds.forEach((blockId) => {
+      errors.push(`执行链路引用了不存在的蓝图区块：${sectionTitle} / ${blockId}`);
+    });
+    return;
+  }
+
+  const blockIds = new Map<string, number>();
+  section.outline.blocks.forEach((block) => {
+    const blockId = block.id.trim();
+    if (!blockId) {
+      errors.push(`蓝图区块标识不能为空：${sectionTitle}`);
+      return;
+    }
+    blockIds.set(blockId, (blockIds.get(blockId) ?? 0) + 1);
+    if (block.type === "param_ref" && !parametersById.has(block.paramId.trim())) {
+      errors.push(`蓝图区块 param_ref 必须绑定已有参数：${sectionTitle} / ${blockId}`);
+    }
+    if (["indicator", "scope", "enum_select"].includes(block.type) && !block.options.length && !block.source.trim()) {
+      errors.push(`蓝图区块需要配置选项或来源：${sectionTitle} / ${blockId}`);
+    }
+  });
+
+  for (const [blockId, count] of blockIds.entries()) {
+    if (count > 1) {
+      errors.push(`蓝图区块标识不能重复：${sectionTitle} / ${blockId}`);
+    }
+  }
+
+  const summary = summarizeSectionOutlineBindings(section);
+  summary.invalidBlockIds.forEach((blockId) => {
+    errors.push(`执行链路引用了不存在的蓝图区块：${sectionTitle} / ${blockId}`);
+  });
 }
 
 function validateContentSection(section: WorkbenchSection, errors: string[]) {

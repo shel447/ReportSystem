@@ -87,6 +87,10 @@
           "type": "string",
           "description": "章节说明"
         },
+        "outline": {
+          "$ref": "#/$defs/OutlineBlueprint",
+          "description": "面向用户的大纲蓝图，包含 document 与 blocks"
+        },
         "foreach": {
           "$ref": "#/$defs/Foreach",
           "description": "循环展开声明"
@@ -99,6 +103,58 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Section" },
           "description": "子章节，与 content 互斥"
+        }
+      }
+    },
+    "OutlineBlueprint": {
+      "type": "object",
+      "required": ["document", "blocks"],
+      "additionalProperties": false,
+      "properties": {
+        "document": {
+          "type": "string",
+          "description": "蓝图文稿，可包含 {@block_id} 占位符"
+        },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/OutlineBlock" }
+        }
+      }
+    },
+    "OutlineBlock": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "区块唯一标识，对应 {@id}"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["indicator", "time_range", "scope", "threshold", "operator", "enum_select", "number", "boolean", "free_text", "param_ref"]
+        },
+        "hint": {
+          "type": "string"
+        },
+        "default": {
+          "type": "string"
+        },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source": {
+          "type": "string"
+        },
+        "param_id": {
+          "type": "string"
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "widget": {
+          "type": "string"
         }
       }
     },

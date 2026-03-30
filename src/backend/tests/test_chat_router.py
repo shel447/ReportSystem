@@ -149,6 +149,115 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(confirmed_record.capture_stage, "generation_baseline")
         self.assertEqual(len(self.db.query(TemplateInstance).all()), 1)
 
+    def test_confirm_outline_generation_resolves_outline_blocks_into_execution_baseline(self):
+        outline_template = ReportTemplate(
+            template_id="tpl-outline",
+            name="蓝图设备巡检报告",
+            template_type="设备健康评估",
+            scene="总部",
+            parameters=[
+                {"id": "scene", "label": "场景", "required": True, "input_type": "enum", "options": ["总部"]},
+            ],
+            sections=[
+                {
+                    "title": "分析章节",
+                    "description": "查看章节内容",
+                    "outline": {
+                        "document": "分析 {@target_scene} 的巡检情况",
+                        "blocks": [
+                            {
+                                "id": "target_scene",
+                                "type": "param_ref",
+                                "hint": "分析范围",
+                                "param_id": "scene",
+                            }
+                        ],
+                    },
+                    "content": {
+                        "datasets": [
+                            {
+                                "id": "ds_main",
+                                "source": {
+                                    "kind": "sql",
+                                    "query": "SELECT '{@target_scene}' AS scene_name",
+                                    "description": "统计 {@target_scene} 设备状态",
+                                },
+                            }
+                        ],
+                        "presentation": {"type": "text", "template": "结论：{@target_scene}"},
+                    },
+                }
+            ],
+            schema_version="v2.0",
+        )
+        self.db.add(outline_template)
+        self.db.commit()
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-outline", "score": 0.96},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作蓝图设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], command="prepare_outline_review"),
+                db=self.db,
+            )
+
+        captured: dict[str, object] = {}
+
+        class FakeAppService:
+            def create_instance(self, **kwargs):
+                captured["kwargs"] = kwargs
+                return {"instance_id": "inst-outline"}
+
+        fake_doc = SimpleNamespace(
+            document_id="doc-outline",
+            instance_id="inst-outline",
+            template_id="tpl-outline",
+            format="md",
+            file_path="outline.md",
+            file_size=10,
+            status="ready",
+            version=1,
+            created_at="now",
+        )
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.routers.chat.build_instance_application_service", return_value=FakeAppService()), \
+             patch("backend.routers.chat.create_markdown_document", return_value=fake_doc), \
+             patch(
+                 "backend.routers.chat.serialize_document",
+                 return_value={"document_id": "doc-outline", "download_url": "/api/documents/doc-outline/download"},
+             ):
+            third = send_message(
+                ChatMessage(session_id=first["session_id"], command="confirm_outline_generation"),
+                db=self.db,
+            )
+
+        self.assertEqual(third["action"]["type"], "download_document")
+        outline_override = captured["kwargs"]["outline_override"]
+        self.assertEqual(outline_override[0]["content"]["presentation"]["template"], "结论：{@target_scene}")
+        self.assertEqual(outline_override[0]["resolved_content"]["presentation"]["template"], "结论：总部")
+        self.assertEqual(
+            outline_override[0]["resolved_content"]["datasets"][0]["source"]["description"],
+            "统计 总部 设备状态",
+        )
+        confirmed_record = self.db.query(TemplateInstance).filter(TemplateInstance.report_instance_id == "inst-outline").first()
+        self.assertEqual(
+            confirmed_record.outline_snapshot[0]["resolved_content"]["presentation"]["template"],
+            "结论：总部",
+        )
+
     def test_send_message_reset_params_restarts_required_collection(self):
         with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \

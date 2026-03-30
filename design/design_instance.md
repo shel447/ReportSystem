@@ -12,6 +12,13 @@
 - 查看该实例生成时所确认的大纲与参数
 - 基于来源会话节点继续 `Fork` 对话分支
 
+在当前版本中，这份内部快照同时保存两类信息：
+
+- **实例级蓝图树**
+  - 用户确认后的章节句式、块值和结构
+- **执行基线**
+  - 用蓝图区块值解析后的执行层内容（例如 `resolved_content`）
+
 ### 1.1 数据结构
 
 ```python
@@ -24,7 +31,7 @@ class TemplateInstance:
     capture_stage: str  # generation_baseline
 
     input_params_snapshot: Dict[str, Any]
-    outline_snapshot: List[Dict[str, Any]]
+    outline_snapshot: List[Dict[str, Any]]  # confirmed outline blueprint + resolved execution baseline
     warnings: List[str]
 
     report_instance_id: str
@@ -37,11 +44,31 @@ class TemplateInstance:
 - `prepare_outline_review`：仅进入大纲确认，不落模板实例
 - `edit_outline`：只更新当前对话上下文中的待确认大纲
 - `confirm_outline_generation`：生成报告实例时，同时创建其唯一的 `generation_baseline` 快照
+  - 先保留用户确认后的实例级蓝图树
+  - 再把蓝图值解析进执行链路，形成实例级执行基线
 - `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改（用户侧先在实例详情预览确认大纲，再显式进入对话）
 
 > `TemplateInstance` 现在不再是追加式历史记录。对每个新 `ReportInstance`，系统只保留一份对应的内部生成基线。
 
-### 1.3 与对话分支的关系
+### 1.3 基线快照内容
+
+`outline_snapshot` 中的章节节点当前至少包含：
+
+- `node_id / title / description / level / children`
+- `display_text`
+- `outline_instance`
+- `execution_bindings`
+- 内部扩展：
+  - `content`
+  - `resolved_content`
+  - `section_kind / source_kind`
+
+其中：
+
+- `content` 保留原始执行层定义，便于后续从实例回到对话继续修改
+- `resolved_content` 保留解析后的执行层定义，便于实例生成与章节重生成复用
+
+### 1.4 与对话分支的关系
 
 - `generation_baseline` 内部模板实例可以作为“更新会话”的来源
 - 报告实例的 `Fork` 入口则基于其来源对话中的消息节点发起分支

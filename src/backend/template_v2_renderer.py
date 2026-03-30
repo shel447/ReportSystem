@@ -240,8 +240,15 @@ def _build_outline_node(
             level=level,
         )
 
-    title = _render_text(str(section.get("title") or ""), params, locals_ctx)
-    description = _render_text(str(section.get("description") or ""), params, locals_ctx)
+    outline_instance = _build_outline_instance(section.get("outline"), params, locals_ctx)
+    outline_values = {
+        str(item.get("id") or "").strip(): item.get("value")
+        for item in (outline_instance or {}).get("blocks", [])
+        if str(item.get("id") or "").strip()
+    }
+    execution_bindings = _collect_execution_bindings(section, outline_values)
+    title = _render_text(str(section.get("title") or ""), params, locals_ctx, outline_values)
+    description = _render_text(str(section.get("description") or ""), params, locals_ctx, outline_values)
     node_level = max(1, min(6, int(section.get("level") or level)))
     node = {
         "node_id": f"node-{path_prefix}",
@@ -254,6 +261,10 @@ def _build_outline_node(
     dynamic_meta = _dynamic_meta_from_locals(locals_ctx)
     if dynamic_meta:
         node["dynamic_meta"] = dynamic_meta
+    if outline_instance:
+        node["outline_instance"] = outline_instance
+    if execution_bindings:
+        node["execution_bindings"] = execution_bindings
 
     children = _as_list(section.get("subsections"))
     if children:
@@ -271,7 +282,7 @@ def _build_outline_node(
         )
         node["section_kind"] = "group"
         node["node_kind"] = "group"
-        node["display_text"] = _outline_display_text(title, description)
+        node["display_text"] = str((outline_instance or {}).get("rendered_document") or _outline_display_text(title, description))
         node["ai_generated"] = False
         node["children"] = rendered_children
         return [node]
@@ -293,6 +304,8 @@ def _build_outline_node(
         node.get("content"),
         params,
         locals_ctx,
+        outline_values,
+        outline_instance,
     )
     return [node]
 
@@ -401,10 +414,12 @@ def _render_outline_tree_node(
             )
         return rendered
 
-    if node.get("section_kind") == "structured_leaf" and isinstance(node.get("content"), dict):
+    resolved_content = node.get("resolved_content") if isinstance(node.get("resolved_content"), dict) else None
+    effective_content = resolved_content if resolved_content is not None else node.get("content")
+    if node.get("section_kind") == "structured_leaf" and isinstance(effective_content, dict):
         locals_ctx = _locals_from_dynamic_meta(dynamic_meta)
         content, debug, data_status = _render_content(
-            node.get("content"),
+            effective_content,
             params,
             locals_ctx,
             warnings,
@@ -967,7 +982,12 @@ def _composite_bound_dataset_ids(presentation: Dict[str, Any]) -> List[str]:
     return bound
 
 
-def _render_text(text: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) -> str:
+def _render_text(
+    text: str,
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+    outline_ctx: Optional[Dict[str, Any]] = None,
+) -> str:
     def replace_param(match: re.Match) -> str:
         key = match.group(1)
         value = params.get(key)
@@ -978,6 +998,12 @@ def _render_text(text: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) 
         value = locals_ctx.get(key)
         return _stringify(value)
 
+    def replace_outline(match: re.Match) -> str:
+        key = match.group(1)
+        value = (outline_ctx or {}).get(key)
+        return _stringify(value)
+
+    text = re.sub(r"\{@([a-zA-Z0-9_]+)\}", replace_outline, text)
     text = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, text)
     text = re.sub(r"\{\$([a-zA-Z0-9_]+)\}", replace_local, text)
     return text
@@ -1023,21 +1049,31 @@ def _outline_leaf_display_text(
     content: Any,
     params: Dict[str, Any],
     locals_ctx: Dict[str, Any],
+    outline_ctx: Dict[str, Any],
+    outline_instance: Dict[str, Any] | None,
 ) -> str:
+    rendered_outline = str((outline_instance or {}).get("rendered_document") or "").strip()
+    if rendered_outline:
+        return rendered_outline
     preview = str(description or "").strip()
     if not preview and section_kind == "structured_leaf" and isinstance(content, dict):
-        preview = _content_preview_text(content, params, locals_ctx)
+        preview = _content_preview_text(content, params, locals_ctx, outline_ctx)
     if not preview and section_kind == "freeform_leaf":
         preview = "系统生成本节内容"
     return _outline_display_text(title, preview)
 
 
-def _content_preview_text(content: Dict[str, Any], params: Dict[str, Any], locals_ctx: Dict[str, Any]) -> str:
+def _content_preview_text(
+    content: Dict[str, Any],
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+    outline_ctx: Dict[str, Any],
+) -> str:
     presentation = content.get("presentation") if isinstance(content.get("presentation"), dict) else {}
     presentation_type = str(presentation.get("type") or "").strip()
     if presentation_type == "text":
         template = str(presentation.get("template") or "").strip()
-        rendered = _collapse_preview_text(_render_text(template, params, locals_ctx))
+        rendered = _collapse_preview_text(_render_text(template, params, locals_ctx, outline_ctx))
         if rendered:
             return rendered
     if presentation_type == "value":
@@ -1065,6 +1101,134 @@ def _content_uses_ai(content: Dict[str, Any]) -> bool:
         if kind in {"nl2sql", "ai_synthesis"}:
             return True
     return False
+
+
+def _build_outline_instance(
+    outline: Any,
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+) -> Dict[str, Any] | None:
+    if not isinstance(outline, dict):
+        return None
+    document = str(outline.get("document") or "")
+    blocks_input = _as_list(outline.get("blocks"))
+    blocks: List[Dict[str, Any]] = []
+    outline_ctx: Dict[str, Any] = {}
+    for raw in blocks_input:
+        if not isinstance(raw, dict):
+            continue
+        block_id = str(raw.get("id") or "").strip()
+        if not block_id:
+            continue
+        value = _resolve_outline_block_value(raw, params, locals_ctx, outline_ctx)
+        outline_ctx[block_id] = value
+        blocks.append(
+            {
+                "id": block_id,
+                "type": str(raw.get("type") or "").strip(),
+                "hint": str(raw.get("hint") or "").strip(),
+                "value": value,
+            }
+        )
+
+    segments: List[Dict[str, Any]] = []
+    cursor = 0
+    for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", document):
+        if match.start() > cursor:
+            raw_text = document[cursor:match.start()]
+            rendered_text = _render_text(raw_text, params, locals_ctx, outline_ctx)
+            if rendered_text:
+                segments.append({"kind": "text", "text": rendered_text})
+        block_id = match.group(1)
+        segments.append(
+            {
+                "kind": "block",
+                "block_id": block_id,
+                "block_type": next((item.get("type") for item in blocks if item.get("id") == block_id), ""),
+                "value": outline_ctx.get(block_id, ""),
+            }
+        )
+        cursor = match.end()
+    if cursor < len(document):
+        raw_text = document[cursor:]
+        rendered_text = _render_text(raw_text, params, locals_ctx, outline_ctx)
+        if rendered_text:
+            segments.append({"kind": "text", "text": rendered_text})
+
+    rendered_document = "".join(
+        str(segment.get("text") if segment.get("kind") == "text" else segment.get("value") or "")
+        for segment in segments
+    ).strip()
+    if not rendered_document:
+        rendered_document = _collapse_preview_text(_render_text(document, params, locals_ctx, outline_ctx))
+    return {
+        "document_template": document,
+        "rendered_document": rendered_document,
+        "segments": segments,
+        "blocks": blocks,
+    }
+
+
+def _resolve_outline_block_value(
+    block: Dict[str, Any],
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+    outline_ctx: Dict[str, Any],
+) -> str:
+    param_id = str(block.get("param_id") or "").strip()
+    if param_id:
+        return _stringify(params.get(param_id))
+    default_value = str(block.get("default") or "").strip()
+    if default_value:
+        return _collapse_preview_text(_render_text(default_value, params, locals_ctx, outline_ctx))
+    options = block.get("options")
+    if isinstance(options, list) and options:
+        return _stringify(options[0])
+    hint = str(block.get("hint") or "").strip()
+    return hint or str(block.get("id") or "").strip()
+
+
+def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    available_block_ids = {key for key in outline_ctx.keys() if key}
+    if not available_block_ids:
+        return []
+
+    targets: Dict[str, List[str]] = {}
+
+    def collect(value: Any, target: str) -> None:
+        text = str(value or "")
+        for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", text):
+            block_id = str(match.group(1) or "").strip()
+            if not block_id or block_id not in available_block_ids:
+                continue
+            targets.setdefault(block_id, [])
+            if target not in targets[block_id]:
+                targets[block_id].append(target)
+
+    collect(section.get("title"), "title")
+    collect(section.get("description"), "description")
+    content = section.get("content") if isinstance(section.get("content"), dict) else {}
+    presentation = content.get("presentation") if isinstance(content.get("presentation"), dict) else {}
+    collect(presentation.get("template"), "presentation.template")
+    collect(presentation.get("anchor"), "presentation.anchor")
+    for index, dataset in enumerate(_as_list(content.get("datasets"))):
+        if not isinstance(dataset, dict):
+            continue
+        source = dataset.get("source") if isinstance(dataset.get("source"), dict) else {}
+        dataset_id = str(dataset.get("id") or index + 1)
+        collect(source.get("query"), f"datasets.{dataset_id}.source.query")
+        collect(source.get("description"), f"datasets.{dataset_id}.source.description")
+        collect(source.get("prompt"), f"datasets.{dataset_id}.source.prompt")
+        knowledge = source.get("knowledge") if isinstance(source.get("knowledge"), dict) else {}
+        collect(knowledge.get("query_template"), f"datasets.{dataset_id}.source.knowledge.query_template")
+
+    return [
+        {
+            "block_id": block_id,
+            "targets": entries,
+        }
+        for block_id, entries in sorted(targets.items())
+    ]
 
 
 def _render_sql(sql: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) -> str:

@@ -182,6 +182,51 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(outline[1]["display_text"], "表格章节：展示数据表格")
         self.assertEqual(outline[2]["display_text"], "自由章节：系统生成本节内容")
 
+    def test_build_pending_outline_review_materializes_outline_blueprint_and_bindings(self):
+        template = ReportTemplateEntity(
+            template_id="tpl-5",
+            name="设备分析报告",
+            description="",
+            report_type="special",
+            scenario="总部",
+            match_keywords=[],
+            content_params=[],
+            version="1.0",
+            outline=[],
+            parameters=[],
+            sections=[
+                {
+                    "title": "概览 {date}",
+                    "outline": {
+                        "document": "分析 {@focus_metric} 在 {date} 的变化",
+                        "blocks": [
+                            {
+                                "id": "focus_metric",
+                                "type": "indicator",
+                                "default": "温度",
+                            }
+                        ],
+                    },
+                    "content": {
+                        "presentation": {
+                            "type": "text",
+                            "template": "展示 {@focus_metric}",
+                        }
+                    },
+                }
+            ],
+            schema_version="v2.0",
+        )
+
+        outline, warnings = build_pending_outline_review(template, {"date": "2026-03-19"})
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(outline[0]["display_text"], "分析 温度 在 2026-03-19 的变化")
+        self.assertEqual(outline[0]["outline_instance"]["rendered_document"], "分析 温度 在 2026-03-19 的变化")
+        self.assertEqual(outline[0]["outline_instance"]["blocks"][0]["value"], "温度")
+        self.assertEqual(outline[0]["execution_bindings"][0]["block_id"], "focus_metric")
+        self.assertEqual(outline[0]["execution_bindings"][0]["targets"], ["presentation.template"])
+
     def test_merge_outline_override_preserves_structured_content_and_marks_new_nodes(self):
         current = [
             {

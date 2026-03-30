@@ -85,6 +85,15 @@
   background: rgba(21, 71, 110, 0.06);
 }
 
+.section-detail-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(21, 71, 110, 0.06);
+  width: fit-content;
+}
+
 .preview-tab {
   border: 0;
   background: transparent;
@@ -126,6 +135,43 @@
 .preview-section__content {
   color: var(--text-secondary);
   line-height: 1.65;
+}
+
+.sync-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.sync-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.sync-panel__group {
+  display: grid;
+  gap: 10px;
+}
+
+.status-chip--in_sync {
+  background: rgba(64, 126, 90, 0.12);
+  color: #2f6b48;
+}
+
+.status-chip--stale {
+  background: rgba(181, 124, 36, 0.12);
+  color: #9a6418;
+}
+
+.status-chip--compile_error {
+  background: rgba(178, 72, 60, 0.12);
+  color: #a33e34;
+}
+
+.status-chip--not_configured {
+  background: rgba(27, 36, 48, 0.08);
+  color: var(--text-primary);
 }
 
 .template-workbench__preview pre {

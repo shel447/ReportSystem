@@ -1,6 +1,6 @@
 import unittest
 
-from backend.template_v2_renderer import generate_report_sections_v2
+from backend.template_v2_renderer import generate_report_sections_from_outline_tree_v2, generate_report_sections_v2
 
 
 class TemplateV2RendererTests(unittest.TestCase):
@@ -286,6 +286,49 @@ class TemplateV2RendererTests(unittest.TestCase):
         sections, _ = generate_report_sections_v2(template, {}, ai_synthesis_runner=runner)
         self.assertEqual(captured["refs"]["ds_main"]["rows"][0]["value"], 42)
         self.assertIn("AI CONTEXT OK", sections[0]["content"])
+
+    def test_generate_from_outline_tree_prefers_resolved_content_for_execution(self):
+        template = {"name": "测试模板", "sections": []}
+        outline_tree = [
+            {
+                "node_id": "node-1",
+                "title": "指标分析",
+                "description": "分析总部设备的温度变化",
+                "level": 1,
+                "children": [],
+                "section_kind": "structured_leaf",
+                "content": {
+                    "datasets": [
+                        {
+                            "id": "ds_main",
+                            "source": {"kind": "sql", "query": "SELECT '{@metric}' AS metric_name"},
+                        }
+                    ],
+                    "presentation": {"type": "text", "template": "指标 {@metric}"},
+                },
+                "resolved_content": {
+                    "datasets": [
+                        {
+                            "id": "ds_main",
+                            "source": {"kind": "sql", "query": "SELECT '温度' AS metric_name"},
+                        }
+                    ],
+                    "presentation": {"type": "text", "template": "指标 温度"},
+                },
+                "outline_instance": {
+                    "document_template": "分析 {@metric}",
+                    "rendered_document": "分析 温度",
+                    "segments": [],
+                    "blocks": [{"id": "metric", "type": "indicator", "value": "温度"}],
+                },
+            }
+        ]
+
+        sections, warnings = generate_report_sections_from_outline_tree_v2(template, outline_tree, {})
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(sections[0]["content"], "指标 温度")
+        self.assertEqual(sections[0]["debug"]["datasets"][0]["sample_rows"][0]["metric_name"], "温度")
 
 
 if __name__ == "__main__":

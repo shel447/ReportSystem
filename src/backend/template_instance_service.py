@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 
 from .models import ReportTemplate, TemplateInstance, gen_id
-from .outline_review_service import build_frontend_outline
+from .outline_review_service import build_persisted_outline_snapshot
 
 
 def capture_template_instance(
@@ -30,7 +30,7 @@ def capture_template_instance(
         session_id=session_id,
         capture_stage=capture_stage,
         input_params_snapshot=deepcopy(input_params_snapshot or {}),
-        outline_snapshot=build_frontend_outline(outline_snapshot or []),
+        outline_snapshot=build_persisted_outline_snapshot(outline_snapshot or []),
         warnings=list(warnings or []),
         report_instance_id=report_instance_id,
         created_by=created_by or "system",

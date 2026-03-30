@@ -2,6 +2,8 @@ import type {
   TemplateCompositeSection,
   TemplateDataset,
   TemplateDetail,
+  TemplateOutlineBlock,
+  TemplateOutlineBlueprint,
   TemplateLayout,
   TemplateParameter,
   TemplatePresentation,
@@ -59,8 +61,29 @@ export type WorkbenchSection = {
   foreachParam: string;
   foreachAlias: string;
   kind: SectionKind;
+  outline: WorkbenchOutlineBlueprint | null;
   content: WorkbenchContent | null;
   children: WorkbenchSection[];
+};
+
+export type OutlineBlockType = "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
+
+export type WorkbenchOutlineBlueprint = {
+  document: string;
+  blocks: WorkbenchOutlineBlock[];
+};
+
+export type WorkbenchOutlineBlock = {
+  uiKey: string;
+  id: string;
+  type: OutlineBlockType;
+  hint: string;
+  defaultValue: string;
+  options: string[];
+  source: string;
+  paramId: string;
+  multi: boolean;
+  widget: string;
 };
 
 export type WorkbenchContent = {
@@ -231,6 +254,7 @@ function normalizeSection(value: TemplateSection, uiKey: string): WorkbenchSecti
     foreachParam: value.foreach?.param ?? "",
     foreachAlias: value.foreach?.as ?? "item",
     kind: hasChildren ? "group" : "content",
+    outline: normalizeOutline(value.outline, `${uiKey}-outline`),
     content: hasChildren ? null : normalizeContent(value.content),
     children: (value.subsections ?? []).map((item, index) => normalizeSection(item, `${uiKey}-${index + 1}`)),
   };
@@ -249,6 +273,9 @@ function serializeSection(value: WorkbenchSection): TemplateSection {
       as: value.foreachAlias.trim() || "item",
     };
   }
+  if (value.outline && (value.outline.document.trim() || value.outline.blocks.length)) {
+    payload.outline = serializeOutline(value.outline);
+  }
   if (value.kind === "group") {
     payload.subsections = value.children.map(serializeSection);
     return payload;
@@ -264,6 +291,67 @@ function normalizeContent(value?: { datasets?: TemplateDataset[]; presentation?:
     datasets: (value?.datasets ?? []).map((item, index) => normalizeDataset(item, `dataset-${index + 1}`)),
     presentation: normalizePresentation(value?.presentation),
   };
+}
+
+function normalizeOutline(value?: TemplateOutlineBlueprint | null, keyPrefix = "outline"): WorkbenchOutlineBlueprint | null {
+  if (!value) {
+    return null;
+  }
+  return {
+    document: value.document ?? "",
+    blocks: (value.blocks ?? []).map((item, index) => normalizeOutlineBlock(item, `${keyPrefix}-block-${index + 1}`)),
+  };
+}
+
+function serializeOutline(value: WorkbenchOutlineBlueprint): TemplateOutlineBlueprint {
+  return {
+    document: value.document,
+    blocks: value.blocks.map(serializeOutlineBlock),
+  };
+}
+
+function normalizeOutlineBlock(value: TemplateOutlineBlock, uiKey: string): WorkbenchOutlineBlock {
+  return {
+    uiKey,
+    id: value.id ?? "",
+    type: value.type,
+    hint: value.hint ?? "",
+    defaultValue: value.default ?? "",
+    options: value.options ?? [],
+    source: value.source ?? "",
+    paramId: value.param_id ?? "",
+    multi: Boolean(value.multi),
+    widget: value.widget ?? "",
+  };
+}
+
+function serializeOutlineBlock(value: WorkbenchOutlineBlock): TemplateOutlineBlock {
+  const payload: TemplateOutlineBlock = {
+    id: value.id.trim(),
+    type: value.type,
+  };
+  if (value.hint.trim()) {
+    payload.hint = value.hint.trim();
+  }
+  if (value.defaultValue.trim()) {
+    payload.default = value.defaultValue.trim();
+  }
+  if (value.options.length) {
+    payload.options = value.options.filter(Boolean);
+  }
+  if (value.source.trim()) {
+    payload.source = value.source.trim();
+  }
+  if (value.paramId.trim()) {
+    payload.param_id = value.paramId.trim();
+  }
+  if (value.multi) {
+    payload.multi = true;
+  }
+  if (value.widget.trim()) {
+    payload.widget = value.widget.trim();
+  }
+  return payload;
 }
 
 function serializeContent(value: WorkbenchContent): { datasets?: TemplateDataset[]; presentation: TemplatePresentation } {

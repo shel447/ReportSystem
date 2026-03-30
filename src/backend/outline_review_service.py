@@ -21,7 +21,15 @@ def build_pending_outline_review(
 
 
 def build_frontend_outline(outline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    return [_sanitize_outline_node(item) for item in outline]
+    return [_sanitize_outline_node(item, include_internal=False) for item in outline]
+
+
+def build_persisted_outline_snapshot(outline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [_sanitize_outline_node(item, include_internal=True) for item in outline]
+
+
+def resolve_outline_execution_baseline(outline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [_resolve_outline_node(item) for item in outline if isinstance(item, dict)]
 
 
 def flatten_review_outline(outline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -129,7 +137,7 @@ def _treeify_legacy_outline(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     return roots
 
 
-def _sanitize_outline_node(node: Dict[str, Any]) -> Dict[str, Any]:
+def _sanitize_outline_node(node: Dict[str, Any], *, include_internal: bool) -> Dict[str, Any]:
     title = str(node.get("title") or "")
     description = str(node.get("description") or "")
     node_kind = str(node.get("node_kind") or node.get("section_kind") or ("group" if node.get("children") else "freeform_leaf"))
@@ -141,11 +149,76 @@ def _sanitize_outline_node(node: Dict[str, Any]) -> Dict[str, Any]:
         "display_text": str(node.get("display_text") or _build_display_text(title, description)),
         "ai_generated": bool(node.get("ai_generated")),
         "node_kind": node_kind,
-        "children": [_sanitize_outline_node(child) for child in node.get("children") or [] if isinstance(child, dict)],
+        "children": [
+            _sanitize_outline_node(child, include_internal=include_internal)
+            for child in node.get("children") or []
+            if isinstance(child, dict)
+        ],
     }
     if isinstance(node.get("dynamic_meta"), dict):
         payload["dynamic_meta"] = copy.deepcopy(node.get("dynamic_meta"))
+    if isinstance(node.get("outline_instance"), dict):
+        payload["outline_instance"] = copy.deepcopy(node.get("outline_instance"))
+    if isinstance(node.get("execution_bindings"), list):
+        payload["execution_bindings"] = copy.deepcopy(node.get("execution_bindings"))
+    if include_internal:
+        if isinstance(node.get("content"), dict):
+            payload["content"] = copy.deepcopy(node.get("content"))
+        if isinstance(node.get("resolved_content"), dict):
+            payload["resolved_content"] = copy.deepcopy(node.get("resolved_content"))
+        section_kind = str(node.get("section_kind") or "").strip()
+        if section_kind:
+            payload["section_kind"] = section_kind
+        source_kind = str(node.get("source_kind") or "").strip()
+        if source_kind:
+            payload["source_kind"] = source_kind
     return payload
+
+
+def _resolve_outline_node(node: Dict[str, Any]) -> Dict[str, Any]:
+    payload = copy.deepcopy(node)
+    outline_ctx = _outline_context_from_node(node)
+    if isinstance(payload.get("content"), dict):
+        payload["resolved_content"] = _resolve_outline_placeholders(payload["content"], outline_ctx)
+    payload["children"] = [
+        _resolve_outline_node(child)
+        for child in payload.get("children") or []
+        if isinstance(child, dict)
+    ]
+    return payload
+
+
+def _outline_context_from_node(node: Dict[str, Any]) -> Dict[str, Any]:
+    outline_instance = node.get("outline_instance") if isinstance(node.get("outline_instance"), dict) else {}
+    context: Dict[str, Any] = {}
+    for block in outline_instance.get("blocks") or []:
+        if not isinstance(block, dict):
+            continue
+        block_id = str(block.get("id") or "").strip()
+        if not block_id:
+            continue
+        context[block_id] = block.get("value")
+    return context
+
+
+def _resolve_outline_placeholders(value: Any, outline_ctx: Dict[str, Any]) -> Any:
+    if isinstance(value, dict):
+        return {key: _resolve_outline_placeholders(item, outline_ctx) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_resolve_outline_placeholders(item, outline_ctx) for item in value]
+    if isinstance(value, str):
+        return _replace_outline_tokens(value, outline_ctx)
+    return copy.deepcopy(value)
+
+
+def _replace_outline_tokens(text: str, outline_ctx: Dict[str, Any]) -> str:
+    def replace(match):
+        key = str(match.group(1) or "").strip()
+        return str(outline_ctx.get(key) or "")
+
+    import re
+
+    return re.sub(r"\{@([a-zA-Z0-9_]+)\}", replace, text or "")
 
 
 def _walk_outline(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

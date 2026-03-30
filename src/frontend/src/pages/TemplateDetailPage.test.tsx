@@ -41,8 +41,21 @@ function buildTemplatePayload(name = "设备巡检报告") {
     sections: [
       {
         title: "概览 {date}",
+        outline: {
+          document: "分析 {@focus_metric} 在 {date} 的变化",
+          blocks: [
+            {
+              id: "focus_metric",
+              type: "indicator",
+              hint: "重点指标",
+              default: "温度",
+              options: ["温度", "湿度"],
+              widget: "select",
+            },
+          ],
+        },
         content: {
-          presentation: { type: "text", template: "巡检日期 {date}" },
+          presentation: { type: "text", template: "巡检日期 {date}，指标 {@focus_metric}" },
         },
       },
       {
@@ -81,15 +94,26 @@ describe("TemplateDetailPage", () => {
     expect(screen.getByText("参数工作台")).toBeInTheDocument();
     expect(screen.getByText("章节工作台")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "结构预览" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "结构预览" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "蓝图预览" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "执行预览" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "模板 JSON" })).toBeInTheDocument();
     expect(screen.queryByText("兼容迁移")).not.toBeInTheDocument();
     expect(screen.queryByText("parameters")).not.toBeInTheDocument();
     expect(screen.queryByText("sections")).not.toBeInTheDocument();
     expect(screen.getByText("参数工作台").closest(".surface-card")).toHaveClass("template-workbench__parameters");
+    expect(screen.getByRole("tab", { name: "蓝图" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "执行链路" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "同步状态" })).toBeInTheDocument();
+    expect(screen.getByLabelText("蓝图文稿")).toHaveValue("分析 {@focus_metric} 在 {date} 的变化");
 
     const exportLink = screen.getByRole("link", { name: "导出 JSON" });
     expect(exportLink).toHaveAttribute("href", "/api/templates/tpl-1/export");
+
+    fireEvent.change(screen.getByLabelText("日期预览值"), {
+      target: { value: "2026-03-19" },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "蓝图预览" }));
+    expect(await screen.findByText("分析 温度 在 2026-03-19 的变化")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /设备列表/ }));
     const previewInput = await screen.findByLabelText("设备列表预览值");
@@ -97,8 +121,13 @@ describe("TemplateDetailPage", () => {
       target: { value: "A站设备, B站设备" },
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "执行预览" }));
     expect(await screen.findByText("设备 A站设备")).toBeInTheDocument();
     expect(screen.getByText("设备 B站设备")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "同步状态" }));
+    expect(screen.getByText("已同步")).toBeInTheDocument();
+    expect(screen.getByText("focus_metric")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "模板 JSON" }));
     const jsonPanel = screen.getByRole("tabpanel", { name: "模板 JSON" });
@@ -180,6 +209,7 @@ describe("TemplateDetailPage", () => {
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
+    fireEvent.click(screen.getByRole("tab", { name: "执行链路" }));
     fireEvent.click(screen.getByRole("button", { name: "新增数据集" }));
     fireEvent.change(screen.getByLabelText("数据集 ID"), {
       target: { value: "summary" },

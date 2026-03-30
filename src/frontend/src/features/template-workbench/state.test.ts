@@ -23,6 +23,12 @@ describe("template workbench state", () => {
       sections: [
         {
           title: "概览 {date}",
+          outline: {
+            document: "分析 {@focus_metric} 在 {date} 的变化",
+            blocks: [
+              { id: "focus_metric", type: "indicator", hint: "关注指标", default: "振动" },
+            ],
+          },
           content: {
             datasets: [{ id: "summary", source: { kind: "sql", query: "SELECT 1 AS value" } }],
             presentation: { type: "text", template: "巡检日期 {date}" },
@@ -41,6 +47,8 @@ describe("template workbench state", () => {
     expect(state.parameters[0].label).toBe("日期");
     expect(state.parameters[1].multi).toBe(true);
     expect(state.sections).toHaveLength(1);
+    expect(state.sections[0].outline?.document).toBe("分析 {@focus_metric} 在 {date} 的变化");
+    expect(state.sections[0].outline?.blocks[0].id).toBe("focus_metric");
     expect(state.sections[0].content?.datasets[0].source.kind).toBe("sql");
     expect(state.previewSamples).toEqual({});
   });
@@ -69,6 +77,23 @@ describe("template workbench state", () => {
       foreachParam: "",
       foreachAlias: "item",
       kind: "content",
+      outline: {
+        document: "分析 {@focus_metric} 在 {date} 的变化",
+        blocks: [
+          {
+            uiKey: "block-1",
+            id: "focus_metric",
+            type: "indicator",
+            hint: "关注指标",
+            defaultValue: "振动",
+            options: ["振动", "温度"],
+            source: "",
+            paramId: "",
+            multi: false,
+            widget: "",
+          },
+        ],
+      },
       content: {
         datasets: [],
         presentation: { type: "text", template: "日期 {date}" },
@@ -88,6 +113,18 @@ describe("template workbench state", () => {
     });
     expect(payload.sections[0]).toEqual({
       title: "概览 {date}",
+      outline: {
+        document: "分析 {@focus_metric} 在 {date} 的变化",
+        blocks: [
+          {
+            id: "focus_metric",
+            type: "indicator",
+            hint: "关注指标",
+            default: "振动",
+            options: ["振动", "温度"],
+          },
+        ],
+      },
       content: {
         presentation: { type: "text", template: "日期 {date}" },
       },

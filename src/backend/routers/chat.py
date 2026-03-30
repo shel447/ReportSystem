@@ -45,7 +45,11 @@ from ..database import get_db
 from ..document_service import create_markdown_document, serialize_document
 from ..infrastructure.dependencies import build_instance_application_service
 from ..models import ChatSession, ReportInstance, ReportTemplate, TemplateInstance, gen_id
-from ..outline_review_service import build_pending_outline_review, merge_outline_override
+from ..outline_review_service import (
+    build_pending_outline_review,
+    merge_outline_override,
+    resolve_outline_execution_baseline,
+)
 from ..param_dialog_service import (
     build_missing_required,
     build_param_prompt,
@@ -314,11 +318,12 @@ def _handle_report_turn(
                     pending_outline = merge_outline_override(pending_outline, data.outline_override)
                     report["pending_outline_review"] = pending_outline
                     state["report"] = report
+                resolved_outline = resolve_outline_execution_baseline(pending_outline)
                 app_service = build_instance_application_service(db)
                 created = app_service.create_instance(
                     template_id=template.template_id,
                     input_params=merged,
-                    outline_override=pending_outline,
+                    outline_override=resolved_outline,
                 )
                 try:
                     capture_generation_baseline(
@@ -327,7 +332,7 @@ def _handle_report_turn(
                         session_id=session.session_id,
                         report_instance_id=created["instance_id"],
                         input_params_snapshot=merged,
-                        outline_snapshot=pending_outline,
+                        outline_snapshot=resolved_outline,
                         warnings=report.get("outline_review_warnings") or [],
                         created_by=session.user_id or "system",
                     )

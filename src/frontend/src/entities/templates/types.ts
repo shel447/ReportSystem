@@ -27,6 +27,23 @@ export type TemplateForeach = {
   as: string;
 };
 
+export type TemplateOutlineBlock = {
+  id: string;
+  type: "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
+  hint?: string;
+  default?: string;
+  options?: string[];
+  source?: string;
+  param_id?: string;
+  multi?: boolean;
+  widget?: string;
+};
+
+export type TemplateOutlineBlueprint = {
+  document: string;
+  blocks: TemplateOutlineBlock[];
+};
+
 export type TemplateDatasetSource = {
   kind: "sql" | "nl2sql" | "ai_synthesis";
   query?: string;
@@ -89,6 +106,7 @@ export type TemplateContent = {
 export type TemplateSection = {
   title: string;
   description?: string;
+  outline?: TemplateOutlineBlueprint;
   foreach?: TemplateForeach;
   content?: TemplateContent;
   subsections?: TemplateSection[];
