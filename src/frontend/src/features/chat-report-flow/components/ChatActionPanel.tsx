@@ -11,6 +11,7 @@ import type {
 } from "../../../entities/chat/types";
 import {
   buildCollapsedNodeIds,
+  buildEditingBlockKey,
   buildDisplayText,
   mapOutlineTree,
   normalizeOutlineTree,
@@ -47,6 +48,7 @@ type OutlineDraftRow = {
   ai_generated: boolean;
   node_kind: "group" | "structured_leaf" | "freeform_leaf";
   dynamic_meta?: Record<string, unknown>;
+  outline_instance?: OutlineDraftNode["outline_instance"];
 };
 
 export function ChatActionPanel({
@@ -306,6 +308,8 @@ function ReviewOutlinePanel({
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [draftDisplayText, setDraftDisplayText] = useState("");
+  const [editingBlockKey, setEditingBlockKey] = useState<string | null>(null);
+  const [blockDraftValue, setBlockDraftValue] = useState("");
 
   useEffect(() => {
     setOutlineTree(normalizeOutlineTree(action.outline));
@@ -313,6 +317,8 @@ function ReviewOutlinePanel({
     setEditingNodeId(null);
     setSelectedNodeId(null);
     setDraftDisplayText("");
+    setEditingBlockKey(null);
+    setBlockDraftValue("");
   }, [action]);
 
   const currentOutline = serializeOutlineTree(outlineTree);
@@ -338,6 +344,44 @@ function ReviewOutlinePanel({
   const cancelInlineEdit = () => {
     setEditingNodeId(null);
     setDraftDisplayText("");
+  };
+
+  const commitBlockEdit = (nodeId: string, blockId: string) => {
+    const nextValue = blockDraftValue.trim();
+    setOutlineTree((current) =>
+      mapOutlineTree(current, nodeId, (node) => {
+        if (!node.outline_instance) {
+          return node;
+        }
+        const nextBlocks = (node.outline_instance.blocks ?? []).map((block) =>
+          block.id === blockId ? { ...block, value: nextValue } : block,
+        );
+        const nextSegments = (node.outline_instance.segments ?? []).map((segment) =>
+          segment.kind === "block" && segment.block_id === blockId ? { ...segment, value: nextValue } : segment,
+        );
+        const renderedDocument = nextSegments
+          .map((segment) => (segment.kind === "text" ? segment.text : segment.value ?? ""))
+          .join("")
+          .trim();
+        return {
+          ...node,
+          display_text: renderedDocument || node.display_text,
+          outline_instance: {
+            ...node.outline_instance,
+            rendered_document: renderedDocument,
+            blocks: nextBlocks,
+            segments: nextSegments,
+          },
+        };
+      }),
+    );
+    setEditingBlockKey(null);
+    setBlockDraftValue("");
+  };
+
+  const cancelBlockEdit = () => {
+    setEditingBlockKey(null);
+    setBlockDraftValue("");
   };
 
   return (
@@ -382,6 +426,8 @@ function ReviewOutlinePanel({
         editingNodeId={editingNodeId}
         selectedNodeId={selectedNodeId}
         draftDisplayText={draftDisplayText}
+        editingBlockKey={editingBlockKey}
+        blockDraftValue={blockDraftValue}
         disabled={disabled}
         onToggleCollapse={(nodeId) =>
           setCollapsedNodeIds((current) => {
@@ -397,12 +443,23 @@ function ReviewOutlinePanel({
         onSelectNode={setSelectedNodeId}
         onBeginEdit={(node) => {
           setSelectedNodeId(node.node_id);
+          setEditingBlockKey(null);
           setEditingNodeId(node.node_id);
           setDraftDisplayText(node.display_text);
         }}
         onDraftChange={setDraftDisplayText}
         onCommitEdit={commitInlineEdit}
         onCancelEdit={cancelInlineEdit}
+        onBeginBlockEdit={(node, blockId) => {
+          const block = (node.outline_instance?.blocks ?? []).find((item) => item.id === blockId);
+          setSelectedNodeId(node.node_id);
+          setEditingNodeId(null);
+          setEditingBlockKey(buildEditingBlockKey(node.node_id, blockId));
+          setBlockDraftValue(block?.value ?? "");
+        }}
+        onBlockDraftChange={setBlockDraftValue}
+        onCommitBlockEdit={commitBlockEdit}
+        onCancelBlockEdit={cancelBlockEdit}
         onAddSibling={(nodeId) => updateTree((rows) => addSibling(rows, nodeId))}
         onAddChild={(nodeId) => {
           updateTree((rows) => addChild(rows, nodeId));
@@ -529,6 +586,7 @@ function flattenOutlineTree(nodes: OutlineDraftNode[]): OutlineDraftRow[] {
         ai_generated: Boolean(item.ai_generated),
         node_kind: item.node_kind ?? (item.children?.length ? "group" : "freeform_leaf"),
         ...(item.dynamic_meta ? { dynamic_meta: item.dynamic_meta } : {}),
+        ...(item.outline_instance ? { outline_instance: item.outline_instance } : {}),
       });
       visit(item.children ?? []);
     });
@@ -551,6 +609,7 @@ function buildOutlineTree(rows: OutlineDraftRow[]): OutlineDraftNode[] {
       ai_generated: row.ai_generated,
       node_kind: row.node_kind,
       ...(row.dynamic_meta ? { dynamic_meta: row.dynamic_meta } : {}),
+      ...(row.outline_instance ? { outline_instance: row.outline_instance } : {}),
     };
     while (stack.length && stack[stack.length - 1].level >= row.level) {
       stack.pop();

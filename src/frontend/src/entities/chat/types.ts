@@ -65,6 +65,11 @@ export type OutlineNode = {
       type?: string;
       hint?: string;
       value?: string;
+      default?: string;
+      param_id?: string;
+      widget?: string;
+      source?: string;
+      options?: string[];
     }>;
   };
   execution_bindings?: Array<{

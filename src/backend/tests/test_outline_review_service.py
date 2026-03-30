@@ -2,9 +2,11 @@ import unittest
 
 from backend.domain.reporting.entities import ReportTemplateEntity
 from backend.outline_review_service import (
+    build_frontend_outline,
     build_pending_outline_review,
     flatten_review_outline,
     merge_outline_override,
+    resolve_outline_execution_baseline,
 )
 
 
@@ -267,6 +269,69 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(merged[0]["children"][0]["source_kind"], "manual")
         self.assertNotIn("display_text", merged[0])
         self.assertNotIn("ai_generated", merged[0])
+
+    def test_merge_outline_override_keeps_structured_outline_instance_edits(self):
+        current = [
+            {
+                "node_id": "node-1",
+                "title": "分析章节",
+                "description": "查看章节内容",
+                "level": 1,
+                "children": [],
+                "section_kind": "structured_leaf",
+                "source_kind": "v2",
+                "content": {
+                    "presentation": {
+                        "type": "text",
+                        "template": "展示 {@focus_metric}",
+                    }
+                },
+                "outline_instance": {
+                    "document_template": "分析 {@focus_metric} 的变化",
+                    "rendered_document": "分析 温度 的变化",
+                    "segments": [
+                        {"kind": "text", "text": "分析 "},
+                        {"kind": "block", "block_id": "focus_metric", "block_type": "indicator", "value": "温度"},
+                        {"kind": "text", "text": " 的变化"},
+                    ],
+                    "blocks": [
+                        {"id": "focus_metric", "type": "indicator", "hint": "指标", "value": "温度"},
+                    ],
+                },
+            }
+        ]
+        override = [
+            {
+                "node_id": "node-1",
+                "title": "分析章节",
+                "description": "查看章节内容",
+                "level": 1,
+                "children": [],
+                "outline_instance": {
+                    "document_template": "分析 {@focus_metric} 的变化",
+                    "rendered_document": "分析 湿度 的变化",
+                    "segments": [
+                        {"kind": "text", "text": "分析 "},
+                        {"kind": "block", "block_id": "focus_metric", "block_type": "indicator", "value": "湿度"},
+                        {"kind": "text", "text": " 的变化"},
+                    ],
+                    "blocks": [
+                        {"id": "focus_metric", "type": "indicator", "hint": "指标", "value": "湿度"},
+                    ],
+                },
+            }
+        ]
+
+        merged = merge_outline_override(current, override)
+        frontend = build_frontend_outline(merged)
+        resolved = resolve_outline_execution_baseline(merged)
+
+        self.assertEqual(frontend[0]["display_text"], "分析 湿度 的变化")
+        self.assertEqual(frontend[0]["outline_instance"]["blocks"][0]["value"], "湿度")
+        self.assertEqual(
+            resolved[0]["resolved_content"]["presentation"]["template"],
+            "展示 湿度",
+        )
 
 
 if __name__ == "__main__":

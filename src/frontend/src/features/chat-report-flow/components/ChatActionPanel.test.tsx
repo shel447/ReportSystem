@@ -108,9 +108,19 @@ describe("ChatActionPanel", () => {
               title: "总部概览",
               description: "巡检范围",
               level: 1,
-              display_text: "总部概览：巡检范围",
+              display_text: "分析 温度 的变化",
               node_kind: "group",
               ai_generated: false,
+              outline_instance: {
+                document_template: "分析 {@focus_metric} 的变化",
+                rendered_document: "分析 温度 的变化",
+                segments: [
+                  { kind: "text", text: "分析 " },
+                  { kind: "block", block_id: "focus_metric", block_type: "indicator", value: "温度" },
+                  { kind: "text", text: " 的变化" },
+                ],
+                blocks: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
+              },
               children: [
                 {
                   node_id: "node-2",
@@ -136,7 +146,8 @@ describe("ChatActionPanel", () => {
     expect(screen.queryByText("章节标题")).not.toBeInTheDocument();
     expect(screen.queryByText("章节说明")).not.toBeInTheDocument();
     expect(screen.getByText("AI")).toBeInTheDocument();
-    expect(screen.getByText("总部概览：巡检范围")).toBeInTheDocument();
+    expect(screen.getByText("分析")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "编辑区块 focus_metric" })).toBeInTheDocument();
     expect(screen.getByText("二级小节：系统生成本节内容")).toBeInTheDocument();
     expect(screen.queryByText("新增同级")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新增同级章节 node-1" })).toBeInTheDocument();
@@ -145,10 +156,10 @@ describe("ChatActionPanel", () => {
     expect(screen.queryByText("二级小节：系统生成本节内容")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "展开章节 node-1" }));
 
-    fireEvent.click(screen.getByText("总部概览：巡检范围"));
-    const inlineInput = screen.getByLabelText("编辑章节 node-1");
-    fireEvent.change(inlineInput, { target: { value: "总部总览：新的范围" } });
-    fireEvent.keyDown(inlineInput, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块 focus_metric" }));
+    const inlineBlockInput = screen.getByLabelText("编辑区块值 focus_metric");
+    fireEvent.change(inlineBlockInput, { target: { value: "湿度" } });
+    fireEvent.keyDown(inlineBlockInput, { key: "Enter" });
 
     fireEvent.click(screen.getByRole("button", { name: "保存大纲" }));
     fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
@@ -157,11 +168,25 @@ describe("ChatActionPanel", () => {
     expect(screen.getByText("foreach 已展开")).toBeInTheDocument();
     expect(onSubmitOutline).toHaveBeenCalledWith(
       "edit_outline",
-      expect.arrayContaining([expect.objectContaining({ title: "总部总览", description: "新的范围" })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          outline_instance: expect.objectContaining({
+            rendered_document: "分析 湿度 的变化",
+            blocks: expect.arrayContaining([expect.objectContaining({ id: "focus_metric", value: "湿度" })]),
+          }),
+        }),
+      ]),
     );
     expect(onSubmitOutline).toHaveBeenCalledWith(
       "confirm_outline_generation",
-      expect.arrayContaining([expect.objectContaining({ title: "总部总览", description: "新的范围" })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          outline_instance: expect.objectContaining({
+            rendered_document: "分析 湿度 的变化",
+            blocks: expect.arrayContaining([expect.objectContaining({ id: "focus_metric", value: "湿度" })]),
+          }),
+        }),
+      ]),
     );
     expect(onCommand).toHaveBeenCalledWith("edit_param");
   });

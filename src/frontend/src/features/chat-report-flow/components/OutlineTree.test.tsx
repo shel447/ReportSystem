@@ -44,4 +44,57 @@ describe("OutlineTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "展开章节 node-1" }));
     expect(screen.getByText("执行摘要：系统生成本节内容")).toBeInTheDocument();
   });
+
+  it("renders editable blueprint nodes with inline block chips", () => {
+    render(
+      <OutlineTree
+        mode="editable"
+        nodes={[
+          {
+            ...sampleOutline[0],
+            children: [],
+            outline_instance: {
+              document_template: "分析 {@focus_metric} 的变化",
+              rendered_document: "分析 温度 的变化",
+              segments: [
+                { kind: "text", text: "分析 " },
+                { kind: "block", block_id: "focus_metric", block_type: "indicator", value: "温度" },
+                { kind: "text", text: " 的变化" },
+              ],
+              blocks: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
+            },
+          },
+        ]}
+        collapsedNodeIds={new Set()}
+        editingNodeId={null}
+        selectedNodeId={null}
+        draftDisplayText=""
+        disabled={false}
+        onToggleCollapse={() => undefined}
+        onSelectNode={() => undefined}
+        onBeginEdit={() => undefined}
+        onDraftChange={() => undefined}
+        onCommitEdit={() => undefined}
+        onCancelEdit={() => undefined}
+        onAddSibling={() => undefined}
+        onAddChild={() => undefined}
+        onMoveUp={() => undefined}
+        onMoveDown={() => undefined}
+        onPromote={() => undefined}
+        onDemote={() => undefined}
+        onDelete={() => undefined}
+        onBeginBlockEdit={() => undefined}
+        onBlockDraftChange={() => undefined}
+        onCommitBlockEdit={() => undefined}
+        onCancelBlockEdit={() => undefined}
+        editingBlockKey={null}
+        blockDraftValue=""
+      />,
+    );
+
+    expect(screen.getByText("分析")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "编辑区块 focus_metric" })).toBeInTheDocument();
+    expect(screen.getByText("温度")).toBeInTheDocument();
+    expect(screen.queryByLabelText("编辑章节 node-1")).not.toBeInTheDocument();
+  });
 });

@@ -595,6 +595,45 @@
   line-height: 1.7;
 }
 
+.outline-tree__segments {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  line-height: 1.7;
+}
+
+.outline-tree__segment-text {
+  color: var(--text-primary);
+}
+
+.outline-tree__block-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(37, 109, 130, 0.16);
+  border-radius: 999px;
+  background: rgba(37, 109, 130, 0.08);
+  color: var(--accent-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+.outline-tree__block-chip:hover:not(:disabled) {
+  border-color: rgba(37, 109, 130, 0.28);
+  background: rgba(37, 109, 130, 0.12);
+}
+
+.outline-tree__block-input,
+.outline-tree__block-select {
+  min-height: 34px;
+  min-width: 96px;
+  padding: 0 10px;
+  border-radius: 12px;
+}
+
 .outline-tree__inline-input {
   min-height: 40px;
   padding: 0 12px;

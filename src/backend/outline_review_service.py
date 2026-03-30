@@ -87,6 +87,9 @@ def _merge_outline_list(
             current["description"] = str(raw.get("description") or "").strip()
             current["level"] = level
             current["children"] = children
+        merged_outline_instance = _merge_outline_instance(raw.get("outline_instance"), current.get("outline_instance"))
+        if merged_outline_instance:
+            current["outline_instance"] = merged_outline_instance
         current.pop("display_text", None)
         current.pop("ai_generated", None)
         current.pop("node_kind", None)
@@ -141,12 +144,14 @@ def _sanitize_outline_node(node: Dict[str, Any], *, include_internal: bool) -> D
     title = str(node.get("title") or "")
     description = str(node.get("description") or "")
     node_kind = str(node.get("node_kind") or node.get("section_kind") or ("group" if node.get("children") else "freeform_leaf"))
+    outline_instance = node.get("outline_instance") if isinstance(node.get("outline_instance"), dict) else {}
+    rendered_outline = str(outline_instance.get("rendered_document") or "").strip()
     payload = {
         "node_id": str(node.get("node_id") or ""),
         "title": title,
         "description": description,
         "level": max(1, int(node.get("level") or 1)),
-        "display_text": str(node.get("display_text") or _build_display_text(title, description)),
+        "display_text": str(node.get("display_text") or rendered_outline or _build_display_text(title, description)),
         "ai_generated": bool(node.get("ai_generated")),
         "node_kind": node_kind,
         "children": [
@@ -157,8 +162,8 @@ def _sanitize_outline_node(node: Dict[str, Any], *, include_internal: bool) -> D
     }
     if isinstance(node.get("dynamic_meta"), dict):
         payload["dynamic_meta"] = copy.deepcopy(node.get("dynamic_meta"))
-    if isinstance(node.get("outline_instance"), dict):
-        payload["outline_instance"] = copy.deepcopy(node.get("outline_instance"))
+    if outline_instance:
+        payload["outline_instance"] = copy.deepcopy(outline_instance)
     if isinstance(node.get("execution_bindings"), list):
         payload["execution_bindings"] = copy.deepcopy(node.get("execution_bindings"))
     if include_internal:
@@ -199,6 +204,76 @@ def _outline_context_from_node(node: Dict[str, Any]) -> Dict[str, Any]:
             continue
         context[block_id] = block.get("value")
     return context
+
+
+def _merge_outline_instance(override: Any, current: Any) -> Dict[str, Any] | None:
+    if not isinstance(override, dict):
+        return copy.deepcopy(current) if isinstance(current, dict) else None
+
+    current_instance = current if isinstance(current, dict) else {}
+    current_blocks = {
+        str(item.get("id") or "").strip(): copy.deepcopy(item)
+        for item in current_instance.get("blocks") or []
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+
+    merged_blocks: List[Dict[str, Any]] = []
+    for raw_block in override.get("blocks") or []:
+        if not isinstance(raw_block, dict):
+            continue
+        block_id = str(raw_block.get("id") or "").strip()
+        if not block_id:
+            continue
+        merged_block = current_blocks.get(block_id, {})
+        merged_block.update(copy.deepcopy(raw_block))
+        merged_block["id"] = block_id
+        merged_block["value"] = str(merged_block.get("value") or "")
+        merged_blocks.append(merged_block)
+
+    merged_block_lookup = {
+        str(item.get("id") or "").strip(): item
+        for item in merged_blocks
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    }
+
+    merged_segments: List[Dict[str, Any]] = []
+    segments_input = override.get("segments") if isinstance(override.get("segments"), list) else current_instance.get("segments")
+    for raw_segment in segments_input or []:
+        if not isinstance(raw_segment, dict):
+            continue
+        kind = str(raw_segment.get("kind") or "").strip()
+        if kind == "text":
+            merged_segments.append({"kind": "text", "text": str(raw_segment.get("text") or "")})
+            continue
+        if kind != "block":
+            continue
+        block_id = str(raw_segment.get("block_id") or "").strip()
+        if not block_id:
+            continue
+        block = merged_block_lookup.get(block_id, {})
+        merged_segments.append(
+            {
+                "kind": "block",
+                "block_id": block_id,
+                "block_type": str(raw_segment.get("block_type") or block.get("type") or ""),
+                "value": str(block.get("value") or raw_segment.get("value") or ""),
+            }
+        )
+
+    rendered_document = "".join(
+        str(segment.get("text") if segment.get("kind") == "text" else segment.get("value") or "")
+        for segment in merged_segments
+    ).strip()
+    document_template = str(override.get("document_template") or current_instance.get("document_template") or "")
+    if not rendered_document:
+        rendered_document = str(override.get("rendered_document") or current_instance.get("rendered_document") or "").strip()
+
+    return {
+        "document_template": document_template,
+        "rendered_document": rendered_document,
+        "segments": merged_segments,
+        "blocks": merged_blocks,
+    }
 
 
 def _resolve_outline_placeholders(value: Any, outline_ctx: Dict[str, Any]) -> Any:

@@ -1128,6 +1128,11 @@ def _build_outline_instance(
                 "type": str(raw.get("type") or "").strip(),
                 "hint": str(raw.get("hint") or "").strip(),
                 "value": value,
+                "default": str(raw.get("default") or "").strip(),
+                "param_id": str(raw.get("param_id") or "").strip(),
+                "widget": str(raw.get("widget") or "").strip(),
+                "source": str(raw.get("source") or "").strip(),
+                "options": [str(item) for item in _as_list(raw.get("options")) if str(item or "").strip()],
             }
         )
 

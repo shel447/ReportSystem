@@ -239,23 +239,31 @@ class ChatRouterTests(unittest.TestCase):
                  "backend.routers.chat.serialize_document",
                  return_value={"document_id": "doc-outline", "download_url": "/api/documents/doc-outline/download"},
              ):
+            edited_outline = second["action"]["outline"]
+            edited_outline[0]["outline_instance"]["rendered_document"] = "分析 湿度 的巡检情况"
+            edited_outline[0]["outline_instance"]["segments"][1]["value"] = "湿度"
+            edited_outline[0]["outline_instance"]["blocks"][0]["value"] = "湿度"
             third = send_message(
-                ChatMessage(session_id=first["session_id"], command="confirm_outline_generation"),
+                ChatMessage(
+                    session_id=first["session_id"],
+                    command="confirm_outline_generation",
+                    outline_override=edited_outline,
+                ),
                 db=self.db,
             )
 
         self.assertEqual(third["action"]["type"], "download_document")
         outline_override = captured["kwargs"]["outline_override"]
         self.assertEqual(outline_override[0]["content"]["presentation"]["template"], "结论：{@target_scene}")
-        self.assertEqual(outline_override[0]["resolved_content"]["presentation"]["template"], "结论：总部")
+        self.assertEqual(outline_override[0]["resolved_content"]["presentation"]["template"], "结论：湿度")
         self.assertEqual(
             outline_override[0]["resolved_content"]["datasets"][0]["source"]["description"],
-            "统计 总部 设备状态",
+            "统计 湿度 设备状态",
         )
         confirmed_record = self.db.query(TemplateInstance).filter(TemplateInstance.report_instance_id == "inst-outline").first()
         self.assertEqual(
             confirmed_record.outline_snapshot[0]["resolved_content"]["presentation"]["template"],
-            "结论：总部",
+            "结论：湿度",
         )
 
     def test_send_message_reset_params_restarts_required_collection(self):

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import type { OutlineNode } from "../../../entities/chat/types";
 
+type OutlineBlock = NonNullable<NonNullable<OutlineNode["outline_instance"]>["blocks"]>[number];
+
 export type OutlineDraftNode = Omit<OutlineNode, "children" | "display_text" | "ai_generated" | "node_kind"> & {
   display_text: string;
   ai_generated: boolean;
@@ -21,6 +23,8 @@ type EditableOutlineTreeProps = {
   editingNodeId: string | null;
   selectedNodeId: string | null;
   draftDisplayText: string;
+  editingBlockKey: string | null;
+  blockDraftValue: string;
   disabled: boolean;
   onToggleCollapse: (nodeId: string) => void;
   onSelectNode: (nodeId: string) => void;
@@ -28,6 +32,10 @@ type EditableOutlineTreeProps = {
   onDraftChange: (value: string) => void;
   onCommitEdit: (nodeId: string) => void;
   onCancelEdit: () => void;
+  onBeginBlockEdit: (node: OutlineDraftNode, blockId: string) => void;
+  onBlockDraftChange: (value: string) => void;
+  onCommitBlockEdit: (nodeId: string, blockId: string) => void;
+  onCancelBlockEdit: () => void;
   onAddSibling: (nodeId: string) => void;
   onAddChild: (nodeId: string) => void;
   onMoveUp: (nodeId: string) => void;
@@ -81,6 +89,8 @@ export function OutlineTree(props: OutlineTreeProps) {
           editingNodeId={props.mode === "editable" ? props.editingNodeId : null}
           selectedNodeId={props.mode === "editable" ? props.selectedNodeId : null}
           draftDisplayText={props.mode === "editable" ? props.draftDisplayText : ""}
+          editingBlockKey={props.mode === "editable" ? props.editingBlockKey : null}
+          blockDraftValue={props.mode === "editable" ? props.blockDraftValue : ""}
           disabled={props.mode === "editable" ? props.disabled : false}
           onToggleCollapse={toggleCollapse}
           onSelectNode={props.mode === "editable" ? props.onSelectNode : undefined}
@@ -88,6 +98,10 @@ export function OutlineTree(props: OutlineTreeProps) {
           onDraftChange={props.mode === "editable" ? props.onDraftChange : undefined}
           onCommitEdit={props.mode === "editable" ? props.onCommitEdit : undefined}
           onCancelEdit={props.mode === "editable" ? props.onCancelEdit : undefined}
+          onBeginBlockEdit={props.mode === "editable" ? props.onBeginBlockEdit : undefined}
+          onBlockDraftChange={props.mode === "editable" ? props.onBlockDraftChange : undefined}
+          onCommitBlockEdit={props.mode === "editable" ? props.onCommitBlockEdit : undefined}
+          onCancelBlockEdit={props.mode === "editable" ? props.onCancelBlockEdit : undefined}
           onAddSibling={props.mode === "editable" ? props.onAddSibling : undefined}
           onAddChild={props.mode === "editable" ? props.onAddChild : undefined}
           onMoveUp={props.mode === "editable" ? props.onMoveUp : undefined}
@@ -108,6 +122,8 @@ function OutlineTreeNodeView({
   editingNodeId,
   selectedNodeId,
   draftDisplayText,
+  editingBlockKey,
+  blockDraftValue,
   disabled,
   onToggleCollapse,
   onSelectNode,
@@ -115,6 +131,10 @@ function OutlineTreeNodeView({
   onDraftChange,
   onCommitEdit,
   onCancelEdit,
+  onBeginBlockEdit,
+  onBlockDraftChange,
+  onCommitBlockEdit,
+  onCancelBlockEdit,
   onAddSibling,
   onAddChild,
   onMoveUp,
@@ -129,6 +149,8 @@ function OutlineTreeNodeView({
   editingNodeId: string | null;
   selectedNodeId: string | null;
   draftDisplayText: string;
+  editingBlockKey: string | null;
+  blockDraftValue: string;
   disabled: boolean;
   onToggleCollapse: (nodeId: string) => void;
   onSelectNode?: (nodeId: string) => void;
@@ -136,6 +158,10 @@ function OutlineTreeNodeView({
   onDraftChange?: (value: string) => void;
   onCommitEdit?: (nodeId: string) => void;
   onCancelEdit?: () => void;
+  onBeginBlockEdit?: (node: OutlineDraftNode, blockId: string) => void;
+  onBlockDraftChange?: (value: string) => void;
+  onCommitBlockEdit?: (nodeId: string, blockId: string) => void;
+  onCancelBlockEdit?: () => void;
   onAddSibling?: (nodeId: string) => void;
   onAddChild?: (nodeId: string) => void;
   onMoveUp?: (nodeId: string) => void;
@@ -148,6 +174,10 @@ function OutlineTreeNodeView({
   const collapsed = collapsedNodeIds.has(node.node_id);
   const editing = mode === "editable" && editingNodeId === node.node_id;
   const selected = mode === "editable" && (selectedNodeId === node.node_id || editing);
+  const blockLookup = new Map<string, OutlineBlock>(
+    (node.outline_instance?.blocks ?? []).map((block) => [block.id, block]),
+  );
+  const hasStructuredOutline = mode === "editable" && Boolean(node.outline_instance?.segments?.length);
   const tools =
     mode === "editable"
       ? [
@@ -160,6 +190,130 @@ function OutlineTreeNodeView({
           { label: "删除章节", icon: "×", action: () => onDelete?.(node.node_id), disabled },
         ]
       : [];
+
+  const renderEditableContent = () => {
+    if (editing && !hasStructuredOutline) {
+      return (
+        <input
+          className="outline-tree__inline-input"
+          aria-label={`编辑章节 ${node.node_id}`}
+          type="text"
+          value={draftDisplayText}
+          autoFocus
+          disabled={disabled}
+          onChange={(event) => onDraftChange?.(event.target.value)}
+          onBlur={() => onCommitEdit?.(node.node_id)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              onCommitEdit?.(node.node_id);
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onCancelEdit?.();
+            }
+          }}
+        />
+      );
+    }
+
+    if (hasStructuredOutline) {
+      return (
+        <div className="outline-tree__segments">
+          {(node.outline_instance?.segments ?? []).map((segment, index) => {
+            if (segment.kind === "text") {
+              return (
+                <span key={`${node.node_id}-text-${index}`} className="outline-tree__segment-text">
+                  {segment.text}
+                </span>
+              );
+            }
+            const blockKey = buildEditingBlockKey(node.node_id, segment.block_id);
+            const block = blockLookup.get(segment.block_id);
+            const options = block?.options ?? [];
+            const isEditingBlock = editingBlockKey === blockKey;
+            if (isEditingBlock && options.length) {
+              return (
+                <select
+                  key={blockKey}
+                  className="outline-tree__block-select"
+                  aria-label={`编辑区块值 ${segment.block_id}`}
+                  value={blockDraftValue}
+                  autoFocus
+                  disabled={disabled}
+                  onChange={(event) => {
+                    onBlockDraftChange?.(event.target.value);
+                    onCommitBlockEdit?.(node.node_id, segment.block_id);
+                  }}
+                  onBlur={() => onCommitBlockEdit?.(node.node_id, segment.block_id)}
+                >
+                  {options.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              );
+            }
+            if (isEditingBlock) {
+              return (
+                <input
+                  key={blockKey}
+                  className="outline-tree__block-input"
+                  aria-label={`编辑区块值 ${segment.block_id}`}
+                  type="text"
+                  value={blockDraftValue}
+                  autoFocus
+                  disabled={disabled}
+                  onChange={(event) => onBlockDraftChange?.(event.target.value)}
+                  onBlur={() => onCommitBlockEdit?.(node.node_id, segment.block_id)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onCommitBlockEdit?.(node.node_id, segment.block_id);
+                    }
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      onCancelBlockEdit?.();
+                    }
+                  }}
+                />
+              );
+            }
+            return (
+              <button
+                key={blockKey}
+                type="button"
+                className="outline-tree__block-chip"
+                aria-label={`编辑区块 ${segment.block_id}`}
+                disabled={disabled}
+                onClick={() => {
+                  onSelectNode?.(node.node_id);
+                  onBeginBlockEdit?.(node, segment.block_id);
+                }}
+              >
+                {segment.value || block?.hint || segment.block_id}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        className="outline-tree__label"
+        disabled={disabled}
+        onClick={() => {
+          onSelectNode?.(node.node_id);
+          onBeginEdit?.(node);
+        }}
+      >
+        {node.display_text}
+      </button>
+    );
+  };
 
   return (
     <div className={`outline-tree__node${selected ? " is-selected" : ""}`} style={{ paddingInlineStart: `${(node.level - 1) * 18}px` }}>
@@ -181,39 +335,8 @@ function OutlineTreeNodeView({
           {node.ai_generated ? <span className="outline-tree__ai-badge">AI</span> : null}
         </div>
 
-        {editing ? (
-          <input
-            className="outline-tree__inline-input"
-            aria-label={`编辑章节 ${node.node_id}`}
-            type="text"
-            value={draftDisplayText}
-            autoFocus
-            disabled={disabled}
-            onChange={(event) => onDraftChange?.(event.target.value)}
-            onBlur={() => onCommitEdit?.(node.node_id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                onCommitEdit?.(node.node_id);
-              }
-              if (event.key === "Escape") {
-                event.preventDefault();
-                onCancelEdit?.();
-              }
-            }}
-          />
-        ) : mode === "editable" ? (
-          <button
-            type="button"
-            className="outline-tree__label"
-            disabled={disabled}
-            onClick={() => {
-              onSelectNode?.(node.node_id);
-              onBeginEdit?.(node);
-            }}
-          >
-            {node.display_text}
-          </button>
+        {mode === "editable" ? (
+          renderEditableContent()
         ) : (
           <span className="outline-tree__text">{node.display_text}</span>
         )}
@@ -248,6 +371,8 @@ function OutlineTreeNodeView({
               editingNodeId={editingNodeId}
               selectedNodeId={selectedNodeId}
               draftDisplayText={draftDisplayText}
+              editingBlockKey={editingBlockKey}
+              blockDraftValue={blockDraftValue}
               disabled={disabled}
               onToggleCollapse={onToggleCollapse}
               onSelectNode={onSelectNode}
@@ -255,6 +380,10 @@ function OutlineTreeNodeView({
               onDraftChange={onDraftChange}
               onCommitEdit={onCommitEdit}
               onCancelEdit={onCancelEdit}
+              onBeginBlockEdit={onBeginBlockEdit}
+              onBlockDraftChange={onBlockDraftChange}
+              onCommitBlockEdit={onCommitBlockEdit}
+              onCancelBlockEdit={onCancelBlockEdit}
               onAddSibling={onAddSibling}
               onAddChild={onAddChild}
               onMoveUp={onMoveUp}
@@ -282,6 +411,7 @@ export function serializeOutlineTree(nodes: OutlineDraftNode[]): OutlineNode[] {
     level: node.level,
     children: serializeOutlineTree(node.children),
     ...(node.dynamic_meta ? { dynamic_meta: node.dynamic_meta } : {}),
+    ...(node.outline_instance ? { outline_instance: node.outline_instance } : {}),
   }));
 }
 
@@ -362,4 +492,8 @@ function buildOutlineSignature(nodes: OutlineNode[]): string {
   };
   visit(nodes ?? []);
   return parts.join("|");
+}
+
+export function buildEditingBlockKey(nodeId: string, blockId: string) {
+  return `${nodeId}:${blockId}`;
 }
