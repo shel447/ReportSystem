@@ -23,7 +23,9 @@ import {
 type ChatCommand =
   | "prepare_outline_review"
   | "reset_params"
-  | "edit_param";
+  | "edit_param"
+  | "confirm_task_switch"
+  | "cancel_task_switch";
 
 type OutlineCommand = "edit_outline" | "confirm_outline_generation";
 
@@ -76,6 +78,9 @@ export function ChatActionPanel({
   }
   if (action.type === "download_document") {
     return <DownloadPanel action={action} />;
+  }
+  if (action.type === "confirm_task_switch") {
+    return <ConfirmTaskSwitchPanel action={action} onCommand={onCommand} disabled={disabled} />;
   }
   return null;
 }
@@ -438,6 +443,46 @@ function ReviewOutlinePanel({
   );
 }
 
+function ConfirmTaskSwitchPanel({
+  action,
+  onCommand,
+  disabled,
+}: {
+  action: Extract<ChatAction, { type: "confirm_task_switch" }>;
+  onCommand: (command: ChatCommand, targetParamId?: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <section className="action-card">
+      <p className="section-kicker">任务切换确认</p>
+      <p>{action.reason}</p>
+      <div className="reason-list">
+        <span>{capabilityLabel(action.from_capability)}</span>
+        <span>→</span>
+        <span>{capabilityLabel(action.to_capability)}</span>
+      </div>
+      <div className="action-row">
+        <button
+          className="secondary-button"
+          type="button"
+          disabled={disabled}
+          onClick={() => onCommand("cancel_task_switch")}
+        >
+          留在当前任务
+        </button>
+        <button
+          className="primary-button"
+          type="button"
+          disabled={disabled}
+          onClick={() => onCommand("confirm_task_switch")}
+        >
+          继续切换
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function DownloadPanel({ action }: { action: DownloadDocumentAction }) {
   return (
     <section className="action-card">
@@ -456,6 +501,19 @@ function DownloadPanel({ action }: { action: DownloadDocumentAction }) {
 
 function formatParamValue(value: string | string[]) {
   return Array.isArray(value) ? value.join("、") : value;
+}
+
+function capabilityLabel(capability: "report_generation" | "smart_query" | "fault_diagnosis") {
+  switch (capability) {
+    case "report_generation":
+      return "制作报告";
+    case "smart_query":
+      return "智能问数";
+    case "fault_diagnosis":
+      return "智能故障";
+    default:
+      return capability;
+  }
 }
 
 function flattenOutlineTree(nodes: OutlineDraftNode[]): OutlineDraftRow[] {

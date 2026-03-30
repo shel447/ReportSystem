@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 import copy
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
+from .chat_capability_service import ensure_task_state
 
-CONTEXT_SCHEMA_VERSION = "ctx.v1"
+CONTEXT_SCHEMA_VERSION = "ctx.v2"
 
 
 def new_context_state(session_id: str, locale: str = "zh-CN") -> Dict[str, Any]:
-    return {
+    state = {
+        "session": {
+            "session_id": session_id,
+            "locale": locale,
+        },
+        "active_task": {
+            "task_id": "",
+            "capability": "report_generation",
+            "stage": "idle",
+            "progress_state": {"has_progress": False},
+            "context_payload": {},
+        },
+        "pending_switch": None,
         "flow": {
             "in_report_flow": False,
             "stage": "idle",
@@ -40,6 +53,7 @@ def new_context_state(session_id: str, locale: str = "zh-CN") -> Dict[str, Any]:
             "schema_version": CONTEXT_SCHEMA_VERSION,
         },
     }
+    return ensure_task_state(state, session_id=session_id, locale=locale)
 
 
 def restore_state_from_history(history: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -47,11 +61,16 @@ def restore_state_from_history(history: List[Dict[str, Any]]) -> Optional[Dict[s
         meta = item.get("meta") or {}
         if meta.get("type") != "context_state":
             continue
-        if meta.get("schema_version") != CONTEXT_SCHEMA_VERSION:
+        if meta.get("schema_version") not in {"ctx.v1", CONTEXT_SCHEMA_VERSION}:
             continue
         state = meta.get("state")
         if isinstance(state, dict):
-            return copy.deepcopy(state)
+            copied = copy.deepcopy(state)
+            session_id = str((copied.get("meta") or {}).get("session_id") or "")
+            locale = str((copied.get("meta") or {}).get("locale") or "zh-CN")
+            upgraded = ensure_task_state(copied, session_id=session_id, locale=locale)
+            upgraded.setdefault("meta", {})["schema_version"] = CONTEXT_SCHEMA_VERSION
+            return upgraded
     return None
 
 
@@ -63,6 +82,12 @@ def should_persist_state(
     min_turns: int = 3,
 ) -> bool:
     if previous_state is None:
+        return True
+    if _value(previous_state, "active_task", "capability") != _value(state, "active_task", "capability"):
+        return True
+    if _value(previous_state, "active_task", "stage") != _value(state, "active_task", "stage"):
+        return True
+    if previous_state.get("pending_switch") != state.get("pending_switch"):
         return True
     if _value(previous_state, "flow", "stage") != _value(state, "flow", "stage"):
         return True
@@ -148,4 +173,4 @@ def _sorted_list(state: Dict[str, Any], *path: str) -> List[Any]:
 
 
 def _now_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")

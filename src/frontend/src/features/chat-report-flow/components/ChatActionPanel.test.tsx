@@ -165,4 +165,32 @@ describe("ChatActionPanel", () => {
     );
     expect(onCommand).toHaveBeenCalledWith("edit_param");
   });
+
+  it("renders confirm_task_switch and triggers confirm or cancel commands", () => {
+    const onCommand = vi.fn();
+    render(
+      <ChatActionPanel
+        action={{
+          type: "confirm_task_switch",
+          from_capability: "report_generation",
+          to_capability: "smart_query",
+          reason: "检测到你正在发起智能问数，这会结束当前报告制作流程。",
+        }}
+        onSubmitParam={vi.fn()}
+        onSubmitOutline={vi.fn()}
+        onSelectTemplate={vi.fn()}
+        onCommand={onCommand}
+      />,
+    );
+
+    expect(screen.getByText("任务切换确认")).toBeInTheDocument();
+    expect(screen.getByText("制作报告")).toBeInTheDocument();
+    expect(screen.getByText("智能问数")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "继续切换" }));
+    fireEvent.click(screen.getByRole("button", { name: "留在当前任务" }));
+
+    expect(onCommand).toHaveBeenCalledWith("confirm_task_switch");
+    expect(onCommand).toHaveBeenCalledWith("cancel_task_switch");
+  });
 });

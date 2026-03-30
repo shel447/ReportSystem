@@ -225,6 +225,52 @@ describe("ChatPage", () => {
     expect(screen.queryByText("请提供参数。")).not.toBeInTheDocument();
   });
 
+  it("sends preferred capability when a quick entry is selected", async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/system-settings") {
+        return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
+      }
+      if (url === "/api/chat" && !init?.method) {
+        return Promise.resolve(createJsonResponse([]));
+      }
+      if (url === "/api/chat" && init?.method === "POST") {
+        capturedBody = JSON.parse(String(init.body ?? "{}"));
+        return Promise.resolve(
+          createJsonResponse({
+            session_id: "s-query-1",
+            reply: "这是问数结果。",
+            messages: [
+              { role: "user", content: "查一下昨天华东区域告警TOP10", created_at: new Date().toISOString() },
+              { role: "assistant", content: "这是问数结果。", created_at: new Date().toISOString() },
+            ],
+          }),
+        );
+      }
+      throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderChatPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "快捷入口：智能问数" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "快捷入口：智能问数" }));
+    fireEvent.change(screen.getByPlaceholderText("输入消息，例如：制作设备巡检报告"), {
+      target: { value: "查一下昨天华东区域告警TOP10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("这是问数结果。")).toBeInTheDocument();
+    });
+
+    expect(capturedBody?.preferred_capability).toBe("smart_query");
+  });
+
   it("optimistically appends structured parameter submissions while pending", async () => {
     let resolveFirstChat: ((value: unknown) => void) | undefined;
     let resolveSecondChat: ((value: unknown) => void) | undefined;
@@ -796,4 +842,3 @@ describe("ChatPage", () => {
     expect(screen.queryByText("迟到的回复不应覆盖空态")).not.toBeInTheDocument();
   });
 });
-

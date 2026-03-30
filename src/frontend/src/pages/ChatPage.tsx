@@ -45,6 +45,7 @@ export function ChatPage() {
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [menuSessionId, setMenuSessionId] = useState("");
   const [menuMessageId, setMenuMessageId] = useState("");
+  const [preferredCapability, setPreferredCapability] = useState<"report_generation" | "smart_query" | "fault_diagnosis" | "">("");
   const viewRevisionRef = useRef(0);
   const chatWorkspaceRef = useRef<HTMLDivElement | null>(null);
   const chatHistoryRailRef = useRef<HTMLDivElement | null>(null);
@@ -184,6 +185,7 @@ export function ChatPage() {
     setActiveSessionId("");
     setSessionTitle("");
     setActiveForkMeta(null);
+    setPreferredCapability("");
     setMenuSessionId("");
     setMenuMessageId("");
     setMessages(DEFAULT_MESSAGES);
@@ -261,6 +263,7 @@ export function ChatPage() {
     sendPayload(
       {
         message: nextMessage,
+        preferred_capability: preferredCapability || undefined,
       },
       nextMessage,
     );
@@ -579,6 +582,25 @@ export function ChatPage() {
               <div ref={composeDockRef} className="chat-compose-dock" data-testid="chat-compose-dock">
                 <SurfaceCard className="chat-compose-card">
                   <div className="chat-compose">
+                    <div className="chat-quick-actions">
+                      {[
+                        { id: "report_generation", label: "制作报告" },
+                        { id: "smart_query", label: "智能问数" },
+                        { id: "fault_diagnosis", label: "智能故障" },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`chat-quick-actions__button${preferredCapability === item.id ? " is-active" : ""}`}
+                          aria-label={`快捷入口：${item.label}`}
+                          onClick={() =>
+                            setPreferredCapability((current) => (current === item.id ? "" : (item.id as typeof preferredCapability)))
+                          }
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
                     <label className="sr-only" htmlFor="chat-input">
                       发送消息
                     </label>
@@ -640,6 +662,12 @@ function buildOptimisticActionMessage(payload: Omit<ChatRequest, "session_id">, 
   }
   if (payload.command === "reset_params") {
     return "重置参数";
+  }
+  if (payload.command === "confirm_task_switch") {
+    return "继续切换任务";
+  }
+  if (payload.command === "cancel_task_switch") {
+    return "留在当前任务";
   }
   if (payload.command === "edit_param" && latestAction?.type === "review_outline") {
     return "返回改参数";

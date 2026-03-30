@@ -83,12 +83,20 @@ export type DownloadDocumentAction = {
   };
 };
 
+export type ConfirmTaskSwitchAction = {
+  type: "confirm_task_switch";
+  from_capability: "report_generation" | "smart_query" | "fault_diagnosis";
+  to_capability: "report_generation" | "smart_query" | "fault_diagnosis";
+  reason: string;
+};
+
 export type ChatAction =
   | AskParamAction
   | ReviewParamsAction
   | ReviewOutlineAction
   | ShowTemplateCandidatesAction
-  | DownloadDocumentAction;
+  | DownloadDocumentAction
+  | ConfirmTaskSwitchAction;
 
 export type ChatForkMeta = {
   source_kind: "session_message" | "template_instance" | "update_from_instance";
@@ -165,6 +173,7 @@ export type ChatForkResponse = {
 export type ChatRequest = {
   message?: string;
   session_id?: string;
+  preferred_capability?: "report_generation" | "smart_query" | "fault_diagnosis";
   selected_template_id?: string;
   param_id?: string;
   param_value?: string;
@@ -175,7 +184,9 @@ export type ChatRequest = {
     | "confirm_outline_generation"
     | "confirm_generation"
     | "reset_params"
-    | "edit_param";
+    | "edit_param"
+    | "confirm_task_switch"
+    | "cancel_task_switch";
   target_param_id?: string;
   outline_override?: OutlineNode[];
 };
@@ -186,4 +197,3 @@ export type ChatForkRequest = {
   source_message_id?: string;
   template_instance_id?: string;
 };
-

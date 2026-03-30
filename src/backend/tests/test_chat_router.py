@@ -234,6 +234,96 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(third["action"]["type"], "review_params")
 
+    def test_send_message_with_query_intent_during_report_progress_returns_switch_confirmation(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], message="顺便查一下昨天华东区域告警TOP10"),
+                db=self.db,
+            )
+
+        self.assertEqual(second["action"]["type"], "confirm_task_switch")
+        self.assertEqual(second["action"]["from_capability"], "report_generation")
+        self.assertEqual(second["action"]["to_capability"], "smart_query")
+        self.assertIn("将结束当前任务", second["reply"])
+
+    def test_confirm_task_switch_discards_report_progress_and_enters_smart_query(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], message="顺便查一下昨天华东区域告警TOP10"),
+                db=self.db,
+            )
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.routers.chat.handle_smart_query_turn", return_value=("这是问数结果。", None, {"stage": "answered"})):
+            third = send_message(
+                ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),
+                db=self.db,
+            )
+
+        self.assertEqual(third["reply"], "这是问数结果。")
+        self.assertIsNone(third["action"])
+        detail = get_session(first["session_id"], db=self.db)
+        state_messages = [
+            item for item in detail["messages"]
+            if (item.get("meta") or {}).get("type") == "context_state"
+        ]
+        latest = state_messages[-1]["meta"]["state"]
+        self.assertEqual(latest["active_task"]["capability"], "smart_query")
+        self.assertEqual(latest["active_task"]["stage"], "answered")
+        self.assertEqual(latest["report"]["template_id"], "")
+        self.assertEqual(latest["slots"], {})
+
+    def test_preferred_capability_routes_first_turn_to_fault_diagnosis(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.routers.chat.handle_fault_diagnosis_turn", return_value=("请补充故障现象。", None, {"stage": "clarifying"})):
+            response = send_message(
+                ChatMessage(message="站点掉站了", preferred_capability="fault_diagnosis"),
+                db=self.db,
+            )
+
+        self.assertEqual(response["reply"], "请补充故障现象。")
+        self.assertIsNone(response["action"])
+        detail = get_session(response["session_id"], db=self.db)
+        state_messages = [
+            item for item in detail["messages"]
+            if (item.get("meta") or {}).get("type") == "context_state"
+        ]
+        latest = state_messages[-1]["meta"]["state"]
+        self.assertEqual(latest["active_task"]["capability"], "fault_diagnosis")
+        self.assertEqual(latest["active_task"]["stage"], "clarifying")
+
     def test_send_message_empty_payload_does_not_create_session(self):
         response = send_message(ChatMessage(), db=self.db)
 
@@ -483,4 +573,3 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
