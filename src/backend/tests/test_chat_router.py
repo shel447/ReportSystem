@@ -1,4 +1,5 @@
 import unittest
+import json
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from backend.database import Base
+from backend.query_engine import QueryRunResult
 from backend.models import ChatSession, ReportTemplate, TemplateInstance
 from backend.routers.chat import ChatForkRequest, ChatMessage, fork_session, get_session, list_sessions, send_message
 
@@ -262,6 +264,32 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["to_capability"], "smart_query")
         self.assertIn("将结束当前任务", second["reply"])
 
+    def test_send_message_with_natural_query_phrase_during_report_progress_returns_switch_confirmation(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], message="先别做报告了，我想知道昨天华东区域告警最多的三个站点"),
+                db=self.db,
+            )
+
+        self.assertEqual(second["action"]["type"], "confirm_task_switch")
+        self.assertEqual(second["action"]["to_capability"], "smart_query")
+
     def test_confirm_task_switch_discards_report_progress_and_enters_smart_query(self):
         with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
@@ -305,6 +333,75 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(latest["report"]["template_id"], "")
         self.assertEqual(latest["slots"], {})
 
+    def test_confirm_task_switch_into_smart_query_uses_structured_result(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], message="先别做报告了，我想知道昨天华东区域告警最多的三个站点"),
+                db=self.db,
+            )
+
+        fake_query_result = QueryRunResult(
+            success=True,
+            model="test-query-model",
+            compiled_sql="SELECT site_name, alarm_count FROM alarm_top_sites",
+            sample_rows=[
+                {"site_name": "华东一号站", "alarm_count": 18},
+                {"site_name": "华东二号站", "alarm_count": 13},
+            ],
+            row_count=3,
+            debug={
+                "strategy": "ibis_planner",
+                "query_spec": {
+                    "intent": "统计昨日华东区域告警最多站点",
+                    "tables": ["fact_alarm_event"],
+                    "dimensions": ["site_name"],
+                    "measures": ["alarm_count"],
+                    "filters": [{"field": "region_name", "op": "=", "value": "华东"}],
+                    "warnings": [],
+                },
+                "schema_candidates": [{"table": "fact_alarm_event", "score": 6}],
+                "compiled_sql": "SELECT site_name, alarm_count FROM alarm_top_sites",
+                "error_stage": "",
+                "error_message": "",
+            },
+        )
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="test-query-model")), \
+             patch("backend.chat_capability_service.run_query", return_value=fake_query_result):
+            third = send_message(
+                ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),
+                db=self.db,
+            )
+
+        self.assertIn("已完成智能问数", third["reply"])
+        self.assertIn("华东一号站", third["reply"])
+        self.assertIn("昨日华东区域", third["reply"])
+        detail = get_session(first["session_id"], db=self.db)
+        latest = [
+            item for item in detail["messages"]
+            if (item.get("meta") or {}).get("type") == "context_state"
+        ][-1]["meta"]["state"]
+        self.assertEqual(latest["active_task"]["capability"], "smart_query")
+        self.assertEqual(latest["active_task"]["stage"], "answered")
+        self.assertIn("query_debug", latest["active_task"]["context_payload"])
+
     def test_preferred_capability_routes_first_turn_to_fault_diagnosis(self):
         with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.routers.chat.handle_fault_diagnosis_turn", return_value=("请补充故障现象。", None, {"stage": "clarifying"})):
@@ -323,6 +420,81 @@ class ChatRouterTests(unittest.TestCase):
         latest = state_messages[-1]["meta"]["state"]
         self.assertEqual(latest["active_task"]["capability"], "fault_diagnosis")
         self.assertEqual(latest["active_task"]["stage"], "clarifying")
+
+    def test_send_message_with_natural_fault_phrase_during_report_progress_returns_switch_confirmation(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], message="先别做报告了，帮我看下 1 号站点昨晚是不是出问题了"),
+                db=self.db,
+            )
+
+        self.assertEqual(second["action"]["type"], "confirm_task_switch")
+        self.assertEqual(second["action"]["to_capability"], "fault_diagnosis")
+
+    def test_confirm_task_switch_discards_report_progress_and_enters_fault_diagnosis(self):
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], message="先别做报告了，帮我看下 1 号站点昨晚是不是出问题了"),
+                db=self.db,
+            )
+
+        diagnosis_payload = {
+            "symptom_summary": "1 号站点昨晚出现退服风险。",
+            "judgment": "更像是站点退服或传输中断，需要先核查站点在线状态和传输链路。",
+            "possible_causes": ["站点主设备离线", "回传链路中断"],
+            "next_steps": ["检查站点在线/退服告警", "核查传输链路与电源状态"],
+            "missing_info": [],
+            "risk_level": "high",
+        }
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="diag-model")), \
+             patch("backend.ai_gateway.OpenAICompatGateway.chat_completion", return_value={"content": json.dumps(diagnosis_payload, ensure_ascii=False), "model": "diag-model"}):
+            third = send_message(
+                ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),
+                db=self.db,
+            )
+
+        self.assertIn("已进入智能故障分析", third["reply"])
+        self.assertIn("回传链路中断", third["reply"])
+        detail = get_session(first["session_id"], db=self.db)
+        latest = [
+            item for item in detail["messages"]
+            if (item.get("meta") or {}).get("type") == "context_state"
+        ][-1]["meta"]["state"]
+        self.assertEqual(latest["active_task"]["capability"], "fault_diagnosis")
+        self.assertIn("possible_causes", latest["active_task"]["context_payload"])
 
     def test_send_message_empty_payload_does_not_create_session(self):
         response = send_message(ChatMessage(), db=self.db)
