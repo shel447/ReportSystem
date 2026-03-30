@@ -97,4 +97,124 @@ describe("OutlineTree", () => {
     expect(screen.getByText("温度")).toBeInTheDocument();
     expect(screen.queryByLabelText("编辑章节 node-1")).not.toBeInTheDocument();
   });
+
+  it("renders time_range blocks with date range editors", () => {
+    render(
+      <OutlineTree
+        mode="editable"
+        nodes={[
+          {
+            node_id: "node-time",
+            title: "时间分析",
+            description: "",
+            level: 1,
+            display_text: "分析 2026-03-01 至 2026-03-07 的变化",
+            node_kind: "structured_leaf",
+            ai_generated: false,
+            children: [],
+            outline_instance: {
+              document_template: "分析 {@period} 的变化",
+              rendered_document: "分析 2026-03-01 至 2026-03-07 的变化",
+              segments: [
+                { kind: "text", text: "分析 " },
+                { kind: "block", block_id: "period", block_type: "time_range", value: "2026-03-01 至 2026-03-07" },
+                { kind: "text", text: " 的变化" },
+              ],
+              blocks: [
+                { id: "period", type: "time_range", hint: "时间范围", value: "2026-03-01 至 2026-03-07", widget: "date_range" },
+              ],
+            },
+          },
+        ]}
+        collapsedNodeIds={new Set()}
+        editingNodeId={null}
+        selectedNodeId={null}
+        draftDisplayText=""
+        disabled={false}
+        onToggleCollapse={() => undefined}
+        onSelectNode={() => undefined}
+        onBeginEdit={() => undefined}
+        onDraftChange={() => undefined}
+        onCommitEdit={() => undefined}
+        onCancelEdit={() => undefined}
+        onAddSibling={() => undefined}
+        onAddChild={() => undefined}
+        onMoveUp={() => undefined}
+        onMoveDown={() => undefined}
+        onPromote={() => undefined}
+        onDemote={() => undefined}
+        onDelete={() => undefined}
+        onBeginBlockEdit={() => undefined}
+        onBlockDraftChange={() => undefined}
+        onCommitBlockEdit={() => undefined}
+        onCancelBlockEdit={() => undefined}
+        editingBlockKey={"node-time:period"}
+        blockDraftValue="2026-03-01 至 2026-03-07"
+      />,
+    );
+
+    expect(screen.getByLabelText("开始日期 period")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("结束日期 period")).toHaveAttribute("type", "date");
+    expect(screen.queryByLabelText("编辑区块值 period")).not.toBeInTheDocument();
+  });
+
+  it("renders param_ref blocks as readonly chips", () => {
+    render(
+      <OutlineTree
+        mode="editable"
+        nodes={[
+          {
+            node_id: "node-param",
+            title: "范围分析",
+            description: "",
+            level: 1,
+            display_text: "分析 总部 的巡检情况",
+            node_kind: "structured_leaf",
+            ai_generated: false,
+            children: [],
+            outline_instance: {
+              document_template: "分析 {@target_scene} 的巡检情况",
+              rendered_document: "分析 总部 的巡检情况",
+              segments: [
+                { kind: "text", text: "分析 " },
+                { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                { kind: "text", text: " 的巡检情况" },
+              ],
+              blocks: [
+                { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
+              ],
+            },
+          },
+        ]}
+        collapsedNodeIds={new Set()}
+        editingNodeId={null}
+        selectedNodeId={null}
+        draftDisplayText=""
+        disabled={false}
+        onToggleCollapse={() => undefined}
+        onSelectNode={() => undefined}
+        onBeginEdit={() => undefined}
+        onDraftChange={() => undefined}
+        onCommitEdit={() => undefined}
+        onCancelEdit={() => undefined}
+        onAddSibling={() => undefined}
+        onAddChild={() => undefined}
+        onMoveUp={() => undefined}
+        onMoveDown={() => undefined}
+        onPromote={() => undefined}
+        onDemote={() => undefined}
+        onDelete={() => undefined}
+        onBeginBlockEdit={() => undefined}
+        onBlockDraftChange={() => undefined}
+        onCommitBlockEdit={() => undefined}
+        onCancelBlockEdit={() => undefined}
+        editingBlockKey={null}
+        blockDraftValue=""
+      />,
+    );
+
+    expect(screen.getByText("总部")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "编辑区块 target_scene" })).not.toBeInTheDocument();
+    expect(screen.getByText("来自参数 scene")).toBeInTheDocument();
+  });
 });

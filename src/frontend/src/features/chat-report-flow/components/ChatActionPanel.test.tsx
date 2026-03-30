@@ -191,6 +191,56 @@ describe("ChatActionPanel", () => {
     expect(onCommand).toHaveBeenCalledWith("edit_param");
   });
 
+  it("uses select editor for enum-like blocks and keeps param_ref readonly", () => {
+    render(
+      <ChatActionPanel
+        action={{
+          type: "review_outline",
+          template_id: "tpl-2",
+          template_name: "指标分析报告",
+          warnings: [],
+          params_snapshot: [{ id: "scene", label: "场景", value: "总部" }],
+          outline: [
+            {
+              node_id: "node-3",
+              title: "指标分析",
+              description: "",
+              level: 1,
+              display_text: "分析 温度 在 总部 的变化",
+              node_kind: "structured_leaf",
+              ai_generated: false,
+              children: [],
+              outline_instance: {
+                document_template: "分析 {@metric} 在 {@target_scene} 的变化",
+                rendered_document: "分析 温度 在 总部 的变化",
+                segments: [
+                  { kind: "text", text: "分析 " },
+                  { kind: "block", block_id: "metric", block_type: "indicator", value: "温度" },
+                  { kind: "text", text: " 在 " },
+                  { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                  { kind: "text", text: " 的变化" },
+                ],
+                blocks: [
+                  { id: "metric", type: "indicator", hint: "指标", value: "温度", options: ["温度", "湿度"] },
+                  { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
+                ],
+              },
+            },
+          ],
+        }}
+        onSubmitParam={vi.fn()}
+        onSubmitOutline={vi.fn()}
+        onSelectTemplate={vi.fn()}
+        onCommand={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "编辑区块 metric" }));
+    expect(screen.getByLabelText("编辑区块值 metric")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "编辑区块 target_scene" })).not.toBeInTheDocument();
+    expect(screen.getByText("来自参数 scene")).toBeInTheDocument();
+  });
+
   it("renders confirm_task_switch and triggers confirm or cancel commands", () => {
     const onCommand = vi.fn();
     render(

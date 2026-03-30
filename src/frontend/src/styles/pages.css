@@ -626,10 +626,46 @@
   background: rgba(37, 109, 130, 0.12);
 }
 
+.outline-tree__block-chip--readonly {
+  cursor: default;
+  background: rgba(27, 36, 48, 0.06);
+  border-color: rgba(27, 36, 48, 0.08);
+  color: var(--text-primary);
+}
+
+.outline-tree__readonly-block {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.outline-tree__block-meta {
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.outline-tree__date-range-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.outline-tree__date-separator {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
 .outline-tree__block-input,
 .outline-tree__block-select {
   min-height: 34px;
   min-width: 96px;
+  padding: 0 10px;
+  border-radius: 12px;
+}
+
+.outline-tree__block-date {
+  min-height: 34px;
   padding: 0 10px;
   border-radius: 12px;
 }

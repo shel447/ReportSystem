@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { OutlineNode } from "../../../entities/chat/types";
 
 type OutlineBlock = NonNullable<NonNullable<OutlineNode["outline_instance"]>["blocks"]>[number];
+type BlockEditorMode = "readonly_param_ref" | "date_range" | "select" | "text";
 
 export type OutlineDraftNode = Omit<OutlineNode, "children" | "display_text" | "ai_generated" | "node_kind"> & {
   display_text: string;
@@ -230,8 +231,64 @@ function OutlineTreeNodeView({
             }
             const blockKey = buildEditingBlockKey(node.node_id, segment.block_id);
             const block = blockLookup.get(segment.block_id);
+            const editorMode = getBlockEditorMode(block);
             const options = block?.options ?? [];
             const isEditingBlock = editingBlockKey === blockKey;
+            if (editorMode === "readonly_param_ref") {
+              return (
+                <span key={blockKey} className="outline-tree__readonly-block">
+                  <span className="outline-tree__block-chip outline-tree__block-chip--readonly">
+                    {segment.value || block?.hint || segment.block_id}
+                  </span>
+                  <span className="outline-tree__block-meta">来自参数 {block?.param_id || segment.block_id}</span>
+                </span>
+              );
+            }
+            if (isEditingBlock && editorMode === "date_range") {
+              const draftRange = parseDateRangeValue(blockDraftValue);
+              return (
+                <span key={blockKey} className="outline-tree__date-range-editor">
+                  <input
+                    className="outline-tree__block-date"
+                    aria-label={`开始日期 ${segment.block_id}`}
+                    data-range-block={blockKey}
+                    type="date"
+                    value={draftRange.start}
+                    autoFocus
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onBlockDraftChange?.(formatDateRangeValue(event.target.value, draftRange.end))
+                    }
+                    onBlur={(event) => {
+                      const related = event.relatedTarget as HTMLElement | null;
+                      if (related?.dataset.rangeBlock === blockKey) {
+                        return;
+                      }
+                      onCommitBlockEdit?.(node.node_id, segment.block_id);
+                    }}
+                  />
+                  <span className="outline-tree__date-separator">至</span>
+                  <input
+                    className="outline-tree__block-date"
+                    aria-label={`结束日期 ${segment.block_id}`}
+                    data-range-block={blockKey}
+                    type="date"
+                    value={draftRange.end}
+                    disabled={disabled}
+                    onChange={(event) =>
+                      onBlockDraftChange?.(formatDateRangeValue(draftRange.start, event.target.value))
+                    }
+                    onBlur={(event) => {
+                      const related = event.relatedTarget as HTMLElement | null;
+                      if (related?.dataset.rangeBlock === blockKey) {
+                        return;
+                      }
+                      onCommitBlockEdit?.(node.node_id, segment.block_id);
+                    }}
+                  />
+                </span>
+              );
+            }
             if (isEditingBlock && options.length) {
               return (
                 <select
@@ -496,4 +553,38 @@ function buildOutlineSignature(nodes: OutlineNode[]): string {
 
 export function buildEditingBlockKey(nodeId: string, blockId: string) {
   return `${nodeId}:${blockId}`;
+}
+
+function getBlockEditorMode(block: OutlineBlock | undefined): BlockEditorMode {
+  const type = String(block?.type || "").trim();
+  const widget = String(block?.widget || "").trim();
+  if (type === "param_ref") {
+    return "readonly_param_ref";
+  }
+  if (type === "time_range" || widget === "date_range") {
+    return "date_range";
+  }
+  if (Array.isArray(block?.options) && block.options.length > 0) {
+    return "select";
+  }
+  return "text";
+}
+
+function parseDateRangeValue(value: string) {
+  const text = value.trim();
+  const matched = text.match(/(\d{4}-\d{2}-\d{2})\s*[至~]\s*(\d{4}-\d{2}-\d{2})/);
+  if (matched) {
+    return { start: matched[1], end: matched[2] };
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return { start: text, end: "" };
+  }
+  return { start: "", end: "" };
+}
+
+function formatDateRangeValue(start: string, end: string) {
+  if (start && end) {
+    return `${start} 至 ${end}`;
+  }
+  return start || end || "";
 }
