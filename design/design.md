@@ -374,6 +374,7 @@ src/backend/
 - `routers/` 只负责 HTTP 接口层：请求解析、DTO 转换、application use case 调用、错误映射
 - `domain / application` 不直接依赖 `FastAPI / SQLAlchemy / OpenAI / 文件系统`
 - 技术组件（AI 网关、查询引擎、文档存储、ORM 持久化）统一下沉到 infrastructure adapters
+- `conversation` 上下文的对话推进、fork/update、参数推进与大纲确认已通过 application service + infrastructure gateways 装配，`chat` router 不再保留兼容 shim
 - `TemplateInstance` 在代码层统一按 `GenerationBaseline` 语义使用；底层仍复用 `template_instances` 表
 
 ### 4.3 报告生成流程

@@ -8,39 +8,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..contexts.conversation.application import services as conversation_services
-from ..contexts.conversation.application.services import (
-    delete_session as delete_session_service,
-    fork_session as fork_session_service,
-    get_session as get_session_service,
-    list_sessions as list_sessions_service,
-    send_message as send_message_service,
-)
-from ..shared.kernel.errors import NotFoundError, ValidationError
+from ..infrastructure.dependencies import build_conversation_service
+from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-# Compatibility shim for existing tests and call sites that patch router-level
-# collaborators. The real orchestration lives in conversation application.
-get_settings_payload = conversation_services.get_settings_payload
-match_templates = conversation_services.match_templates
-extract_params_from_message = conversation_services.extract_params_from_message
-build_instance_application_service = conversation_services.build_instance_application_service
-create_markdown_document = conversation_services.create_markdown_document
-serialize_document = conversation_services.serialize_document
-handle_smart_query_turn = conversation_services.handle_smart_query_turn
-handle_fault_diagnosis_turn = conversation_services.handle_fault_diagnosis_turn
-
-
-def _sync_conversation_compatibility_overrides() -> None:
-    conversation_services.get_settings_payload = get_settings_payload
-    conversation_services.match_templates = match_templates
-    conversation_services.extract_params_from_message = extract_params_from_message
-    conversation_services.build_instance_application_service = build_instance_application_service
-    conversation_services.create_markdown_document = create_markdown_document
-    conversation_services.serialize_document = serialize_document
-    conversation_services.handle_smart_query_turn = handle_smart_query_turn
-    conversation_services.handle_fault_diagnosis_turn = handle_fault_diagnosis_turn
 
 
 class ChatMessage(BaseModel):
@@ -65,14 +36,13 @@ class ChatForkRequest(BaseModel):
 
 @router.get("")
 def list_sessions(db: Session = Depends(get_db)):
-    return list_sessions_service(db=db)
+    return build_conversation_service(db).list_sessions()
 
 
 @router.post("")
 def send_message(data: ChatMessage, db: Session = Depends(get_db)):
-    _sync_conversation_compatibility_overrides()
     try:
-        return send_message_service(data=data, db=db)
+        return build_conversation_service(db).send_message(data=data)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -84,18 +54,19 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
 @router.get("/{session_id}")
 def get_session(session_id: str, db: Session = Depends(get_db)):
     try:
-        return get_session_service(session_id=session_id, db=db)
+        return build_conversation_service(db).get_session(session_id=session_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/forks")
 def fork_session(data: ChatForkRequest, db: Session = Depends(get_db)):
-    _sync_conversation_compatibility_overrides()
     try:
-        return fork_session_service(data=data, db=db)
+        return build_conversation_service(db).fork_session(data=data)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=404 if str(exc) == "Unsupported fork source" else 400, detail=str(exc)) from exc
 
@@ -103,6 +74,6 @@ def fork_session(data: ChatForkRequest, db: Session = Depends(get_db)):
 @router.delete("/{session_id}")
 def delete_session(session_id: str, db: Session = Depends(get_db)):
     try:
-        return delete_session_service(session_id=session_id, db=db)
+        return build_conversation_service(db).delete_session(session_id=session_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

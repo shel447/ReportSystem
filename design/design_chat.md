@@ -14,6 +14,12 @@
 
 该模块的目标不是把三类能力混成同一套业务逻辑，而是提供统一入口、统一历史会话与统一状态恢复机制，同时保证报告生成链路的结构化确认能力不被弱化。
 
+当前实现上，对话模块已经按 DDD 分层收敛：
+
+- `routers/chat.py` 只负责 HTTP 映射
+- `contexts/conversation/application` 负责任务推进与状态编排
+- `contexts/conversation/infrastructure` 负责会话持久化、legacy 能力适配、AI/模板/文档等技术组件装配
+
 ---
 
 ## 2. 核心状态模型
