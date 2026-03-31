@@ -686,6 +686,22 @@
   padding-inline: 8px;
 }
 
+.outline-tree__block-input--chip-editing {
+  min-height: 30px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 109, 130, 0.22);
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--accent-strong);
+  box-shadow: none;
+}
+
+.outline-tree__block-input--chip-editing:focus {
+  outline: none;
+  border-color: rgba(37, 109, 130, 0.34);
+  box-shadow: 0 0 0 2px rgba(37, 109, 130, 0.08);
+}
+
 .outline-tree__block-date {
   min-height: 34px;
   padding: 0 10px;

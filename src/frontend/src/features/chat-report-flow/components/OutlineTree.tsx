@@ -332,7 +332,7 @@ function OutlineTreeNodeView({
               return (
                 <input
                   key={blockKey}
-                  className="outline-tree__block-input outline-tree__block-input--inline"
+                  className="outline-tree__block-input outline-tree__block-input--inline outline-tree__block-input--chip-editing"
                   aria-label={`编辑区块值 ${segment.block_id}`}
                   type="text"
                   value={blockDraftValue}

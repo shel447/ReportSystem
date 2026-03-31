@@ -315,6 +315,9 @@ describe("OutlineTree", () => {
     expect(container.querySelector(".outline-tree__segments--editing-block")).not.toBeNull();
     expect(screen.getByText("分析")).toBeInTheDocument();
     expect(screen.getByText("的巡检情况")).toBeInTheDocument();
-    expect(screen.getByLabelText("编辑区块值 target_scene")).toHaveClass("outline-tree__block-input--inline");
+    expect(screen.getByLabelText("编辑区块值 target_scene")).toHaveClass(
+      "outline-tree__block-input--inline",
+      "outline-tree__block-input--chip-editing",
+    );
   });
 });
