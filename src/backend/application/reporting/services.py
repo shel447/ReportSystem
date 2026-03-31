@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from .ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
@@ -35,6 +36,8 @@ class InstanceApplicationService:
         template_id: str,
         input_params: Dict[str, Any],
         outline_override: Optional[List[Any]] = None,
+        report_time: Optional[datetime] = None,
+        report_time_source: str = "",
     ) -> Dict[str, Any]:
         template = self.template_reader.get_by_id(template_id)
         if not template:
@@ -70,8 +73,12 @@ class InstanceApplicationService:
             input_params=input_params or {},
             outline_content=outline_content,
             status="draft",
+            report_time=report_time,
+            report_time_source=report_time_source,
         )
         payload = asdict(created)
+        if payload.get("report_time") is not None:
+            payload["report_time"] = str(payload["report_time"])
         if payload.get("created_at") is not None:
             payload["created_at"] = str(payload["created_at"])
         if payload.get("updated_at") is not None:
@@ -96,6 +103,8 @@ class ScheduledRunApplicationService:
         template_id: str,
         source_instance_id: str,
         override_params: Dict[str, Any],
+        report_time: Optional[datetime] = None,
+        report_time_source: str = "",
     ) -> Dict[str, Any]:
         base_params: Dict[str, Any] = {}
         if source_instance_id:
@@ -110,4 +119,6 @@ class ScheduledRunApplicationService:
             template_id=template_id,
             input_params=merged,
             outline_override=None,
+            report_time=report_time,
+            report_time_source=report_time_source,
         )

@@ -64,5 +64,7 @@ class ReportInstanceEntity:
     status: str
     input_params: Dict[str, Any]
     outline_content: List[Dict[str, Any]]
+    report_time: Optional[datetime] = None
+    report_time_source: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

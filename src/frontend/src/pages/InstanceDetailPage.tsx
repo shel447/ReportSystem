@@ -174,6 +174,12 @@ export function InstanceDetailPage() {
             summary={
               <div className="summary-stack">
                 <SurfaceCard className="summary-strip">
+                  {currentInstance.report_time ? (
+                    <div className="summary-strip__item">
+                      <span>报告时间</span>
+                      <strong>{formatDateTime(currentInstance.report_time)}</strong>
+                    </div>
+                  ) : null}
                   <div className="summary-strip__item">
                     <span>创建时间</span>
                     <strong>{formatDateTime(currentInstance.created_at)}</strong>

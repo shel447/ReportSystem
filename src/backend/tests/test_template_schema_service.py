@@ -86,6 +86,40 @@ class TemplateSchemaServiceTests(unittest.TestCase):
 
         self.assertEqual(validated["parameters"][0]["input_type"], "date")
 
+    def test_validate_template_payload_accepts_parameter_interaction_mode(self):
+        payload = {
+            "name": "设备健康报告",
+            "type": "设备健康评估",
+            "scene": "总部",
+            "parameters": [
+                {
+                    "id": "report_date",
+                    "label": "报告日期",
+                    "required": True,
+                    "input_type": "date",
+                    "interaction_mode": "chat",
+                }
+            ],
+            "sections": [
+                {
+                    "title": "概述",
+                    "content": {
+                        "datasets": [
+                            {
+                                "id": "ds_main",
+                                "source": {"kind": "sql", "query": "SELECT 1 AS value"},
+                            }
+                        ],
+                        "presentation": {"type": "value", "anchor": "{$value}"},
+                    },
+                }
+            ],
+        }
+
+        validated = validate_template_payload(payload)
+
+        self.assertEqual(validated["parameters"][0]["interaction_mode"], "chat")
+
     def test_validate_template_payload_accepts_section_description(self):
         payload = {
             "name": "设备健康报告",

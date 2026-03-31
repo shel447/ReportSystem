@@ -27,6 +27,8 @@ class TaskCreate(BaseModel):
     cron_expression: str = ""
     auto_generate_doc: bool = True
     time_param_name: str = "date"
+    time_format: str = "%Y-%m-%d"
+    use_schedule_time_as_report_time: bool = False
     user_id: str = "default"
 
 
@@ -36,6 +38,9 @@ class TaskUpdate(BaseModel):
     cron_expression: Optional[str] = None
     enabled: Optional[bool] = None
     auto_generate_doc: Optional[bool] = None
+    time_param_name: Optional[str] = None
+    time_format: Optional[str] = None
+    use_schedule_time_as_report_time: Optional[bool] = None
 
 
 @router.post("")
@@ -124,13 +129,19 @@ def run_task_now(task_id: str, db: Session = Depends(get_db)):
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    params = {task.time_param_name: datetime.now().strftime(task.time_format)}
+    actual_run_time = datetime.now()
+    scheduled_time = actual_run_time
+    params = {}
+    if task.time_param_name:
+        params[task.time_param_name] = scheduled_time.strftime(task.time_format or "%Y-%m-%d")
     app_service = build_scheduled_run_application_service(db)
     try:
         created = app_service.create_instance_from_schedule(
             template_id=task.template_id,
             source_instance_id=task.source_instance_id,
             override_params=params,
+            report_time=scheduled_time if task.use_schedule_time_as_report_time else None,
+            report_time_source="scheduled_execution" if task.use_schedule_time_as_report_time else "",
         )
     except (AIConfigurationError, AIRequestError, ValueError) as exc:
         _record_failed_execution(db, task, params, str(exc))
@@ -142,14 +153,14 @@ def run_task_now(task_id: str, db: Session = Depends(get_db)):
         task_id=task_id,
         status="success",
         generated_instance_id=created["instance_id"],
-        completed_at=datetime.now(),
+        completed_at=actual_run_time,
         input_params_used=created["input_params"],
     )
     db.add(execution)
 
     task.total_runs += 1
     task.success_runs += 1
-    task.last_run_at = datetime.now()
+    task.last_run_at = actual_run_time
     if task.schedule_type == "once":
         task.status = "completed"
 
@@ -212,6 +223,9 @@ def _task_dict(task: ScheduledTask):
         "cron_expression": task.cron_expression,
         "enabled": task.enabled,
         "auto_generate_doc": task.auto_generate_doc,
+        "time_param_name": task.time_param_name,
+        "time_format": task.time_format,
+        "use_schedule_time_as_report_time": task.use_schedule_time_as_report_time,
         "status": task.status,
         "total_runs": task.total_runs,
         "success_runs": task.success_runs,

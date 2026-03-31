@@ -48,6 +48,8 @@ describe("InstanceDetailPage", () => {
                 debug: { compiled_sql: "SELECT 1", row_count: 1 },
               },
             ],
+            report_time: "2026-03-31T08:00:00",
+            report_time_source: "scheduled_execution",
             created_at: "2026-03-18T10:00:00",
             updated_at: "2026-03-18T10:01:00",
             has_generation_baseline: true,
@@ -188,6 +190,7 @@ describe("InstanceDetailPage", () => {
     renderInstanceDetailPage();
 
     expect(await screen.findByText("概览")).toBeInTheDocument();
+    expect(screen.getByText("报告时间")).toBeInTheDocument();
     expect(screen.getByText("查看调试信息")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fork" })).toBeInTheDocument();

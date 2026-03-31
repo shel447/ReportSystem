@@ -15,7 +15,17 @@ class FakeTemplateReader:
 
 
 class FakeInstanceWriter:
-    def create(self, *, template_id, template_version, input_params, outline_content, status="draft"):
+    def create(
+        self,
+        *,
+        template_id,
+        template_version,
+        input_params,
+        outline_content,
+        status="draft",
+        report_time=None,
+        report_time_source="",
+    ):
         return ReportInstanceEntity(
             instance_id="inst-1",
             template_id=template_id,
@@ -25,6 +35,8 @@ class FakeInstanceWriter:
             outline_content=outline_content,
             created_at=datetime(2026, 3, 19, 12, 0, 0),
             updated_at=datetime(2026, 3, 19, 12, 0, 0),
+            report_time=report_time,
+            report_time_source=report_time_source,
         )
 
 
@@ -132,6 +144,39 @@ class InstanceApplicationServiceTests(unittest.TestCase):
         self.assertEqual(generator.calls[0][0], "generate")
         self.assertEqual([item["title"] for item in generator.calls[0][1]], ["一级", "二级"])
         self.assertEqual(result["outline_content"][1]["title"], "二级")
+
+    def test_create_instance_preserves_business_report_time(self):
+        template = ReportTemplateEntity(
+            template_id="tpl-3",
+            name="定时报告",
+            description="",
+            report_type="daily",
+            scenario="总部",
+            match_keywords=[],
+            content_params=[],
+            version="1.0",
+            outline=[],
+            parameters=[],
+            sections=[{"title": "模板章节"}],
+            schema_version="v2.0",
+        )
+        generator = FakeContentGenerator()
+        service = InstanceApplicationService(
+            template_reader=FakeTemplateReader(template),
+            instance_writer=FakeInstanceWriter(),
+            content_generator=generator,
+        )
+
+        report_time = datetime(2026, 3, 31, 8, 0, 0)
+        result = service.create_instance(
+            template_id="tpl-3",
+            input_params={"date": "2026-03-31"},
+            report_time=report_time,
+            report_time_source="scheduled_execution",
+        )
+
+        self.assertEqual(result["report_time"], str(report_time))
+        self.assertEqual(result["report_time_source"], "scheduled_execution")
 
 
 if __name__ == "__main__":

@@ -859,6 +859,58 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.status_code, 409)
 
+    def test_send_message_asks_next_chat_mode_param_with_plain_text_reply(self):
+        mixed_template = ReportTemplate(
+            template_id="tpl-mixed",
+            name="混合追问模板",
+            template_type="设备健康评估",
+            scene="总部",
+            parameters=[
+                {
+                    "id": "scene",
+                    "label": "场景",
+                    "required": True,
+                    "input_type": "enum",
+                    "options": ["总部", "区域"],
+                    "interaction_mode": "form",
+                },
+                {
+                    "id": "analysis_goal",
+                    "label": "分析目标",
+                    "required": True,
+                    "input_type": "free_text",
+                    "interaction_mode": "chat",
+                },
+            ],
+            sections=[
+                {
+                    "title": "{scene}概览",
+                    "content": {"presentation": {"type": "text", "template": "ok"}},
+                }
+            ],
+            schema_version="v2.0",
+        )
+        self.db.add(mixed_template)
+        self.db.commit()
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-mixed", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={"scene": "总部"},
+             ):
+            response = send_message(ChatMessage(message="制作混合追问模板"), db=self.db)
+
+        self.assertIsNone(response["action"])
+        self.assertEqual(response["reply"], "请提供参数「分析目标」的取值。")
+
 
 if __name__ == "__main__":
     unittest.main()

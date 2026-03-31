@@ -185,6 +185,10 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
         current.multi = Boolean(nextValue);
         return;
       }
+      if (field === "interactionMode") {
+        current.interactionMode = nextValue as "form" | "chat";
+        return;
+      }
       if (field === "required") {
         current.required = Boolean(nextValue);
         return;
@@ -227,6 +231,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
       label: "新参数",
       required: true,
       inputType: "free_text",
+      interactionMode: "form",
       multi: false,
       options: [],
       source: "",
@@ -511,7 +516,13 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                   >
                     <strong>{item.label || "未命名参数"}</strong>
                     <span>
-                      {[item.id, PARAM_TYPE_LABELS[item.inputType], item.required ? "必填" : "可选", item.multi ? "多值" : "单值"]
+                      {[
+                        item.id,
+                        PARAM_TYPE_LABELS[item.inputType],
+                        item.required ? "必填" : "可选",
+                        item.multi ? "多值" : "单值",
+                        item.interactionMode === "chat" ? "自然语言追问" : "结构化表单",
+                      ]
                         .filter(Boolean)
                         .join(" / ")}
                     </span>
@@ -536,6 +547,17 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                       {Object.entries(PARAM_TYPE_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>{label}</option>
                       ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span className="field-label">追问模式</span>
+                    <select
+                      aria-label="追问模式"
+                      value={selectedParameter.interactionMode}
+                      onChange={(event) => updateParameter("interactionMode", event.target.value as "form" | "chat")}
+                    >
+                      <option value="form">结构化表单</option>
+                      <option value="chat">自然语言追问</option>
                     </select>
                   </label>
                   <label className="field field--checkbox">

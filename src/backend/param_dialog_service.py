@@ -21,12 +21,16 @@ def normalize_parameters(raw_params: List[Dict[str, Any]]) -> List[Dict[str, Any
         param_id = str(item.get("id") or item.get("name") or "").strip()
         if not param_id:
             continue
+        interaction_mode = str(item.get("interaction_mode") or "form")
+        if interaction_mode not in {"form", "chat"}:
+            interaction_mode = "form"
         normalized.append(
             {
                 "id": param_id,
                 "label": str(item.get("label") or param_id),
                 "required": bool(item.get("required")),
                 "input_type": str(item.get("input_type") or item.get("type") or "free_text"),
+                "interaction_mode": interaction_mode,
                 "multi": bool(item.get("multi")),
                 "options": list(item.get("options") or []),
                 "source": str(item.get("source") or ""),

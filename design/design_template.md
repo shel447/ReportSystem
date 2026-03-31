@@ -75,6 +75,7 @@ class TemplateParameter:
     id: str
     label: str
     input_type: str  # free_text / date / enum / dynamic
+    interaction_mode: str  # form / chat
     required: bool
     multi: bool
 
@@ -94,6 +95,10 @@ class TemplateParameter:
   - `date` -> 日期控件
   - `enum` -> 单选/多选固定候选
   - `dynamic` -> 由 `source` 提供候选
+- 参数收集方式支持：
+  - `interaction_mode=form` -> 结构化表单追问
+  - `interaction_mode=chat` -> 自然语言追问
+- `form` 与 `chat` 可在同一模板中按参数顺序混排
 - `multi=true` 主要用于：
   - `foreach` 展开
   - 多对象比较/统计类模板

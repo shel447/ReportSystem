@@ -96,6 +96,7 @@ graph LR
 用户预先定义报告模板，包括：
 - 报告类型、报告场景
 - 报告参数定义（结构化输入参数）
+- 参数追问模式（`form | chat`）
 - 报告章节结构
 - 面向用户的章节蓝图（`outline document + blocks[]`）
 - 面向系统的执行链路（`content / datasets / presentation`）
@@ -122,6 +123,7 @@ sequenceDiagram
     User->>Chat: 补充必要参数 (设备列表、时间范围等)
     Chat->>Template: 获取模板的 content_params
     Template-->>Chat: 返回参数定义
+    Note over Chat: 参数按模板顺序推进，可混合使用结构化表单与自然语言追问
 
     %% 阶段 3: 蓝图实例化与大纲确认
     User->>Chat: 确认参数

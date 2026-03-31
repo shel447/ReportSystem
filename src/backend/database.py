@@ -51,6 +51,13 @@ def _ensure_sqlite_columns():
             "title": "TEXT DEFAULT ''",
             "fork_meta": "JSON DEFAULT '{}'",
         },
+        "scheduled_tasks": {
+            "use_schedule_time_as_report_time": "BOOLEAN DEFAULT 0",
+        },
+        "report_instances": {
+            "report_time": "DATETIME",
+            "report_time_source": "TEXT DEFAULT ''",
+        },
     }
     with engine.begin() as connection:
         for table_name, columns in additions.items():

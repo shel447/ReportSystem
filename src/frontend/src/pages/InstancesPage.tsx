@@ -75,7 +75,7 @@ export function InstancesPage() {
                           <strong>{templateNameMap.get(instance.template_id) ?? instance.template_id}</strong>
                           <span className="status-chip">{instance.status}</span>
                         </div>
-                        <p>更新时间：{formatDateTime(instance.updated_at)}</p>
+                        <p>{instance.report_time ? `报告时间：${formatDateTime(instance.report_time)}` : `更新时间：${formatDateTime(instance.updated_at)}`}</p>
                         <div className="instance-card__meta">
                           <span>{instance.instance_id}</span>
                           <span>{Object.keys(instance.input_params ?? {}).length} 个输入参数</span>

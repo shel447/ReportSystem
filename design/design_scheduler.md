@@ -19,6 +19,7 @@ classDiagram
         +enabled: bool
         +time_param_name: str
         +time_format: str
+        +use_schedule_time_as_report_time: bool
         +status: str
         +last_run_at: datetime
         +next_run_at: datetime
@@ -59,6 +60,7 @@ class ScheduledTask:
     # 参数更新规则（仅时间参数）
     time_param_name: str  # 如 "inspection_date"
     time_format: str = "%Y-%m-%d"
+    use_schedule_time_as_report_time: bool = False
     
     # 元数据
     created_at: datetime
@@ -111,7 +113,8 @@ sequenceDiagram
     Task->>Instance: 获取源实例
     Instance-->>Task: 返回源实例
     
-    Task->>Task: 替换时间参数为当前时间
+    Task->>Task: 计算 actual_run_time / scheduled_time
+    Task->>Task: 将 scheduled_time 写入时间参数
     
     Task->>Instance: 创建新实例请求
     Instance->>Data: 采集数据 (基于新时间)
@@ -134,22 +137,29 @@ sequenceDiagram
 - 任意状态的报告实例都可以作为定时任务的源实例
 - 每次执行生成**新的报告实例**，不覆盖原实例
 - 仅替换时间参数，其他参数保持不变
+- 报告实例保留双时间模型：
+  - `created_at` 表示真实执行时间
+  - `report_time` 表示业务报告时间
 
 ### 3.2 执行逻辑
 
 1. 到达 cron 指定时间时触发任务
 2. 获取源实例的 `input_params`
-3. 将 `time_param_name` 指定的参数替换为当前时间
-4. 基于新参数创建新的报告实例
-5. 调用 LLM 生成完整报告内容
-6. 记录执行结果（成功/失败）
+3. 统一计算两套时间：
+   - `actual_run_time`：真实执行时间
+   - `scheduled_time`：计划执行时间
+4. 将 `time_param_name` 指定的参数替换为 `scheduled_time`
+5. 若 `use_schedule_time_as_report_time=true`，则把 `scheduled_time` 写入新实例的 `report_time`
+6. 基于新参数创建新的报告实例
+7. 调用 LLM 生成完整报告内容
+8. 记录执行结果（成功/失败）
 
 ### 3.3 约束条件
 
 - 执行记录保留 1 年
 - 任务执行失败不自动重试
 - 不考虑并发执行（任务时间到即执行）
-- 暂不自动生成报告文档，需手动触发
+- 支持按任务配置自动生成 Markdown 文档
 
 ---
 

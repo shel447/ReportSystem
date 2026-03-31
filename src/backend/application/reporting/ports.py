@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Protocol
 
 from ...domain.reporting.entities import ReportTemplateEntity, ReportInstanceEntity
@@ -19,6 +20,8 @@ class InstanceWriter(Protocol):
         input_params: Dict[str, Any],
         outline_content: List[Dict[str, Any]],
         status: str = "draft",
+        report_time: datetime | None = None,
+        report_time_source: str = "",
     ) -> ReportInstanceEntity:
         ...
 

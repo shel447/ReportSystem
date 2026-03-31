@@ -58,6 +58,36 @@ class ParamDialogServiceTests(unittest.TestCase):
         normalized = normalize_parameters(raw)
         self.assertTrue(normalized[0]["options"])
 
+    def test_normalize_parameters_defaults_interaction_mode_to_form(self):
+        raw = [
+            {
+                "id": "scene",
+                "label": "场景",
+                "required": True,
+                "input_type": "enum",
+                "options": ["总部"],
+            }
+        ]
+
+        normalized = normalize_parameters(raw)
+
+        self.assertEqual(normalized[0]["interaction_mode"], "form")
+
+    def test_normalize_parameters_preserves_explicit_chat_interaction_mode(self):
+        raw = [
+            {
+                "id": "analysis_goal",
+                "label": "分析目标",
+                "required": True,
+                "input_type": "free_text",
+                "interaction_mode": "chat",
+            }
+        ]
+
+        normalized = normalize_parameters(raw)
+
+        self.assertEqual(normalized[0]["interaction_mode"], "chat")
+
 
 if __name__ == "__main__":
     unittest.main()

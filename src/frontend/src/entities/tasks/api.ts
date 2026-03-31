@@ -1,8 +1,12 @@
 import { postJson, requestJson } from "../../shared/api/http";
-import type { ScheduledTask } from "./types";
+import type { ScheduledTask, ScheduledTaskCreatePayload } from "./types";
 
 export function fetchTasks() {
   return requestJson<ScheduledTask[]>("/api/scheduled-tasks");
+}
+
+export function createTask(payload: ScheduledTaskCreatePayload) {
+  return postJson<ScheduledTask>("/api/scheduled-tasks", payload);
 }
 
 export function runTaskNow(taskId: string) {

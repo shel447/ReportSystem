@@ -77,6 +77,8 @@ export type ReportInstance = {
   status: string;
   input_params: Record<string, unknown>;
   outline_content: InstanceSection[];
+  report_time?: string | null;
+  report_time_source?: string;
   created_at?: string;
   updated_at?: string;
   has_generation_baseline?: boolean;

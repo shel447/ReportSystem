@@ -59,8 +59,8 @@ def upsert_slots_from_params(
 
 
 def build_ask_param_action(state: Dict[str, Any], params: List[Dict[str, Any]]) -> Dict[str, Any]:
-    missing_required = list(state.get("missing", {}).get("required") or [])
-    if not missing_required:
+    param = get_next_missing_param(state, params)
+    if not param:
         return {}
     required_count = len([p for p in params if p.get("required")])
     collected_count = 0
@@ -71,8 +71,7 @@ def build_ask_param_action(state: Dict[str, Any], params: List[Dict[str, Any]]) 
         if p.get("id") in slots:
             collected_count += 1
 
-    target_id = missing_required[0]
-    param = next((p for p in params if p.get("id") == target_id), {"id": target_id, "label": target_id})
+    target_id = str(param.get("id") or "")
     slot = slots.get(target_id) or {}
     return {
         "type": "ask_param",
@@ -91,6 +90,14 @@ def build_ask_param_action(state: Dict[str, Any], params: List[Dict[str, Any]]) 
             "required": required_count,
         },
     }
+
+
+def get_next_missing_param(state: Dict[str, Any], params: List[Dict[str, Any]]) -> Dict[str, Any] | None:
+    missing_required = list(state.get("missing", {}).get("required") or [])
+    if not missing_required:
+        return None
+    target_id = missing_required[0]
+    return next((p for p in params if p.get("id") == target_id), {"id": target_id, "label": target_id})
 
 
 def build_review_params_action(state: Dict[str, Any], params: List[Dict[str, Any]]) -> Dict[str, Any]:

@@ -17,6 +17,7 @@ export type TemplateParameter = {
   label: string;
   required: boolean;
   input_type: "free_text" | "date" | "enum" | "dynamic";
+  interaction_mode?: "form" | "chat";
   multi?: boolean;
   options?: string[];
   source?: string;

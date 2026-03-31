@@ -29,6 +29,7 @@ from ..chat_flow_service import (
     build_ask_param_action,
     build_review_outline_action,
     build_review_params_action,
+    get_next_missing_param,
     reset_slots,
     rewind_slots_for_param,
     upsert_slots_from_params,
@@ -100,15 +101,28 @@ def _resume_report_action(state: Dict[str, Any], template_params: List[Dict[str,
     if stage == "outline_review":
         return "已保留当前任务，请继续确认报告大纲。", build_review_outline_action(state, template_params)
     if (state.get("missing") or {}).get("required"):
-        action = build_ask_param_action(state, template_params)
-        target_id = action.get("param", {}).get("id") if action else None
-        prompt = ""
-        if target_id:
-            target_param = next((p for p in template_params if p.get("id") == target_id), None)
-            if target_param:
-                prompt = build_param_prompt(target_param)
-        return prompt or "已保留当前任务，请继续补充参数。", action
+        return _build_missing_required_response(
+            state,
+            template_params,
+            default_reply="已保留当前任务，请继续补充参数。",
+        )
     return "已保留当前任务，请继续确认参数。", build_review_params_action(state, template_params)
+
+
+def _build_missing_required_response(
+    state: Dict[str, Any],
+    template_params: List[Dict[str, Any]],
+    *,
+    default_reply: str,
+) -> tuple[str, Dict[str, Any] | None]:
+    target_param = get_next_missing_param(state, template_params)
+    if not target_param:
+        return default_reply, None
+    prompt = build_param_prompt(target_param)
+    if str(target_param.get("interaction_mode") or "form") == "chat":
+        return prompt or default_reply, None
+    action = build_ask_param_action(state, template_params)
+    return prompt or default_reply, action
 
 
 def _handle_report_turn(
@@ -260,14 +274,11 @@ def _handle_report_turn(
             state["flow"] = flow
         elif data.command in {"prepare_outline_review", "confirm_generation"}:
             if missing_required:
-                action = build_ask_param_action(state, template_params)
-                target_id = action.get("param", {}).get("id") if action else None
-                prompt = ""
-                if target_id:
-                    target_param = next((p for p in template_params if p.get("id") == target_id), None)
-                    if target_param:
-                        prompt = build_param_prompt(target_param)
-                reply = prompt or "请先补充完所有必填参数。"
+                reply, action = _build_missing_required_response(
+                    state,
+                    template_params,
+                    default_reply="请先补充完所有必填参数。",
+                )
                 flow = state.get("flow") or {}
                 flow["stage"] = "required_collection"
                 state["flow"] = flow
@@ -300,14 +311,11 @@ def _handle_report_turn(
             state["flow"] = flow
         elif data.command == "confirm_outline_generation":
             if missing_required:
-                action = build_ask_param_action(state, template_params)
-                target_id = action.get("param", {}).get("id") if action else None
-                prompt = ""
-                if target_id:
-                    target_param = next((p for p in template_params if p.get("id") == target_id), None)
-                    if target_param:
-                        prompt = build_param_prompt(target_param)
-                reply = prompt or "请先补充完所有必填参数。"
+                reply, action = _build_missing_required_response(
+                    state,
+                    template_params,
+                    default_reply="请先补充完所有必填参数。",
+                )
                 flow = state.get("flow") or {}
                 flow["stage"] = "required_collection"
                 state["flow"] = flow
@@ -361,14 +369,11 @@ def _handle_report_turn(
                 state["summary"] = summary
                 session.instance_id = created["instance_id"]
         elif missing_required:
-            action = build_ask_param_action(state, template_params)
-            target_id = action.get("param", {}).get("id") if action else None
-            prompt = ""
-            if target_id:
-                target_param = next((p for p in template_params if p.get("id") == target_id), None)
-                if target_param:
-                    prompt = build_param_prompt(target_param)
-            reply = prompt or "请补充必填参数。"
+            reply, action = _build_missing_required_response(
+                state,
+                template_params,
+                default_reply="请补充必填参数。",
+            )
             flow = state.get("flow") or {}
             flow["stage"] = "required_collection"
             state["flow"] = flow

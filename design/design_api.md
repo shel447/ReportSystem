@@ -82,6 +82,11 @@ POST   /api/templates/{id}/clone   # 克隆模板
 > - `content.datasets + presentation`：面向系统的执行链路
 >
 > 兼容字段 `content_params / outline` 仍可读取，但保存后统一按新版结构维护。
+>
+> `parameters[]` 额外支持：
+> - `interaction_mode = form | chat`
+>
+> 该字段只影响对话收参方式，不改变模板渲染和实例结构。
 
 ---
 
@@ -149,6 +154,8 @@ POST   /api/instances/{id}/finalize  # 确认实例，准备生成文档
 > - `has_generation_baseline`
 > - `supports_update_chat`
 > - `supports_fork_chat`
+> - `report_time`
+> - `report_time_source`
 >
 > 对于历史数据，若实例没有内部生成基线，则这些能力标识为 `false`。
 
@@ -204,6 +211,15 @@ GET    /api/scheduled-tasks/{id}/instances  # 查看任务生成的实例列表
 # 任务执行记录
 GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 ```
+
+> 定时任务创建/更新额外支持：
+> - `time_param_name`
+> - `time_format`
+> - `use_schedule_time_as_report_time`
+>
+> 当开启 `use_schedule_time_as_report_time` 时，定时执行生成的新实例会写入：
+> - `report_time`
+> - `report_time_source = scheduled_execution`
 
 
 ---

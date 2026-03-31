@@ -63,6 +63,12 @@
           "default": false,
           "description": "是否允许多值选择，true 时可作为 foreach 来源"
         },
+        "interaction_mode": {
+          "type": "string",
+          "enum": ["form", "chat"],
+          "default": "form",
+          "description": "参数追问模式"
+        },
         "options": {
           "type": "array",
           "items": { "type": "string" },

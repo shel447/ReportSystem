@@ -197,6 +197,10 @@ describe("TemplateDetailPage", () => {
 
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /场景/ }));
+    fireEvent.change(screen.getByLabelText("追问模式"), {
+      target: { value: "chat" },
+    });
     fireEvent.change(screen.getByLabelText("模板名称"), {
       target: { value: "设备巡检报告-新版" },
     });
@@ -218,6 +222,7 @@ describe("TemplateDetailPage", () => {
     );
     expect(payload.name).toBe("设备巡检报告-新版");
     expect(payload.parameters[0].id).toBe("date");
+    expect(payload.parameters[1].interaction_mode).toBe("chat");
     expect(payload.sections[0].title).toBe("概览 {date}");
     expect(payload).not.toHaveProperty("previewSamples");
 

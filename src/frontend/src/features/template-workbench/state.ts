@@ -48,6 +48,7 @@ export type WorkbenchParameter = {
   label: string;
   required: boolean;
   inputType: ParameterInputType;
+  interactionMode: "form" | "chat";
   multi: boolean;
   options: string[];
   source: string;
@@ -219,6 +220,7 @@ function normalizeParameter(value: TemplateParameter, uiKey: string): WorkbenchP
     label: value.label ?? "",
     required: Boolean(value.required),
     inputType: value.input_type ?? "free_text",
+    interactionMode: value.interaction_mode ?? "form",
     multi: Boolean(value.multi),
     options: value.options ?? [],
     source: value.source ?? "",
@@ -231,6 +233,7 @@ function serializeParameter(value: WorkbenchParameter): TemplateParameter {
     label: value.label.trim(),
     required: Boolean(value.required),
     input_type: value.inputType,
+    interaction_mode: value.interactionMode,
   };
   if (value.inputType === "enum" && value.options.length) {
     payload.options = value.options.filter(Boolean);

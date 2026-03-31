@@ -41,6 +41,8 @@ describe("InstancesPage", () => {
               status: "generated",
               input_params: { report_date: "2026-03-18" },
               outline_content: [],
+              report_time: "2026-03-31T08:00:00",
+              report_time_source: "scheduled_execution",
               created_at: "2026-03-18T10:00:00",
               updated_at: "2026-03-18T10:01:00",
               has_generation_baseline: true,
@@ -90,6 +92,7 @@ describe("InstancesPage", () => {
       "href",
       "/instances/inst-1",
     );
+    expect(screen.getByText(/报告时间/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fork" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "生成 Markdown" })).not.toBeInTheDocument();

@@ -1,5 +1,6 @@
 ﻿from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
@@ -52,6 +53,8 @@ class SqlAlchemyInstanceRepository(InstanceWriter, InstanceReader):
         input_params: Dict[str, Any],
         outline_content: List[Dict[str, Any]],
         status: str = "draft",
+        report_time: datetime | None = None,
+        report_time_source: str = "",
     ) -> ReportInstanceEntity:
         instance = ReportInstance(
             instance_id=gen_id(),
@@ -60,6 +63,8 @@ class SqlAlchemyInstanceRepository(InstanceWriter, InstanceReader):
             status=status,
             input_params=input_params,
             outline_content=outline_content,
+            report_time=report_time,
+            report_time_source=report_time_source,
         )
         self.db.add(instance)
         self.db.commit()
@@ -71,6 +76,8 @@ class SqlAlchemyInstanceRepository(InstanceWriter, InstanceReader):
             status=instance.status,
             input_params=instance.input_params or {},
             outline_content=instance.outline_content or [],
+            report_time=instance.report_time,
+            report_time_source=instance.report_time_source or "",
             created_at=instance.created_at,
             updated_at=instance.updated_at,
         )

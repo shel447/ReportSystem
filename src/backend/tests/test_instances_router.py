@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch
+from datetime import datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -61,6 +62,8 @@ class InstancesRouterTests(unittest.TestCase):
             instance_id="inst-1",
             template_id="tpl-1",
             input_params={"scene": "总部"},
+            report_time=datetime(2026, 3, 31, 8, 0, 0),
+            report_time_source="scheduled_execution",
             outline_content=[
                 {
                     "title": "确认后的章节",
@@ -183,6 +186,10 @@ class InstancesRouterTests(unittest.TestCase):
         self.assertTrue(detail["has_generation_baseline"])
         self.assertTrue(detail["supports_update_chat"])
         self.assertTrue(detail["supports_fork_chat"])
+        self.assertEqual(detail["report_time"], "2026-03-31 08:00:00")
+        self.assertEqual(detail["report_time_source"], "scheduled_execution")
+        self.assertEqual(inst["report_time"], "2026-03-31 08:00:00")
+        self.assertEqual(inst["report_time_source"], "scheduled_execution")
 
     def test_get_instance_baseline_returns_snapshot(self):
         payload = get_instance_baseline("inst-1", db=self.db)
