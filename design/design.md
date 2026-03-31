@@ -341,6 +341,41 @@ graph TB
 - ChatBI 服务 → LLM 路由（智能层）
 - 各业务服务 → 数据层（GaussDB/HOFS）
 
+### 4.4 后台代码组织（DDD 重构后）
+
+后台实现当前按 bounded context 拆分为 4 个核心上下文：
+
+- `template_catalog`
+  - 负责 `ReportTemplate` 定义、参数/章节/蓝图规范、模板导出、模板匹配输入准备
+- `report_runtime`
+  - 负责 `ReportInstance` 生命周期、实例级蓝图树、确认大纲、生成基线、章节生成、文档导出
+- `conversation`
+  - 负责 `ChatSession`、统一任务路由、消息历史、fork/update 恢复、报告任务在对话中的推进
+- `scheduling`
+  - 负责 `ScheduledTask`、`ScheduledTaskExecution`、run-now、定时任务到报告实例的运行编排
+
+当前代码目录固定为：
+
+```text
+src/backend/
+├─ contexts/
+│  ├─ template_catalog/
+│  ├─ report_runtime/
+│  ├─ conversation/
+│  └─ scheduling/
+├─ infrastructure/
+│  ├─ persistence / ai / query / documents / settings
+├─ shared/kernel/
+└─ routers/
+```
+
+约束规则：
+
+- `routers/` 只负责 HTTP 接口层：请求解析、DTO 转换、application use case 调用、错误映射
+- `domain / application` 不直接依赖 `FastAPI / SQLAlchemy / OpenAI / 文件系统`
+- 技术组件（AI 网关、查询引擎、文档存储、ORM 持久化）统一下沉到 infrastructure adapters
+- `TemplateInstance` 在代码层统一按 `GenerationBaseline` 语义使用；底层仍复用 `template_instances` 表
+
 ### 4.3 报告生成流程
 
 ```mermaid
