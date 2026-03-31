@@ -193,7 +193,71 @@ describe("OutlineTree", () => {
 
     expect(screen.getByLabelText("开始日期 period")).toHaveAttribute("type", "date");
     expect(screen.getByLabelText("结束日期 period")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("开始日期 period")).toHaveClass("outline-tree__block-date--chip-editing");
+    expect(screen.getByLabelText("结束日期 period")).toHaveClass("outline-tree__block-date--chip-editing");
     expect(screen.queryByLabelText("编辑区块值 period")).not.toBeInTheDocument();
+  });
+
+  it("renders enum-like block editors with chip-aligned selects", () => {
+    render(
+      <OutlineTree
+        mode="editable"
+        nodes={[
+          {
+            node_id: "node-select",
+            title: "指标分析",
+            description: "",
+            level: 1,
+            display_text: "分析 温度 的变化",
+            node_kind: "structured_leaf",
+            ai_generated: false,
+            children: [],
+            outline_instance: {
+              document_template: "分析 {@focus_metric} 的变化",
+              rendered_document: "分析 温度 的变化",
+              segments: [
+                { kind: "text", text: "分析 " },
+                { kind: "block", block_id: "focus_metric", block_type: "indicator", value: "温度" },
+                { kind: "text", text: " 的变化" },
+              ],
+              blocks: [
+                { id: "focus_metric", type: "indicator", hint: "指标", value: "温度", options: ["温度", "湿度"] },
+              ],
+            },
+          },
+        ]}
+        collapsedNodeIds={new Set()}
+        editingNodeId={null}
+        selectedNodeId={null}
+        draftDisplayText=""
+        disabled={false}
+        onToggleCollapse={() => undefined}
+        onSelectNode={() => undefined}
+        onBeginEdit={() => undefined}
+        onDraftChange={() => undefined}
+        onCommitEdit={() => undefined}
+        onCancelEdit={() => undefined}
+        onAddSibling={() => undefined}
+        onAddChild={() => undefined}
+        onMoveUp={() => undefined}
+        onMoveDown={() => undefined}
+        onPromote={() => undefined}
+        onDemote={() => undefined}
+        onDelete={() => undefined}
+        onBeginBlockEdit={() => undefined}
+        onBlockDraftChange={() => undefined}
+        onCommitBlockEdit={() => undefined}
+        onCancelBlockEdit={() => undefined}
+        editingBlockKey={"node-select:focus_metric"}
+        blockDraftValue="温度"
+      />,
+    );
+
+    expect(screen.getByLabelText("编辑区块值 focus_metric")).toHaveClass(
+      "outline-tree__block-select--chip-editing",
+    );
+    expect(screen.getByText("分析")).toBeInTheDocument();
+    expect(screen.getByText("的变化")).toBeInTheDocument();
   });
 
   it("renders param_ref blocks as editable chips with hover tooltip", () => {

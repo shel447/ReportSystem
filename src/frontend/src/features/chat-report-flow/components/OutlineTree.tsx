@@ -254,7 +254,7 @@ function OutlineTreeNodeView({
               return (
                 <span key={blockKey} className="outline-tree__date-range-editor">
                   <input
-                    className="outline-tree__block-date"
+                    className="outline-tree__block-date outline-tree__block-date--chip-editing"
                     aria-label={`开始日期 ${segment.block_id}`}
                     data-range-block={blockKey}
                     type="date"
@@ -274,7 +274,7 @@ function OutlineTreeNodeView({
                   />
                   <span className="outline-tree__date-separator">至</span>
                   <input
-                    className="outline-tree__block-date"
+                    className="outline-tree__block-date outline-tree__block-date--chip-editing"
                     aria-label={`结束日期 ${segment.block_id}`}
                     data-range-block={blockKey}
                     type="date"
@@ -298,7 +298,7 @@ function OutlineTreeNodeView({
               return (
                 <select
                   key={blockKey}
-                  className="outline-tree__block-select"
+                  className="outline-tree__block-select outline-tree__block-select--chip-editing"
                   aria-label={`编辑区块值 ${segment.block_id}`}
                   value={blockDraftValue}
                   autoFocus
@@ -337,6 +337,7 @@ function OutlineTreeNodeView({
                   type="text"
                   value={blockDraftValue}
                   size={inlineInputSize}
+                  style={{ width: `${inlineInputSize}ch` }}
                   autoFocus
                   disabled={disabled}
                   onChange={(event) => onBlockDraftChange?.(event.target.value)}
