@@ -6,13 +6,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..contexts.conversation.application.services import (
-    fork_instance_chat as fork_instance_chat_service,
-    list_instance_fork_sources as list_instance_fork_sources_service,
-    update_session_from_instance as update_session_from_instance_service,
-)
-from ..infrastructure.dependencies import build_report_runtime_service
-from ..shared.kernel.errors import NotFoundError, UpstreamError, ValidationError
+from ..infrastructure.dependencies import build_conversation_service, build_report_runtime_service
+from ..shared.kernel.errors import ConflictError, NotFoundError, UpstreamError, ValidationError
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -68,15 +63,17 @@ def get_instance_baseline(instance_id: str, db: Session = Depends(get_db)):
 @router.post("/{instance_id}/update-chat")
 def update_instance_chat(instance_id: str, db: Session = Depends(get_db)):
     try:
-        return update_session_from_instance_service(instance_id=instance_id, db=db)
+        return build_conversation_service(db).update_session_from_instance(instance_id=instance_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/{instance_id}/fork-sources")
 def list_instance_fork_sources(instance_id: str, db: Session = Depends(get_db)):
     try:
-        return list_instance_fork_sources_service(instance_id=instance_id, db=db)
+        return build_conversation_service(db).list_instance_fork_sources(instance_id=instance_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -84,13 +81,14 @@ def list_instance_fork_sources(instance_id: str, db: Session = Depends(get_db)):
 @router.post("/{instance_id}/fork-chat")
 def fork_instance_chat(instance_id: str, data: Dict[str, Any], db: Session = Depends(get_db)):
     try:
-        return fork_instance_chat_service(
+        return build_conversation_service(db).fork_instance_chat(
             instance_id=instance_id,
             source_message_id=str((data or {}).get("source_message_id") or "").strip(),
-            db=db,
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/{instance_id}")

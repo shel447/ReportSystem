@@ -57,10 +57,10 @@ class ChatRouterTests(unittest.TestCase):
         self.db.close()
 
     def test_send_message_returns_review_params_before_generation(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -68,7 +68,7 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001", "A002"]},
              ):
             response = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
@@ -78,10 +78,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(response["action"]["params"][0]["id"], "scene")
 
     def test_send_message_confirms_then_generates_document(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -89,12 +89,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001"]},
             ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="prepare_outline_review"),
                 db=self.db,
@@ -105,7 +105,7 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["outline"][1]["title"], "设备 A001")
         self.assertEqual(self.db.query(TemplateInstance).count(), 0)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             saved = send_message(
                 ChatMessage(session_id=first["session_id"], command="edit_outline", outline_override=second["action"]["outline"]),
                 db=self.db,
@@ -116,11 +116,11 @@ class ChatRouterTests(unittest.TestCase):
 
         fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
         fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", template_id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.routers.chat.build_instance_application_service", return_value=fake_app_service), \
-             patch("backend.routers.chat.create_markdown_document", return_value=fake_doc), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.contexts.conversation.infrastructure.gateways.build_instance_application_service", return_value=fake_app_service), \
+             patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
-                 "backend.routers.chat.serialize_document",
+                 "backend.contexts.conversation.infrastructure.gateways.serialize_document",
                  return_value={"document_id": "doc-1", "download_url": "/api/documents/doc-1/download"},
              ):
             third = send_message(
@@ -193,9 +193,9 @@ class ChatRouterTests(unittest.TestCase):
         self.db.add(outline_template)
         self.db.commit()
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-outline", "score": 0.96},
@@ -203,12 +203,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作蓝图设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="prepare_outline_review"),
                 db=self.db,
@@ -232,11 +232,11 @@ class ChatRouterTests(unittest.TestCase):
             version=1,
             created_at="now",
         )
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.routers.chat.build_instance_application_service", return_value=FakeAppService()), \
-             patch("backend.routers.chat.create_markdown_document", return_value=fake_doc), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.contexts.conversation.infrastructure.gateways.build_instance_application_service", return_value=FakeAppService()), \
+             patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
-                 "backend.routers.chat.serialize_document",
+                 "backend.contexts.conversation.infrastructure.gateways.serialize_document",
                  return_value={"document_id": "doc-outline", "download_url": "/api/documents/doc-outline/download"},
              ):
             edited_outline = second["action"]["outline"]
@@ -267,10 +267,10 @@ class ChatRouterTests(unittest.TestCase):
         )
 
     def test_send_message_reset_params_restarts_required_collection(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -278,12 +278,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001"]},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="reset_params"),
@@ -294,10 +294,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["param"]["id"], "scene")
 
     def test_send_message_edit_param_rewinds_following_slots(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -305,12 +305,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001"]},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="edit_param", target_param_id="devices"),
@@ -321,10 +321,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["param"]["id"], "devices")
 
     def test_send_message_edit_param_from_outline_review_returns_review_params(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -332,12 +332,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001"]},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="prepare_outline_review"),
                 db=self.db,
@@ -345,7 +345,7 @@ class ChatRouterTests(unittest.TestCase):
 
         self.assertEqual(second["action"]["type"], "review_outline")
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             third = send_message(
                 ChatMessage(session_id=first["session_id"], command="edit_param"),
                 db=self.db,
@@ -354,10 +354,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(third["action"]["type"], "review_params")
 
     def test_send_message_with_query_intent_during_report_progress_returns_switch_confirmation(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -365,12 +365,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], message="顺便查一下昨天华东区域告警TOP10"),
                 db=self.db,
@@ -382,10 +382,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertIn("将结束当前任务", second["reply"])
 
     def test_send_message_with_natural_query_phrase_during_report_progress_returns_switch_confirmation(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -393,12 +393,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], message="先别做报告了，我想知道昨天华东区域告警最多的三个站点"),
                 db=self.db,
@@ -408,10 +408,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["to_capability"], "smart_query")
 
     def test_confirm_task_switch_discards_report_progress_and_enters_smart_query(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -419,19 +419,19 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], message="顺便查一下昨天华东区域告警TOP10"),
                 db=self.db,
             )
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.routers.chat.handle_smart_query_turn", return_value=("这是问数结果。", None, {"stage": "answered"})):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.contexts.conversation.infrastructure.gateways.handle_smart_query_turn", return_value=("这是问数结果。", None, {"stage": "answered"})):
             third = send_message(
                 ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),
                 db=self.db,
@@ -451,10 +451,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(latest["slots"], {})
 
     def test_confirm_task_switch_into_smart_query_uses_structured_result(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -462,12 +462,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], message="先别做报告了，我想知道昨天华东区域告警最多的三个站点"),
                 db=self.db,
@@ -499,7 +499,7 @@ class ChatRouterTests(unittest.TestCase):
             },
         )
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="test-query-model")), \
              patch("backend.chat_capability_service.run_query", return_value=fake_query_result):
             third = send_message(
@@ -520,8 +520,8 @@ class ChatRouterTests(unittest.TestCase):
         self.assertIn("query_debug", latest["active_task"]["context_payload"])
 
     def test_preferred_capability_routes_first_turn_to_fault_diagnosis(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.routers.chat.handle_fault_diagnosis_turn", return_value=("请补充故障现象。", None, {"stage": "clarifying"})):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.contexts.conversation.infrastructure.gateways.handle_fault_diagnosis_turn", return_value=("请补充故障现象。", None, {"stage": "clarifying"})):
             response = send_message(
                 ChatMessage(message="站点掉站了", preferred_capability="fault_diagnosis"),
                 db=self.db,
@@ -539,10 +539,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(latest["active_task"]["stage"], "clarifying")
 
     def test_send_message_with_natural_fault_phrase_during_report_progress_returns_switch_confirmation(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -550,12 +550,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], message="先别做报告了，帮我看下 1 号站点昨晚是不是出问题了"),
                 db=self.db,
@@ -565,10 +565,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["to_capability"], "fault_diagnosis")
 
     def test_confirm_task_switch_discards_report_progress_and_enters_fault_diagnosis(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -576,12 +576,12 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], message="先别做报告了，帮我看下 1 号站点昨晚是不是出问题了"),
                 db=self.db,
@@ -595,7 +595,7 @@ class ChatRouterTests(unittest.TestCase):
             "missing_info": [],
             "risk_level": "high",
         }
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="diag-model")), \
              patch("backend.ai_gateway.OpenAICompatGateway.chat_completion", return_value={"content": json.dumps(diagnosis_payload, ensure_ascii=False), "model": "diag-model"}):
             third = send_message(
@@ -621,10 +621,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(self.db.query(ChatSession).count(), 0)
 
     def test_send_message_persists_message_timestamps(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -632,7 +632,7 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部", "devices": ["A001", "A002"]},
              ):
             response = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
@@ -762,10 +762,10 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(payload["fork_meta"]["source_message_id"], "msg-user-1")
 
     def test_fork_from_assistant_panel_restores_action_and_context(self):
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-1", "score": 0.95},
@@ -773,7 +773,7 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             original = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
@@ -893,9 +893,9 @@ class ChatRouterTests(unittest.TestCase):
         self.db.add(mixed_template)
         self.db.commit()
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-mixed", "score": 0.95},
@@ -903,7 +903,7 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={"scene": "总部"},
              ):
             response = send_message(ChatMessage(message="制作混合追问模板"), db=self.db)
@@ -945,9 +945,9 @@ class ChatRouterTests(unittest.TestCase):
         self.db.add(mixed_template)
         self.db.commit()
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-mixed-continue", "score": 0.95},
@@ -955,7 +955,7 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  side_effect=[{}, {"analysis_goal": "设备健康趋势"}],
              ):
             first = send_message(ChatMessage(message="制作混合追问继续模板"), db=self.db)
@@ -1008,9 +1008,9 @@ class ChatRouterTests(unittest.TestCase):
         self.db.add(mixed_template)
         self.db.commit()
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch(
-                 "backend.routers.chat.match_templates",
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
                      "auto_match": True,
                      "best": {"template_id": "tpl-mixed-switch", "score": 0.95},
@@ -1018,7 +1018,7 @@ class ChatRouterTests(unittest.TestCase):
                  },
              ), \
              patch(
-                 "backend.routers.chat.extract_params_from_message",
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
                  return_value={},
              ):
             first = send_message(ChatMessage(message="制作混合追问切换模板"), db=self.db)
@@ -1027,7 +1027,7 @@ class ChatRouterTests(unittest.TestCase):
                 db=self.db,
             )
 
-        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             third = send_message(
                 ChatMessage(
                     session_id=first["session_id"],
@@ -1044,3 +1044,4 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

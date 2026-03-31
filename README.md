@@ -120,6 +120,7 @@ ReportSystemV2/
 约束是：
 
 - `routers` 只做 HTTP 接口层
+- `conversation` 上下文当前也已通过 application service + infrastructure gateways 装配，不再由 `chat` router 保留兼容 shim
 - 业务规则尽量进入 `domain / application`
 - AI、查询、文档、SQLAlchemy 持久化进入 `infrastructure`
 - 共享错误和基础值对象进入 `shared/kernel`

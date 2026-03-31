@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 ROUTERS_DIR = ROOT / "routers"
 TARGET_ROUTERS = {"chat.py", "instances.py", "tasks.py", "templates.py", "documents.py"}
+CONVERSATION_APPLICATION = ROOT / "contexts" / "conversation" / "application" / "services.py"
 
 FORBIDDEN_ROUTER_MODULES = {
     "backend.models",
@@ -21,10 +22,38 @@ FORBIDDEN_ROUTER_MODULES = {
 }
 FORBIDDEN_LAYER_IMPORT_SEGMENTS = {"fastapi", "sqlalchemy", "pydantic", "openai"}
 CHECK_LAYERS = [ROOT / "contexts"]
+FORBIDDEN_CONVERSATION_APPLICATION_MODULES = {
+    "backend.ai_gateway",
+    "backend.models",
+    "backend.infrastructure.dependencies",
+    "backend.chat_capability_service",
+    "backend.chat_flow_service",
+    "backend.chat_fork_service",
+    "backend.chat_response_service",
+    "backend.chat_session_service",
+    "backend.context_state_service",
+    "backend.document_service",
+    "backend.outline_review_service",
+    "backend.param_dialog_service",
+    "backend.system_settings_service",
+    "backend.template_instance_service",
+    "backend.template_index_service",
+}
+FORBIDDEN_CHAT_ROUTER_SHIM_NAMES = {
+    "get_settings_payload",
+    "match_templates",
+    "extract_params_from_message",
+    "build_instance_application_service",
+    "create_markdown_document",
+    "serialize_document",
+    "handle_smart_query_turn",
+    "handle_fault_diagnosis_turn",
+    "_sync_conversation_compatibility_overrides",
+}
 
 
 def _resolve_import_from(path: Path, module: str | None, level: int) -> str:
-    package_parts = ["backend", "routers", path.stem]
+    package_parts = ["backend", *path.relative_to(ROOT).with_suffix("").parts]
     base_parts = package_parts[:-level] if level > 0 else package_parts
     if module:
         return ".".join(base_parts + module.split("."))
@@ -70,7 +99,34 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                             continue
                         top = module.split(".", 1)[0]
                         if top in FORBIDDEN_LAYER_IMPORT_SEGMENTS:
-                            violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+                                violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_conversation_application_does_not_import_legacy_root_modules(self):
+        violations: list[str] = []
+        tree = ast.parse(CONVERSATION_APPLICATION.read_text(encoding="utf-8-sig"), filename=str(CONVERSATION_APPLICATION))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in FORBIDDEN_CONVERSATION_APPLICATION_MODULES:
+                        violations.append(f"import {alias.name}")
+            elif isinstance(node, ast.ImportFrom):
+                module = _resolve_import_from(CONVERSATION_APPLICATION, node.module, node.level)
+                if module in FORBIDDEN_CONVERSATION_APPLICATION_MODULES:
+                    violations.append(f"from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_chat_router_does_not_expose_compatibility_shim_symbols(self):
+        path = ROUTERS_DIR / "chat.py"
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+        violations: list[str] = []
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name in FORBIDDEN_CHAT_ROUTER_SHIM_NAMES:
+                violations.append(f"function {node.name}")
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id in FORBIDDEN_CHAT_ROUTER_SHIM_NAMES:
+                        violations.append(f"assignment {target.id}")
         self.assertEqual([], violations, "\n".join(violations))
 
 

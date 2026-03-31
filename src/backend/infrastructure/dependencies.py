@@ -31,6 +31,14 @@ from ..contexts.scheduling.infrastructure.repositories import (
     SqlAlchemyScheduledTaskRepository,
     SqlAlchemyTaskExecutionRepository,
 )
+from ..contexts.conversation.application.services import ConversationService
+from ..contexts.conversation.infrastructure.gateways import (
+    ConversationCapabilityGateway,
+    ConversationForkGateway,
+    ConversationPersistenceGateway,
+    ConversationReportGateway,
+    ConversationStateGateway,
+)
 from .reporting.repositories import (
     OpenAIContentGenerator,
     SqlAlchemyInstanceRepository,
@@ -103,4 +111,14 @@ def build_scheduling_service(db: Session) -> SchedulingService:
         scheduled_instance_creator=ScheduledInstanceCreatorAdapter(db),
         document_service=build_report_document_service(db),
         clock=SystemClock(),
+    )
+
+
+def build_conversation_service(db: Session) -> ConversationService:
+    return ConversationService(
+        persistence=ConversationPersistenceGateway(db),
+        state_gateway=ConversationStateGateway(),
+        capability_gateway=ConversationCapabilityGateway(db),
+        report_gateway=ConversationReportGateway(db),
+        fork_gateway=ConversationForkGateway(db),
     )
