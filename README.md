@@ -157,6 +157,7 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 ### 总体与模块设计
 
 - [整体设计](design/design.md)
+- [DFX 接口治理](design/design_dfx.md)
 - [对话模块设计](design/design_chat.md)
 - [模板设计](design/design_template.md)
 - [实例与文档设计](design/design_instance.md)
@@ -226,6 +227,7 @@ python -m unittest discover -s src/backend/tests -p "test_*.py" -t .
 2. [整体设计](design/design.md)
 3. [规格文档](design/spec.md)
 4. 根据关注点深入阅读：
+   - DFX： [design_dfx.md](design/design_dfx.md)
    - 对话： [design_chat.md](design/design_chat.md)
    - 模板： [design_template.md](design/design_template.md)
    - 实例： [design_instance.md](design/design_instance.md)

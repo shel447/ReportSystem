@@ -244,6 +244,86 @@ GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 > 以下内容将在后续迭代中逐步细化：
 
 - [ ] 各接口的请求/响应 Body 详细字段定义
-- [ ] 分页、排序、过滤的通用查询参数规范
-- [ ] 错误码与异常响应格式统一规范
 - [ ] WebSocket/SSE 实时推送接口（报告生成进度）
+
+---
+
+## 9. DFX 接口治理基线
+
+> 本章节给出当前 API 的统一治理基线；详细规则以 [design_dfx.md](design_dfx.md) 为准。
+
+### 9.1 统一错误响应契约
+
+当前对外错误响应统一收敛到以下结构：
+
+```json
+{
+  "error": {
+    "code": "CHAT_SESSION_NOT_FOUND",
+    "category": "not_found",
+    "message": "会话不存在。",
+    "details": {},
+    "retryable": false,
+    "request_id": "req_xxx"
+  }
+}
+```
+
+错误类别固定为：
+
+- `validation_error`
+- `not_found`
+- `conflict`
+- `state_invalid`
+- `quota_exceeded`
+- `rate_limited`
+- `upstream_error`
+- `service_unavailable`
+- `internal_error`
+
+### 9.2 列表接口查询参数规范
+
+所有列表接口统一设计为支持：
+
+- `page`
+- `page_size`
+- `sort_by`
+- `sort_order`
+
+默认 `page_size = 20`，最大 `page_size = 100`。
+
+### 9.3 接口族分级限流
+
+| 接口族 | 规格 |
+|--------|------|
+| 读接口 | `120 req/min/user` |
+| 普通写接口 | `30 req/min/user` |
+| 重计算接口 | `10 req/min/user` |
+| 下载接口 | `30 req/min/user` |
+
+### 9.4 容量与对象上限
+
+当前统一规格约束：
+
+- 通用 JSON 请求体：`1 MB`
+- 模板总 JSON：`512 KB`
+- 模板参数数：`<= 50`
+- 模板章节总节点数：`<= 200`
+- 单章节蓝图区块数：`<= 20`
+- 单章节 datasets 数：`<= 10`
+- 实例 `input_params` JSON：`<= 128 KB`
+- 实例章节数：`<= 300`
+- 单章节内容：`<= 64 KB`
+- 单实例总 JSON：`<= 5 MB`
+- Markdown 文档文件：`<= 5 MB`
+
+### 9.5 数据保留策略
+
+首版采用整体长期保留：
+
+- 模板、实例、文档、会话历史、定时任务、任务执行记录默认不自动删除
+- 通过调试摘要、预览截断、样本行限制控制存储膨胀
+
+### 9.6 定时任务时间语义专题
+
+当前 `time_param_name + report_time` 只能表达基础时间联动。关于“任务执行时间 / 报告时间 / 报告数据时间范围”的完整关系，已记录为后续专题，后续会独立引入 `time_slots`、`data_time_start`、`data_time_end` 设计。
