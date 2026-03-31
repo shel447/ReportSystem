@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from backend import template_index_service as tis
+from backend.contexts.template_catalog.infrastructure import indexing as tis
 
 
 class TemplateIndexServiceTests(unittest.TestCase):

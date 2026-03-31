@@ -65,8 +65,8 @@ from ....param_dialog_service import (
 )
 from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 from ....system_settings_service import get_settings_payload
-from ....template_index_service import TemplateIndexUnavailableError, match_templates
 from ....template_instance_service import capture_generation_baseline, get_generation_baseline
+from ....contexts.template_catalog.infrastructure.indexing import TemplateIndexUnavailableError, match_templates
 from ..application.errors import ConversationReplyError
 
 

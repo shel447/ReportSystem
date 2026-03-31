@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 from ..domain.models import ReportTemplate
 from ....shared.kernel.errors import NotFoundError
 from ....models import ReportTemplate as ReportTemplateModel, gen_id
-from ....template_index_service import delete_template_index, mark_template_index_stale, match_templates
-from ....template_schema_service import validate_template_payload
+from .indexing import delete_template_index, mark_template_index_stale, match_templates
+from .schema import validate_template_payload
 
 
 class SqlAlchemyTemplateCatalogRepository:

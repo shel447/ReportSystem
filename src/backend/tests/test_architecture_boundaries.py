@@ -7,6 +7,9 @@ ROUTERS_DIR = ROOT / "routers"
 TARGET_ROUTERS = {"chat.py", "instances.py", "tasks.py", "templates.py", "documents.py"}
 CONVERSATION_APPLICATION = ROOT / "contexts" / "conversation" / "application" / "services.py"
 DEPENDENCY_BUILDER = ROOT / "infrastructure" / "dependencies.py"
+TEMPLATE_CATALOG_REPOSITORY = ROOT / "contexts" / "template_catalog" / "infrastructure" / "repositories.py"
+CONVERSATION_GATEWAYS = ROOT / "contexts" / "conversation" / "infrastructure" / "gateways.py"
+SYSTEM_SETTINGS_ROUTER = ROUTERS_DIR / "system_settings.py"
 
 FORBIDDEN_ROUTER_MODULES = {
     "backend.models",
@@ -57,6 +60,10 @@ FORBIDDEN_DEPENDENCY_BUILDER_MODULES = {
     "backend.domain.reporting.services",
     "backend.infrastructure.reporting.repositories",
     "backend.contexts.report_runtime.infrastructure.adapters",
+}
+FORBIDDEN_TEMPLATE_CATALOG_LEGACY_MODULES = {
+    "backend.template_index_service",
+    "backend.template_schema_service",
 }
 
 
@@ -149,6 +156,21 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 module = _resolve_import_from(DEPENDENCY_BUILDER, node.module, node.level)
                 if module in FORBIDDEN_DEPENDENCY_BUILDER_MODULES:
                     violations.append(f"from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_template_catalog_and_related_entrypoints_do_not_import_root_template_services(self):
+        violations: list[str] = []
+        for path in (TEMPLATE_CATALOG_REPOSITORY, CONVERSATION_GATEWAYS, SYSTEM_SETTINGS_ROUTER):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name in FORBIDDEN_TEMPLATE_CATALOG_LEGACY_MODULES:
+                            violations.append(f"{path.relative_to(ROOT)}: import {alias.name}")
+                elif isinstance(node, ast.ImportFrom):
+                    module = _resolve_import_from(path, node.module, node.level)
+                    if module in FORBIDDEN_TEMPLATE_CATALOG_LEGACY_MODULES:
+                        violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
         self.assertEqual([], violations, "\n".join(violations))
 
 
