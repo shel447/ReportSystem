@@ -71,7 +71,9 @@ from ..application.errors import ConversationReplyError
 
 
 def build_instance_application_service(db):
-    from ....infrastructure.dependencies import build_instance_application_service as _build_instance_application_service
+    from ....contexts.report_runtime.infrastructure.gateways import (
+        build_legacy_instance_application_service as _build_instance_application_service,
+    )
 
     return _build_instance_application_service(db)
 

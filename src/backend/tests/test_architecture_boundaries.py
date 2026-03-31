@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ROUTERS_DIR = ROOT / "routers"
 TARGET_ROUTERS = {"chat.py", "instances.py", "tasks.py", "templates.py", "documents.py"}
 CONVERSATION_APPLICATION = ROOT / "contexts" / "conversation" / "application" / "services.py"
+DEPENDENCY_BUILDER = ROOT / "infrastructure" / "dependencies.py"
 
 FORBIDDEN_ROUTER_MODULES = {
     "backend.models",
@@ -49,6 +50,13 @@ FORBIDDEN_CHAT_ROUTER_SHIM_NAMES = {
     "handle_smart_query_turn",
     "handle_fault_diagnosis_turn",
     "_sync_conversation_compatibility_overrides",
+}
+FORBIDDEN_DEPENDENCY_BUILDER_MODULES = {
+    "backend.ai_gateway",
+    "backend.application.reporting.services",
+    "backend.domain.reporting.services",
+    "backend.infrastructure.reporting.repositories",
+    "backend.contexts.report_runtime.infrastructure.adapters",
 }
 
 
@@ -127,6 +135,20 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 for target in node.targets:
                     if isinstance(target, ast.Name) and target.id in FORBIDDEN_CHAT_ROUTER_SHIM_NAMES:
                         violations.append(f"assignment {target.id}")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_dependency_builder_does_not_import_legacy_reporting_modules(self):
+        violations: list[str] = []
+        tree = ast.parse(DEPENDENCY_BUILDER.read_text(encoding="utf-8-sig"), filename=str(DEPENDENCY_BUILDER))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in FORBIDDEN_DEPENDENCY_BUILDER_MODULES:
+                        violations.append(f"import {alias.name}")
+            elif isinstance(node, ast.ImportFrom):
+                module = _resolve_import_from(DEPENDENCY_BUILDER, node.module, node.level)
+                if module in FORBIDDEN_DEPENDENCY_BUILDER_MODULES:
+                    violations.append(f"from {module} import ...")
         self.assertEqual([], violations, "\n".join(violations))
 
 
