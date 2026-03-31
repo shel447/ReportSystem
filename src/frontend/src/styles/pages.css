@@ -606,10 +606,8 @@
 
 .outline-tree__segments--editing-block {
   flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   max-inline-size: 100%;
-  scrollbar-width: thin;
 }
 
 .outline-tree__segment-text {
@@ -679,6 +677,13 @@
   padding: 0 10px;
   border-radius: 12px;
   flex: 0 0 auto;
+}
+
+.outline-tree__block-input--inline {
+  min-width: 0;
+  width: auto;
+  max-width: min(18ch, 100%);
+  padding-inline: 8px;
 }
 
 .outline-tree__block-date {

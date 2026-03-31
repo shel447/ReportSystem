@@ -318,13 +318,25 @@ function OutlineTreeNodeView({
               );
             }
             if (isEditingBlock) {
+              const inlineInputSize = Math.max(
+                2,
+                Math.min(
+                  16,
+                  Math.max(
+                    blockDraftValue.trim().length,
+                    String(segment.value ?? "").trim().length,
+                    String(block?.hint ?? "").trim().length,
+                  ) + 1,
+                ),
+              );
               return (
                 <input
                   key={blockKey}
-                  className="outline-tree__block-input"
+                  className="outline-tree__block-input outline-tree__block-input--inline"
                   aria-label={`编辑区块值 ${segment.block_id}`}
                   type="text"
                   value={blockDraftValue}
+                  size={inlineInputSize}
                   autoFocus
                   disabled={disabled}
                   onChange={(event) => onBlockDraftChange?.(event.target.value)}
