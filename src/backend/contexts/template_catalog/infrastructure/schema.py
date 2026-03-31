@@ -3,13 +3,13 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from jsonschema import Draft7Validator
 
 
 SCHEMA_VERSION = "v2.0"
-_SCHEMA_PATH = Path(__file__).with_name("report_template_schema_v2.json")
+_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "report_template_schema_v2.json"
 _SCHEMA = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
 _VALIDATOR = Draft7Validator(_SCHEMA)
 

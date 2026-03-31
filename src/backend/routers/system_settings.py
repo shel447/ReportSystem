@@ -5,6 +5,11 @@ from pydantic import BaseModel
 from typing import Optional, Literal
 
 from ..ai_gateway import AIConfigurationError, OpenAICompatGateway
+from ..contexts.template_catalog.infrastructure.indexing import (
+    get_index_status,
+    mark_all_template_indices_stale,
+    reindex_all_templates,
+)
 from ..database import get_db
 from ..system_settings_service import (
     build_completion_provider_config,
@@ -12,7 +17,6 @@ from ..system_settings_service import (
     get_settings_payload,
     save_settings,
 )
-from ..template_index_service import get_index_status, mark_all_template_indices_stale, reindex_all_templates
 
 router = APIRouter(prefix="/system-settings", tags=["system-settings"])
 

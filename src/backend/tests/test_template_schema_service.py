@@ -1,6 +1,6 @@
 import unittest
 
-from backend.template_schema_service import normalize_template_payload, validate_template_payload
+from backend.contexts.template_catalog.infrastructure.schema import normalize_template_payload, validate_template_payload
 
 
 class TemplateSchemaServiceTests(unittest.TestCase):
