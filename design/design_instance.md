@@ -99,6 +99,8 @@ classDiagram
         +status: str
         +input_params: Dict~str, Any~
         +outline: List~CatalogContent~
+        +report_time: datetime
+        +report_time_source: str
         +metadata: InstanceMetadata
     }
     
@@ -152,6 +154,8 @@ class ReportInstance:
     
     input_params: Dict[str, Any]
     outline: List[CatalogContent]  # 与模板结构对应，内联生成内容
+    report_time: Optional[datetime] = None
+    report_time_source: str = ""
     
     metadata: InstanceMetadata
 ```
@@ -210,9 +214,67 @@ class TraceInfo:
 
 ---
 
-## 3. 报告文档 (ReportDocument)
+## 3. 报告实例的双时间模型
 
-### 3.1 类图
+报告实例当前同时保留：
+
+- `created_at`
+  - 真实创建/执行时间
+  - 用于审计、排序和系统日志
+- `report_time`
+  - 业务口径上的报告时间
+  - 当前主要由定时任务在执行时写入
+
+### 3.1 设计原则
+
+- 不伪造 `created_at`
+- 不让 `report_time` 覆盖审计时间
+- 前端优先展示 `report_time` 为“报告时间”，同时保留 `created_at` 为“创建时间”
+- `report_time_source` 当前固定使用 `scheduled_execution`
+
+### 3.2 对调度链路的影响
+
+定时任务执行时会统一计算：
+
+- `actual_run_time`
+- `scheduled_time`
+
+若任务配置了：
+
+- `time_param_name`
+  - 则把 `scheduled_time` 格式化后写入实例输入参数
+- `use_schedule_time_as_report_time = true`
+  - 则把 `scheduled_time` 写入实例 `report_time`
+
+---
+
+## 4. 生成基线查看、更新与分支
+
+围绕内部 `generation_baseline`，报告实例当前支持三类延伸能力：
+
+1. `查看确认大纲`
+   - 读取内部确认蓝图树与参数快照
+2. `更新`
+   - 先在实例详情页预览确认大纲
+   - 再显式进入对话助手继续修改
+3. `Fork`
+   - 基于来源对话中的可见消息节点继续分支
+
+### 4.1 能力标识
+
+实例列表与详情当前额外返回：
+
+- `has_generation_baseline`
+- `supports_update_chat`
+- `supports_fork_chat`
+
+对历史实例，如果没有内部生成基线，则这些能力自动为 `false`。
+
+---
+
+## 5. 报告文档 (ReportDocument)
+
+### 5.1 类图
 
 ```mermaid
 classDiagram
@@ -242,7 +304,7 @@ classDiagram
     ReportDocument "1" --> "1" ReportInstance : 关联
 ```
 
-### 3.2 数据结构
+### 5.2 数据结构
 
 ```python
 @dataclass

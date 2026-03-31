@@ -103,6 +103,12 @@ class TemplateParameter:
   - `foreach` 展开
   - 多对象比较/统计类模板
 
+### 3.2 参数追问模式与统一对话模块的关系
+
+- `interaction_mode` 只定义“下一步如何问用户”，不改变参数的校验规则
+- 当某个 `chat` 模式参数处于待收集状态时，用户的自然语言输入优先用于该参数提取
+- 若用户显式表达“切到智能问数/智能故障”，统一对话模块仍允许切换任务，但必须先经过确认卡片
+
 ---
 
 ## 4. 章节双层模型 (TemplateSection)
@@ -309,6 +315,13 @@ sequenceDiagram
 - `模板 JSON`
 
 > JSON 预览是排查与迁移入口，不再作为主编辑方式。
+
+当前模板工作台已为蓝图区块提供类型化配置面，常见配置包括：
+
+- `time_range`：时间控件与默认值
+- `indicator / scope / enum_select`：固定选项或动态来源
+- `param_ref`：绑定模板参数
+- `number / threshold / boolean / operator`：专用配置面
 
 ---
 

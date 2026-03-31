@@ -102,6 +102,14 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 
 > 聊天页进入 `/chat` 时保持空态，不自动恢复最近会话，也不预创建会话。只有首条真实用户消息发送后才创建 `ChatSession`，并以该首条用户消息生成会话标题。
 >
+> `POST /api/chat` 当前额外支持：
+> - `preferred_capability`
+> - `selected_template_id`
+> - `param_id / param_value / param_values`
+> - `command`
+> - `target_param_id`
+> - `outline_override`
+>
 > 对话生成链路在“大纲确认”阶段只更新当前对话上下文；真正点击“确认生成”后，系统会在创建 `ReportInstance` 的同时生成一份内部 `generation_baseline` 快照。
 >
 > `POST /api/chat/forks` 支持两类来源：
@@ -113,6 +121,8 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 > - `fork_meta`
 >
 > 当会话来源是报告实例更新时，`fork_meta.source_kind = update_from_instance`，聊天页应展示“更新来源”文案，而不是“Fork 来源”。
+>
+> 当报告流程正在等待 `interaction_mode=chat` 的参数时，下一轮普通自然语言输入优先按“当前参数答案”处理；只有显式表达切换意图时，才会返回 `confirm_task_switch`。
 
 ### 3.1 报告生成对话中的大纲确认
 
@@ -216,10 +226,15 @@ GET    /api/scheduled-tasks/{id}/executions  # 查看执行历史
 > - `time_param_name`
 > - `time_format`
 > - `use_schedule_time_as_report_time`
+> - `source_instance_id`
+> - `schedule_type`
+> - `auto_generate_doc`
 >
 > 当开启 `use_schedule_time_as_report_time` 时，定时执行生成的新实例会写入：
 > - `report_time`
 > - `report_time_source = scheduled_execution`
+>
+> 当前产品入口固定为“从已有报告实例创建定时任务”；前端不再要求用户手工填写 `template_id`，而是从选中的 `source_instance_id` 自动带出。
 
 
 ---

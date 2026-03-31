@@ -53,9 +53,11 @@ class ScheduledTask:
     template_id: str  # 冗余字段，方便查询
     
     # 定时配置
+    schedule_type: str  # once / recurring
     cron_expression: str  # 如 "0 8 * * *" (每天 8 点)
     timezone: str = "Asia/Shanghai"
     enabled: bool = True
+    auto_generate_doc: bool = True
     
     # 参数更新规则（仅时间参数）
     time_param_name: str  # 如 "inspection_date"
@@ -134,6 +136,7 @@ sequenceDiagram
 ### 3.1 核心设计原则
 
 - 定时任务是独立的功能模块，不与报告生成流程强耦合
+- 当前版本只支持**从已有报告实例创建定时任务**
 - 任意状态的报告实例都可以作为定时任务的源实例
 - 每次执行生成**新的报告实例**，不覆盖原实例
 - 仅替换时间参数，其他参数保持不变
@@ -144,15 +147,33 @@ sequenceDiagram
 ### 3.2 执行逻辑
 
 1. 到达 cron 指定时间时触发任务
-2. 获取源实例的 `input_params`
+2. 获取源实例的 `input_params` 与 `template_id`
 3. 统一计算两套时间：
    - `actual_run_time`：真实执行时间
    - `scheduled_time`：计划执行时间
 4. 将 `time_param_name` 指定的参数替换为 `scheduled_time`
 5. 若 `use_schedule_time_as_report_time=true`，则把 `scheduled_time` 写入新实例的 `report_time`
-6. 基于新参数创建新的报告实例
+6. 基于源实例派生新的报告实例
 7. 调用 LLM 生成完整报告内容
-8. 记录执行结果（成功/失败）
+8. 若 `auto_generate_doc=true`，则自动生成 Markdown 文档
+9. 记录执行结果（成功/失败）
+
+### 3.3 创建入口与页面约束
+
+当前用户侧创建链路固定为：
+
+- 在“定时任务”页点击“新建任务”
+- 从已有报告实例中选择 `source_instance_id`
+- 系统自动带出该实例的 `template_id`
+
+当前版本不开放“脱离报告实例单独创建定时任务”的入口。
+
+### 3.4 立即执行 (`run-now`)
+
+`run-now` 场景下没有独立的计划时间，因此：
+
+- `scheduled_time = actual_run_time`
+- 仍然按同一套时间映射规则写入参数与 `report_time`
 
 ### 3.3 约束条件
 
