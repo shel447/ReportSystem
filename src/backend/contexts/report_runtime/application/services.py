@@ -15,14 +15,12 @@ class ReportRuntimeService:
         instance_repository,
         generation_baseline_repository,
         template_repository,
-        content_generator,
         legacy_runtime,
     ) -> None:
         self.instance_creator = instance_creator
         self.instance_repository = instance_repository
         self.generation_baseline_repository = generation_baseline_repository
         self.template_repository = template_repository
-        self.content_generator = content_generator
         self.legacy_runtime = legacy_runtime
 
     def create_instance(self, *, template_id: str, input_params: dict[str, Any], outline_override: Optional[list[Any]] = None) -> dict[str, Any]:
@@ -129,9 +127,8 @@ class ReportRuntimeService:
 
 
 class ReportDocumentService:
-    def __init__(self, *, document_gateway, document_repository) -> None:
+    def __init__(self, *, document_gateway) -> None:
         self.document_gateway = document_gateway
-        self.document_repository = document_repository
 
     def create_document(self, *, instance_id: str, format_name: str) -> dict[str, Any]:
         return self.document_gateway.create(instance_id=instance_id, format_name=format_name)

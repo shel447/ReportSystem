@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.orm import Session
+
+from ..application.services import ReportDocumentService, ReportRuntimeService
+from .repositories import (
+    SqlAlchemyDocumentRepository,
+    SqlAlchemyGenerationBaselineRepository,
+    SqlAlchemyReportInstanceRepository,
+)
 from ....shared.kernel.errors import UpstreamError, ValidationError
 from ....ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
 from ....application.reporting.services import InstanceApplicationService, ScheduledRunApplicationService, is_v2_template
@@ -23,18 +31,10 @@ from ....models import ReportTemplate as ReportTemplateModel
 from ....report_generation_service import generate_single_section
 
 
-class InstanceCreatorAdapter:
-    def __init__(self, db) -> None:
+class InstanceCreationGateway:
+    def __init__(self, db: Session) -> None:
         self.db = db
-        template_repo = SqlAlchemyTemplateRepository(db)
-        instance_repo = SqlAlchemyInstanceRepository(db)
-        generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
-        self.service = InstanceApplicationService(
-            template_reader=template_repo,
-            instance_writer=instance_repo,
-            content_generator=generator,
-            outline_expansion_service=OutlineExpansionService(),
-        )
+        self.service = build_legacy_instance_application_service(db)
 
     def create_instance(self, **kwargs):
         try:
@@ -45,18 +45,11 @@ class InstanceCreatorAdapter:
             raise UpstreamError(str(exc)) from exc
 
 
-class ScheduledInstanceCreatorAdapter:
-    def __init__(self, db) -> None:
+class ScheduledInstanceCreationGateway:
+    def __init__(self, db: Session) -> None:
         self.db = db
-        template_repo = SqlAlchemyTemplateRepository(db)
         instance_repo = SqlAlchemyInstanceRepository(db)
-        generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
-        instance_service = InstanceApplicationService(
-            template_reader=template_repo,
-            instance_writer=instance_repo,
-            content_generator=generator,
-            outline_expansion_service=OutlineExpansionService(),
-        )
+        instance_service = build_legacy_instance_application_service(db)
         self.service = ScheduledRunApplicationService(
             instance_service=instance_service,
             instance_reader=instance_repo,
@@ -71,8 +64,8 @@ class ScheduledInstanceCreatorAdapter:
             raise UpstreamError(str(exc)) from exc
 
 
-class RuntimeTemplateAdapter:
-    def __init__(self, db) -> None:
+class RuntimeTemplateGateway:
+    def __init__(self, db: Session) -> None:
         self.db = db
 
     def get_template_entity(self, template_id: str):
@@ -94,8 +87,8 @@ class RuntimeTemplateAdapter:
         }
 
 
-class LegacySectionRuntimeAdapter:
-    def __init__(self, db) -> None:
+class LegacySectionRuntimeGateway:
+    def __init__(self, db: Session) -> None:
         self.db = db
 
     def regenerate_section(
@@ -147,8 +140,8 @@ class LegacySectionRuntimeAdapter:
             raise UpstreamError(str(exc)) from exc
 
 
-class DocumentGatewayAdapter:
-    def __init__(self, db) -> None:
+class ReportDocumentGateway:
+    def __init__(self, db: Session) -> None:
         self.db = db
 
     def create(self, *, instance_id: str, format_name: str) -> dict[str, Any]:
@@ -162,7 +155,6 @@ class DocumentGatewayAdapter:
             raise ValidationError(str(exc)) from exc
 
     def list(self, *, instance_id: str | None = None) -> list[dict[str, Any]]:
-        from .repositories import SqlAlchemyDocumentRepository
         import os
 
         repo = SqlAlchemyDocumentRepository(self.db)
@@ -178,8 +170,6 @@ class DocumentGatewayAdapter:
         return result
 
     def get(self, document_id: str) -> dict[str, Any] | None:
-        from .repositories import SqlAlchemyDocumentRepository
-
         repo = SqlAlchemyDocumentRepository(self.db)
         row = repo.get(document_id)
         if not row:
@@ -187,7 +177,6 @@ class DocumentGatewayAdapter:
         return serialize_document(row)
 
     def resolve_download(self, document_id: str) -> tuple[dict[str, Any] | None, str | None]:
-        from .repositories import SqlAlchemyDocumentRepository
         import os
 
         repo = SqlAlchemyDocumentRepository(self.db)
@@ -203,8 +192,6 @@ class DocumentGatewayAdapter:
         return serialize_document(row), absolute_path
 
     def delete(self, document_id: str) -> dict[str, Any] | None:
-        from .repositories import SqlAlchemyDocumentRepository
-
         repo = SqlAlchemyDocumentRepository(self.db)
         row = repo.get(document_id)
         if not row:
@@ -212,3 +199,35 @@ class DocumentGatewayAdapter:
         remove_document_file(row)
         repo.delete(document_id)
         return {"message": "deleted"}
+
+
+def build_report_runtime_service(db: Session) -> ReportRuntimeService:
+    return ReportRuntimeService(
+        instance_creator=InstanceCreationGateway(db),
+        instance_repository=SqlAlchemyReportInstanceRepository(db),
+        generation_baseline_repository=SqlAlchemyGenerationBaselineRepository(db),
+        template_repository=RuntimeTemplateGateway(db),
+        legacy_runtime=LegacySectionRuntimeGateway(db),
+    )
+
+
+def build_report_document_service(db: Session) -> ReportDocumentService:
+    return ReportDocumentService(
+        document_gateway=ReportDocumentGateway(db),
+    )
+
+
+def build_scheduled_instance_creator(db: Session) -> ScheduledInstanceCreationGateway:
+    return ScheduledInstanceCreationGateway(db)
+
+
+def build_legacy_instance_application_service(db: Session) -> InstanceApplicationService:
+    template_repo = SqlAlchemyTemplateRepository(db)
+    instance_repo = SqlAlchemyInstanceRepository(db)
+    generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
+    return InstanceApplicationService(
+        template_reader=template_repo,
+        instance_writer=instance_repo,
+        content_generator=generator,
+        outline_expansion_service=OutlineExpansionService(),
+    )
