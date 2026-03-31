@@ -98,12 +98,31 @@ ReportSystemV2/
 ├─ design/                 设计、规格、故事、部署手册
 ├─ docs/                   方案记录、演示材料等补充文档
 ├─ src/
-│  ├─ backend/             FastAPI、领域服务、路由、数据库、测试
+│  ├─ backend/             FastAPI、bounded contexts、基础设施适配层、测试
 │  └─ frontend/            React + Vite 前端工程
 ├─ migrate_db.py           数据库迁移脚本
 ├─ migrate_submitter.py    迁移辅助脚本
 └─ README.md               项目总览
 ```
+
+### 4.1 后端结构
+
+后端当前按 DDD 的 bounded context 组织：
+
+- `src/backend/contexts/template_catalog`
+- `src/backend/contexts/report_runtime`
+- `src/backend/contexts/conversation`
+- `src/backend/contexts/scheduling`
+- `src/backend/infrastructure`
+- `src/backend/shared/kernel`
+- `src/backend/routers`
+
+约束是：
+
+- `routers` 只做 HTTP 接口层
+- 业务规则尽量进入 `domain / application`
+- AI、查询、文档、SQLAlchemy 持久化进入 `infrastructure`
+- 共享错误和基础值对象进入 `shared/kernel`
 
 ## 5. 快速启动
 

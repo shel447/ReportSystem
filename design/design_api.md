@@ -88,6 +88,8 @@ POST   /api/templates/{id}/clone   # 克隆模板
 >
 > 该字段只影响对话收参方式，不改变模板渲染和实例结构。
 
+> 后台实现中，`/api/templates` 路由当前只承担接口层职责；模板领域规则位于 `template_catalog` bounded context。
+
 ---
 
 ## 3. 对话交互
@@ -118,6 +120,8 @@ DELETE /api/chat/{session_id}      # 删除对话会话
 >
 > 聊天消息和会话摘要额外返回：
 > - `message_id`
+
+> 后台实现中，`/api/chat` 路由当前只承担接口层职责；统一任务路由、报告推进、fork/update 恢复位于 `conversation` bounded context。
 > - `fork_meta`
 >
 > 当会话来源是报告实例更新时，`fork_meta.source_kind = update_from_instance`，聊天页应展示“更新来源”文案，而不是“Fork 来源”。

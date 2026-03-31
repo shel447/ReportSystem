@@ -77,18 +77,21 @@ class TasksRouterTests(unittest.TestCase):
         )
         captured = {}
 
-        class FakeScheduledRunService:
-            def create_instance_from_schedule(self, **kwargs):
-                captured.update(kwargs)
+        class FakeSchedulingService:
+            def run_task_now(self, _task_id):
+                captured.update(
+                    {
+                        "override_params": {"report_date": "2026-03-31 08:00"},
+                        "report_time": datetime(2026, 3, 31, 8, 0, 0),
+                        "report_time_source": "scheduled_execution",
+                    }
+                )
                 return {
                     "instance_id": "inst-generated",
-                    "input_params": {"scene": "总部", "report_date": "2026-03-31 08:00"},
+                    "document_id": "doc-1",
                 }
 
-        fake_doc = SimpleNamespace(document_id="doc-1")
-        with patch("backend.routers.tasks.build_scheduled_run_application_service", return_value=FakeScheduledRunService()), \
-             patch("backend.routers.tasks.create_markdown_document", return_value=fake_doc), \
-             patch("backend.routers.tasks.datetime", FrozenDateTime):
+        with patch("backend.routers.tasks.build_scheduling_service", return_value=FakeSchedulingService()):
             payload = run_task_now(task["task_id"], db=self.db)
 
         self.assertEqual(payload["instance_id"], "inst-generated")

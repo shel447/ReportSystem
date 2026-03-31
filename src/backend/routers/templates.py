@@ -1,6 +1,5 @@
 """报告模板路由"""
 import json
-import re
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -8,9 +7,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import ReportTemplate, gen_id
-from ..template_index_service import delete_template_index, mark_template_index_stale
-from ..template_schema_service import validate_template_payload
+from ..infrastructure.dependencies import build_template_catalog_service
+from ..contexts.template_catalog.application.services import TemplateCatalogService
+from ..contexts.template_catalog.infrastructure.repositories import TemplateSchemaGateway
+from ..shared.kernel.errors import NotFoundError, ValidationError
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -47,56 +47,39 @@ class TemplateUpdate(BaseModel):
     output_formats: Optional[List[str]] = None
 
 
+def _clean_template_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    service = TemplateCatalogService(repository=None, matcher=None, schema_gateway=TemplateSchemaGateway())
+    return service._clean_payload(dict(payload))
+
+
 @router.post("")
 def create_template(data: TemplateCreate, db: Session = Depends(get_db)):
+    service = build_template_catalog_service(db)
     try:
-        payload = _clean_template_payload(data.model_dump())
-    except ValueError as exc:
+        return service.create_template(data.model_dump())
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    template = ReportTemplate(template_id=gen_id(), **payload)
-    db.add(template)
-    db.commit()
-    db.refresh(template)
-    mark_template_index_stale(db, template.template_id, "模板新建后尚未建立语义索引。")
-    return _template_detail(template)
 
 
 @router.get("")
 def list_templates(db: Session = Depends(get_db)):
-    templates = db.query(ReportTemplate).all()
-    return [
-        {
-            "template_id": item.template_id,
-            "name": item.name,
-            "description": item.description,
-            "report_type": item.report_type,
-            "scenario": item.scenario,
-            "type": item.template_type or "",
-            "scene": item.scene or "",
-            "schema_version": item.schema_version or "",
-            "parameter_count": len(item.parameters or []),
-            "top_level_section_count": len(item.sections or []),
-            "created_at": str(item.created_at),
-        }
-        for item in templates
-    ]
+    return build_template_catalog_service(db).list_templates()
 
 
 @router.get("/{template_id}")
 def get_template(template_id: str, db: Session = Depends(get_db)):
-    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    return _template_detail(template)
+    try:
+        return build_template_catalog_service(db).get_template(template_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{template_id}/export")
 def export_template_definition(template_id: str, db: Session = Depends(get_db)):
-    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    payload = _export_template_payload(template)
-    filename = _build_export_filename(template)
+    try:
+        payload, filename = build_template_catalog_service(db).export_template(template_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return Response(
         content=json.dumps(payload, ensure_ascii=False, indent=2),
         media_type="application/json",
@@ -106,96 +89,19 @@ def export_template_definition(template_id: str, db: Session = Depends(get_db)):
 
 @router.put("/{template_id}")
 def update_template(template_id: str, data: TemplateUpdate, db: Session = Depends(get_db)):
-    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
+    service = build_template_catalog_service(db)
     try:
-        updates = _clean_template_payload(data.model_dump(exclude_none=True))
-    except ValueError as exc:
+        return service.update_template(template_id, data.model_dump(exclude_none=True))
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    for key, value in updates.items():
-        setattr(template, key, value)
-    db.commit()
-    db.refresh(template)
-    mark_template_index_stale(db, template.template_id, "模板已更新，请重建语义索引。")
-    return _template_detail(template)
 
 
 @router.delete("/{template_id}")
 def delete_template(template_id: str, db: Session = Depends(get_db)):
-    template = db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
-    if not template:
-        raise HTTPException(status_code=404, detail="Template not found")
-    db.delete(template)
-    db.commit()
-    delete_template_index(db, template_id)
+    try:
+        build_template_catalog_service(db).delete_template(template_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"message": "deleted"}
-
-
-def _template_detail(template: ReportTemplate):
-    return {
-        "template_id": template.template_id,
-        "name": template.name,
-        "description": template.description,
-        "report_type": template.report_type,
-        "scenario": template.scenario,
-        "type": template.template_type or "",
-        "scene": template.scene or "",
-        "match_keywords": _normalize_keywords(template.match_keywords),
-        "content_params": template.content_params,
-        "parameters": template.parameters,
-        "outline": template.outline,
-        "sections": template.sections,
-        "schema_version": template.schema_version or "",
-        "output_formats": template.output_formats,
-        "created_at": str(template.created_at),
-        "version": template.version,
-    }
-
-
-def _export_template_payload(template: ReportTemplate):
-    return {
-        "name": template.name,
-        "description": template.description,
-        "report_type": template.report_type,
-        "scenario": template.scenario,
-        "type": template.template_type or "",
-        "scene": template.scene or "",
-        "match_keywords": _normalize_keywords(template.match_keywords),
-        "parameters": template.parameters or [],
-        "sections": template.sections or [],
-        "schema_version": template.schema_version or "",
-        "output_formats": template.output_formats or [],
-    }
-
-
-def _clean_template_payload(payload):
-    payload = validate_template_payload(payload)
-    if "type" in payload:
-        payload["template_type"] = payload.pop("type") or ""
-    if "scene" in payload:
-        payload["scene"] = payload.get("scene") or ""
-    if "match_keywords" in payload:
-        payload["match_keywords"] = _normalize_keywords(payload.get("match_keywords"))
-    return payload
-
-
-def _normalize_keywords(items):
-    if not isinstance(items, list):
-        return []
-    seen = set()
-    normalized = []
-    for item in items:
-        text = str(item or "").strip()
-        if not text or text in seen:
-            continue
-        seen.add(text)
-        normalized.append(text)
-    return normalized
-
-
-def _build_export_filename(template: ReportTemplate) -> str:
-    base = re.sub(r"[^0-9A-Za-z._-]+", "-", str(template.name or "").strip()).strip("-")
-    if not base:
-        base = f"template-{template.template_id}"
-    return f"{base}.json"
