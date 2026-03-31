@@ -54,6 +54,12 @@ _FAULT_PATTERNS = (
 _QUERY_DOMAIN_TERMS = ("区域", "站点", "小区", "设备", "告警", "工单", "巡检", "资产", "kpi", "流量")
 _FAULT_DOMAIN_TERMS = ("站点", "小区", "设备", "链路", "传输", "电源", "告警", "退服", "掉站", "中断")
 _REPORT_CANCEL_PHRASES = ("先别做报告", "先不做报告", "别做报告了", "不做报告了", "暂停报告", "先别生成报告")
+_CAPABILITY_SWITCH_VERBS = ("切换到", "切到", "改成", "转到", "改为", "换成")
+_CAPABILITY_SWITCH_TERMS = {
+    CAPABILITY_SMART_QUERY: ("智能问数", "问数"),
+    CAPABILITY_FAULT_DIAGNOSIS: ("智能故障", "故障分析", "排障", "故障诊断"),
+    CAPABILITY_REPORT: ("制作报告", "报告生成", "做报告"),
+}
 
 
 def ensure_task_state(state: Dict[str, Any], *, session_id: str, locale: str = "zh-CN") -> Dict[str, Any]:
@@ -351,6 +357,18 @@ def capability_label(capability: str) -> str:
         CAPABILITY_SMART_QUERY: "智能问数",
         CAPABILITY_FAULT_DIAGNOSIS: "智能故障",
     }.get(capability, capability or "当前任务")
+
+
+def is_explicit_capability_switch_request(message: str, target_capability: str) -> bool:
+    normalized = str(message or "").strip().lower()
+    if not normalized:
+        return False
+    if any(phrase in normalized for phrase in _REPORT_CANCEL_PHRASES):
+        return True
+    terms = _CAPABILITY_SWITCH_TERMS.get(target_capability, ())
+    return any(term.lower() in normalized for term in terms) and any(
+        verb in normalized for verb in _CAPABILITY_SWITCH_VERBS
+    )
 
 
 def _infer_legacy_capability(state: Dict[str, Any]) -> str:

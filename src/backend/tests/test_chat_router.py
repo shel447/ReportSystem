@@ -911,6 +911,136 @@ class ChatRouterTests(unittest.TestCase):
         self.assertIsNone(response["action"])
         self.assertEqual(response["reply"], "请提供参数「分析目标」的取值。")
 
+    def test_send_message_uses_chat_mode_answer_as_report_param_instead_of_switching(self):
+        mixed_template = ReportTemplate(
+            template_id="tpl-mixed-continue",
+            name="混合追问继续模板",
+            template_type="设备健康评估",
+            scene="总部",
+            parameters=[
+                {
+                    "id": "scene",
+                    "label": "场景",
+                    "required": True,
+                    "input_type": "enum",
+                    "options": ["总部", "区域"],
+                    "interaction_mode": "form",
+                },
+                {
+                    "id": "analysis_goal",
+                    "label": "分析目标",
+                    "required": True,
+                    "input_type": "free_text",
+                    "interaction_mode": "chat",
+                },
+            ],
+            sections=[
+                {
+                    "title": "{scene}概览",
+                    "content": {"presentation": {"type": "text", "template": "ok"}},
+                }
+            ],
+            schema_version="v2.0",
+        )
+        self.db.add(mixed_template)
+        self.db.commit()
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-mixed-continue", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 side_effect=[{}, {"analysis_goal": "设备健康趋势"}],
+             ):
+            first = send_message(ChatMessage(message="制作混合追问继续模板"), db=self.db)
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], param_id="scene", param_value="总部"),
+                db=self.db,
+            )
+            third = send_message(
+                ChatMessage(session_id=first["session_id"], message="设备健康趋势"),
+                db=self.db,
+            )
+
+        self.assertEqual(first["action"]["type"], "ask_param")
+        self.assertIsNone(second["action"])
+        self.assertEqual(second["reply"], "请提供参数「分析目标」的取值。")
+        self.assertEqual(third["action"]["type"], "review_params")
+        self.assertEqual(third["reply"], "参数已收集完成，请确认后生成大纲。")
+
+    def test_send_message_still_confirms_switch_when_chat_mode_pending_and_user_explicitly_switches(self):
+        mixed_template = ReportTemplate(
+            template_id="tpl-mixed-switch",
+            name="混合追问切换模板",
+            template_type="设备健康评估",
+            scene="总部",
+            parameters=[
+                {
+                    "id": "scene",
+                    "label": "场景",
+                    "required": True,
+                    "input_type": "enum",
+                    "options": ["总部", "区域"],
+                    "interaction_mode": "form",
+                },
+                {
+                    "id": "analysis_goal",
+                    "label": "分析目标",
+                    "required": True,
+                    "input_type": "free_text",
+                    "interaction_mode": "chat",
+                },
+            ],
+            sections=[
+                {
+                    "title": "{scene}概览",
+                    "content": {"presentation": {"type": "text", "template": "ok"}},
+                }
+            ],
+            schema_version="v2.0",
+        )
+        self.db.add(mixed_template)
+        self.db.commit()
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}), \
+             patch(
+                 "backend.routers.chat.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-mixed-switch", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.routers.chat.extract_params_from_message",
+                 return_value={},
+             ):
+            first = send_message(ChatMessage(message="制作混合追问切换模板"), db=self.db)
+            second = send_message(
+                ChatMessage(session_id=first["session_id"], param_id="scene", param_value="总部"),
+                db=self.db,
+            )
+
+        with patch("backend.routers.chat.get_settings_payload", return_value={"is_ready": True}):
+            third = send_message(
+                ChatMessage(
+                    session_id=first["session_id"],
+                    message="先别做报告了，我想知道昨天华东区域告警最多的三个站点",
+                ),
+                db=self.db,
+            )
+
+        self.assertIsNone(second["action"])
+        self.assertEqual(second["reply"], "请提供参数「分析目标」的取值。")
+        self.assertEqual(third["action"]["type"], "confirm_task_switch")
+        self.assertEqual(third["action"]["to_capability"], "smart_query")
+
 
 if __name__ == "__main__":
     unittest.main()

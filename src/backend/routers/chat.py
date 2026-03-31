@@ -21,6 +21,7 @@ from ..chat_capability_service import (
     handle_fault_diagnosis_turn,
     handle_smart_query_turn,
     has_substantial_progress,
+    is_explicit_capability_switch_request,
     set_active_task,
     sync_report_task_state,
 )
@@ -539,13 +540,53 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
                     or data.outline_override
                     or data.command
                 )
-                desired_capability = detect_capability(
-                    message=user_message,
-                    preferred_capability=data.preferred_capability,
-                    current_capability=current_capability,
-                    current_stage=current_stage,
-                    has_report_commands=has_report_commands,
-                )
+                desired_capability = current_capability
+                if (
+                    current_capability == CAPABILITY_REPORT
+                    and not data.preferred_capability
+                    and not has_report_commands
+                ):
+                    template_id = state.get("report", {}).get("template_id")
+                    template = None
+                    if template_id:
+                        template = db.query(ReportTemplate).filter(
+                            ReportTemplate.template_id == template_id
+                        ).first()
+                    template_params = normalize_parameters(
+                        (template.parameters or []) if template and template.parameters else ((template.content_params or []) if template else [])
+                    )
+                    target_param = get_next_missing_param(state, template_params)
+                    if target_param and str(target_param.get("interaction_mode") or "form") == "chat":
+                        routed_capability = detect_capability(
+                            message=user_message,
+                            preferred_capability=data.preferred_capability,
+                            current_capability=current_capability,
+                            current_stage=current_stage,
+                            has_report_commands=has_report_commands,
+                        )
+                        if routed_capability == CAPABILITY_REPORT or not is_explicit_capability_switch_request(
+                            user_message,
+                            routed_capability,
+                        ):
+                            desired_capability = CAPABILITY_REPORT
+                        else:
+                            desired_capability = routed_capability
+                    else:
+                        desired_capability = detect_capability(
+                            message=user_message,
+                            preferred_capability=data.preferred_capability,
+                            current_capability=current_capability,
+                            current_stage=current_stage,
+                            has_report_commands=has_report_commands,
+                        )
+                else:
+                    desired_capability = detect_capability(
+                        message=user_message,
+                        preferred_capability=data.preferred_capability,
+                        current_capability=current_capability,
+                        current_stage=current_stage,
+                        has_report_commands=has_report_commands,
+                    )
                 if desired_capability != current_capability and has_substantial_progress(state):
                     state["pending_switch"] = {
                         "from_capability": current_capability,
