@@ -1,6 +1,6 @@
 import unittest
 
-from backend.chat_flow_service import (
+from backend.contexts.conversation.infrastructure.flow import (
     apply_template_selection,
     build_ask_param_action,
     build_review_outline_action,
@@ -9,7 +9,7 @@ from backend.chat_flow_service import (
     rewind_slots_for_param,
     upsert_slots_from_params,
 )
-from backend.context_state_service import new_context_state
+from backend.contexts.conversation.infrastructure.state import new_context_state
 
 
 class ChatFlowServiceTests(unittest.TestCase):

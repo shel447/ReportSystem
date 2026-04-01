@@ -1,6 +1,6 @@
 import unittest
 
-from backend.param_dialog_service import (
+from backend.contexts.conversation.infrastructure.parameters import (
     build_missing_required,
     normalize_parameters,
     validate_and_merge_params,
@@ -91,3 +91,4 @@ class ParamDialogServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

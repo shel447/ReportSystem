@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from .models import ChatSession, gen_id
+from ....models import ChatSession, gen_id
 
 MAX_SESSION_TITLE_LENGTH = 28
 MAX_SESSION_PREVIEW_LENGTH = 48
@@ -123,4 +123,3 @@ def _is_visible_message(item: Dict[str, Any]) -> bool:
     if not content and not item.get("action"):
         return False
     return True
-

@@ -8,17 +8,17 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from .chat_flow_service import apply_template_selection, build_review_outline_action, upsert_slots_from_params
-from .chat_session_service import (
+from .flow import apply_template_selection, build_review_outline_action, upsert_slots_from_params
+from .sessions import (
     ensure_session_metadata,
     serialize_chat_session_detail,
     truncate_text,
     visible_chat_messages,
 )
-from .context_state_service import new_context_state, persist_state_to_history, restore_state_from_history
-from .models import ChatSession, ReportTemplate, TemplateInstance, gen_id
-from .outline_review_service import build_pending_outline_review, merge_outline_override
-from .param_dialog_service import normalize_parameters
+from .state import new_context_state, persist_state_to_history, restore_state_from_history
+from .parameters import normalize_parameters
+from ....models import ChatSession, ReportTemplate, TemplateInstance, gen_id
+from ....outline_review_service import build_pending_outline_review, merge_outline_override
 
 FORK_SUFFIX_LENGTH = 6
 FORK_ASSISTANT_REPLY = "参数已确认，请检查报告大纲。"
@@ -258,7 +258,7 @@ def _dedupe_strings(items: List[str]) -> List[str]:
 
 
 def _template_entity_from_model(template: ReportTemplate):
-    from .domain.reporting.entities import ReportTemplateEntity
+    from ....domain.reporting.entities import ReportTemplateEntity
 
     return ReportTemplateEntity(
         template_id=template.template_id,

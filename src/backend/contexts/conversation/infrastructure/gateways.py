@@ -18,7 +18,7 @@ from ....chat_capability_service import (
     set_active_task,
     sync_report_task_state,
 )
-from ....chat_flow_service import (
+from .flow import (
     apply_template_selection,
     build_ask_param_action,
     build_review_outline_action,
@@ -28,21 +28,21 @@ from ....chat_flow_service import (
     rewind_slots_for_param,
     upsert_slots_from_params,
 )
-from ....chat_fork_service import (
+from .forks import (
     build_visible_message_payload,
     fork_session_from_message,
     fork_session_from_template_instance,
     update_session_from_template_instance,
 )
-from ....chat_response_service import generate_chat_reply
-from ....chat_session_service import (
+from .responses import generate_chat_reply
+from .sessions import (
     derive_session_title,
     ensure_session_metadata,
     list_chat_sessions,
     serialize_chat_session_detail,
     visible_chat_messages,
 )
-from ....context_state_service import (
+from .state import (
     compress_state,
     new_context_state,
     persist_state_to_history,
@@ -55,7 +55,7 @@ from ....outline_review_service import (
     merge_outline_override,
     resolve_outline_execution_baseline,
 )
-from ....param_dialog_service import (
+from .parameters import (
     ParamExtractionError,
     build_missing_required,
     build_param_prompt,
