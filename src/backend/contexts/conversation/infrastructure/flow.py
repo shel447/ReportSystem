@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from ....outline_review_service import build_frontend_outline
+from ....contexts.report_runtime.infrastructure.outline import build_frontend_outline
 
 
 def apply_template_selection(

@@ -7,9 +7,9 @@ from typing import Any, Dict, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from .ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
-from .query_engine import QueryRequest, run_query
-from .system_settings_service import build_completion_provider_config
+from ....ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
+from ....query_engine import QueryRequest, run_query
+from ....system_settings_service import build_completion_provider_config
 
 CAPABILITY_REPORT = "report_generation"
 CAPABILITY_SMART_QUERY = "smart_query"

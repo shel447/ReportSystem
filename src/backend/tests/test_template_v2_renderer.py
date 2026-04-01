@@ -1,6 +1,6 @@
 import unittest
 
-from backend.template_v2_renderer import generate_report_sections_from_outline_tree_v2, generate_report_sections_v2
+from backend.contexts.report_runtime.infrastructure.rendering import generate_report_sections_from_outline_tree_v2, generate_report_sections_v2
 
 
 class TemplateV2RendererTests(unittest.TestCase):

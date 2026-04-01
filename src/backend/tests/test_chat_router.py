@@ -500,8 +500,8 @@ class ChatRouterTests(unittest.TestCase):
         )
 
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="test-query-model")), \
-             patch("backend.chat_capability_service.run_query", return_value=fake_query_result):
+             patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="test-query-model")), \
+             patch("backend.contexts.conversation.infrastructure.capabilities.run_query", return_value=fake_query_result):
             third = send_message(
                 ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),
                 db=self.db,
@@ -596,7 +596,7 @@ class ChatRouterTests(unittest.TestCase):
             "risk_level": "high",
         }
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="diag-model")), \
+             patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="diag-model")), \
              patch("backend.ai_gateway.OpenAICompatGateway.chat_completion", return_value={"content": json.dumps(diagnosis_payload, ensure_ascii=False), "model": "diag-model"}):
             third = send_message(
                 ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),

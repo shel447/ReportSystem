@@ -377,6 +377,8 @@ src/backend/
 - `conversation` 上下文的对话推进、fork/update、参数推进与大纲确认已通过 application service + infrastructure gateways 装配，`chat` router 不再保留兼容 shim
 - `conversation` 上下文的会话摘要、上下文快照、参数追问、回复生成与 fork helper 已迁入上下文本地基础设施模块，根级 `chat_*_service.py / context_state_service.py / param_dialog_service.py` 已进一步收敛
 - `report_runtime` 上下文的实例创建、章节重生成、文档导出技术拼装已通过 context-local gateways 装配；中心依赖装配层不再直接引用 legacy reporting 模块
+- `report_runtime` 的确认大纲、执行基线、文档生成、章节生成 helper 已迁入 context-local infrastructure，根级 `outline_review_service.py / template_v2_renderer.py / template_instance_service.py / document_service.py / report_generation_service.py` 已清理
+- `conversation` 的能力路由与问数/故障能力 helper 已迁入 context-local infrastructure，根级 `chat_capability_service.py` 已清理
 - `template_catalog` 上下文的模板 schema 校验与语义索引逻辑已迁入 context-local infrastructure，`system_settings` 和 `conversation` 不再直接引用根级 `template_*_service`
 - `TemplateInstance` 在代码层统一按 `GenerationBaseline` 语义使用；底层仍复用 `template_instances` 表
 

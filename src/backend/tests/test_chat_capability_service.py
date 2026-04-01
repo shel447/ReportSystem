@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from backend.chat_capability_service import handle_fault_diagnosis_turn, handle_smart_query_turn
+from backend.contexts.conversation.infrastructure.capabilities import handle_fault_diagnosis_turn, handle_smart_query_turn
 from backend.query_engine import QueryRunResult
 
 
@@ -34,8 +34,8 @@ class ChatCapabilityServiceTests(unittest.TestCase):
             },
         )
 
-        with patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="query-model")), \
-             patch("backend.chat_capability_service.run_query", return_value=fake_result):
+        with patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="query-model")), \
+             patch("backend.contexts.conversation.infrastructure.capabilities.run_query", return_value=fake_result):
             reply, action, task_update = handle_smart_query_turn(
                 db=object(),
                 gateway=SimpleNamespace(),
@@ -72,8 +72,8 @@ class ChatCapabilityServiceTests(unittest.TestCase):
             },
         )
 
-        with patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="query-model")), \
-             patch("backend.chat_capability_service.run_query", return_value=fake_result):
+        with patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="query-model")), \
+             patch("backend.contexts.conversation.infrastructure.capabilities.run_query", return_value=fake_result):
             reply, action, task_update = handle_smart_query_turn(
                 db=object(),
                 gateway=SimpleNamespace(),
@@ -98,7 +98,7 @@ class ChatCapabilityServiceTests(unittest.TestCase):
           "risk_level": "high"
         }
         """
-        with patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.4, model="diag-model")):
+        with patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.4, model="diag-model")):
             gateway = SimpleNamespace(chat_completion=lambda *args, **kwargs: {"content": diagnosis_json, "model": "diag-model"})
             reply, action, task_update = handle_fault_diagnosis_turn(
                 db=object(),
@@ -125,7 +125,7 @@ class ChatCapabilityServiceTests(unittest.TestCase):
           "risk_level": "medium"
         }
         """
-        with patch("backend.chat_capability_service.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.4, model="diag-model")):
+        with patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.4, model="diag-model")):
             gateway = SimpleNamespace(chat_completion=lambda *args, **kwargs: {"content": diagnosis_json, "model": "diag-model"})
             reply, action, task_update = handle_fault_diagnosis_turn(
                 db=object(),

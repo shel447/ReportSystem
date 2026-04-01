@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 from fastapi import HTTPException
 
 from ....ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
-from ....chat_capability_service import (
+from .capabilities import (
     build_confirm_task_switch_action,
     capability_label,
     clear_current_task_state,
@@ -48,9 +48,9 @@ from .state import (
     persist_state_to_history,
     restore_state_from_history,
 )
-from ....document_service import create_markdown_document, serialize_document
+from ....contexts.report_runtime.infrastructure.documents import create_markdown_document, serialize_document
 from ....models import ChatSession, ReportInstance, ReportTemplate, TemplateInstance, gen_id
-from ....outline_review_service import (
+from ....contexts.report_runtime.infrastructure.outline import (
     build_pending_outline_review,
     merge_outline_override,
     resolve_outline_execution_baseline,
@@ -65,7 +65,7 @@ from .parameters import (
 )
 from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 from ....system_settings_service import get_settings_payload
-from ....template_instance_service import capture_generation_baseline, get_generation_baseline
+from ....contexts.report_runtime.infrastructure.baselines import capture_generation_baseline, get_generation_baseline
 from ....contexts.template_catalog.infrastructure.indexing import TemplateIndexUnavailableError, match_templates
 from ..application.errors import ConversationReplyError
 
