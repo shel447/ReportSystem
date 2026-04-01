@@ -163,7 +163,7 @@ class InstancesRouterTests(unittest.TestCase):
 
     def test_regenerate_section_uses_confirmed_outline_node_for_v2_instance(self):
         with patch("backend.contexts.report_runtime.infrastructure.gateways.OpenAICompatGateway"), \
-             patch("backend.contexts.report_runtime.infrastructure.gateways.OpenAIContentGenerator", FakeOutlineAwareGenerator):
+             patch("backend.contexts.report_runtime.infrastructure.gateways.OpenAIReportContentGenerator", FakeOutlineAwareGenerator):
             result = regenerate_section("inst-1", 0, db=self.db)
 
         self.assertEqual(FakeOutlineAwareGenerator.last_outline[0]["title"], "确认后的章节")

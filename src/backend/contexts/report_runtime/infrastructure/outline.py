@@ -4,16 +4,16 @@ import copy
 import uuid
 from typing import Any, Dict, List, Tuple
 
-from ....domain.reporting.entities import ReportTemplateEntity
-from ....domain.reporting.services import OutlineExpansionService
+from ...template_catalog.domain.models import ReportTemplate
+from ..domain.services import OutlineExpansionService, is_v2_template
 from .rendering import build_outline_tree_v2
 
 
 def build_pending_outline_review(
-    template: ReportTemplateEntity,
+    template: ReportTemplate,
     input_params: Dict[str, Any],
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
-    if _is_v2_template(template):
+    if is_v2_template(template):
         return build_outline_tree_v2({"name": template.name, "sections": template.sections or []}, input_params or {})
 
     expansion = OutlineExpansionService().expand(template.outline or [], input_params or {})
@@ -314,10 +314,6 @@ def _walk_outline(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         walked.append(node)
         walked.extend(_walk_outline(node.get("children") or []))
     return walked
-
-
-def _is_v2_template(template: ReportTemplateEntity) -> bool:
-    return bool(getattr(template, "sections", None))
 
 
 def _build_display_text(title: Any, description: Any) -> str:

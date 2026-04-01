@@ -1,9 +1,9 @@
 import unittest
-from dataclasses import asdict
 from datetime import datetime
 
-from backend.application.reporting.services import InstanceApplicationService
-from backend.domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
+from backend.contexts.report_runtime.application.creation import ReportInstanceCreationService
+from backend.contexts.report_runtime.domain.models import ReportInstance
+from backend.contexts.template_catalog.domain.models import ReportTemplate
 
 
 class FakeTemplateReader:
@@ -26,10 +26,9 @@ class FakeInstanceWriter:
         report_time=None,
         report_time_source="",
     ):
-        return ReportInstanceEntity(
+        return ReportInstance(
             instance_id="inst-1",
             template_id=template_id,
-            template_version=template_version,
             status=status,
             input_params=input_params,
             outline_content=outline_content,
@@ -57,9 +56,9 @@ class FakeContentGenerator:
         return ([{"title": outline[0]["title"], "description": "", "content": "from-outline"}], [])
 
 
-class InstanceApplicationServiceTests(unittest.TestCase):
+class ReportInstanceCreationServiceTests(unittest.TestCase):
     def test_create_instance_uses_confirmed_outline_for_v2_template(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-1",
             name="设备巡检报告",
             description="",
@@ -67,14 +66,12 @@ class InstanceApplicationServiceTests(unittest.TestCase):
             scenario="总部",
             match_keywords=[],
             content_params=[],
-            version="1.0",
-            outline=[],
-            parameters=[],
             sections=[{"title": "模板原始章节"}],
             schema_version="v2.0",
+            version="1.0",
         )
         generator = FakeContentGenerator()
-        service = InstanceApplicationService(
+        service = ReportInstanceCreationService(
             template_reader=FakeTemplateReader(template),
             instance_writer=FakeInstanceWriter(),
             content_generator=generator,
@@ -98,22 +95,18 @@ class InstanceApplicationServiceTests(unittest.TestCase):
         self.assertEqual(result["outline_content"][0]["title"], "确认后的章节")
 
     def test_create_instance_flattens_confirmed_outline_for_legacy_template(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-2",
             name="资产报告",
             description="",
             report_type="daily",
             scenario="资产",
             match_keywords=[],
-            content_params=[],
             version="1.0",
             outline=[{"title": "原始章节"}],
-            parameters=[],
-            sections=[],
-            schema_version="",
         )
         generator = FakeContentGenerator()
-        service = InstanceApplicationService(
+        service = ReportInstanceCreationService(
             template_reader=FakeTemplateReader(template),
             instance_writer=FakeInstanceWriter(),
             content_generator=generator,
@@ -146,22 +139,19 @@ class InstanceApplicationServiceTests(unittest.TestCase):
         self.assertEqual(result["outline_content"][1]["title"], "二级")
 
     def test_create_instance_preserves_business_report_time(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-3",
             name="定时报告",
             description="",
             report_type="daily",
             scenario="总部",
             match_keywords=[],
-            content_params=[],
-            version="1.0",
-            outline=[],
-            parameters=[],
             sections=[{"title": "模板章节"}],
             schema_version="v2.0",
+            version="1.0",
         )
         generator = FakeContentGenerator()
-        service = InstanceApplicationService(
+        service = ReportInstanceCreationService(
             template_reader=FakeTemplateReader(template),
             instance_writer=FakeInstanceWriter(),
             content_generator=generator,

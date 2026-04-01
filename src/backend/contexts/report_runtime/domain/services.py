@@ -1,20 +1,30 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import dataclass
 import re
-from typing import Any, Dict, List
+from typing import Any
 
-from .entities import ExpandedOutline
+
+@dataclass(frozen=True, slots=True)
+class ExpandedOutline:
+    nodes: list[dict[str, Any]]
+    warnings: list[str]
+
 
 _PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([a-zA-Z0-9_\.]+)\s*\}\}")
 
 
-class OutlineExpansionService:
-    """Domain service for param binding and repeat expansion."""
+def is_v2_template(template: Any) -> bool:
+    schema_version = getattr(template, "schema_version", None)
+    sections = getattr(template, "sections", None)
+    return bool(schema_version == "v2" or sections)
 
-    def expand(self, outline: List[Any], input_params: Dict[str, Any]) -> ExpandedOutline:
-        warnings: List[str] = []
-        expanded: List[Dict[str, Any]] = []
+
+class OutlineExpansionService:
+    def expand(self, outline: list[Any], input_params: dict[str, Any]) -> ExpandedOutline:
+        warnings: list[str] = []
+        expanded: list[dict[str, Any]] = []
 
         for idx, raw_item in enumerate(outline or []):
             if not isinstance(raw_item, dict):
@@ -53,7 +63,7 @@ class OutlineExpansionService:
                         item_alias=item_alias,
                         index_alias=index_alias,
                     )
-                    item_warnings: List[str] = []
+                    item_warnings: list[str] = []
                     rendered = self._render_outline_item(raw_item, context, item_warnings)
                     for warning in item_warnings:
                         warnings.append(f"outline[{idx}] item[{item_index}] {warning}")
@@ -76,7 +86,7 @@ class OutlineExpansionService:
                 item_alias="item",
                 index_alias="index",
             )
-            item_warnings: List[str] = []
+            item_warnings: list[str] = []
             rendered = self._render_outline_item(raw_item, context, item_warnings)
             for warning in item_warnings:
                 warnings.append(f"outline[{idx}] {warning}")
@@ -84,7 +94,8 @@ class OutlineExpansionService:
 
         return ExpandedOutline(nodes=expanded, warnings=warnings)
 
-    def _normalize_list(self, value: Any) -> List[Any] | None:
+    @staticmethod
+    def _normalize_list(value: Any) -> list[Any] | None:
         if isinstance(value, list):
             return value
         if isinstance(value, str):
@@ -94,14 +105,14 @@ class OutlineExpansionService:
     def _build_context(
         self,
         *,
-        input_params: Dict[str, Any],
-        bindings: Dict[str, Any],
+        input_params: dict[str, Any],
+        bindings: dict[str, Any],
         repeat_item: Any,
         item_index: int | None,
         item_alias: str,
         index_alias: str,
-    ) -> Dict[str, Any]:
-        context: Dict[str, Any] = dict(input_params or {})
+    ) -> dict[str, Any]:
+        context: dict[str, Any] = dict(input_params or {})
 
         extra = bindings.get("extra") if isinstance(bindings, dict) else None
         if isinstance(extra, dict):
@@ -135,10 +146,10 @@ class OutlineExpansionService:
 
     def _render_outline_item(
         self,
-        item: Dict[str, Any],
-        context: Dict[str, Any],
-        warnings: List[str],
-    ) -> Dict[str, Any]:
+        item: dict[str, Any],
+        context: dict[str, Any],
+        warnings: list[str],
+    ) -> dict[str, Any]:
         rendered = deepcopy(item)
 
         title_template = item.get("title_template")
@@ -156,7 +167,7 @@ class OutlineExpansionService:
 
         return rendered
 
-    def _render_template(self, template: str, context: Dict[str, Any], warnings: List[str]) -> str:
+    def _render_template(self, template: str, context: dict[str, Any], warnings: list[str]) -> str:
         def replace(match: re.Match[str]) -> str:
             path = match.group(1)
             value = self._resolve_path(context, path)

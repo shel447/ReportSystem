@@ -2,28 +2,21 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
-from ...domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
-from ...domain.reporting.services import OutlineExpansionService
-from ...contexts.report_runtime.infrastructure.outline import flatten_review_outline
-
-
-def is_v2_template(template: ReportTemplateEntity) -> bool:
-    schema_version = getattr(template, "schema_version", None)
-    sections = getattr(template, "sections", None)
-    return bool(schema_version == "v2" or sections)
+from ..domain.models import ReportInstance
+from ..domain.services import OutlineExpansionService, is_v2_template
+from ...template_catalog.domain.models import ReportTemplate
 
 
-class InstanceApplicationService:
+class ReportInstanceCreationService:
     def __init__(
         self,
         *,
-        template_reader: TemplateReader,
-        instance_writer: InstanceWriter,
-        content_generator: ContentGenerator,
-        outline_expansion_service: Optional[OutlineExpansionService] = None,
+        template_reader,
+        instance_writer,
+        content_generator,
+        outline_expansion_service: OutlineExpansionService | None = None,
     ) -> None:
         self.template_reader = template_reader
         self.instance_writer = instance_writer
@@ -34,16 +27,16 @@ class InstanceApplicationService:
         self,
         *,
         template_id: str,
-        input_params: Dict[str, Any],
-        outline_override: Optional[List[Any]] = None,
-        report_time: Optional[datetime] = None,
+        input_params: dict[str, Any],
+        outline_override: list[Any] | None = None,
+        report_time: datetime | None = None,
         report_time_source: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         template = self.template_reader.get_by_id(template_id)
         if not template:
             raise ValueError("Template not found")
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         if is_v2_template(template):
             if outline_override:
                 outline_content, warnings = self.content_generator.generate_v2_from_outline(
@@ -57,7 +50,7 @@ class InstanceApplicationService:
             if outline_override and any(isinstance(item, dict) and "children" in item for item in outline_override):
                 outline_content = self.content_generator.generate(
                     template,
-                    flatten_review_outline(outline_override),
+                    _flatten_review_outline(outline_override),
                     input_params or {},
                 )
                 warnings = []
@@ -87,12 +80,12 @@ class InstanceApplicationService:
         return payload
 
 
-class ScheduledRunApplicationService:
+class ScheduledReportRunService:
     def __init__(
         self,
         *,
-        instance_service: InstanceApplicationService,
-        instance_reader: InstanceReader,
+        instance_service: ReportInstanceCreationService,
+        instance_reader,
     ) -> None:
         self.instance_service = instance_service
         self.instance_reader = instance_reader
@@ -102,11 +95,11 @@ class ScheduledRunApplicationService:
         *,
         template_id: str,
         source_instance_id: str,
-        override_params: Dict[str, Any],
-        report_time: Optional[datetime] = None,
+        override_params: dict[str, Any],
+        report_time: datetime | None = None,
         report_time_source: str = "",
-    ) -> Dict[str, Any]:
-        base_params: Dict[str, Any] = {}
+    ) -> dict[str, Any]:
+        base_params: dict[str, Any] = {}
         if source_instance_id:
             source = self.instance_reader.get_input_params(source_instance_id)
             if source:
@@ -122,3 +115,20 @@ class ScheduledRunApplicationService:
             report_time=report_time,
             report_time_source=report_time_source,
         )
+
+
+def _flatten_review_outline(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flattened: list[dict[str, Any]] = []
+    for node in outline or []:
+        if not isinstance(node, dict):
+            continue
+        payload = {
+            "title": str(node.get("title") or "").strip(),
+            "description": str(node.get("description") or "").strip(),
+            "level": max(1, int(node.get("level") or 1)),
+        }
+        if isinstance(node.get("dynamic_meta"), dict):
+            payload["dynamic_meta"] = dict(node.get("dynamic_meta"))
+        flattened.append(payload)
+        flattened.extend(_flatten_review_outline(node.get("children") or []))
+    return flattened

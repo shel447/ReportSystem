@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from backend.application.reporting.services import is_v2_template
+from backend.contexts.report_runtime.domain.services import is_v2_template
 
 
 class TemplateVersionTests(unittest.TestCase):

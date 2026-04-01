@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Tuple
 
-from .domain.reporting.services import OutlineExpansionService
+from .contexts.report_runtime.domain.services import OutlineExpansionService
 
 
 def expand_outline(outline: List[Any], input_params: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[str]]:

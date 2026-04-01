@@ -1,6 +1,5 @@
 import unittest
 
-from backend.domain.reporting.entities import ReportTemplateEntity
 from backend.contexts.report_runtime.infrastructure.outline import (
     build_frontend_outline,
     build_pending_outline_review,
@@ -8,21 +7,18 @@ from backend.contexts.report_runtime.infrastructure.outline import (
     merge_outline_override,
     resolve_outline_execution_baseline,
 )
+from backend.contexts.template_catalog.domain.models import ReportTemplate
 
 
 class OutlineReviewServiceTests(unittest.TestCase):
     def test_build_pending_outline_review_expands_v2_placeholders_and_foreach(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-1",
             name="设备巡检报告",
             description="",
             report_type="special",
             scenario="总部",
-            match_keywords=[],
-            content_params=[],
             version="1.0",
-            outline=[],
-            parameters=[],
             sections=[
                 {
                     "title": "概览 {date}",
@@ -49,14 +45,12 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(outline[1]["section_kind"], "structured_leaf")
 
     def test_build_pending_outline_review_uses_legacy_expansion(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-2",
             name="资产统计报告",
             description="",
             report_type="daily",
             scenario="资产",
-            match_keywords=[],
-            content_params=[],
             version="1.0",
             outline=[
                 {
@@ -65,9 +59,6 @@ class OutlineReviewServiceTests(unittest.TestCase):
                     "repeat": {"enabled": True, "source_param": "devices"},
                 }
             ],
-            parameters=[],
-            sections=[],
-            schema_version="",
         )
 
         outline, warnings = build_pending_outline_review(
@@ -80,17 +71,13 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(flatten_review_outline(outline)[0]["title"], "资产清单 A001")
 
     def test_build_pending_outline_review_marks_ai_generated_nodes_for_frontend(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-3",
             name="综合报告",
             description="",
             report_type="special",
             scenario="总部",
-            match_keywords=[],
-            content_params=[],
             version="1.0",
-            outline=[],
-            parameters=[],
             sections=[
                 {
                     "title": "总览",
@@ -145,17 +132,13 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertTrue(children[3]["ai_generated"])
 
     def test_build_pending_outline_review_derives_leaf_content_preview(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-4",
             name="巡检报告",
             description="",
             report_type="special",
             scenario="总部",
-            match_keywords=[],
-            content_params=[],
             version="1.0",
-            outline=[],
-            parameters=[],
             sections=[
                 {
                     "title": "文字章节",
@@ -185,17 +168,13 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(outline[2]["display_text"], "自由章节：系统生成本节内容")
 
     def test_build_pending_outline_review_materializes_outline_blueprint_and_bindings(self):
-        template = ReportTemplateEntity(
+        template = ReportTemplate(
             template_id="tpl-5",
             name="设备分析报告",
             description="",
             report_type="special",
             scenario="总部",
-            match_keywords=[],
-            content_params=[],
             version="1.0",
-            outline=[],
-            parameters=[],
             sections=[
                 {
                     "title": "概览 {date}",

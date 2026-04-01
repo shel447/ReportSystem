@@ -155,7 +155,7 @@ def _build_outline_review_session_from_template_instance(
     }
     template_params = normalize_parameters((template.parameters or []) if template.parameters else (template.content_params or []))
     base_outline, build_warnings = build_pending_outline_review(
-        _template_entity_from_model(template),
+        _template_domain_from_model(template),
         deepcopy(template_instance.input_params_snapshot or {}),
     )
     restored_outline = merge_outline_override(base_outline, template_instance.outline_snapshot or [])
@@ -257,10 +257,10 @@ def _dedupe_strings(items: List[str]) -> List[str]:
     return deduped
 
 
-def _template_entity_from_model(template: ReportTemplate):
-    from ....domain.reporting.entities import ReportTemplateEntity
+def _template_domain_from_model(template: ReportTemplate):
+    from ...template_catalog.domain.models import ReportTemplate as DomainReportTemplate
 
-    return ReportTemplateEntity(
+    return DomainReportTemplate(
         template_id=template.template_id,
         name=template.name,
         description=template.description or "",
@@ -275,4 +275,5 @@ def _template_entity_from_model(template: ReportTemplate):
         parameters=template.parameters or [],
         sections=template.sections or [],
         schema_version=template.schema_version or "",
+        output_formats=template.output_formats or [],
     )

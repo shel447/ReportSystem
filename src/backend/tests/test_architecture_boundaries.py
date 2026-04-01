@@ -11,8 +11,6 @@ TEMPLATE_CATALOG_REPOSITORY = ROOT / "contexts" / "template_catalog" / "infrastr
 CONVERSATION_GATEWAYS = ROOT / "contexts" / "conversation" / "infrastructure" / "gateways.py"
 SYSTEM_SETTINGS_ROUTER = ROUTERS_DIR / "system_settings.py"
 REPORT_RUNTIME_GATEWAYS = ROOT / "contexts" / "report_runtime" / "infrastructure" / "gateways.py"
-REPORTING_REPOSITORIES = ROOT / "infrastructure" / "reporting" / "repositories.py"
-REPORTING_APPLICATION = ROOT / "application" / "reporting" / "services.py"
 TEMPLATE_INSTANCES_ROUTER = ROUTERS_DIR / "template_instances.py"
 CONVERSATION_STATE = ROOT / "contexts" / "conversation" / "infrastructure" / "state.py"
 CONVERSATION_FLOW = ROOT / "contexts" / "conversation" / "infrastructure" / "flow.py"
@@ -91,6 +89,11 @@ FORBIDDEN_REPORT_RUNTIME_LEGACY_MODULES = {
     "backend.outline_review_service",
     "backend.template_v2_renderer",
 }
+FORBIDDEN_REPORTING_BRIDGE_PREFIXES = (
+    "backend.application.reporting",
+    "backend.domain.reporting",
+    "backend.infrastructure.reporting",
+)
 
 
 def _resolve_import_from(path: Path, module: str | None, level: int) -> str:
@@ -217,8 +220,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         violations: list[str] = []
         for path in (
             REPORT_RUNTIME_GATEWAYS,
-            REPORTING_REPOSITORIES,
-            REPORTING_APPLICATION,
             TEMPLATE_INSTANCES_ROUTER,
             CONVERSATION_STATE,
             CONVERSATION_FLOW,
@@ -233,6 +234,23 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 elif isinstance(node, ast.ImportFrom):
                     module = _resolve_import_from(path, node.module, node.level)
                     if module in FORBIDDEN_REPORT_RUNTIME_LEGACY_MODULES:
+                        violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_production_code_no_longer_imports_reporting_bridge_packages(self):
+        violations: list[str] = []
+        for path in ROOT.rglob("*.py"):
+            if "tests" in path.parts:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name.startswith(FORBIDDEN_REPORTING_BRIDGE_PREFIXES):
+                            violations.append(f"{path.relative_to(ROOT)}: import {alias.name}")
+                elif isinstance(node, ast.ImportFrom):
+                    module = _resolve_import_from(path, node.module, node.level)
+                    if module.startswith(FORBIDDEN_REPORTING_BRIDGE_PREFIXES):
                         violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
         self.assertEqual([], violations, "\n".join(violations))
 
