@@ -204,6 +204,7 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 - [统一对话实现](design/implementation/conversation.md)
 - [报告运行时实现](design/implementation/report_runtime.md)
 - [定时任务实现](design/implementation/scheduling.md)
+- [核心运行时序图](design/implementation/runtime_sequences.md)
 - [共享基础设施与 supporting 模块](design/implementation/infrastructure_and_supporting.md)
 - [数据库表定义总览](design/implementation/database_schema.md)
 - [外部接口与用法](design/implementation/external_interfaces.md)
@@ -279,6 +280,7 @@ python -m unittest discover -s src/backend/tests -p "test_*.py" -t .
    - 接口： [design_api.md](design/design_api.md)
 5. 如果你要继续改后端实现，再进入：
    - [实现文档索引](design/implementation/index.md)
+   - [核心运行时序图](design/implementation/runtime_sequences.md)
    - [数据库表定义](design/implementation/database_schema.md)
    - [外部接口与用法](design/implementation/external_interfaces.md)
 

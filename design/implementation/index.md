@@ -51,8 +51,9 @@ flowchart LR
 3. [统一对话模块实现](conversation.md)
 4. [报告运行时模块实现](report_runtime.md)
 5. [定时任务模块实现](scheduling.md)
-6. [共享基础设施与 supporting 模块](infrastructure_and_supporting.md)
-7. [外部接口与用法](external_interfaces.md)
+6. [核心运行时序图](runtime_sequences.md)
+7. [共享基础设施与 supporting 模块](infrastructure_and_supporting.md)
+8. [外部接口与用法](external_interfaces.md)
 
 ## 4. 文档索引
 
@@ -62,6 +63,7 @@ flowchart LR
 | [conversation.md](conversation.md) | 会话、能力路由、报告任务推进、fork/update-chat 的实现 |
 | [report_runtime.md](report_runtime.md) | 报告实例、确认大纲、生成基线、章节生成、文档导出 |
 | [scheduling.md](scheduling.md) | 定时任务、run-now、执行记录与实例生成编排 |
+| [runtime_sequences.md](runtime_sequences.md) | 对话确认生成、定时任务 run-now、报告实例 update-chat 的关键时序图 |
 | [infrastructure_and_supporting.md](infrastructure_and_supporting.md) | 持久化、AI、查询、settings、demo、routers、依赖装配 |
 | [database_schema.md](database_schema.md) | 当前全部业务表定义、字段语义与典型读写链路 |
 | [external_interfaces.md](external_interfaces.md) | 外部 HTTP 接口、外部依赖型技术边界及调用方式 |
