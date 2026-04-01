@@ -65,6 +65,14 @@ FORBIDDEN_TEMPLATE_CATALOG_LEGACY_MODULES = {
     "backend.template_index_service",
     "backend.template_schema_service",
 }
+FORBIDDEN_CONVERSATION_GATEWAY_LEGACY_MODULES = {
+    "backend.chat_flow_service",
+    "backend.chat_fork_service",
+    "backend.chat_response_service",
+    "backend.chat_session_service",
+    "backend.context_state_service",
+    "backend.param_dialog_service",
+}
 
 
 def _resolve_import_from(path: Path, module: str | None, level: int) -> str:
@@ -171,6 +179,20 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     module = _resolve_import_from(path, node.module, node.level)
                     if module in FORBIDDEN_TEMPLATE_CATALOG_LEGACY_MODULES:
                         violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_conversation_gateway_does_not_import_root_conversation_helpers(self):
+        violations: list[str] = []
+        tree = ast.parse(CONVERSATION_GATEWAYS.read_text(encoding="utf-8-sig"), filename=str(CONVERSATION_GATEWAYS))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in FORBIDDEN_CONVERSATION_GATEWAY_LEGACY_MODULES:
+                        violations.append(f"import {alias.name}")
+            elif isinstance(node, ast.ImportFrom):
+                module = _resolve_import_from(CONVERSATION_GATEWAYS, node.module, node.level)
+                if module in FORBIDDEN_CONVERSATION_GATEWAY_LEGACY_MODULES:
+                    violations.append(f"from {module} import ...")
         self.assertEqual([], violations, "\n".join(violations))
 
 

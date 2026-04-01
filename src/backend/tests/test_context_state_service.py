@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from backend.context_state_service import (
+from backend.contexts.conversation.infrastructure.state import (
     compress_state,
     new_context_state,
     persist_state_to_history,
@@ -102,3 +102,4 @@ class ContextStateServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

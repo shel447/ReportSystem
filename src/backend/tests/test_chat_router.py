@@ -58,7 +58,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_returns_review_params_before_generation(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -79,7 +79,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_confirms_then_generates_document(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -268,7 +268,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_reset_params_restarts_required_collection(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -284,7 +284,7 @@ class ChatRouterTests(unittest.TestCase):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]):
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="reset_params"),
                 db=self.db,
@@ -295,7 +295,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_edit_param_rewinds_following_slots(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -311,7 +311,7 @@ class ChatRouterTests(unittest.TestCase):
             first = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]):
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]):
             second = send_message(
                 ChatMessage(session_id=first["session_id"], command="edit_param", target_param_id="devices"),
                 db=self.db,
@@ -322,7 +322,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_edit_param_from_outline_review_returns_review_params(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -355,7 +355,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_with_query_intent_during_report_progress_returns_switch_confirmation(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -383,7 +383,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_with_natural_query_phrase_during_report_progress_returns_switch_confirmation(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -409,7 +409,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_confirm_task_switch_discards_report_progress_and_enters_smart_query(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -452,7 +452,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_confirm_task_switch_into_smart_query_uses_structured_result(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -540,7 +540,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_with_natural_fault_phrase_during_report_progress_returns_switch_confirmation(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -566,7 +566,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_confirm_task_switch_discards_report_progress_and_enters_fault_diagnosis(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -622,7 +622,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_persists_message_timestamps(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={
@@ -763,7 +763,7 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_fork_from_assistant_panel_restores_action_and_context(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
-             patch("backend.param_dialog_service.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.match_templates",
                  return_value={

@@ -4,8 +4,8 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from .ai_gateway import OpenAICompatGateway
-from .system_settings_service import build_completion_provider_config
+from ....ai_gateway import OpenAICompatGateway
+from ....system_settings_service import build_completion_provider_config
 
 
 def generate_chat_reply(
