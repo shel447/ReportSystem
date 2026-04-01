@@ -13,7 +13,7 @@ from .repositories import (
     SqlAlchemyRuntimeTemplateRepository,
 )
 from ....shared.kernel.errors import UpstreamError, ValidationError
-from ....ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
+from ....infrastructure.ai.openai_compat import AIConfigurationError, AIRequestError, OpenAICompatGateway
 from .documents import (
     DocumentGenerationError,
     create_markdown_document,

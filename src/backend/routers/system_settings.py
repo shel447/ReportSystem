@@ -4,14 +4,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, Literal
 
-from ..ai_gateway import AIConfigurationError, OpenAICompatGateway
+from ..infrastructure.ai.openai_compat import AIConfigurationError, OpenAICompatGateway
 from ..contexts.template_catalog.infrastructure.indexing import (
     get_index_status,
     mark_all_template_indices_stale,
     reindex_all_templates,
 )
-from ..database import get_db
-from ..system_settings_service import (
+from ..infrastructure.persistence.database import get_db
+from ..infrastructure.settings.system_settings import (
     build_completion_provider_config,
     build_embedding_provider_config,
     get_settings_payload,

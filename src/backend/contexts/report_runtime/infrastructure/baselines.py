@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from ....models import ReportTemplate, TemplateInstance, gen_id
+from ....infrastructure.persistence.models import ReportTemplate, TemplateInstance, gen_id
 from .outline import build_persisted_outline_snapshot
 
 

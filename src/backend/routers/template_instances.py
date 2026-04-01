@@ -4,8 +4,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..database import get_db
-from ..models import TemplateInstance
+from ..infrastructure.persistence.database import get_db
+from ..infrastructure.persistence.models import TemplateInstance
 from ..contexts.report_runtime.infrastructure.baselines import summarize_template_instance
 
 router = APIRouter(prefix="/template-instances", tags=["template-instances"])

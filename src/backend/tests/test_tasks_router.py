@@ -6,8 +6,8 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.database import Base
-from backend.models import ReportInstance
+from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import ReportInstance
 from backend.routers.tasks import TaskCreate, create_task, run_task_now
 
 

@@ -7,9 +7,9 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.database import Base
-from backend.query_engine import QueryRunResult
-from backend.models import ChatSession, ReportTemplate, TemplateInstance
+from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.query.engine import QueryRunResult
+from backend.infrastructure.persistence.models import ChatSession, ReportTemplate, TemplateInstance
 from backend.routers.chat import ChatForkRequest, ChatMessage, fork_session, get_session, list_sessions, send_message
 
 
@@ -597,7 +597,7 @@ class ChatRouterTests(unittest.TestCase):
         }
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.contexts.conversation.infrastructure.capabilities.build_completion_provider_config", return_value=SimpleNamespace(temperature=0.2, model="diag-model")), \
-             patch("backend.ai_gateway.OpenAICompatGateway.chat_completion", return_value={"content": json.dumps(diagnosis_payload, ensure_ascii=False), "model": "diag-model"}):
+             patch("backend.infrastructure.ai.openai_compat.OpenAICompatGateway.chat_completion", return_value={"content": json.dumps(diagnosis_payload, ensure_ascii=False), "model": "diag-model"}):
             third = send_message(
                 ChatMessage(session_id=first["session_id"], command="confirm_task_switch"),
                 db=self.db,
@@ -1044,4 +1044,3 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

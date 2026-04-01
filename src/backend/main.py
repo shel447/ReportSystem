@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .database import init_db
+from .infrastructure.persistence.database import init_db
 from .routers import chat, design, documents, feedback, instances, system_settings, tasks, template_instances, templates
 
 API_PREFIX = "/api"

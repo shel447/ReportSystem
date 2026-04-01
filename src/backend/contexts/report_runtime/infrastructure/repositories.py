@@ -8,7 +8,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from ..domain.models import GenerationBaseline, ReportInstance
 from ...template_catalog.domain.models import ReportTemplate
-from ....models import ReportDocument, ReportInstance as ReportInstanceModel, ReportTemplate as ReportTemplateModel, TemplateInstance, gen_id
+from ....infrastructure.persistence.models import ReportDocument, ReportInstance as ReportInstanceModel, ReportTemplate as ReportTemplateModel, TemplateInstance, gen_id
 
 
 class SqlAlchemyRuntimeTemplateRepository:

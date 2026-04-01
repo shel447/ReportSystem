@@ -9,9 +9,9 @@ from typing import Any, Dict, Iterable, List
 
 import ibis
 
-from .ai_gateway import AIRequestError, OpenAICompatGateway, ProviderConfig
-from .query_engine import QueryRequest, run_query
-from .telecom_demo_service import get_demo_db_path, get_schema_registry_text, open_demo_connection
+from ..ai.openai_compat import AIRequestError, OpenAICompatGateway, ProviderConfig
+from .engine import QueryRequest, run_query
+from ..demo.telecom import get_demo_db_path, get_schema_registry_text, open_demo_connection
 
 MAX_QUERY_RETRIES = 3
 MAX_SAMPLE_ROWS = 10

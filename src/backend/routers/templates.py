@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..infrastructure.persistence.database import get_db
 from ..infrastructure.dependencies import build_template_catalog_service
 from ..contexts.template_catalog.application.services import TemplateCatalogService
 from ..contexts.template_catalog.infrastructure.repositories import TemplateSchemaGateway

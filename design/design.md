@@ -380,6 +380,7 @@ src/backend/
 - `report_runtime` 的确认大纲、执行基线、文档生成、章节生成 helper 与内容生成器已迁入 context-local infrastructure，根级 `outline_review_service.py / template_v2_renderer.py / template_instance_service.py / document_service.py / report_generation_service.py` 已清理
 - `conversation` 的能力路由与问数/故障能力 helper 已迁入 context-local infrastructure，根级 `chat_capability_service.py` 已清理
 - `template_catalog` 上下文的模板 schema 校验与语义索引逻辑已迁入 context-local infrastructure，`system_settings` 和 `conversation` 不再直接引用根级 `template_*_service`
+- `src/backend` 根目录不再保留 `application/`、`domain/` 双轨目录，也不再承载技术源码；技术入口统一收敛为 `contexts/*`、`infrastructure/*`、`shared/kernel`、`routers/*`
 - `TemplateInstance` 在代码层统一按 `GenerationBaseline` 语义使用；底层仍复用 `template_instances` 表
 
 ### 4.3 报告生成流程

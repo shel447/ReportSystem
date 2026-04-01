@@ -4,9 +4,9 @@ import os
 import unittest
 from unittest.mock import patch
 
-from backend.ai_gateway import ProviderConfig
-from backend.query_engine import QueryRequest, run_query
-from backend.section_query_service import generate_section_evidence
+from backend.infrastructure.ai.openai_compat import ProviderConfig
+from backend.infrastructure.query.engine import QueryRequest, run_query
+from backend.infrastructure.query.section_evidence import generate_section_evidence
 
 
 class FakeGateway:

@@ -6,10 +6,10 @@ from typing import Any, Dict, Iterable, List
 
 from sqlalchemy.orm import Session
 
-from ....ai_gateway import AIRequestError, OpenAICompatGateway
+from ....infrastructure.ai.openai_compat import AIRequestError, OpenAICompatGateway
 from ...template_catalog.domain.models import ReportTemplate
-from ....section_query_service import build_report_context, generate_section_evidence
-from ....system_settings_service import build_completion_provider_config
+from ....infrastructure.query.section_evidence import build_report_context, generate_section_evidence
+from ....infrastructure.settings.system_settings import build_completion_provider_config
 
 
 def generate_report_sections(

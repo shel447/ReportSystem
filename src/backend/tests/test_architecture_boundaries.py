@@ -94,6 +94,12 @@ FORBIDDEN_REPORTING_BRIDGE_PREFIXES = (
     "backend.domain.reporting",
     "backend.infrastructure.reporting",
 )
+ALLOWED_BACKEND_ROOT_FILES = {
+    "__init__.py",
+    "main.py",
+    "report_template_schema_v2.json",
+    "requirements.txt",
+}
 
 
 def _resolve_import_from(path: Path, module: str | None, level: int) -> str:
@@ -252,6 +258,17 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     module = _resolve_import_from(path, node.module, node.level)
                     if module.startswith(FORBIDDEN_REPORTING_BRIDGE_PREFIXES):
                         violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_backend_root_contains_no_technical_source_files_outside_main(self):
+        violations: list[str] = []
+        for path in ROOT.glob("*.py"):
+            if path.name not in ALLOWED_BACKEND_ROOT_FILES:
+                violations.append(str(path.relative_to(ROOT)))
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_backend_root_has_no_legacy_application_or_domain_directories(self):
+        violations = [name for name in ("application", "domain") if (ROOT / name).exists()]
         self.assertEqual([], violations, "\n".join(violations))
 
 

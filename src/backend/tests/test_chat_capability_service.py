@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from backend.contexts.conversation.infrastructure.capabilities import handle_fault_diagnosis_turn, handle_smart_query_turn
-from backend.query_engine import QueryRunResult
+from backend.infrastructure.query.engine import QueryRunResult
 
 
 class ChatCapabilityServiceTests(unittest.TestCase):

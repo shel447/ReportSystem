@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from typing import List
 
-from . import telecom_demo_service
+from . import telecom
 
 
 def get_dynamic_options(source: str) -> List[str]:
@@ -17,8 +17,8 @@ def get_dynamic_options(source: str) -> List[str]:
         return []
     table, column = mapping[source]
     try:
-        telecom_demo_service.init_telecom_demo_db()
-        conn = sqlite3.connect(telecom_demo_service.get_demo_db_path())
+        telecom.init_telecom_demo_db()
+        conn = sqlite3.connect(telecom.get_demo_db_path())
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(
             f"SELECT {column} AS value FROM {table} ORDER BY {column} LIMIT 200"

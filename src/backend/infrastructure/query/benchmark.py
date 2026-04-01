@@ -4,8 +4,8 @@ import json
 import os
 from typing import Any, Callable, Dict, List
 
-from .ai_gateway import OpenAICompatGateway, ProviderConfig
-from .query_engine import QueryRequest, QueryRunResult, run_query
+from ..ai.openai_compat import OpenAICompatGateway, ProviderConfig
+from .engine import QueryRequest, QueryRunResult, run_query
 
 BENCHMARK_CASES_PATH = os.path.join(os.path.dirname(__file__), "benchmarks", "query_cases.json")
 

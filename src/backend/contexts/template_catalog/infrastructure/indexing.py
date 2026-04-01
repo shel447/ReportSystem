@@ -9,9 +9,9 @@ from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 from sqlalchemy.orm import Session
 
-from ....ai_gateway import OpenAICompatGateway
-from ....models import ReportTemplate, TemplateSemanticIndex
-from ....system_settings_service import build_embedding_provider_config
+from ....infrastructure.ai.openai_compat import OpenAICompatGateway
+from ....infrastructure.persistence.models import ReportTemplate, TemplateSemanticIndex
+from ....infrastructure.settings.system_settings import build_embedding_provider_config
 
 AUTO_MATCH_THRESHOLD = 0.68
 AUTO_MATCH_GAP = 0.06

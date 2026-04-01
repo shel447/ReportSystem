@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from ....models import ChatSession, gen_id
+from ....infrastructure.persistence.models import ChatSession, gen_id
 
 MAX_SESSION_TITLE_LENGTH = 28
 MAX_SESSION_PREVIEW_LENGTH = 48

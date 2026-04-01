@@ -1,4 +1,4 @@
-﻿from sqlalchemy import create_engine
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import os
 
@@ -31,7 +31,7 @@ def get_db():
 
 def init_db():
     from . import models  # noqa: F401
-    from .telecom_demo_service import init_telecom_demo_db
+    from ..demo.telecom import init_telecom_demo_db
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_columns()
     init_telecom_demo_db()

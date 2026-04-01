@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from ....models import ReportDocument, ReportInstance, ReportTemplate, gen_id
+from ....infrastructure.persistence.models import ReportDocument, ReportInstance, ReportTemplate, gen_id
 
 DOCUMENTS_DIR = os.path.join(os.path.dirname(__file__), "generated_documents")
 SUPPORTED_DOCUMENT_FORMATS = {"md": "md", "markdown": "md"}

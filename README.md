@@ -117,6 +117,14 @@ ReportSystemV2/
 - `src/backend/shared/kernel`
 - `src/backend/routers`
 
+当前 `src/backend` 根目录只保留入口与静态资源定义：
+
+- `main.py`
+- `report_template_schema_v2.json`
+- `requirements.txt`
+
+旧的根级业务 service，以及原始的 `src/backend/application`、`src/backend/domain` 双轨目录已移除。
+
 约束是：
 
 - `routers` 只做 HTTP 接口层

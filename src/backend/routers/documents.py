@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..infrastructure.persistence.database import get_db
 from ..infrastructure.dependencies import build_report_document_service
 from ..shared.kernel.errors import NotFoundError, ValidationError
 

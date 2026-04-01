@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..database import get_db
+from ..infrastructure.persistence.database import get_db
 from ..infrastructure.dependencies import build_scheduling_service
 from ..shared.kernel.errors import NotFoundError, UpstreamError, ValidationError
 

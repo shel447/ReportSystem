@@ -4,9 +4,9 @@ import json
 import re
 from typing import Any, Dict, List, Tuple
 
-from ....ai_gateway import AIRequestError, OpenAICompatGateway
-from ....dynamic_source_service import get_dynamic_options
-from ....system_settings_service import build_completion_provider_config
+from ....infrastructure.ai.openai_compat import AIRequestError, OpenAICompatGateway
+from ....infrastructure.demo.dynamic_sources import get_dynamic_options
+from ....infrastructure.settings.system_settings import build_completion_provider_config
 
 
 class ParamExtractionError(Exception):

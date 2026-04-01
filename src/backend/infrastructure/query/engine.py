@@ -10,8 +10,8 @@ from typing import Any, Dict, Iterable, List, Mapping
 
 import ibis
 
-from .ai_gateway import OpenAICompatGateway, ProviderConfig
-from .telecom_demo_service import (
+from ..ai.openai_compat import OpenAICompatGateway, ProviderConfig
+from ..demo.telecom import (
     get_demo_db_path,
     get_schema_registry,
     get_schema_registry_text,

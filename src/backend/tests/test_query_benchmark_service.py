@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from backend.ai_gateway import ProviderConfig
-from backend.query_benchmark_service import evaluate_benchmark_case, load_benchmark_cases, run_query_benchmark
-from backend.query_engine import QueryRunResult
+from backend.infrastructure.ai.openai_compat import ProviderConfig
+from backend.infrastructure.query.benchmark import evaluate_benchmark_case, load_benchmark_cases, run_query_benchmark
+from backend.infrastructure.query.engine import QueryRunResult
 
 
 class FakeGateway:

@@ -5,8 +5,8 @@ from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from .ai_gateway import AIConfigurationError, ProviderConfig
-from .models import SystemSetting
+from ..ai.openai_compat import AIConfigurationError, ProviderConfig
+from ..persistence.models import SystemSetting
 
 GLOBAL_SETTINGS_ID = "global"
 _DEFAULT_COMPLETION = {
@@ -187,4 +187,3 @@ def _mask_secret(secret: str) -> str:
     if len(secret) <= 10:
         return secret[:2] + "***"
     return secret[:6] + "***" + secret[-4:]
-

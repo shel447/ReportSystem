@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from ..domain.models import ScheduledTask
-from ....models import ScheduledTask as ScheduledTaskModel, ScheduledTaskExecution, gen_id
+from ....infrastructure.persistence.models import ScheduledTask as ScheduledTaskModel, ScheduledTaskExecution, gen_id
 
 
 class SqlAlchemyScheduledTaskRepository:

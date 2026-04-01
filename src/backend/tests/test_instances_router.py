@@ -5,8 +5,8 @@ from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.database import Base
-from backend.models import ChatSession, ReportInstance, ReportTemplate, TemplateInstance
+from backend.infrastructure.persistence.database import Base
+from backend.infrastructure.persistence.models import ChatSession, ReportInstance, ReportTemplate, TemplateInstance
 from backend.routers.instances import (
     fork_instance_chat,
     get_instance,

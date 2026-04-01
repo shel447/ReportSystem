@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from ..database import get_db
-from ..models import Feedback
+from ..infrastructure.persistence.database import get_db
+from ..infrastructure.persistence.models import Feedback
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 
