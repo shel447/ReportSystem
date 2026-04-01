@@ -5,15 +5,15 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from ..application.services import ReportDocumentService, ReportRuntimeService
+from ..application.creation import ReportInstanceCreationService, ScheduledReportRunService
 from .repositories import (
     SqlAlchemyDocumentRepository,
     SqlAlchemyGenerationBaselineRepository,
     SqlAlchemyReportInstanceRepository,
+    SqlAlchemyRuntimeTemplateRepository,
 )
 from ....shared.kernel.errors import UpstreamError, ValidationError
 from ....ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
-from ....application.reporting.services import InstanceApplicationService, ScheduledRunApplicationService, is_v2_template
-from ....domain.reporting.services import OutlineExpansionService
 from .documents import (
     DocumentGenerationError,
     create_markdown_document,
@@ -22,19 +22,14 @@ from .documents import (
     resolve_document_absolute_path,
     serialize_document,
 )
-from ....infrastructure.reporting.repositories import (
-    OpenAIContentGenerator,
-    SqlAlchemyInstanceRepository,
-    SqlAlchemyTemplateRepository,
-)
-from ....models import ReportTemplate as ReportTemplateModel
-from .generation import generate_single_section
+from ..domain.services import OutlineExpansionService, is_v2_template
+from .generation import OpenAIReportContentGenerator, generate_single_section
 
 
 class InstanceCreationGateway:
     def __init__(self, db: Session) -> None:
         self.db = db
-        self.service = build_legacy_instance_application_service(db)
+        self.service = build_report_instance_creation_service(db)
 
     def create_instance(self, **kwargs):
         try:
@@ -48,9 +43,9 @@ class InstanceCreationGateway:
 class ScheduledInstanceCreationGateway:
     def __init__(self, db: Session) -> None:
         self.db = db
-        instance_repo = SqlAlchemyInstanceRepository(db)
-        instance_service = build_legacy_instance_application_service(db)
-        self.service = ScheduledRunApplicationService(
+        instance_repo = SqlAlchemyReportInstanceRepository(db)
+        instance_service = build_report_instance_creation_service(db)
+        self.service = ScheduledReportRunService(
             instance_service=instance_service,
             instance_reader=instance_repo,
         )
@@ -67,12 +62,13 @@ class ScheduledInstanceCreationGateway:
 class RuntimeTemplateGateway:
     def __init__(self, db: Session) -> None:
         self.db = db
+        self.repository = SqlAlchemyRuntimeTemplateRepository(db)
 
     def get_template_entity(self, template_id: str):
-        return SqlAlchemyTemplateRepository(self.db).get_by_id(template_id)
+        return self.repository.get_by_id(template_id)
 
     def get_runtime_template(self, template_id: str) -> dict[str, Any] | None:
-        template = self.db.query(ReportTemplateModel).filter(ReportTemplateModel.template_id == template_id).first()
+        template = self.repository.get_by_id(template_id)
         if not template:
             return None
         return {
@@ -103,7 +99,7 @@ class LegacySectionRuntimeGateway:
     ) -> dict[str, Any]:
         try:
             if template_entity and is_v2_template(template_entity):
-                generator = OpenAIContentGenerator(self.db, gateway=OpenAICompatGateway())
+                generator = OpenAIReportContentGenerator(self.db, gateway=OpenAICompatGateway())
                 outline_node = ((current_section.get("debug") or {}).get("outline_node")) if isinstance(current_section, dict) else None
                 if outline_node:
                     sections, _warnings = generator.generate_v2_from_outline(
@@ -221,11 +217,11 @@ def build_scheduled_instance_creator(db: Session) -> ScheduledInstanceCreationGa
     return ScheduledInstanceCreationGateway(db)
 
 
-def build_legacy_instance_application_service(db: Session) -> InstanceApplicationService:
-    template_repo = SqlAlchemyTemplateRepository(db)
-    instance_repo = SqlAlchemyInstanceRepository(db)
-    generator = OpenAIContentGenerator(db, gateway=OpenAICompatGateway())
-    return InstanceApplicationService(
+def build_report_instance_creation_service(db: Session) -> ReportInstanceCreationService:
+    template_repo = SqlAlchemyRuntimeTemplateRepository(db)
+    instance_repo = SqlAlchemyReportInstanceRepository(db)
+    generator = OpenAIReportContentGenerator(db, gateway=OpenAICompatGateway())
+    return ReportInstanceCreationService(
         template_reader=template_repo,
         instance_writer=instance_repo,
         content_generator=generator,

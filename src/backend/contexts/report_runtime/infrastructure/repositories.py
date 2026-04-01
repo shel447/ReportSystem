@@ -7,12 +7,48 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from ..domain.models import GenerationBaseline, ReportInstance
-from ....models import ReportDocument, ReportInstance as ReportInstanceModel, TemplateInstance, gen_id
+from ...template_catalog.domain.models import ReportTemplate
+from ....models import ReportDocument, ReportInstance as ReportInstanceModel, ReportTemplate as ReportTemplateModel, TemplateInstance, gen_id
+
+
+class SqlAlchemyRuntimeTemplateRepository:
+    def __init__(self, db: Session) -> None:
+        self.db = db
+
+    def get_by_id(self, template_id: str) -> ReportTemplate | None:
+        row = self.db.query(ReportTemplateModel).filter(ReportTemplateModel.template_id == template_id).first()
+        return _to_template(row) if row else None
 
 
 class SqlAlchemyReportInstanceRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    def create(
+        self,
+        *,
+        template_id: str,
+        template_version: str,
+        input_params: dict[str, Any],
+        outline_content: list[dict[str, Any]],
+        status: str = "draft",
+        report_time=None,
+        report_time_source: str = "",
+    ) -> ReportInstance:
+        row = ReportInstanceModel(
+            instance_id=gen_id(),
+            template_id=template_id,
+            template_version=template_version,
+            status=status,
+            input_params=input_params,
+            outline_content=outline_content,
+            report_time=report_time,
+            report_time_source=report_time_source,
+        )
+        self.db.add(row)
+        self.db.commit()
+        self.db.refresh(row)
+        return _to_instance(row)
 
     def get(self, instance_id: str) -> ReportInstance | None:
         row = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id).first()
@@ -126,6 +162,27 @@ def _to_instance(row: ReportInstanceModel) -> ReportInstance:
         report_time_source=row.report_time_source or "",
         created_at=row.created_at,
         updated_at=row.updated_at,
+    )
+
+
+def _to_template(row: ReportTemplateModel) -> ReportTemplate:
+    return ReportTemplate(
+        template_id=row.template_id,
+        name=row.name,
+        description=row.description or "",
+        report_type=row.report_type or "",
+        scenario=row.scenario or "",
+        template_type=row.template_type or "",
+        scene=row.scene or "",
+        match_keywords=list(row.match_keywords or []),
+        content_params=list(row.content_params or []),
+        parameters=list(row.parameters or []),
+        outline=list(row.outline or []),
+        sections=list(row.sections or []),
+        schema_version=row.schema_version or "",
+        output_formats=list(row.output_formats or []),
+        version=row.version or "1.0",
+        created_at=row.created_at,
     )
 
 
