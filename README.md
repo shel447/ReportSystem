@@ -181,6 +181,11 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 - 应用首页：[http://127.0.0.1:8300](http://127.0.0.1:8300)
 - OpenAPI：[http://127.0.0.1:8300/openapi.json](http://127.0.0.1:8300/openapi.json)
 
+接口前缀约定：
+
+- 业务接口：`/rest/chatbi/v1/*`
+- 开发/运维接口：`/rest/dev/*`
+
 更完整的安装、部署、远程访问和常见问题，请看：
 
 - [design/deployment_guide.md](design/deployment_guide.md)

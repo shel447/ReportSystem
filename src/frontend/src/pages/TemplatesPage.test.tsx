@@ -23,7 +23,7 @@ describe("TemplatesPage", () => {
   it("loads template cards without embedding the full editor", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "/api/templates") {
+      if (url === "/rest/chatbi/v1/templates") {
         return {
           ok: true,
           json: async () => [

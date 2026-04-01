@@ -31,7 +31,7 @@ describe("InstancesPage", () => {
   it("loads instance cards without embedding section detail", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "/api/instances") {
+      if (url === "/rest/chatbi/v1/instances") {
         return {
           ok: true,
           json: async () => [
@@ -52,7 +52,7 @@ describe("InstancesPage", () => {
           ],
         };
       }
-      if (url === "/api/instances/inst-1/fork-sources") {
+      if (url === "/rest/chatbi/v1/instances/inst-1/fork-sources") {
         return {
           ok: true,
           json: async () => [
@@ -60,13 +60,13 @@ describe("InstancesPage", () => {
           ],
         };
       }
-      if (url === "/api/instances/inst-1/fork-chat") {
+      if (url === "/rest/chatbi/v1/instances/inst-1/fork-chat") {
         return {
           ok: true,
           json: async () => ({ session_id: "sess-forked" }),
         };
       }
-      if (url === "/api/templates") {
+      if (url === "/rest/chatbi/v1/templates") {
         return {
           ok: true,
           json: async () => [

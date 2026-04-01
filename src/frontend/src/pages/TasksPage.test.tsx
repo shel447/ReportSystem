@@ -25,13 +25,13 @@ describe("TasksPage", () => {
   it("restores task creation from an existing instance", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/scheduled-tasks" && !init?.method) {
+      if (url === "/rest/chatbi/v1/scheduled-tasks" && !init?.method) {
         return {
           ok: true,
           json: async () => [],
         };
       }
-      if (url === "/api/templates" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates" && !init?.method) {
         return {
           ok: true,
           json: async () => [
@@ -47,7 +47,7 @@ describe("TasksPage", () => {
           ],
         };
       }
-      if (url === "/api/instances" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances" && !init?.method) {
         return {
           ok: true,
           json: async () => [
@@ -63,7 +63,7 @@ describe("TasksPage", () => {
           ],
         };
       }
-      if (url === "/api/scheduled-tasks" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/scheduled-tasks" && init?.method === "POST") {
         return {
           ok: true,
           json: async () => ({
@@ -121,7 +121,7 @@ describe("TasksPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/scheduled-tasks",
+        "/rest/chatbi/v1/scheduled-tasks",
         expect.objectContaining({
           method: "POST",
           body: expect.any(String),
@@ -130,7 +130,7 @@ describe("TasksPage", () => {
     });
 
     const request = fetchMock.mock.calls.find(
-      ([url, init]) => url === "/api/scheduled-tasks" && init?.method === "POST",
+      ([url, init]) => url === "/rest/chatbi/v1/scheduled-tasks" && init?.method === "POST",
     )?.[1];
     const payload = JSON.parse(String(request?.body ?? "{}"));
     expect(payload.source_instance_id).toBe("inst-1");

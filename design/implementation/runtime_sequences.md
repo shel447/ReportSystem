@@ -19,7 +19,7 @@
 ```mermaid
 sequenceDiagram
     participant UI as Chat UI
-    participant API as /api/chat
+    participant API as /rest/chatbi/v1/chat
     participant Conv as ConversationService
     participant Persist as ConversationPersistenceGateway
     participant State as ConversationStateGateway
@@ -28,7 +28,7 @@ sequenceDiagram
     participant Baseline as capture_generation_baseline
     participant Doc as create_markdown_document
 
-    UI->>API: POST /api/chat(command=confirm_outline_generation)
+    UI->>API: POST /rest/chatbi/v1/chat(command=confirm_outline_generation)
     API->>Conv: send_message(data)
     Conv->>Persist: get_session(session_id)
     Conv->>State: restore_state_from_history(messages)
@@ -68,7 +68,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant UI as Tasks UI
-    participant API as /api/scheduled-tasks/{id}/run
+    participant API as /rest/chatbi/v1/scheduled-tasks/{id}/run-now
     participant App as SchedulingService
     participant TaskRepo as ScheduledTaskRepository
     participant Runtime as ScheduledInstanceCreationGateway
@@ -116,7 +116,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant UI as Instance Detail UI
-    participant API as /api/instances/{id}/update-chat
+    participant API as /rest/chatbi/v1/instances/{id}/update-chat
     participant Conv as ConversationService
     participant Persist as ConversationPersistenceGateway
     participant Fork as ConversationForkGateway

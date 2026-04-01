@@ -10,6 +10,7 @@ import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 import { PageSection } from "../shared/ui/PageSection";
 import { StatusBanner } from "../shared/ui/StatusBanner";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
+import { chatbiPath } from "../shared/api/http";
 
 export function TemplateDetailPage() {
   const navigate = useNavigate();
@@ -107,7 +108,7 @@ export function TemplateDetailPage() {
                     返回列表
                   </Link>
                   {editor.meta.templateId ? (
-                    <a className="secondary-button button-link" href={`/api/templates/${editor.meta.templateId}/export`}>
+                    <a className="secondary-button button-link" href={chatbiPath(`/templates/${editor.meta.templateId}/export`)}>
                       导出 JSON
                     </a>
                   ) : null}

@@ -1,4 +1,4 @@
-import { postJson } from "../../shared/api/http";
+import { devPath, postJson } from "../../shared/api/http";
 
 type FeedbackPayload = {
   submitter: string;
@@ -8,5 +8,5 @@ type FeedbackPayload = {
 };
 
 export function submitFeedback(payload: FeedbackPayload) {
-  return postJson<{ status: string; feedback_id: string }>("/api/feedback/", payload);
+  return postJson<{ status: string; feedback_id: string }>(devPath("/feedback/"), payload);
 }

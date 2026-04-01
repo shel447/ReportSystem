@@ -121,7 +121,7 @@ class ChatRouterTests(unittest.TestCase):
              patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.serialize_document",
-                 return_value={"document_id": "doc-1", "download_url": "/api/documents/doc-1/download"},
+                 return_value={"document_id": "doc-1", "download_url": "/rest/chatbi/v1/documents/doc-1/download"},
              ):
             third = send_message(
                 ChatMessage(
@@ -237,7 +237,7 @@ class ChatRouterTests(unittest.TestCase):
              patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.serialize_document",
-                 return_value={"document_id": "doc-outline", "download_url": "/api/documents/doc-outline/download"},
+                 return_value={"document_id": "doc-outline", "download_url": "/rest/chatbi/v1/documents/doc-outline/download"},
              ):
             edited_outline = second["action"]["outline"]
             edited_outline[0]["outline_instance"]["rendered_document"] = "分析 湿度 的巡检情况"

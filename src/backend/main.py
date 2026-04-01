@@ -10,7 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from .infrastructure.persistence.database import init_db
 from .routers import chat, design, documents, feedback, instances, system_settings, tasks, template_instances, templates
 
-API_PREFIX = "/api"
+CHATBI_PREFIX = "/rest/chatbi/v1"
+DEV_PREFIX = "/rest/dev"
 BACKEND_DIR = os.path.dirname(__file__)
 FRONTEND_SOURCE_DIR = os.path.join(BACKEND_DIR, "..", "frontend")
 FRONTEND_DIST_DIR = os.path.join(FRONTEND_SOURCE_DIR, "dist")
@@ -19,15 +20,16 @@ FRONTEND_DIST_DIR = os.path.join(FRONTEND_SOURCE_DIR, "dist")
 def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="Smart Report System", version="1.6.0")
 
-    app.include_router(templates.router, prefix=API_PREFIX)
-    app.include_router(template_instances.router, prefix=API_PREFIX)
-    app.include_router(instances.router, prefix=API_PREFIX)
-    app.include_router(documents.router, prefix=API_PREFIX)
-    app.include_router(tasks.router, prefix=API_PREFIX)
-    app.include_router(chat.router, prefix=API_PREFIX)
-    app.include_router(design.router, prefix=API_PREFIX)
-    app.include_router(feedback.router, prefix=API_PREFIX)
-    app.include_router(system_settings.router, prefix=API_PREFIX)
+    app.include_router(templates.router, prefix=CHATBI_PREFIX)
+    app.include_router(template_instances.router, prefix=CHATBI_PREFIX)
+    app.include_router(instances.router, prefix=CHATBI_PREFIX)
+    app.include_router(documents.router, prefix=CHATBI_PREFIX)
+    app.include_router(tasks.router, prefix=CHATBI_PREFIX)
+    app.include_router(chat.router, prefix=CHATBI_PREFIX)
+
+    app.include_router(design.router, prefix=DEV_PREFIX)
+    app.include_router(feedback.router, prefix=DEV_PREFIX)
+    app.include_router(system_settings.router, prefix=DEV_PREFIX)
 
     resolved_frontend_dir = frontend_dir or FRONTEND_DIST_DIR
     assets_dir = os.path.join(resolved_frontend_dir, "assets")
@@ -40,7 +42,7 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
 
     @app.get("/{full_path:path}")
     async def spa_entry(full_path: str) -> FileResponse:
-        if full_path.startswith("api/"):
+        if full_path.startswith("api/") or full_path.startswith("rest/"):
             raise HTTPException(status_code=404, detail="Not found")
         return _serve_frontend_file(resolved_frontend_dir, full_path)
 

@@ -207,9 +207,9 @@ template_matching
 
 统一对话模块提供会话历史能力：
 
-- `GET /api/chat`：会话摘要列表
-- `GET /api/chat/{session_id}`：单会话详情
-- `DELETE /api/chat/{session_id}`：删除会话
+- `GET /rest/chatbi/v1/chat`：会话摘要列表
+- `GET /rest/chatbi/v1/chat/{session_id}`：单会话详情
+- `DELETE /rest/chatbi/v1/chat/{session_id}`：删除会话
 
 行为约束：
 
@@ -245,15 +245,15 @@ template_matching
 
 当前与对话模块强相关的接口包括：
 
-- `GET /api/chat`
-- `POST /api/chat`
-- `GET /api/chat/{session_id}`
-- `DELETE /api/chat/{session_id}`
-- `POST /api/chat/forks`
-- `POST /api/instances/{id}/update-chat`
-- `POST /api/instances/{id}/fork-chat`
+- `GET /rest/chatbi/v1/chat`
+- `POST /rest/chatbi/v1/chat`
+- `GET /rest/chatbi/v1/chat/{session_id}`
+- `DELETE /rest/chatbi/v1/chat/{session_id}`
+- `POST /rest/chatbi/v1/chat/forks`
+- `POST /rest/chatbi/v1/instances/{id}/update-chat`
+- `POST /rest/chatbi/v1/instances/{id}/fork-chat`
 
-`POST /api/chat` 当前支持的重要输入字段：
+`POST /rest/chatbi/v1/chat` 当前支持的重要输入字段：
 
 - `preferred_capability`
 - `selected_template_id`

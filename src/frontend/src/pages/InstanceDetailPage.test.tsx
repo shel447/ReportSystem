@@ -30,7 +30,7 @@ describe("InstanceDetailPage", () => {
   it("loads one instance, generates markdown, and nests debug info in a secondary disclosure", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/instances/inst-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances/inst-1" && !init?.method) {
         return {
           ok: true,
           json: async () => ({
@@ -58,7 +58,7 @@ describe("InstanceDetailPage", () => {
           }),
         };
       }
-      if (url === "/api/instances/inst-1/baseline" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances/inst-1/baseline" && !init?.method) {
         return {
           ok: true,
           json: async () => ({
@@ -91,7 +91,7 @@ describe("InstanceDetailPage", () => {
           }),
         };
       }
-      if (url === "/api/instances/inst-1/update-chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/instances/inst-1/update-chat" && init?.method === "POST") {
         return {
           ok: true,
           json: async () => ({
@@ -130,7 +130,7 @@ describe("InstanceDetailPage", () => {
           }),
         };
       }
-      if (url === "/api/instances/inst-1/fork-sources" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances/inst-1/fork-sources" && !init?.method) {
         return {
           ok: true,
           json: async () => [
@@ -138,13 +138,13 @@ describe("InstanceDetailPage", () => {
           ],
         };
       }
-      if (url === "/api/instances/inst-1/fork-chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/instances/inst-1/fork-chat" && init?.method === "POST") {
         return {
           ok: true,
           json: async () => ({ session_id: "sess-fork" }),
         };
       }
-      if (url === "/api/templates" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates" && !init?.method) {
         return {
           ok: true,
           json: async () => [
@@ -160,13 +160,13 @@ describe("InstanceDetailPage", () => {
           ],
         };
       }
-      if (url === "/api/documents?instance_id=inst-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/documents?instance_id=inst-1" && !init?.method) {
         return {
           ok: true,
           json: async () => [],
         };
       }
-      if (url === "/api/documents" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/documents" && init?.method === "POST") {
         return {
           ok: true,
           json: async () => ({
@@ -179,7 +179,7 @@ describe("InstanceDetailPage", () => {
             file_size: 1200,
             status: "ready",
             version: 1,
-            download_url: "/api/documents/doc-1/download",
+            download_url: "/rest/chatbi/v1/documents/doc-1/download",
           }),
         };
       }
@@ -210,7 +210,7 @@ describe("InstanceDetailPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/documents",
+        "/rest/chatbi/v1/documents",
         expect.objectContaining({
           method: "POST",
         }),
@@ -219,14 +219,14 @@ describe("InstanceDetailPage", () => {
 
     expect(await screen.findByRole("link", { name: "下载最新 Markdown" })).toHaveAttribute(
       "href",
-      "/api/documents/doc-1/download",
+      "/rest/chatbi/v1/documents/doc-1/download",
     );
   });
 
   it("auto-expands update preview from intent query and only creates chat on explicit continue", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/instances/inst-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances/inst-1" && !init?.method) {
         return {
           ok: true,
           json: async () => ({
@@ -243,7 +243,7 @@ describe("InstanceDetailPage", () => {
           }),
         };
       }
-      if (url === "/api/instances/inst-1/baseline" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances/inst-1/baseline" && !init?.method) {
         return {
           ok: true,
           json: async () => ({
@@ -276,7 +276,7 @@ describe("InstanceDetailPage", () => {
           }),
         };
       }
-      if (url === "/api/instances/inst-1/update-chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/instances/inst-1/update-chat" && init?.method === "POST") {
         return {
           ok: true,
           json: async () => ({
@@ -315,19 +315,19 @@ describe("InstanceDetailPage", () => {
           }),
         };
       }
-      if (url === "/api/templates" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates" && !init?.method) {
         return {
           ok: true,
           json: async () => [{ template_id: "tpl-1", name: "设备巡检报告", report_type: "daily" }],
         };
       }
-      if (url === "/api/documents?instance_id=inst-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/documents?instance_id=inst-1" && !init?.method) {
         return {
           ok: true,
           json: async () => [],
         };
       }
-      if (url === "/api/instances/inst-1/fork-sources" && !init?.method) {
+      if (url === "/rest/chatbi/v1/instances/inst-1/fork-sources" && !init?.method) {
         return {
           ok: true,
           json: async () => [],
@@ -346,7 +346,7 @@ describe("InstanceDetailPage", () => {
     expect(screen.queryByText('"node_id": "node-1"')).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "继续到对话助手修改" })).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalledWith(
-      "/api/instances/inst-1/update-chat",
+      "/rest/chatbi/v1/instances/inst-1/update-chat",
       expect.objectContaining({ method: "POST" }),
     );
 
@@ -354,7 +354,7 @@ describe("InstanceDetailPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/instances/inst-1/update-chat",
+        "/rest/chatbi/v1/instances/inst-1/update-chat",
         expect.objectContaining({ method: "POST" }),
       );
     });
@@ -368,7 +368,7 @@ describe("InstanceDetailPage", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url === "/api/instances/inst-legacy" && !init?.method) {
+        if (url === "/rest/chatbi/v1/instances/inst-legacy" && !init?.method) {
           return {
             ok: true,
             json: async () => ({
@@ -392,7 +392,7 @@ describe("InstanceDetailPage", () => {
             }),
           };
         }
-        if (url === "/api/templates" && !init?.method) {
+        if (url === "/rest/chatbi/v1/templates" && !init?.method) {
           return {
             ok: true,
             json: async () => [
@@ -404,7 +404,7 @@ describe("InstanceDetailPage", () => {
             ],
           };
         }
-        if (url === "/api/documents?instance_id=inst-legacy" && !init?.method) {
+        if (url === "/rest/chatbi/v1/documents?instance_id=inst-legacy" && !init?.method) {
           return {
             ok: true,
             json: async () => [],

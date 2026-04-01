@@ -2,6 +2,17 @@ type RequestOptions = RequestInit & {
   expectText?: boolean;
 };
 
+export const CHATBI_API_PREFIX = "/rest/chatbi/v1";
+export const DEV_API_PREFIX = "/rest/dev";
+
+export function chatbiPath(path: string): string {
+  return `${CHATBI_API_PREFIX}${normalizePath(path)}`;
+}
+
+export function devPath(path: string): string {
+  return `${DEV_API_PREFIX}${normalizePath(path)}`;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -60,4 +71,11 @@ async function readError(response: Response): Promise<string> {
     // Ignore invalid json.
   }
   return `请求失败 (${response.status})`;
+}
+
+function normalizePath(path: string): string {
+  if (!path) {
+    return "";
+  }
+  return path.startsWith("/") ? path : `/${path}`;
 }

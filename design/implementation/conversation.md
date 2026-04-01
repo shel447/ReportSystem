@@ -67,11 +67,11 @@
 ### router
 
 - `chat.py` 只暴露：
-  - `GET /api/chat`
-  - `POST /api/chat`
-  - `GET /api/chat/{session_id}`
-  - `DELETE /api/chat/{session_id}`
-  - `POST /api/chat/forks`
+  - `GET /rest/chatbi/v1/chat`
+  - `POST /rest/chatbi/v1/chat`
+  - `GET /rest/chatbi/v1/chat/{session_id}`
+  - `DELETE /rest/chatbi/v1/chat/{session_id}`
+  - `POST /rest/chatbi/v1/chat/forks`
 
 ## 5. 核心实现链路
 

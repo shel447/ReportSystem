@@ -318,7 +318,7 @@ A：
 2. 强制刷新浏览器
 3. 必要时清除浏览器站点缓存
 
-### Q3：新增接口比如 `/api/system-settings`、`/api/system-settings/test` 返回 404，为什么？
+### Q3：新增接口比如 `/rest/dev/system-settings`、`/rest/dev/system-settings/test` 返回 404，为什么？
 
 A：
 

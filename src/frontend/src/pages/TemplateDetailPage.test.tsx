@@ -116,7 +116,7 @@ describe("TemplateDetailPage", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url === "/api/templates/tpl-1" && !init?.method) {
+        if (url === "/rest/chatbi/v1/templates/tpl-1" && !init?.method) {
           return {
             ok: true,
             json: async () => buildTemplatePayload(),
@@ -146,7 +146,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.getByLabelText("蓝图文稿")).toHaveValue("分析 {@focus_metric} 在 {date} 的变化");
 
     const exportLink = screen.getByRole("link", { name: "导出 JSON" });
-    expect(exportLink).toHaveAttribute("href", "/api/templates/tpl-1/export");
+    expect(exportLink).toHaveAttribute("href", "/rest/chatbi/v1/templates/tpl-1/export");
 
     fireEvent.change(screen.getByLabelText("日期预览值"), {
       target: { value: "2026-03-19" },
@@ -177,13 +177,13 @@ describe("TemplateDetailPage", () => {
   it("saves the structured workbench payload after editing metadata", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/templates/tpl-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates/tpl-1" && !init?.method) {
         return {
           ok: true,
           json: async () => buildTemplatePayload(),
         };
       }
-      if (url === "/api/templates/tpl-1" && init?.method === "PUT") {
+      if (url === "/rest/chatbi/v1/templates/tpl-1" && init?.method === "PUT") {
         return {
           ok: true,
           json: async () => buildTemplatePayload("设备巡检报告-新版"),
@@ -208,7 +208,7 @@ describe("TemplateDetailPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/templates/tpl-1",
+        "/rest/chatbi/v1/templates/tpl-1",
         expect.objectContaining({
           method: "PUT",
           body: expect.any(String),
@@ -217,7 +217,7 @@ describe("TemplateDetailPage", () => {
     });
 
     const payload = JSON.parse(
-      fetchMock.mock.calls.find(([url, init]) => url === "/api/templates/tpl-1" && init?.method === "PUT")?.[1]
+      fetchMock.mock.calls.find(([url, init]) => url === "/rest/chatbi/v1/templates/tpl-1" && init?.method === "PUT")?.[1]
         ?.body as string,
     );
     expect(payload.name).toBe("设备巡检报告-新版");
@@ -232,13 +232,13 @@ describe("TemplateDetailPage", () => {
   it("saves structured dataset configuration without raw json editing", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/templates/tpl-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates/tpl-1" && !init?.method) {
         return {
           ok: true,
           json: async () => buildTemplatePayload(),
         };
       }
-      if (url === "/api/templates/tpl-1" && init?.method === "PUT") {
+      if (url === "/rest/chatbi/v1/templates/tpl-1" && init?.method === "PUT") {
         return {
           ok: true,
           json: async () => buildTemplatePayload(),
@@ -275,7 +275,7 @@ describe("TemplateDetailPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/templates/tpl-1",
+        "/rest/chatbi/v1/templates/tpl-1",
         expect.objectContaining({
           method: "PUT",
           body: expect.any(String),
@@ -284,7 +284,7 @@ describe("TemplateDetailPage", () => {
     });
 
     const payload = JSON.parse(
-      fetchMock.mock.calls.find(([url, init]) => url === "/api/templates/tpl-1" && init?.method === "PUT")?.[1]
+      fetchMock.mock.calls.find(([url, init]) => url === "/rest/chatbi/v1/templates/tpl-1" && init?.method === "PUT")?.[1]
         ?.body as string,
     );
     expect(payload.sections[0].content.datasets).toEqual([
@@ -308,7 +308,7 @@ describe("TemplateDetailPage", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url === "/api/templates/tpl-1" && !init?.method) {
+        if (url === "/rest/chatbi/v1/templates/tpl-1" && !init?.method) {
           return {
             ok: true,
             json: async () => buildTemplatePayload(),
@@ -338,7 +338,7 @@ describe("TemplateDetailPage", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url === "/api/templates/tpl-1" && !init?.method) {
+        if (url === "/rest/chatbi/v1/templates/tpl-1" && !init?.method) {
           return {
             ok: true,
             json: async () => buildTemplatePayload(),
@@ -377,7 +377,7 @@ describe("TemplateDetailPage", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
-        if (url === "/api/templates/tpl-1" && !init?.method) {
+        if (url === "/rest/chatbi/v1/templates/tpl-1" && !init?.method) {
           return {
             ok: true,
             json: async () => buildTemplatePayload(),

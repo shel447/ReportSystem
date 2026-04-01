@@ -65,13 +65,13 @@ describe("ChatPage", () => {
     });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         return Promise.resolve(createJsonResponse(chatResponse));
       }
       throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
@@ -94,10 +94,10 @@ describe("ChatPage", () => {
     await waitFor(() => {
       expect(screen.getByText("暂无历史会话")).toBeInTheDocument();
     });
-    expect(fetchMock).toHaveBeenCalledWith("/api/system-settings", undefined);
-    expect(fetchMock).toHaveBeenCalledWith("/api/chat", undefined);
+    expect(fetchMock).toHaveBeenCalledWith("/rest/dev/system-settings", undefined);
+    expect(fetchMock).toHaveBeenCalledWith("/rest/chatbi/v1/chat", undefined);
     expect(fetchMock).not.toHaveBeenCalledWith(
-      "/api/chat",
+      "/rest/chatbi/v1/chat",
       expect.objectContaining({ method: "POST" }),
     );
 
@@ -154,7 +154,7 @@ describe("ChatPage", () => {
     expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
     expect(composer).not.toBeDisabled();
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/chat",
+      "/rest/chatbi/v1/chat",
       expect.objectContaining({
         method: "POST",
       }),
@@ -176,13 +176,13 @@ describe("ChatPage", () => {
     ];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse(sessionList));
       }
-      if (url === "/api/chat/s-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat/s-1" && !init?.method) {
         return Promise.resolve(createJsonResponse({
           session_id: "s-1",
           matched_template_id: "tpl-1",
@@ -192,7 +192,7 @@ describe("ChatPage", () => {
           ],
         }));
       }
-      if (url === "/api/chat/s-1" && init?.method === "DELETE") {
+      if (url === "/rest/chatbi/v1/chat/s-1" && init?.method === "DELETE") {
         sessionList = [];
         return Promise.resolve(createJsonResponse({ message: "deleted" }));
       }
@@ -229,13 +229,13 @@ describe("ChatPage", () => {
     let capturedBody: Record<string, unknown> | undefined;
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         capturedBody = JSON.parse(String(init.body ?? "{}"));
         return Promise.resolve(
           createJsonResponse({
@@ -282,13 +282,13 @@ describe("ChatPage", () => {
     });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         const body = JSON.parse(String(init.body ?? "{}"));
         if (body.message) {
           return Promise.resolve(createJsonResponse(firstChatResponse));
@@ -380,13 +380,13 @@ describe("ChatPage", () => {
     });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         const body = JSON.parse(String(init.body ?? "{}"));
         if (body.message) {
           return Promise.resolve(createJsonResponse(firstChatResponse));
@@ -475,13 +475,13 @@ describe("ChatPage", () => {
   it("loads an explicit forked session from query parameter and shows source badge", async () => {
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat/s-forked" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat/s-forked" && !init?.method) {
         return Promise.resolve(createJsonResponse({
           session_id: "s-forked",
           title: "设备巡检报告 copy_ab12cd",
@@ -520,13 +520,13 @@ describe("ChatPage", () => {
     });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat/s-update" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat/s-update" && !init?.method) {
         return Promise.resolve(createJsonResponse(sessionResponse));
       }
       throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
@@ -619,7 +619,7 @@ describe("ChatPage", () => {
     });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/chat/s-update", undefined);
+      expect(fetchMock).toHaveBeenCalledWith("/rest/chatbi/v1/chat/s-update", undefined);
     });
   });
 
@@ -638,13 +638,13 @@ describe("ChatPage", () => {
     ];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse(sessionList));
       }
-      if (url === "/api/chat/s-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat/s-1" && !init?.method) {
         return Promise.resolve(createJsonResponse({
           session_id: "s-1",
           title: "制作设备巡检报告",
@@ -655,7 +655,7 @@ describe("ChatPage", () => {
           ],
         }));
       }
-      if (url === "/api/chat/forks" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat/forks" && init?.method === "POST") {
         sessionList = [
           {
             session_id: "s-fork",
@@ -718,10 +718,10 @@ describe("ChatPage", () => {
     });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([
           {
             session_id: "s-1",
@@ -735,10 +735,10 @@ describe("ChatPage", () => {
           },
         ]));
       }
-      if (url === "/api/chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         return Promise.resolve(createJsonResponse(chatResponse));
       }
-      if (url === "/api/chat/s-1" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat/s-1" && !init?.method) {
         return Promise.resolve(createJsonResponse({
           session_id: "s-1",
           title: "历史会话",
@@ -795,13 +795,13 @@ describe("ChatPage", () => {
     });
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url === "/api/system-settings") {
+      if (url === "/rest/dev/system-settings") {
         return Promise.resolve(createJsonResponse({ is_ready: true, index_status: { ready_count: 1 } }));
       }
-      if (url === "/api/chat" && !init?.method) {
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
         return Promise.resolve(createJsonResponse([]));
       }
-      if (url === "/api/chat" && init?.method === "POST") {
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         return Promise.resolve(createJsonResponse(chatResponse));
       }
       throw new Error(`Unhandled request: ${url} ${init?.method ?? "GET"}`);
