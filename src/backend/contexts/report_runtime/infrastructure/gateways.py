@@ -14,7 +14,7 @@ from ....shared.kernel.errors import UpstreamError, ValidationError
 from ....ai_gateway import AIConfigurationError, AIRequestError, OpenAICompatGateway
 from ....application.reporting.services import InstanceApplicationService, ScheduledRunApplicationService, is_v2_template
 from ....domain.reporting.services import OutlineExpansionService
-from ....document_service import (
+from .documents import (
     DocumentGenerationError,
     create_markdown_document,
     normalize_document_format,
@@ -28,7 +28,7 @@ from ....infrastructure.reporting.repositories import (
     SqlAlchemyTemplateRepository,
 )
 from ....models import ReportTemplate as ReportTemplateModel
-from ....report_generation_service import generate_single_section
+from .generation import generate_single_section
 
 
 class InstanceCreationGateway:

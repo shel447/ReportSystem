@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import TemplateInstance
-from ..template_instance_service import summarize_template_instance
+from ..contexts.report_runtime.infrastructure.baselines import summarize_template_instance
 
 router = APIRouter(prefix="/template-instances", tags=["template-instances"])
 

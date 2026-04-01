@@ -123,6 +123,8 @@ ReportSystemV2/
 - `conversation` 上下文当前也已通过 application service + infrastructure gateways 装配，不再由 `chat` router 保留兼容 shim
 - `conversation` 的会话摘要、上下文快照、参数追问、回复生成与 fork helper 也已下沉到上下文本地基础设施模块，根级 `chat_*_service.py / context_state_service.py / param_dialog_service.py` 已进一步清理
 - `report_runtime` 上下文当前也已通过 context-local gateways 承接实例创建、章节重生成与文档技术适配，中心依赖装配层不再直连 legacy reporting 模块
+- `report_runtime` 的确认大纲、执行基线、文档生成、章节生成 helper 也已迁入上下文本地基础设施模块；根级 `outline_review_service.py / template_v2_renderer.py / template_instance_service.py / document_service.py / report_generation_service.py` 已清理
+- `conversation` 的能力路由逻辑也已落到上下文本地基础设施模块，根级 `chat_capability_service.py` 已清理
 - `template_catalog` 的模板 schema 校验与语义索引逻辑也已下沉到上下文本地基础设施模块，根级 `template_*_service.py` 已清理
 - 业务规则尽量进入 `domain / application`
 - AI、查询、文档、SQLAlchemy 持久化进入 `infrastructure`

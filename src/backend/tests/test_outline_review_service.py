@@ -1,7 +1,7 @@
 import unittest
 
 from backend.domain.reporting.entities import ReportTemplateEntity
-from backend.outline_review_service import (
+from backend.contexts.report_runtime.infrastructure.outline import (
     build_frontend_outline,
     build_pending_outline_review,
     flatten_review_outline,

@@ -4,7 +4,7 @@ import copy
 from datetime import UTC, datetime
 from typing import Any, Dict, List, Optional
 
-from ....chat_capability_service import ensure_task_state
+from .capabilities import ensure_task_state
 
 CONTEXT_SCHEMA_VERSION = "ctx.v2"
 

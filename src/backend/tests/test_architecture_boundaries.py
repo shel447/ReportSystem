@@ -10,6 +10,13 @@ DEPENDENCY_BUILDER = ROOT / "infrastructure" / "dependencies.py"
 TEMPLATE_CATALOG_REPOSITORY = ROOT / "contexts" / "template_catalog" / "infrastructure" / "repositories.py"
 CONVERSATION_GATEWAYS = ROOT / "contexts" / "conversation" / "infrastructure" / "gateways.py"
 SYSTEM_SETTINGS_ROUTER = ROUTERS_DIR / "system_settings.py"
+REPORT_RUNTIME_GATEWAYS = ROOT / "contexts" / "report_runtime" / "infrastructure" / "gateways.py"
+REPORTING_REPOSITORIES = ROOT / "infrastructure" / "reporting" / "repositories.py"
+REPORTING_APPLICATION = ROOT / "application" / "reporting" / "services.py"
+TEMPLATE_INSTANCES_ROUTER = ROUTERS_DIR / "template_instances.py"
+CONVERSATION_STATE = ROOT / "contexts" / "conversation" / "infrastructure" / "state.py"
+CONVERSATION_FLOW = ROOT / "contexts" / "conversation" / "infrastructure" / "flow.py"
+CONVERSATION_FORKS = ROOT / "contexts" / "conversation" / "infrastructure" / "forks.py"
 
 FORBIDDEN_ROUTER_MODULES = {
     "backend.models",
@@ -72,6 +79,17 @@ FORBIDDEN_CONVERSATION_GATEWAY_LEGACY_MODULES = {
     "backend.chat_session_service",
     "backend.context_state_service",
     "backend.param_dialog_service",
+    "backend.chat_capability_service",
+    "backend.document_service",
+    "backend.outline_review_service",
+    "backend.template_instance_service",
+}
+FORBIDDEN_REPORT_RUNTIME_LEGACY_MODULES = {
+    "backend.document_service",
+    "backend.report_generation_service",
+    "backend.template_instance_service",
+    "backend.outline_review_service",
+    "backend.template_v2_renderer",
 }
 
 
@@ -193,6 +211,29 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 module = _resolve_import_from(CONVERSATION_GATEWAYS, node.module, node.level)
                 if module in FORBIDDEN_CONVERSATION_GATEWAY_LEGACY_MODULES:
                     violations.append(f"from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_report_runtime_related_entrypoints_do_not_import_root_runtime_helpers(self):
+        violations: list[str] = []
+        for path in (
+            REPORT_RUNTIME_GATEWAYS,
+            REPORTING_REPOSITORIES,
+            REPORTING_APPLICATION,
+            TEMPLATE_INSTANCES_ROUTER,
+            CONVERSATION_STATE,
+            CONVERSATION_FLOW,
+            CONVERSATION_FORKS,
+        ):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name in FORBIDDEN_REPORT_RUNTIME_LEGACY_MODULES:
+                            violations.append(f"{path.relative_to(ROOT)}: import {alias.name}")
+                elif isinstance(node, ast.ImportFrom):
+                    module = _resolve_import_from(path, node.module, node.level)
+                    if module in FORBIDDEN_REPORT_RUNTIME_LEGACY_MODULES:
+                        violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
         self.assertEqual([], violations, "\n".join(violations))
 
 

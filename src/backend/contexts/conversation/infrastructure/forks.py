@@ -18,7 +18,7 @@ from .sessions import (
 from .state import new_context_state, persist_state_to_history, restore_state_from_history
 from .parameters import normalize_parameters
 from ....models import ChatSession, ReportTemplate, TemplateInstance, gen_id
-from ....outline_review_service import build_pending_outline_review, merge_outline_override
+from ....contexts.report_runtime.infrastructure.outline import build_pending_outline_review, merge_outline_override
 
 FORK_SUFFIX_LENGTH = 6
 FORK_ASSISTANT_REPLY = "参数已确认，请检查报告大纲。"

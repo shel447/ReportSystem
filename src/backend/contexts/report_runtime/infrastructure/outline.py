@@ -4,9 +4,9 @@ import copy
 import uuid
 from typing import Any, Dict, List, Tuple
 
-from .domain.reporting.entities import ReportTemplateEntity
-from .domain.reporting.services import OutlineExpansionService
-from .template_v2_renderer import build_outline_tree_v2
+from ....domain.reporting.entities import ReportTemplateEntity
+from ....domain.reporting.services import OutlineExpansionService
+from .rendering import build_outline_tree_v2
 
 
 def build_pending_outline_review(

@@ -6,8 +6,8 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from .models import ReportTemplate, TemplateInstance, gen_id
-from .outline_review_service import build_persisted_outline_snapshot
+from ....models import ReportTemplate, TemplateInstance, gen_id
+from .outline import build_persisted_outline_snapshot
 
 
 def capture_template_instance(

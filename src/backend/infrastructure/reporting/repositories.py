@@ -9,10 +9,10 @@ from ...ai_gateway import OpenAICompatGateway
 from ...application.reporting.ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
 from ...domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
 from ...models import ReportInstance, ReportTemplate, gen_id
-from ...report_generation_service import generate_report_sections
+from ...contexts.report_runtime.infrastructure.generation import generate_report_sections
 from ...section_query_service import generate_section_evidence
 from ...system_settings_service import build_completion_provider_config
-from ...template_v2_renderer import generate_report_sections_from_outline_tree_v2, generate_report_sections_v2
+from ...contexts.report_runtime.infrastructure.rendering import generate_report_sections_from_outline_tree_v2, generate_report_sections_v2
 
 
 class SqlAlchemyTemplateRepository(TemplateReader):

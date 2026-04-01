@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from .ports import ContentGenerator, InstanceReader, InstanceWriter, TemplateReader
 from ...domain.reporting.entities import ReportInstanceEntity, ReportTemplateEntity
 from ...domain.reporting.services import OutlineExpansionService
-from ...outline_review_service import flatten_review_outline
+from ...contexts.report_runtime.infrastructure.outline import flatten_review_outline
 
 
 def is_v2_template(template: ReportTemplateEntity) -> bool:
