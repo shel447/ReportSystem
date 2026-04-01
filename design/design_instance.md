@@ -334,3 +334,10 @@ class ReportDocument:
 - 报告实例示例请参见 `instance_example.json`
 - 报告文档样例请参见 `report_sample.md`
 - 内部模板实例用于承接“模板 -> 实例”的生成基线，不承担报告内容重生成职责
+
+## 实现文档
+
+当前版本的核心技术实现说明见：
+
+- [implementation/report_runtime.md](implementation/report_runtime.md)
+- [implementation/database_schema.md](implementation/database_schema.md)

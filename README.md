@@ -197,6 +197,17 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 - [定时任务设计](design/design_scheduler.md)
 - [API 设计](design/design_api.md)
 
+### 核心实现文档
+
+- [实现文档索引](design/implementation/index.md)
+- [模板目录实现](design/implementation/template_catalog.md)
+- [统一对话实现](design/implementation/conversation.md)
+- [报告运行时实现](design/implementation/report_runtime.md)
+- [定时任务实现](design/implementation/scheduling.md)
+- [共享基础设施与 supporting 模块](design/implementation/infrastructure_and_supporting.md)
+- [数据库表定义总览](design/implementation/database_schema.md)
+- [外部接口与用法](design/implementation/external_interfaces.md)
+
 ### 产品与需求
 
 - [规格文档](design/spec.md)
@@ -266,6 +277,10 @@ python -m unittest discover -s src/backend/tests -p "test_*.py" -t .
    - 实例： [design_instance.md](design/design_instance.md)
    - 调度： [design_scheduler.md](design/design_scheduler.md)
    - 接口： [design_api.md](design/design_api.md)
+5. 如果你要继续改后端实现，再进入：
+   - [实现文档索引](design/implementation/index.md)
+   - [数据库表定义](design/implementation/database_schema.md)
+   - [外部接口与用法](design/implementation/external_interfaces.md)
 
 ## 10. 备注
 

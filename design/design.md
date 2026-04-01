@@ -422,6 +422,7 @@ graph TD
 | 报告实例与文档 | [design_instance.md](design_instance.md) | 实例数据模型、溯源信息、文档数据模型 |
 | 定时任务 | [design_scheduler.md](design_scheduler.md) | 定时任务数据模型、执行流程、设计原则 |
 | API 接口 | [design_api.md](design_api.md) | 全量 REST API 定义与核心时序图 |
+| 设计实现索引 | [implementation/index.md](implementation/index.md) | 当前后端代码的实现分层、模块边界、表定义与外部接口用法 |
 
 ---
 
@@ -444,3 +445,4 @@ graph TD
 | v1.4 | 2026-03-30 | Antigravity | 对齐最新版 ReportTemplate：模板章节升级为“蓝图 + 执行链路”双层模型；对话大纲确认改为实例级蓝图树，并在确认生成时解析为执行基线 |
 | v1.5 | 2026-03-31 | Antigravity | 统一对话模块扩展到报告生成/智能问数/智能故障；模板参数支持 `interaction_mode=form|chat`；定时任务新增双时间模型与“从已有实例创建”语义 |
 | v1.6 | 2026-03-31 | Antigravity | 新增 DFX 接口治理专题文档，统一异常响应、错误码、分页/排序、限流、容量上限与数据保留策略，并记录定时任务时间语义重构为后续专题 |
+| v1.7 | 2026-04-01 | Codex | 新增 `design/implementation/` 后端实现文档组，补齐 4 个 bounded context、共享基础设施、数据库表定义总览，以及外部接口与用法说明 |

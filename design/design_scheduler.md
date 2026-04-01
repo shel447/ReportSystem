@@ -192,3 +192,10 @@ sequenceDiagram
 - [ ] 一次性任务与周期性任务的状态机差异
 - [ ] 自动生成文档的异步回调与失败处理
 - [ ] 配额校验的并发安全性设计
+
+## 5. 实现文档
+
+当前版本的核心技术实现说明见：
+
+- [implementation/scheduling.md](implementation/scheduling.md)
+- [implementation/database_schema.md](implementation/database_schema.md)

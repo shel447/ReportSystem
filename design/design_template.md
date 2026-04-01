@@ -346,3 +346,11 @@ sequenceDiagram
 - 模板设计现在以 `parameters / sections` 为主结构
 - 旧版 `content_params / outline` 仅保留兼容加载入口
 - 单模板导出 JSON 默认导出可迁移定义，不导出运行期系统字段
+
+## 实现文档
+
+当前版本的核心技术实现说明见：
+
+- [implementation/template_catalog.md](implementation/template_catalog.md)
+- [implementation/database_schema.md](implementation/database_schema.md)
+- [implementation/external_interfaces.md](implementation/external_interfaces.md)

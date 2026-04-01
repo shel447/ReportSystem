@@ -277,3 +277,10 @@ template_matching
 
 - 对话模块是报告生成、智能问数、智能故障的统一入口，不是报告模块的附属页面
 - 对话历史、消息级 fork、实例更新恢复都是统一对话模块的能力，不再单独拆出“模板实例”页面
+
+## 实现文档
+
+当前版本的核心技术实现说明见：
+
+- [implementation/conversation.md](implementation/conversation.md)
+- [implementation/external_interfaces.md](implementation/external_interfaces.md)
