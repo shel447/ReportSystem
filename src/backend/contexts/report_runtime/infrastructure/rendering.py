@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import re
 import sqlite3
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from ....infrastructure.demo.telecom import get_demo_db_path
 
-DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "telecom_demo.db")
+
+DEFAULT_DB_PATH = get_demo_db_path()
 
 
 def generate_report_sections_v2(

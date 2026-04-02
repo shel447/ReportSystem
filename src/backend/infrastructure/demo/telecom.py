@@ -6,7 +6,10 @@ import sqlite3
 from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, Iterable, List
 
-DEMO_DB_PATH = os.path.join(os.path.dirname(__file__), "telecom_demo.db")
+from ...shared.kernel.paths import telecom_demo_db_path
+
+
+DEMO_DB_PATH = os.fspath(telecom_demo_db_path())
 
 TABLE_SCHEMAS: List[Dict[str, Any]] = [
     {

@@ -1,13 +1,15 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import os
+
+from ...shared.kernel.paths import report_system_db_path
 
 try:
     from sqlalchemy.orm import DeclarativeBase
 except ImportError:
     DeclarativeBase = None
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "report_system.db")
+DB_PATH = os.fspath(report_system_db_path())
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
