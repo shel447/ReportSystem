@@ -2,6 +2,7 @@ import type {
   TemplateCompositeSection,
   TemplateDataset,
   TemplateDetail,
+  TemplateEditableDraft,
   TemplateOutlineBlock,
   TemplateOutlineBlueprint,
   TemplateLayout,
@@ -168,7 +169,7 @@ export function createEmptyWorkbenchState(): TemplateWorkbenchState {
   };
 }
 
-export function toWorkbenchState(template: TemplateDetail): TemplateWorkbenchState {
+export function toWorkbenchState(template: TemplateDetail | TemplateEditableDraft): TemplateWorkbenchState {
   const state = createEmptyWorkbenchState();
   state.meta = {
     templateId: template.template_id,

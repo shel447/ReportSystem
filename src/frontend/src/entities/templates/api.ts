@@ -1,5 +1,5 @@
 import { chatbiPath, deleteJson, postJson, putJson, requestJson } from "../../shared/api/http";
-import type { TemplateDetail, TemplateSummary, TemplateUpsertPayload } from "./types";
+import type { TemplateDetail, TemplateImportPreview, TemplateSummary, TemplateUpsertPayload } from "./types";
 
 export function fetchTemplates() {
   return requestJson<TemplateSummary[]>(chatbiPath("/templates"));
@@ -11,6 +11,13 @@ export function fetchTemplate(templateId: string) {
 
 export function createTemplate(payload: TemplateUpsertPayload) {
   return postJson<TemplateDetail>(chatbiPath("/templates"), payload);
+}
+
+export function previewImportTemplate(payload: Record<string, unknown>, filename?: string) {
+  return postJson<TemplateImportPreview>(chatbiPath("/templates/import/preview"), {
+    payload,
+    filename,
+  });
 }
 
 export function updateTemplate(templateId: string, payload: TemplateUpsertPayload) {

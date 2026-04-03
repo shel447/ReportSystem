@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { createTemplate, deleteTemplate, fetchTemplate, updateTemplate } from "../entities/templates/api";
+import type { ImportSaveMode, TemplateEditableDraft } from "../entities/templates/types";
 import { TemplateWorkbench } from "../features/template-workbench/TemplateWorkbench";
 import { createEmptyWorkbenchState, toTemplatePayload, toWorkbenchState, type TemplateWorkbenchState } from "../features/template-workbench/state";
 import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
@@ -12,7 +13,15 @@ import { StatusBanner } from "../shared/ui/StatusBanner";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
 import { chatbiPath } from "../shared/api/http";
 
+type TemplateImportLocationState = {
+  importDraft?: TemplateEditableDraft;
+  saveMode?: ImportSaveMode;
+  targetTemplateId?: string;
+  targetTemplateName?: string;
+};
+
 export function TemplateDetailPage() {
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { templateId } = useParams<{ templateId: string }>();
@@ -20,6 +29,9 @@ export function TemplateDetailPage() {
   const [saveError, setSaveError] = useState("");
 
   const isCreateMode = !templateId;
+  const importState = (location.state as TemplateImportLocationState | null) ?? null;
+  const importedDraft = isCreateMode ? importState?.importDraft : undefined;
+  const importSaveMode = isCreateMode ? importState?.saveMode : undefined;
 
   const selectedTemplateQuery = useQuery({
     queryKey: ["template-detail", templateId],
@@ -32,14 +44,21 @@ export function TemplateDetailPage() {
       setEditor(toWorkbenchState(selectedTemplateQuery.data));
       return;
     }
+    if (isCreateMode && importedDraft) {
+      setEditor(toWorkbenchState(importedDraft));
+      return;
+    }
     if (isCreateMode) {
       setEditor(createEmptyWorkbenchState());
     }
-  }, [isCreateMode, selectedTemplateQuery.data]);
+  }, [importedDraft, isCreateMode, selectedTemplateQuery.data]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = toTemplatePayload(editor);
+      if (isCreateMode && importSaveMode === "overwrite" && importState?.targetTemplateId) {
+        return updateTemplate(importState.targetTemplateId, payload);
+      }
       if (editor.meta.templateId) {
         return updateTemplate(editor.meta.templateId, payload);
       }
@@ -93,6 +112,16 @@ export function TemplateDetailPage() {
         {saveError ? (
           <StatusBanner tone="warning" title="操作未完成">
             {saveError}
+          </StatusBanner>
+        ) : null}
+        {isCreateMode && importedDraft ? (
+          <StatusBanner tone="info" title="导入草稿">
+            当前为导入草稿，尚未保存。
+          </StatusBanner>
+        ) : null}
+        {isCreateMode && importSaveMode === "overwrite" && importState?.targetTemplateName ? (
+          <StatusBanner tone="warning" title="覆盖模式">
+            保存后将覆盖模板：{importState.targetTemplateName}。
           </StatusBanner>
         ) : null}
 

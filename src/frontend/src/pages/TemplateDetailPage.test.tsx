@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { TemplateDetailPage } from "./TemplateDetailPage";
 
-function renderTemplateDetailPage(pathname = "/templates/tpl-1") {
+function renderTemplateDetailPage(initialEntry: string | { pathname: string; state?: unknown } = "/templates/tpl-1") {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -12,7 +12,7 @@ function renderTemplateDetailPage(pathname = "/templates/tpl-1") {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[pathname]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/templates/new" element={<TemplateDetailPage />} />
           <Route path="/templates/:templateId" element={<TemplateDetailPage />} />
@@ -227,6 +227,123 @@ describe("TemplateDetailPage", () => {
     expect(payload).not.toHaveProperty("previewSamples");
 
     expect(await screen.findByDisplayValue("设备巡检报告-新版")).toBeInTheDocument();
+  });
+
+  it("saves imported draft as a new template copy", async () => {
+    const importedDraft = {
+      name: "导入模板",
+      description: "",
+      report_type: "daily",
+      scenario: "",
+      type: "巡检",
+      scene: "总部",
+      match_keywords: [],
+      content_params: [],
+      parameters: [],
+      outline: [],
+      sections: [],
+      schema_version: "v2.0",
+      output_formats: ["md"],
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/rest/chatbi/v1/templates" && init?.method === "POST") {
+        return {
+          ok: true,
+          json: async () => ({
+            ...importedDraft,
+            template_id: "tpl-new",
+            created_at: "2026-04-02T00:00:00",
+            version: "1.0",
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTemplateDetailPage({
+      pathname: "/templates/new",
+      state: {
+        importDraft: importedDraft,
+        saveMode: "create_copy",
+      },
+    });
+
+    expect(await screen.findByDisplayValue("导入模板")).toBeInTheDocument();
+    expect(screen.getByText("当前为导入草稿，尚未保存。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/rest/chatbi/v1/templates",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.any(String),
+        }),
+      );
+    });
+  });
+
+  it("saves imported draft in overwrite mode using the target template id", async () => {
+    const importedDraft = {
+      name: "导入模板",
+      description: "",
+      report_type: "daily",
+      scenario: "",
+      type: "巡检",
+      scene: "总部",
+      match_keywords: [],
+      content_params: [],
+      parameters: [],
+      outline: [],
+      sections: [],
+      schema_version: "v2.0",
+      output_formats: ["md"],
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/rest/chatbi/v1/templates/tpl-9" && init?.method === "PUT") {
+        return {
+          ok: true,
+          json: async () => ({
+            ...importedDraft,
+            template_id: "tpl-9",
+            created_at: "2026-04-02T00:00:00",
+            version: "1.0",
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderTemplateDetailPage({
+      pathname: "/templates/new",
+      state: {
+        importDraft: importedDraft,
+        saveMode: "overwrite",
+        targetTemplateId: "tpl-9",
+        targetTemplateName: "已有模板",
+      },
+    });
+
+    expect(await screen.findByDisplayValue("导入模板")).toBeInTheDocument();
+    expect(screen.getByText("当前为导入草稿，尚未保存。")).toBeInTheDocument();
+    expect(screen.getByText("保存后将覆盖模板：已有模板。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/rest/chatbi/v1/templates/tpl-9",
+        expect.objectContaining({
+          method: "PUT",
+          body: expect.any(String),
+        }),
+      );
+    });
   });
 
   it("saves structured dataset configuration without raw json editing", async () => {

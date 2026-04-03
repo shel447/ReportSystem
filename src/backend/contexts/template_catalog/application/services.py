@@ -49,6 +49,16 @@ class TemplateCatalogService:
             raise NotFoundError("Template not found")
         return self._export_payload(template), self._build_export_filename(template)
 
+    def preview_import_template(self, payload: dict[str, Any], filename: str | None = None) -> dict[str, Any]:
+        source_kind, candidate_payload, candidate_id, warnings = self._normalize_import_payload(payload, filename)
+        cleaned = self._clean_payload(candidate_payload)
+        return {
+            "normalized_template": self._serialize_import_draft(cleaned),
+            "source_kind": source_kind,
+            "warnings": warnings,
+            "conflict": self._detect_import_conflict(candidate_id, str(cleaned.get("name") or "").strip()),
+        }
+
     def match_templates(self, message: str, gateway) -> dict[str, Any]:
         return self.matcher.match(message, gateway)
 
@@ -102,6 +112,23 @@ class TemplateCatalogService:
             "output_formats": template.output_formats or [],
         }
 
+    def _serialize_import_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "name": str(payload.get("name") or ""),
+            "description": str(payload.get("description") or ""),
+            "report_type": str(payload.get("report_type") or "daily"),
+            "scenario": str(payload.get("scenario") or ""),
+            "type": str(payload.get("template_type") or payload.get("type") or ""),
+            "scene": str(payload.get("scene") or ""),
+            "match_keywords": self._normalize_keywords(payload.get("match_keywords")),
+            "content_params": list(payload.get("content_params") or []),
+            "parameters": list(payload.get("parameters") or []),
+            "outline": list(payload.get("outline") or []),
+            "sections": list(payload.get("sections") or []),
+            "schema_version": str(payload.get("schema_version") or "v2.0"),
+            "output_formats": list(payload.get("output_formats") or ["md"]),
+        }
+
     def _clean_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
             cleaned = self.schema_gateway.validate(payload)
@@ -114,6 +141,93 @@ class TemplateCatalogService:
         if "match_keywords" in cleaned:
             cleaned["match_keywords"] = self._normalize_keywords(cleaned.get("match_keywords"))
         return cleaned
+
+    def _normalize_import_payload(
+        self,
+        payload: dict[str, Any],
+        filename: str | None = None,
+    ) -> tuple[str, dict[str, Any], str | None, list[str]]:
+        candidate = dict(payload or {})
+        if not candidate:
+            raise ValidationError("不支持的模板结构。")
+
+        if self._looks_like_system_export(candidate):
+            candidate_id = str(candidate.get("template_id") or "").strip() or None
+            return "system_export", candidate, candidate_id, []
+
+        if self._looks_like_external_report_template(candidate):
+            candidate_id = str(candidate.get("id") or "").strip() or None
+            normalized = {
+                "name": str(candidate.get("name") or ""),
+                "description": str(candidate.get("description") or ""),
+                "report_type": str(candidate.get("report_type") or "daily"),
+                "scenario": str(candidate.get("scenario") or ""),
+                "type": str(candidate.get("type") or ""),
+                "scene": str(candidate.get("scene") or ""),
+                "match_keywords": list(candidate.get("match_keywords") or []),
+                "content_params": list(candidate.get("content_params") or []),
+                "parameters": list(candidate.get("parameters") or []),
+                "outline": list(candidate.get("outline") or []),
+                "sections": list(candidate.get("sections") or []),
+                "schema_version": str(candidate.get("schema_version") or "v2.0"),
+                "output_formats": list(candidate.get("output_formats") or ["md"]),
+            }
+            warnings: list[str] = []
+            if filename:
+                warnings.append(f"已按外部 ReportTemplate 模板定义解析：{filename}")
+            return "external_report_template", normalized, candidate_id, warnings
+
+        raise ValidationError("不支持的模板结构。")
+
+    @staticmethod
+    def _looks_like_system_export(payload: dict[str, Any]) -> bool:
+        return any(
+            key in payload
+            for key in (
+                "template_id",
+                "report_type",
+                "scenario",
+                "match_keywords",
+                "output_formats",
+                "schema_version",
+                "content_params",
+                "outline",
+            )
+        )
+
+    @staticmethod
+    def _looks_like_external_report_template(payload: dict[str, Any]) -> bool:
+        required_fields = {"id", "type", "scene", "name", "parameters", "sections"}
+        return required_fields.issubset(payload.keys())
+
+    def _detect_import_conflict(self, candidate_id: str | None, candidate_name: str) -> dict[str, Any]:
+        templates = list(self.repository.list_all())
+        matches: list[ReportTemplate] = []
+        if candidate_id:
+            matches = [item for item in templates if item.template_id == candidate_id]
+        if not matches and candidate_name:
+            matches = [item for item in templates if (item.name or "") == candidate_name]
+
+        status = "none"
+        overwrite_supported = False
+        if len(matches) == 1:
+            status = "single_match"
+            overwrite_supported = True
+        elif len(matches) > 1:
+            status = "multiple_matches"
+
+        return {
+            "status": status,
+            "matched_templates": [
+                {
+                    "template_id": item.template_id,
+                    "name": item.name,
+                }
+                for item in matches
+            ],
+            "overwrite_supported": overwrite_supported,
+            "default_action": "create_copy",
+        }
 
     @staticmethod
     def _normalize_keywords(items: List[Any] | None) -> list[str]:

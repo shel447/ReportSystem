@@ -47,6 +47,11 @@ class TemplateUpdate(BaseModel):
     output_formats: Optional[List[str]] = None
 
 
+class TemplateImportPreviewRequest(BaseModel):
+    payload: dict[str, Any]
+    filename: Optional[str] = None
+
+
 def _clean_template_payload(payload: dict[str, Any]) -> dict[str, Any]:
     service = TemplateCatalogService(repository=None, matcher=None, schema_gateway=TemplateSchemaGateway())
     return service._clean_payload(dict(payload))
@@ -85,6 +90,14 @@ def export_template_definition(template_id: str, db: Session = Depends(get_db)):
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.post("/import/preview")
+def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
+    try:
+        return build_template_catalog_service(db).preview_import_template(data.payload, data.filename)
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/{template_id}")

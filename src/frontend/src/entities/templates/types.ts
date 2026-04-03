@@ -124,6 +124,41 @@ export type TemplateDetail = TemplateSummary & {
   version?: string;
 };
 
+export type TemplateEditableDraft = {
+  template_id?: string;
+  name: string;
+  description: string;
+  report_type: string;
+  scenario: string;
+  type?: string;
+  scene?: string;
+  match_keywords: string[];
+  content_params: Record<string, unknown>[];
+  parameters: TemplateParameter[];
+  outline: Record<string, unknown>[];
+  sections: TemplateSection[];
+  schema_version: string;
+  output_formats: string[];
+  version?: string;
+  created_at?: string;
+};
+
+export type ImportConflict = {
+  status: "none" | "single_match" | "multiple_matches";
+  matched_templates: Array<{ template_id: string; name: string }>;
+  overwrite_supported: boolean;
+  default_action: "create_copy";
+};
+
+export type TemplateImportPreview = {
+  normalized_template: TemplateEditableDraft;
+  source_kind: "system_export" | "external_report_template";
+  warnings: string[];
+  conflict: ImportConflict;
+};
+
+export type ImportSaveMode = "create_copy" | "overwrite";
+
 export type TemplateUpsertPayload = {
   name: string;
   description: string;
