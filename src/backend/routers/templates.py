@@ -1,5 +1,7 @@
 """报告模板路由"""
 import json
+import re
+from urllib.parse import quote
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -88,7 +90,7 @@ def export_template_definition(template_id: str, db: Session = Depends(get_db)):
     return Response(
         content=json.dumps(payload, ensure_ascii=False, indent=2),
         media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _build_download_header(filename)},
     )
 
 
@@ -118,3 +120,10 @@ def delete_template(template_id: str, db: Session = Depends(get_db)):
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"message": "deleted"}
+
+
+def _build_download_header(filename: str) -> str:
+    fallback = re.sub(r"[^0-9A-Za-z._-]+", "-", filename).strip("-")
+    if not fallback:
+        fallback = "template-export.json"
+    return f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(filename)}'

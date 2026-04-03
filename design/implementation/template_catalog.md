@@ -7,6 +7,7 @@
 它回答三个问题：
 
 - 模板如何被创建、更新、导出和删除
+- 模板如何被导入预解析、归一化并在保存前进入编辑工作台
 - 模板载荷如何按 schema 校验和归一化
 - 模板如何参与语义匹配
 
@@ -37,7 +38,7 @@
 
 ### application
 
-- `TemplateCatalogService` 负责模板 CRUD、导出、序列化、匹配调用装配
+- `TemplateCatalogService` 负责模板 CRUD、导出、导入预解析、序列化、匹配调用装配
 - 把 schema 校验错误转成 `ValidationError`
 - 在模板变更后标记语义索引为 stale
 
@@ -75,7 +76,28 @@ sequenceDiagram
     App-->>API: serialized template detail
 ```
 
-### 5.2 模板匹配
+### 5.2 模板导入预解析
+
+```mermaid
+sequenceDiagram
+    participant UI as Templates page
+    participant API as templates router
+    participant App as TemplateCatalogService
+    participant Schema as TemplateSchemaGateway
+    participant Repo as SqlAlchemyTemplateCatalogRepository
+
+    UI->>API: POST /templates/import/preview(payload, filename)
+    API->>App: preview_import_template(payload, filename)
+    App->>App: detect source kind
+    App->>App: normalize import payload
+    App->>Schema: validate(normalized payload)
+    Schema-->>App: cleaned payload
+    App->>Repo: find conflicts by template_id / name
+    Repo-->>App: matched templates
+    App-->>API: normalized_template + warnings + conflict
+```
+
+### 5.3 模板匹配
 
 ```mermaid
 sequenceDiagram
@@ -120,6 +142,7 @@ sequenceDiagram
 
 - 模板的参数/章节/蓝图/执行链路双层结构
 - 导出时不携带系统字段
+- 导入预解析不直接入库，必须回到模板工作台由用户确认保存
 - 模板更新后语义索引必须标记 stale
 
 ### 可替换 adapter

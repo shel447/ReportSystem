@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from typing import Any, List
 
 from ....shared.kernel.errors import NotFoundError, ValidationError
@@ -245,7 +246,10 @@ class TemplateCatalogService:
 
     @staticmethod
     def _build_export_filename(template: ReportTemplate) -> str:
-        base = re.sub(r"[^0-9A-Za-z._-]+", "-", str(template.name or "").strip()).strip("-")
+        raw_name = str(template.name or "").strip()
+        base = re.sub(r'[<>:"/\\\\|?*\x00-\x1f]+', "-", raw_name)
+        base = re.sub(r"\s+", "-", base).strip("-.")
         if not base:
             base = f"template-{template.template_id}"
-        return f"{base}.json"
+        exported_at = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return f"{base}-{exported_at}.json"

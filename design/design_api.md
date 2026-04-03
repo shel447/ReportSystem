@@ -75,6 +75,8 @@ GET    /rest/chatbi/v1/templates/{id}         # 获取模板详情
 PUT    /rest/chatbi/v1/templates/{id}         # 更新模板
 DELETE /rest/chatbi/v1/templates/{id}         # 删除模板
 POST   /rest/chatbi/v1/templates/{id}/clone   # 克隆模板
+POST   /rest/chatbi/v1/templates/import/preview  # 导入预解析
+GET    /rest/chatbi/v1/templates/{id}/export  # 导出模板 JSON
 ```
 
 > 模板主结构以 `parameters / sections` 为准；每个 `section` 节点同时支持：
@@ -87,6 +89,32 @@ POST   /rest/chatbi/v1/templates/{id}/clone   # 克隆模板
 > - `interaction_mode = form | chat`
 >
 > 该字段只影响对话收参方式，不改变模板渲染和实例结构。
+
+> `POST /rest/chatbi/v1/templates/import/preview` 用于模板导入预解析，不直接入库。请求体固定为：
+> - `payload`
+> - `filename?`
+>
+> 响应固定包含：
+> - `normalized_template`
+> - `source_kind = system_export | external_report_template`
+> - `warnings`
+> - `conflict`
+>
+> `conflict.status` 取值为：
+> - `none`
+> - `single_match`
+> - `multiple_matches`
+>
+> 冲突检测当前只做两类精确匹配：
+> - `template_id / id`
+> - `name`
+>
+> 单一冲突允许前端选择“新建副本”或“覆盖现有模板”；多个同名模板只允许“新建副本”。
+
+> `GET /rest/chatbi/v1/templates/{id}/export` 返回可迁移模板 JSON。导出下载文件名格式固定为：
+> - `模板名称-YYYYMMDD-HHMMSS.json`
+>
+> 响应头同时提供 ASCII fallback 文件名和 UTF-8 `filename*`，以兼容中文模板名下载。
 
 > 后台实现中，`/rest/chatbi/v1/templates` 路由当前只承担接口层职责；模板领域规则位于 `template_catalog` bounded context。
 

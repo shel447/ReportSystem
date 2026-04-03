@@ -1,8 +1,18 @@
 import json
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
-from backend.routers.templates import _clean_template_payload, export_template_definition, list_templates
+from fastapi import HTTPException
+
+from backend.routers.templates import (
+    TemplateImportPreviewRequest,
+    _clean_template_payload,
+    export_template_definition,
+    list_templates,
+    preview_import_template,
+)
+from backend.shared.kernel.errors import ValidationError
 
 
 class TemplatesRouterTests(unittest.TestCase):
@@ -96,7 +106,9 @@ class TemplatesRouterTests(unittest.TestCase):
 
         self.assertEqual(response.media_type, "application/json")
         self.assertIn("attachment;", response.headers["content-disposition"])
-        self.assertIn(".json", response.headers["content-disposition"])
+        self.assertIn('filename*=', response.headers["content-disposition"])
+        self.assertIn("%E8%AE%BE%E5%A4%87%E5%B7%A1%E6%A3%80%E6%8A%A5%E5%91%8A-", response.headers["content-disposition"])
+        self.assertRegex(response.headers["content-disposition"], r"\d{8}-\d{6}\.json")
 
         payload = json.loads(response.body.decode("utf-8"))
         self.assertEqual(payload["name"], "设备巡检报告")
@@ -109,6 +121,43 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertNotIn("version", payload)
         self.assertNotIn("content_params", payload)
         self.assertNotIn("outline", payload)
+
+    def test_preview_import_template_returns_service_payload(self):
+        payload = {
+            "normalized_template": {"name": "导入模板"},
+            "source_kind": "system_export",
+            "warnings": [],
+            "conflict": {
+                "status": "none",
+                "matched_templates": [],
+                "overwrite_supported": False,
+                "default_action": "create_copy",
+            },
+        }
+        fake_service = SimpleNamespace(preview_import_template=lambda *_args, **_kwargs: payload)
+
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            result = preview_import_template(
+                TemplateImportPreviewRequest(payload={"name": "导入模板"}, filename="template.json"),
+                db=object(),
+            )
+
+        self.assertEqual(result, payload)
+
+    def test_preview_import_template_maps_validation_error_to_http_400(self):
+        fake_service = SimpleNamespace(
+            preview_import_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("不支持的模板结构。"))
+        )
+
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            with self.assertRaises(HTTPException) as exc:
+                preview_import_template(
+                    TemplateImportPreviewRequest(payload={"foo": "bar"}, filename="template.json"),
+                    db=object(),
+                )
+
+        self.assertEqual(exc.exception.status_code, 400)
+        self.assertEqual(exc.exception.detail, "不支持的模板结构。")
 
 
 if __name__ == "__main__":
