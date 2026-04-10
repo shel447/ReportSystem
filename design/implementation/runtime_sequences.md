@@ -14,7 +14,7 @@
 
 ## 2. 对话确认生成
 
-适用场景：用户在统一对话中完成模板匹配、参数补充和大纲确认后，点击“确认生成”。
+适用场景：用户在统一对话中完成模板匹配、参数补充和诉求确认后，点击“确认生成”。
 
 ```mermaid
 sequenceDiagram
@@ -34,7 +34,8 @@ sequenceDiagram
     Conv->>State: restore_state_from_history(messages)
     Conv->>Report: merge_outline_override(pending_outline, outline_override)
     Conv->>Report: resolve_outline_execution_baseline(outline)
-    Conv->>Report: create_instance(template_id, input_params, outline_override)
+    Conv->>Report: resolve source_session_id + source_message_id
+    Conv->>Report: create_instance(template_id, user_id, input_params, outline_override, source_session_id, source_message_id)
     Report->>Runtime: create_instance(...)
     Runtime->>Runtime: load template
     alt v2 template
@@ -48,7 +49,8 @@ sequenceDiagram
     Conv->>Report: create_markdown_document(instance_id)
     Report->>Doc: render markdown + persist report_documents
     Conv->>State: persist_state_to_history(...)
-    Conv->>Persist: save_session(messages, matched_template_id, instance_id)
+    Conv->>Persist: save messages into chat_messages
+    Conv->>Persist: save session container only
     Conv-->>API: reply + download_document action
     API-->>UI: assistant message + document metadata
 ```
@@ -56,8 +58,10 @@ sequenceDiagram
 关键点：
 
 - 对话模块不直接写 `report_instances` 或 `report_documents` 表，而是通过 `ConversationReportGateway` 进入 `report_runtime`
-- 生成前的大纲编辑结果先被解析成实例级执行基线，再创建实例
+- 生成前的诉求编辑结果先被解析成实例级执行基线，再创建实例
 - 生成成功后会同时固化 `template_instances` 内部快照和 Markdown 文档
+- 报告实例在创建时直接写入 `user_id + source_session_id + source_message_id`
+- `source_message_id` 固定记录生成前最后一条可见用户消息
 
 ---
 
@@ -111,7 +115,7 @@ sequenceDiagram
 
 ## 4. 报告实例 update-chat
 
-适用场景：用户在报告实例页点击“更新”，希望基于确认大纲恢复到对话助手继续修改。
+适用场景：用户在报告实例页点击“更新”，希望基于确认诉求恢复到对话助手继续修改。
 
 ```mermaid
 sequenceDiagram
@@ -125,8 +129,10 @@ sequenceDiagram
 
     UI->>API: POST update-chat
     API->>Conv: update_session_from_instance(instance_id)
+    Conv->>Persist: get report_instance(instance_id)
+    Conv->>Persist: resolve source_session_id from instance
     Conv->>Persist: get_generation_baseline(instance_id)
-    Persist->>Baseline: query by report_instance_id
+    Persist->>Baseline: query by report_instance_id (fallback only)
     Baseline-->>Conv: generation baseline
     Conv->>Fork: update_session_from_generation_baseline(template_instance)
     Fork->>Fork: build new chat session payload
@@ -142,9 +148,10 @@ sequenceDiagram
 
 关键点：
 
-- `update-chat` 不回放原始整段对话，只恢复一个可继续编辑的大纲确认节点
+- `update-chat` 不回放原始整段对话，只恢复一个可继续编辑的诉求确认节点
 - 恢复依据是 `template_instances` 中的内部生成基线，而不是当前实例正文反推
 - 前端拿到的是完整 `ChatSessionDetail`，这样跳转 `/chat` 后可以立即渲染，不必再等待二次拉取
+- 新数据优先使用 `report_instances.source_session_id` 确定来源会话；`template_instances.session_id` 只作为历史兼容回退
 
 ---
 

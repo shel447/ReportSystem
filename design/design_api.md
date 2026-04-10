@@ -6,6 +6,20 @@
 
 ## 1. 核心 API 时序图
 
+### 1.0 统一身份 Header
+
+除系统级内部接口外，业务接口统一从请求头获取用户身份：
+
+```http
+X-User-Id: <external-user-id>
+```
+
+规则：
+
+- 不信任 body/query 中的 `user_id`
+- 服务端收到请求后按该值查找或创建用户镜像记录
+- 所有会话、消息、实例、定时任务查询都必须以该身份做过滤
+
 ### 1.1 生成报告实例
 
 ```mermaid
@@ -80,7 +94,7 @@ GET    /rest/chatbi/v1/templates/{id}/export  # 导出模板 JSON
 ```
 
 > 模板主结构以 `parameters / sections` 为准；每个 `section` 节点同时支持：
-> - `outline.document + outline.blocks[]`：面向用户的章节蓝图
+> - `outline.document + outline.blocks[]`：面向用户的章节诉求
 > - `content.datasets + presentation`：面向系统的执行链路
 >
 > 兼容字段 `content_params / outline` 仍可读取，但保存后统一按新版结构维护。
@@ -132,6 +146,8 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 
 > 聊天页进入 `/chat` 时保持空态，不自动恢复最近会话，也不预创建会话。只有首条真实用户消息发送后才创建 `ChatSession`，并以该首条用户消息生成会话标题。
 >
+> 当前目标模型中，`ChatSession` 只表示会话容器；会话详情中的 `messages` 由独立消息表按 `session_id + seq_no` 组装返回。
+>
 > `POST /rest/chatbi/v1/chat` 当前额外支持：
 > - `preferred_capability`
 > - `selected_template_id`
@@ -140,7 +156,7 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 > - `target_param_id`
 > - `outline_override`
 >
-> 对话生成链路在“大纲确认”阶段只更新当前对话上下文；真正点击“确认生成”后，系统会在创建 `ReportInstance` 的同时生成一份内部 `generation_baseline` 快照。
+> 对话生成链路在“诉求确认”阶段只更新当前对话上下文；真正点击“确认生成”后，系统会在创建 `ReportInstance` 的同时生成一份内部 `generation_baseline` 快照。
 >
 > `POST /rest/chatbi/v1/chat/forks` 支持两类来源：
 > - `session_message`：基于某条历史消息 fork 新会话。消息锚点使用稳定 `message_id`，用户消息 fork 会同时把该消息内容回填到输入框。
@@ -155,17 +171,19 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 > 当会话来源是报告实例更新时，`fork_meta.source_kind = update_from_instance`，聊天页应展示“更新来源”文案，而不是“Fork 来源”。
 >
 > 当报告流程正在等待 `interaction_mode=chat` 的参数时，下一轮普通自然语言输入优先按“当前参数答案”处理；只有显式表达切换意图时，才会返回 `confirm_task_switch`。
+>
+> `ChatSessionSummary` / `ChatSessionDetail` 不再返回 `instance_id`；报告归属改由实例自身表达。
 
-### 3.1 报告生成对话中的大纲确认
+### 3.1 报告生成对话中的诉求确认
 
 `POST /rest/chatbi/v1/chat` 在报告生成能力下，会经历：
 
 - 模板匹配
 - 必填参数收集
-- 大纲确认
+- 诉求确认
 - 确认生成
 
-其中 `review_outline` action 当前返回的是**实例级蓝图树**，而不是简单标题列表。节点除基础结构外，还会带：
+其中 `review_outline` action 当前返回的是**实例级诉求树**，而不是简单标题列表。节点除基础结构外，还会带：
 
 - `display_text`
 - `outline_instance`
@@ -173,7 +191,7 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 - `ai_generated`
 - `node_kind`
 
-前端展示时只使用可视化树信息；内部执行链路字段不会直接暴露为 JSON 编辑入口。
+前端展示时只使用可视化诉求树信息；内部执行链路字段不会直接暴露为 JSON 编辑入口。
 
 ---
 
@@ -183,7 +201,7 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 POST   /rest/chatbi/v1/instances              # 生成报告实例
 GET    /rest/chatbi/v1/instances              # 列出报告实例 (新增)
 GET    /rest/chatbi/v1/instances/{id}         # 获取实例详情
-GET    /rest/chatbi/v1/instances/{id}/baseline      # 获取确认大纲/生成基线
+GET    /rest/chatbi/v1/instances/{id}/baseline      # 获取确认诉求/生成基线
 POST   /rest/chatbi/v1/instances/{id}/update-chat   # 基于生成基线恢复对话
 GET    /rest/chatbi/v1/instances/{id}/fork-sources  # 获取来源对话里的可 fork 消息节点
 POST   /rest/chatbi/v1/instances/{id}/fork-chat     # 基于指定消息节点 fork 新对话
@@ -196,16 +214,21 @@ POST   /rest/chatbi/v1/instances/{id}/finalize  # 确认实例，准备生成文
 > - `has_generation_baseline`
 > - `supports_update_chat`
 > - `supports_fork_chat`
+> - `user_id`
+> - `source_session_id`
+> - `source_message_id`
 > - `report_time`
 > - `report_time_source`
 >
 > 对于历史数据，若实例没有内部生成基线，则这些能力标识为 `false`。
 
-> `GET /rest/chatbi/v1/instances/{id}/baseline` 返回用户可查看的“确认大纲/生成基线”视图数据；其内部快照除实例级蓝图树外，还包含已解析的执行基线，用于后续生成与章节重生成，但前端默认只展示可视化大纲。
+> `GET /rest/chatbi/v1/instances/{id}/baseline` 返回用户可查看的“确认诉求/生成基线”视图数据；其内部快照除实例级诉求树外，还包含已解析的执行基线，用于后续生成与章节重生成，但前端默认只展示可视化诉求。
 >
-> `POST /rest/chatbi/v1/instances/{id}/update-chat` 返回完整 `ChatSessionDetail`，而不是仅返回 `session_id`。返回会话的可见消息固定为 1 条 `assistant/review_outline`，并附带隐藏 `context_state`，用于直接继续大纲确认。
+> `POST /rest/chatbi/v1/instances/{id}/update-chat` 返回完整 `ChatSessionDetail`，而不是仅返回 `session_id`。返回会话的可见消息固定为 1 条 `assistant/review_outline`，并附带隐藏 `context_state`，用于直接继续诉求确认。
 >
 > 前端约定的交互流程为：实例列表点击“更新”先进入 `/instances/{id}?intent=update` 进行基线预览，用户显式点击“继续到对话助手修改”后才调用 `update-chat` 并跳转 `/chat?session_id=...`。
+>
+> `update-chat`、`fork-sources`、`fork-chat` 在目标实现中统一优先使用 `ReportInstance.source_session_id` 确定来源会话；只有历史数据缺失时才回退 `TemplateInstance.session_id`。
 
 ---
 
@@ -231,7 +254,34 @@ GET    /rest/chatbi/v1/data-sources/{id}      # 获取数据源详情
 PUT    /rest/chatbi/v1/data-sources/{id}      # 更新数据源
 DELETE /rest/chatbi/v1/data-sources/{id}      # 删除数据源
 POST   /rest/chatbi/v1/data-sources/{id}/test  # 测试连接
+POST   /rest/chatbi/v1/parameter-options/resolve  # 解析动态参数候选值
 ```
+
+> `POST /rest/chatbi/v1/parameter-options/resolve` 用于解析模板中 `input_type=dynamic` 参数的候选值。前端只调用本接口，不直接访问外部数据源。
+>
+> 请求体固定包含：
+> - `param_id`
+> - `source`
+>
+> 可选字段：
+> - `template_id`
+> - `query`
+> - `selected_params`
+> - `limit`
+>
+> 响应体固定返回：
+> - `items: [{label, value}]`
+> - `meta`
+>
+> 规格约束：
+> - 默认 `limit = 10`
+> - 最大 `limit = 50`
+> - 请求体上限 `32 KB`
+> - 响应项总数上限 `50`
+> - 外部调用超时 `3s`
+> - v1 不自动重试
+>
+> 动态参数取值失败时返回空 `items` 和可重试错误语义，不直接打断当前报告对话流程。
 
 ---
 
@@ -261,6 +311,8 @@ GET    /rest/chatbi/v1/scheduled-tasks/{id}/executions  # 查看执行历史
 > - `source_instance_id`
 > - `schedule_type`
 > - `auto_generate_doc`
+>
+> 调度接口不再接受显式 `user_id` 作为可信业务参数；用户身份统一来自请求头 `X-User-Id`。
 >
 > 当开启 `use_schedule_time_as_report_time` 时，定时执行生成的新实例会写入：
 > - `report_time`
@@ -363,7 +415,7 @@ POST   /rest/dev/system-settings/reindex     # 重建模板语义索引
 - 模板总 JSON：`512 KB`
 - 模板参数数：`<= 50`
 - 模板章节总节点数：`<= 200`
-- 单章节蓝图区块数：`<= 20`
+- 单章节诉求要素数：`<= 20`
 - 单章节 datasets 数：`<= 10`
 - 实例 `input_params` JSON：`<= 128 KB`
 - 实例章节数：`<= 300`

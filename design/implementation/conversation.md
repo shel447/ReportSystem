@@ -22,16 +22,18 @@
 
 ## 3. 核心领域概念
 
-当前对话领域的核心概念没有完全 dataclass 化，仍主要以会话消息历史和 `ContextState` JSON 形态表达，但语义已经固定：
+目标模型下，对话领域的核心概念收敛为“会话容器 + 消息流水 + 隐藏 context_state 消息”三部分：
 
 - `ChatSession`
-  - 持久化容器，保存消息流、标题、当前关联模板/实例、fork 来源信息
+  - 持久化容器，保存标题、所属用户、fork 来源信息和状态
+- `ChatMessage`
+  - 独立消息流水，保存可见消息和隐藏 `context_state`
 - `ActiveTask`
   - 当前唯一活动任务，能力值固定为 `report_generation | smart_query | fault_diagnosis`
 - `PendingSwitch`
   - 当用户中途切任务时的待确认状态
 - `ReportConversationState`
-  - 报告任务在对话中的推进状态：模板匹配、参数收集、大纲确认、生成完成
+  - 报告任务在对话中的推进状态：模板匹配、参数收集、诉求确认、生成完成
 
 ## 4. 分层职责
 
@@ -54,13 +56,13 @@
 ### infrastructure
 
 - `ConversationPersistenceGateway`
-  - 与 `chat_sessions`、模板记录、生成基线、实例记录交互
+  - 与 `chat_sessions`、`chat_messages`、模板记录、生成基线、实例记录交互
 - `ConversationStateGateway`
   - 负责 `ContextState` 的恢复、压缩、持久化
 - `ConversationCapabilityGateway`
   - 负责能力识别、问数、故障诊断、通用对话回复
 - `ConversationReportGateway`
-  - 负责报告流相关 helper：模板匹配、参数抽取、缺失参数、确认大纲、实例创建、基线捕获
+  - 负责报告流相关 helper：模板匹配、参数抽取、缺失参数、确认诉求、实例创建、基线捕获
 - `ConversationForkGateway`
   - 负责消息级 fork 和从生成基线恢复更新会话
 
@@ -88,6 +90,7 @@ sequenceDiagram
 
     API->>App: send_message(data)
     App->>Persist: get/create session
+    App->>Persist: load chat_messages by session_id
     App->>State: restore_state_from_history(messages)
     App->>Cap: detect_capability(...)
     alt report_generation
@@ -96,7 +99,7 @@ sequenceDiagram
         App->>Cap: handle_xxx_turn(...)
     end
     App->>State: persist_state_to_history(...)
-    App->>Persist: save_session(session)
+    App->>Persist: append chat_messages + save_session(session)
     App-->>API: reply + action + messages
 ```
 
@@ -108,21 +111,21 @@ sequenceDiagram
 2. 按参数顺序收集参数
 3. `interaction_mode=form` 返回结构化面板
 4. `interaction_mode=chat` 返回自然语言追问
-5. 参数完备后生成待确认大纲
-6. 用户编辑大纲并确认生成
+5. 参数完备后生成待确认诉求
+6. 用户编辑诉求并确认生成
 7. 调用 `report_runtime` 创建实例和 Markdown 文档
 
 ### 5.3 fork / update-chat
 
-- 消息级 fork：从 `ChatSession.messages` 中按 `message_id` 构造新会话分支
-- 报告实例 update-chat：先从 `template_instances` 读取内部生成基线，再恢复成只包含 `review_outline` 的更新会话
+- 消息级 fork：从 `chat_messages` 中按 `message_id` 构造新会话分支
+- 报告实例 update-chat：优先使用 `report_instances.source_session_id`，并在需要时回退 `template_instances.session_id` 与内部生成基线
 
 ## 6. 依赖与被依赖关系
 
 ### 对外依赖
 
 - `template_catalog`：模板匹配与模板读取
-- `report_runtime`：确认大纲、实例创建、文档生成、生成基线恢复
+- `report_runtime`：确认诉求、实例创建、文档生成、生成基线恢复
 - `infrastructure.ai.openai_compat`：自然语言对话、参数抽取、问数、故障诊断
 - `infrastructure.settings.system_settings`：Provider 配置读取
 
@@ -135,13 +138,11 @@ sequenceDiagram
 
 本模块主要维护：
 
-- [chat_sessions](database_schema.md#chat_sessions)
+- [database_schema.md](database_schema.md)
 
 并读取：
 
-- [report_templates](database_schema.md#report_templates)
-- [template_instances](database_schema.md#template_instances)
-- [report_instances](database_schema.md#report_instances)
+- [database_schema.md](database_schema.md)
 
 ## 8. 可替换技术组件
 
@@ -150,7 +151,7 @@ sequenceDiagram
 - 单活任务模型
 - 显式能力切换确认
 - `interaction_mode=form|chat` 混排收参
-- 大纲确认后的实例创建和更新会话语义
+- 诉求确认后的实例创建和更新会话语义
 
 ### 可替换 adapter
 

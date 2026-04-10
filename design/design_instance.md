@@ -2,6 +2,8 @@
 
 > 本文档是 [总设计文档 (design.md)](design.md) 的子文档，详细描述报告实例和报告文档的数据模型设计。
 
+> 术语使用约定：实例模块重点描述持久化结构与恢复语义，因此会同时出现“诉求”业务术语与 `outline_snapshot / outline_instance` 等兼容字段名；字段名不改变其业务语义解释。
+
 ---
 
 ## 1. 内部模板实例 (TemplateInstance)
@@ -16,27 +18,23 @@
 
 在当前版本中，这份内部快照同时保存两类信息：
 
-- **实例级蓝图树**
-  - 用户确认后的章节句式、块值和结构
+- **实例级诉求树**
+  - 用户确认后的章节句式、诉求要素值和结构
 - **执行基线**
-  - 用蓝图区块值解析后的执行层内容（例如 `resolved_content`）
+  - 用诉求要素值解析后的执行层内容（例如 `resolved_content`）
 
 ### 1.1 数据结构
 
 ```python
 @dataclass
 class TemplateInstance:
-    template_instance_id: str
+    id: str
     template_id: str
-    template_version: str
+    report_instance_id: str
     session_id: str
     capture_stage: str  # generation_baseline
-
-    input_params_snapshot: Dict[str, Any]
-    outline_snapshot: List[Dict[str, Any]]  # confirmed outline blueprint + resolved execution baseline
-    warnings: List[str]
-
-    report_instance_id: str
+    schema_version: str
+    content: Dict[str, Any]
     created_at: datetime
     created_by: str
 ```
@@ -46,15 +44,23 @@ class TemplateInstance:
 - `prepare_outline_review`：仅进入大纲确认，不落模板实例
 - `edit_outline`：只更新当前对话上下文中的待确认大纲
 - `confirm_outline_generation`：生成报告实例时，同时创建其唯一的 `generation_baseline` 快照
-  - 先保留用户确认后的实例级蓝图树
-  - 再把蓝图值解析进执行链路，形成实例级执行基线
+  - 先保留用户确认后的实例级诉求树
+  - 再把诉求值解析进执行链路，形成实例级执行基线
 - `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改（用户侧先在实例详情预览确认大纲，再显式进入对话）
 
 > `TemplateInstance` 现在不再是追加式历史记录。对每个新 `ReportInstance`，系统只保留一份对应的内部生成基线。
 
 ### 1.3 基线快照内容
 
-`outline_snapshot` 中的章节节点当前至少包含：
+`TemplateInstance` 作为内部快照对象，更适合整体存储。其详细内容统一进入 `content`，由 `schema_version` 定义整体结构。
+
+推荐 `content` 至少包含：
+
+- `input_params_snapshot`
+- `outline_snapshot`
+- `warnings`
+
+其中 `outline_snapshot` 中的章节节点当前至少包含：
 
 - `node_id / title / description / level / children`
 - `display_text`
@@ -65,10 +71,16 @@ class TemplateInstance:
   - `resolved_content`
   - `section_kind / source_kind`
 
-其中：
+这样处理的目的：
 
-- `content` 保留原始执行层定义，便于后续从实例回到对话继续修改
-- `resolved_content` 保留解析后的执行层定义，便于实例生成与章节重生成复用
+- 避免把内部概念拆成过多顶层字段
+- 便于后续基线结构独立演进
+- 更符合它“系统内部快照对象”的定位
+
+说明：
+
+- 结构字段名当前仍保留 `outline_snapshot / outline_instance`
+- 但业务语义统一按“诉求树 / 诉求实例”理解
 
 ### 1.4 与对话分支的关系
 
@@ -94,16 +106,17 @@ class TemplateInstance:
 
 ```mermaid
 classDiagram
-    class ReportInstance {
-        +instance_id: str
+class ReportInstance {
+        +id: str
+        +user_id: str
         +template_id: str
-        +template_version: str
         +status: str
-        +input_params: Dict~str, Any~
-        +outline: List~CatalogContent~
+        +schema_version: str
+        +source_session_id: str
+        +source_message_id: str
         +report_time: datetime
         +report_time_source: str
-        +metadata: InstanceMetadata
+        +content: Dict~str, Any~
     }
     
     class CatalogContent {
@@ -149,18 +162,25 @@ classDiagram
 ```python
 @dataclass
 class ReportInstance:
-    instance_id: str
+    id: str
+    user_id: str
     template_id: str
-    template_version: str
     status: str  # draft/reviewing/finalized
-    
-    input_params: Dict[str, Any]
-    outline: List[CatalogContent]  # 与模板结构对应，内联生成内容
+    schema_version: str
+    source_session_id: Optional[str] = None
+    source_message_id: Optional[str] = None
     report_time: Optional[datetime] = None
     report_time_source: str = ""
-    
-    metadata: InstanceMetadata
+    content: Dict[str, Any]
 ```
+
+`ReportInstance` 的详细结构不再拆散到表顶层，而是统一进入 `content`。推荐至少包含：
+
+- `input_params`
+- `outline`
+- 生成结果
+- 调试/溯源信息
+- 用户编辑痕迹
 
 ```python
 @dataclass
@@ -255,7 +275,7 @@ class TraceInfo:
 围绕内部 `generation_baseline`，报告实例当前支持三类延伸能力：
 
 1. `查看确认大纲`
-   - 读取内部确认蓝图树与参数快照
+   - 读取内部确认诉求树与参数快照
 2. `更新`
    - 先在实例详情页预览确认大纲
    - 再显式进入对话助手继续修改
@@ -271,6 +291,37 @@ class TraceInfo:
 - `supports_fork_chat`
 
 对历史实例，如果没有内部生成基线，则这些能力自动为 `false`。
+
+### 4.2 报告归属与来源锚点
+
+报告实例现在直接表达业务归属和来源，不再依赖会话反向挂载：
+
+- `user_id`
+  - 报告归属用户
+  - 作为用户隔离主键
+- `source_session_id`
+  - 来源会话
+- `source_message_id`
+  - 来源消息锚点
+  - 固定记录生成前最后一条可见用户消息
+
+这意味着：
+
+- 一个会话可以产出多份报告
+- 会话本身不再保存单个 `instance_id`
+- 报告是否来自会话，应由实例自身字段回答
+
+### 4.3 与 update-chat / fork 的关系
+
+实例恢复与分支统一采用以下优先级：
+
+1. 优先使用 `ReportInstance.source_session_id`
+2. 若为空，回退 `TemplateInstance.session_id`
+
+这样可以同时满足：
+
+- 新数据使用显式来源锚点
+- 历史数据继续兼容 baseline 恢复链路
 
 ---
 
@@ -299,7 +350,7 @@ classDiagram
     }
     
     class ReportInstance {
-        +instance_id: str
+        +id: str
         +status: str
     }
     
@@ -324,6 +375,9 @@ class ReportDocument:
     
     created_at: datetime
     created_by: str
+
+    # 文档本轮不单独保存 user_id
+    # 用户归属通过 instance_id -> ReportInstance.user_id 间接判断
 
 ```
 

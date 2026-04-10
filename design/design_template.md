@@ -2,6 +2,8 @@
 
 > 本文档是 [总设计文档 (design.md)](design.md) 的子文档，描述报告模板在当前版本下的数据模型、章节双层结构与配置原则。
 
+> 术语使用约定：本模块文档在业务语义上统一使用“诉求”体系；当出现 `outline`、`OutlineBlueprint` 等旧结构名时，仅表示当前结构命名仍沿用历史实现。
+
 ---
 
 ## 1. 模板定位
@@ -13,9 +15,9 @@
 
 因此，模板章节节点采用**双层共存**模型：
 
-- **蓝图层 (`outline`)**
+- **诉求层 (`outline`)**
   - 面向用户
-  - 使用 `document + blocks[]` 描述章节意图与表达句式
+  - 使用 `document + blocks[]` 描述章节诉求与表达口径
 - **执行层 (`content / datasets / presentation`)**
   - 面向系统
   - 描述数据准备、内容生成和展示方式
@@ -24,46 +26,126 @@
 
 ---
 
+## 1.1 术语边界
+
+本模块统一使用以下术语：
+
+### 诉求
+
+诉求表示用户希望系统获取并表达的一段信息意图。
+
+它具有以下特征：
+
+- 用户可见
+- 用户可改
+- 不是最终报告正文
+- 会继续驱动执行层生成结果
+
+因此，早期文档中的“蓝图”在业务语义上统一收敛为“诉求”。
+
+### 诉求要素
+
+诉求要素表示构成一段诉求的结构化成分。
+
+它可能表示：
+
+- 信息对象
+- 查询条件
+- 时间范围
+- 指标
+- 维度
+- 阈值
+- 排序方式
+- 表达偏好
+
+诉求要素不等于模板参数。
+
+### 参数
+
+参数是系统在模板级向用户收集的输入项，解决的是“系统要问用户什么”。
+
+参数与诉求要素的关系是：
+
+- 参数可以为诉求要素赋值
+- 诉求要素不一定来自参数
+- 有些诉求要素也可能来自默认值、映射规则或 `foreach` 局部变量
+
+### 诉求实例
+
+诉求实例表示在具体参数、局部变量和上下文绑定后形成的具体诉求表达。
+
+它是执行层生成前的直接输入。
+
+### 执行层
+
+执行层表示系统为满足诉求而实际采取的查询、聚合、推理和生成链路。
+
+总结：
+
+- 诉求层回答“要什么”
+- 执行层回答“怎么做”
+
+兼容说明：
+
+- 本阶段文档中，`outline`、`OutlineBlueprint`、`outline_instance` 等旧名仍可能在结构字段和接口动作中出现
+- 但其业务语义统一按“诉求定义 / 诉求实例”理解
+
+---
+
 ## 2. 报告模板 (ReportTemplate)
 
 ```python
 @dataclass
 class ReportTemplate:
-    template_id: str
+    id: str
     name: str
     description: str
 
     report_type: str
-    scenario: str
-    type: str
+    template_type: str
     scene: str
-
-    parameters: List[TemplateParameter]
-    sections: List[TemplateSection]
-
-    match_keywords: List[str]
-    output_formats: List[str]
     schema_version: str
+    content: Dict[str, Any]
 
     created_at: datetime
     updated_at: datetime
     created_by: str
-    version: str
 ```
 
 ### 2.1 顶层字段说明
 
 | 字段 | 作用 |
 |------|------|
+| `id` | 模板主键 |
 | `name / description` | 模板名称与说明 |
-| `report_type / scenario` | 兼容原有模板匹配与业务归类 |
-| `type / scene` | 对齐新版模板规范，用于更直接的类型/场景表达 |
-| `parameters` | 模板级结构化参数 |
-| `sections` | 章节树，节点内同时包含蓝图层和执行层 |
-| `match_keywords` | 模板匹配增强关键词 |
-| `schema_version` | 当前模板结构版本，当前以 `v2.0` 为主 |
+| `report_type / template_type / scene` | 用于模板过滤、排序、检索和基础业务分类 |
+| `schema_version` | `content` 的整体结构版本 |
+| `content` | 模板完整定义载荷，统一承载参数、章节树、匹配关键词、输出格式等详细结构 |
 
-> 旧版 `content_params / outline` 仍保留兼容入口，但保存后统一按 `parameters / sections` 维护。
+### 2.2 `content` 的整体结构
+
+在逻辑模型上，模板仍以 `parameters / sections` 为主结构；只是它们在持久化模型中不再拆散到表顶层，而是统一封装到 `content` 中。
+
+推荐结构示意：
+
+```python
+{
+  "parameters": [...],
+  "sections": [...],
+  "match_keywords": [...],
+  "output_formats": [...],
+  "compat": {
+    "content_params": [...],
+    "outline": [...]
+  }
+}
+```
+
+这样处理的目的：
+
+- 表顶层只保留检索、过滤、排序需要的元字段
+- 模板详细定义完全受 `schema_version` 约束
+- 后续模板结构演进时，优先升级 `content` schema，而不是频繁改表结构
 
 ---
 
@@ -82,7 +164,7 @@ class TemplateParameter:
     description: str
     default: Optional[Any]
 
-    options: Optional[List[str]]
+    options: Optional[List[Any]]  # 兼容 string 列表与 {key,label} 对象列表
     source: Optional[str]
 ```
 
@@ -109,6 +191,147 @@ class TemplateParameter:
 - 当某个 `chat` 模式参数处于待收集状态时，用户的自然语言输入优先用于该参数提取
 - 若用户显式表达“切到智能问数/智能故障”，统一对话模块仍允许切换任务，但必须先经过确认卡片
 
+### 3.3 动态参数数据源接口
+
+当 `input_type=dynamic` 时，模板参数通过 `source` 声明其候选值来源。
+
+#### 模板字段约定
+
+```python
+@dataclass
+class TemplateParameter:
+    ...
+    input_type: str  # dynamic
+    source: Optional[str]  # e.g. api:/devices/list
+```
+
+约束：
+
+- `input_type=dynamic` 时必须配置 `source`
+- `source` 表示平台内部登记的数据源标识，而不是前端直连地址
+- 前端只调用平台接口，由平台代理外部数据源
+
+#### 前端 -> 平台
+
+- 方法：`POST`
+- 路径：`/rest/chatbi/v1/parameter-options/resolve`
+
+请求体：
+
+```json
+{
+  "template_id": "tpl_xxx",
+  "param_id": "device_scope",
+  "source": "api:/devices/list",
+  "query": "华东",
+  "selected_params": {
+    "region": "east"
+  },
+  "limit": 10
+}
+```
+
+字段规则：
+
+- `template_id`：可选但推荐，用于审计和路由
+- `param_id`：必填
+- `source`：必填，取模板参数中的 `source`
+- `query`：可选，模糊搜索关键字
+- `selected_params`：可选，表示当前已解析出的其他参数，用于作为外部源查询上下文
+- `limit`：可选，默认 `10`，最大 `50`
+
+响应体：
+
+```json
+{
+  "items": [
+    { "label": "华东一大区", "value": "EAST_1" },
+    { "label": "华东二大区", "value": "EAST_2" }
+  ],
+  "meta": {
+    "source": "api:/devices/list",
+    "limit": 10,
+    "returned": 2,
+    "has_more": false,
+    "truncated": false
+  }
+}
+```
+
+说明：
+
+- v1 统一采用 `label/value` 候选项结构
+- 现有历史 `options: string[]` 仅保留兼容显示入口
+- 若同时存在 `choices` 与 `options`，前端优先使用 `choices`
+
+#### 平台 -> 外部数据源
+
+- 方法：`POST`
+
+请求体：
+
+```json
+{
+  "request_id": "req_xxx",
+  "source": "api:/devices/list",
+  "query": "华东",
+  "context": {
+    "template_id": "tpl_xxx",
+    "param_id": "device_scope",
+    "selected_params": {
+      "region": "east"
+    }
+  },
+  "limit": 10
+}
+```
+
+响应体：
+
+```json
+{
+  "items": [
+    { "label": "华东一大区", "value": "EAST_1" }
+  ],
+  "total": 1,
+  "has_more": false
+}
+```
+
+平台归一化规则：
+
+- 平台只接受 `items[].label/value`
+- `value` 在 v1 只支持标量：`string | number | boolean`
+- 平台按内部上限对返回结果做二次截断
+
+#### 规格限制
+
+- 默认 `limit=10`
+- 最大 `limit=50`
+- 请求体上限：`32 KB`
+- 响应项总数上限：`50`
+- 单项长度建议：
+  - `label <= 64`
+  - `value <= 128`
+- 外部调用超时：`3s`
+- v1 不自动重试
+
+#### 失败语义
+
+动态参数取值失败时：
+
+- 返回空 `items`
+- 携带可重试错误语义
+- 不直接打断当前报告对话流程
+
+推荐错误码：
+
+- `PARAM_SOURCE_INVALID`
+- `PARAM_SOURCE_TIMEOUT`
+- `PARAM_SOURCE_UPSTREAM_ERROR`
+- `PARAM_SOURCE_RESPONSE_INVALID`
+- `PARAM_SOURCE_LIMIT_EXCEEDED`
+
 ---
 
 ## 4. 章节双层模型 (TemplateSection)
@@ -120,7 +343,7 @@ class TemplateSection:
     description: str
 
     foreach: Optional[ForeachConfig]
-    outline: Optional[OutlineBlueprint]
+    outline: Optional[OutlineBlueprint]  # 业务语义：章节诉求定义
 
     content: Optional[SectionContent]
     subsections: List["TemplateSection"]
@@ -130,7 +353,7 @@ class TemplateSection:
 
 | 层 | 字段 | 面向对象 | 作用 |
 |----|------|----------|------|
-| 蓝图层 | `outline` | 用户/对话助手 | 组织章节意图、确认大纲、补齐章节级变量 |
+| 诉求层 | `outline` | 用户/对话助手 | 组织章节诉求、确认大纲、补齐章节级变量 |
 | 执行层 | `content` | 系统运行时 | 查询数据、调用 AI、渲染 Markdown |
 | 结构层 | `subsections / foreach` | 两者共享 | 控制章节树与实例化展开 |
 
@@ -140,9 +363,9 @@ class TemplateSection:
 
 - `{param_id}`：模板级参数
 - `{$var}`：`foreach` 局部变量
-- `{@block_id}`：当前章节蓝图区块
+- `{@block_id}`：当前章节诉求要素
 
-其中 `{@block_id}` 不仅能出现在蓝图文稿中，也能出现在执行层文本字段里，例如：
+其中 `{@block_id}` 不仅能出现在章节诉求文本中，也能出现在执行层文本字段里，例如：
 
 - `section.title`
 - `section.description`
@@ -153,7 +376,7 @@ class TemplateSection:
 
 ---
 
-## 5. 蓝图层 (OutlineBlueprint)
+## 5. 诉求层 (OutlineBlueprint)
 
 ```python
 @dataclass
@@ -172,13 +395,20 @@ class OutlineBlock:
 
     # 系统扩展字段
     param_id: Optional[str]
-    options: Optional[List[str]]
+    options: Optional[List[Any]]  # 兼容 string 列表与 {key,label} 对象列表
     source: Optional[str]
     widget: Optional[str]
     multi: Optional[bool]
+    value_mode: Optional[str]  # label | key
+    value_mapping: Optional[Dict[str, Any]]
 ```
 
-### 5.1 蓝图区块类型
+在业务语义上：
+
+- `OutlineBlueprint` = `章节诉求定义`
+- `OutlineBlock` = `诉求要素`
+
+### 5.1 诉求要素类型
 
 当前系统对齐最新版模板语义，并补充必要的系统扩展配置，常见类型包括：
 
@@ -193,19 +423,57 @@ class OutlineBlock:
 - `free_text`
 - `param_ref`
 
-### 5.2 蓝图层设计原则
+### 5.2 诉求层设计原则
 
-- `document` 是用户在大纲确认中直接感知的章节句式
-- `blocks[]` 是章节级意图变量，不等同于模板全局参数
-- `param_ref` 用于把模板参数直接映射为章节蓝图值
-- 蓝图区块支持默认值、候选项、动态来源和控件语义
+- `document` 是用户在大纲确认中直接感知的章节诉求表达
+- `blocks[]` 是章节级诉求要素，不等同于模板全局参数
+- `param_ref` 用于把模板参数直接映射为章节诉求要素值
+- 诉求要素支持默认值、候选项、动态来源和控件语义
+- 诉求要素值区分 `display / value / query` 三类用途，不再假设“展示值等于执行值”
+- `options` 兼容两种候选项形态：`["总部", "省公司"]`（历史字符串模式）与 `[{"key":"hq","label":"总部"}]`（推荐 key/label 模式）
 
 ### 5.3 作用域规则
 
 - `{param_id}`：全模板可见
 - `{$var}`：当前 `foreach` 节点及其子树可见
-- `{@block_id}`：当前章节及其子树可见
-- 不允许同一路径上的蓝图区块 `id` 重名覆盖
+- `{@block_id}`：兼容写法，等价于 `{@block_id.display}`
+- `{@block_id.display}`：诉求展示值（面向用户可读）
+- `{@block_id.value}`：诉求规范值（面向结构化表达，通常是稳定 key）
+- `{@block_id.query}`：执行查询值（由 `value_mapping.query` 计算得到）
+- 不允许同一路径上的诉求要素 `id` 重名覆盖
+
+### 5.4 值映射 (value_mapping)
+
+为避免执行层与 SQL 语义强绑定，诉求要素统一采用中性值映射定义：
+
+```json
+{
+  "id": "scope",
+  "type": "enum_select",
+  "value_mode": "key",
+  "options": [
+    {"key": "hq", "label": "总部"},
+    {"key": "prov", "label": "省公司"}
+  ],
+  "value_mapping": {
+    "query": {
+      "by": "key",
+      "map": {
+        "hq": "HQ",
+        "prov": ["P1", "P2"]
+      },
+      "on_unmapped": "error"
+    }
+  }
+}
+```
+
+规则说明：
+
+- `value_mode=key` 时，`{@block_id.value}` 优先取稳定 key；`display` 仍展示 label。
+- `value_mapping.query.map` 支持标量和标量数组，兼容等值和 `IN (...)` 场景。
+- `on_unmapped` 默认 `error`，避免执行层在未知值上静默退化。
+- `query` 通道是执行层通道，不等同于任何单一数据源类型（例如 SQL 只是其一种消费者）。
 
 ---
 
@@ -247,7 +515,7 @@ class SectionDataset:
 ### 6.3 执行层设计原则
 
 - 执行层负责“怎么查、怎么生成、怎么展示”
-- 执行层允许显式引用蓝图区块 `{@block_id}`
+- 执行层允许显式引用诉求要素 `{@block_id}`
 - 执行层本身不直接暴露给普通使用者编辑；在模板工作台中作为章节详情的独立页签维护
 
 ---
@@ -256,11 +524,12 @@ class SectionDataset:
 
 ### 7.1 映射基线
 
-映射关系采用“同章节节点双层共存 + 块级显式绑定”：
+映射关系采用“同章节节点双层共存 + 要素级显式绑定”：
 
-- 一个章节节点同时持有 `outline` 与 `content`
-- 执行层通过 `{@block_id}` 显式引用蓝图区块
-- 运行时对章节蓝图求值后，再解析执行层
+- 一个章节节点同时持有 `outline`（诉求定义）与 `content`
+- 执行层通过 `{@block_id.query}` 显式消费执行查询值
+- 展示层通过 `{@block_id.display}` 消费可读值
+- 运行时对章节诉求求值后，再解析执行层
 
 ### 7.2 对话生成时序
 
@@ -272,10 +541,10 @@ sequenceDiagram
     participant Runtime as 运行时
 
     User->>Chat: 确认模板参数
-    Chat->>Template: foreach 展开 + 蓝图实例化
-    Template-->>Chat: 实例级蓝图树
+    Chat->>Template: foreach 展开 + 诉求实例化
+    Template-->>Chat: 实例级诉求树
     User->>Chat: 修改/确认大纲
-    Chat->>Runtime: 注入蓝图值
+    Chat->>Runtime: 注入诉求值
     Runtime->>Runtime: 解析执行层占位符
     Runtime-->>Chat: 生成执行基线
 ```
@@ -285,9 +554,9 @@ sequenceDiagram
 在实例生成时，系统内部会形成两份相关快照：
 
 - `confirmed_outline_blueprint`
-  - 用户确认后的实例级蓝图树
+  - 业务语义：用户确认后的实例级诉求树
 - `resolved_execution_baseline`
-  - 用蓝图值解析后的执行层基线
+  - 用诉求值解析后的执行层基线
 
 这两份快照共同构成报告实例的生成基线。
 
@@ -304,19 +573,19 @@ sequenceDiagram
 
 其中“章节工作台”内部按章节详情页签拆分为：
 
-- `蓝图`
+- `诉求`
 - `执行链路`
 - `同步状态`
 
 结构预览支持三个视图：
 
-- `蓝图预览`
+- `诉求预览`
 - `执行预览`
 - `模板 JSON`
 
 > JSON 预览是排查与迁移入口，不再作为主编辑方式。
 
-当前模板工作台已为蓝图区块提供类型化配置面，常见配置包括：
+当前模板工作台已为诉求要素提供类型化配置面，常见配置包括：
 
 - `time_range`：时间控件与默认值
 - `indicator / scope / enum_select`：固定选项或动态来源
@@ -335,6 +604,9 @@ sequenceDiagram
 - `date` 不允许 `multi=true`
 - `{@block_id}` 必须能在当前章节或祖先章节解析
 - `param_ref` 必须绑定已有模板参数
+- `value_mapping.query.by=key` 时，区块候选项必须可产出稳定 key
+- `value_mapping.query.map` 的 value 仅允许标量或标量数组
+- `value_mapping.query.on_unmapped=error` 时，不允许回退到展示值继续执行
 - `foreach` 禁止嵌套
 - `content` 与 `subsections` 互斥
 - `datasets.depends_on` 必须无环

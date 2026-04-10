@@ -2,6 +2,8 @@
 
 > 本文档是 [总设计文档 (design.md)](design.md) 的子文档，描述统一对话模块在当前版本下的状态模型、能力路由、历史会话与报告生成协同策略。
 
+> 术语使用约定：对话模块重点描述阶段推进与交互行为，因此保留 `outline_review`、`outline_instance` 等阶段名或结构名；它们的业务语义统一按“诉求确认 / 诉求实例”理解。
+
 ---
 
 ## 1. 模块定位
@@ -29,21 +31,42 @@
 ```python
 @dataclass
 class ChatSession:
-    session_id: str
+    id: str
     user_id: str
     title: str
-    messages: List[Dict[str, Any]]
     fork_meta: Dict[str, Any]
-    matched_template_id: Optional[str]
-    instance_id: Optional[str]
     status: str
     created_at: datetime
     updated_at: datetime
 ```
 
-### 2.2 ContextState v2
+`ChatSession` 在目标模型中只表示会话容器，不再内嵌消息历史，也不再反向挂报告实例。
 
-统一对话上下文继续以内嵌 `messages[].meta.type=context_state` 的方式持久化，不新增独立任务表。核心结构如下：
+### 2.2 ChatMessage
+
+```python
+@dataclass
+class ChatMessage:
+    id: str
+    session_id: str
+    user_id: str
+    role: str
+    content: str
+    action: Optional[Dict[str, Any]]
+    meta: Dict[str, Any]
+    seq_no: int
+    created_at: datetime
+```
+
+说明：
+
+- 消息从 `ChatSession` 中拆出，独立形成消息流水
+- 可见消息与隐藏 `context_state` 都存为消息记录
+- 消息顺序以 `seq_no` 为准
+
+### 2.3 ContextState v2
+
+统一对话上下文继续以内嵌 `messages[].meta.type=context_state` 的方式持久化，不新增独立任务表。差异在于：`context_state` 不再内嵌在 `chat_sessions.messages` JSON 中，而是作为隐藏消息写入消息流水表。核心结构如下：
 
 ```python
 {
@@ -70,12 +93,14 @@ class ChatSession:
 }
 ```
 
-### 2.3 设计原则
+### 2.4 设计原则
 
 - 一个 `ChatSession` 同时只有一个 `active_task`
 - 会话历史保留全部消息，但系统只认当前 `active_task`
+- `ChatSession` 只承载容器元信息；消息历史由 `ChatMessage` 明细承载
 - `pending_switch` 只承担显式切换确认，不作为任务栈
 - 报告任务仍使用 `report/slots/missing` 这组扩展字段承接大纲确认与参数确认
+- 会话不再反向挂单个报告实例；报告实例直接记录其来源会话与来源消息锚点
 
 ---
 
@@ -151,11 +176,11 @@ template_matching
 
 ### 4.2 大纲确认
 
-参数全部收齐后，系统先生成实例级蓝图树，再进入 `outline_review`：
+参数全部收齐后，系统先生成实例级诉求树，再进入 `outline_review`：
 
 - 先替换模板参数
 - 再展开 `foreach`
-- 再为每个章节生成 `outline_instance`
+- 再为每个章节生成 `outline_instance`（业务语义：章节诉求实例）
 
 大纲确认页面允许：
 
@@ -163,7 +188,7 @@ template_matching
 - 编辑非参数静态文本
 - 调整节点结构
 
-当用户只改参数片段时，系统保留蓝图结构；当用户修改非参数静态文本时，该节点退化成普通句子节点。
+当用户只改参数片段时，系统保留诉求结构；当用户修改非参数静态文本时，该节点退化成普通句子节点。
 
 ---
 
@@ -217,6 +242,7 @@ template_matching
 - 也不预创建空会话
 - 只有首条真实用户消息发送后才创建 `ChatSession`
 - 会话标题由首条用户消息截断生成
+- 会话详情中的 `messages` 由消息表按 `session_id + seq_no` 组装返回
 
 ### 6.2 消息级 fork
 
@@ -236,6 +262,7 @@ template_matching
 - 点击“继续到对话助手修改”后，系统创建新会话
 - 新会话只注入一个可见的 `review_outline` 节点
 - 前后历史消息不回放
+- 新会话的消息同样写入消息流水表，而不是写入会话 JSON 字段
 
 该来源在聊天页顶部以“更新来源”展示，而不是“Fork 来源”。
 
@@ -252,6 +279,11 @@ template_matching
 - `POST /rest/chatbi/v1/chat/forks`
 - `POST /rest/chatbi/v1/instances/{id}/update-chat`
 - `POST /rest/chatbi/v1/instances/{id}/fork-chat`
+
+统一用户身份约束：
+
+- 业务接口从请求头 `X-User-Id` 获取用户身份
+- 不信任 body/query 中的 `user_id`
 
 `POST /rest/chatbi/v1/chat` 当前支持的重要输入字段：
 
@@ -270,6 +302,7 @@ template_matching
 - `interaction_mode=chat` 只改变追问方式，不改变参数校验和确认规则
 - 报告任务的大纲确认与生成基线仍然是结构化链路，不退回纯聊天式生成
 - 会话栏折叠状态只保存在前端 UI 运行态，不做跨端记忆
+- 本轮不引入独立 `dialogue` 物理表；对话业务边界由消息流水和任务状态共同表达
 
 ---
 
