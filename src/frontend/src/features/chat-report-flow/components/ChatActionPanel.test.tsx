@@ -111,15 +111,15 @@ describe("ChatActionPanel", () => {
               display_text: "分析 温度 的变化",
               node_kind: "group",
               ai_generated: false,
-              outline_instance: {
-                document_template: "分析 {@focus_metric} 的变化",
-                rendered_document: "分析 温度 的变化",
+              requirement_instance: {
+                requirement_template: "分析 {@focus_metric} 的变化",
+                rendered_requirement: "分析 温度 的变化",
                 segments: [
                   { kind: "text", text: "分析 " },
-                  { kind: "block", block_id: "focus_metric", block_type: "indicator", value: "温度" },
+                  { kind: "slot", slot_id: "focus_metric", slot_type: "indicator", value: "温度" },
                   { kind: "text", text: " 的变化" },
                 ],
-                blocks: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
+                slots: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
               },
               children: [
                 {
@@ -170,9 +170,9 @@ describe("ChatActionPanel", () => {
       "edit_outline",
       expect.arrayContaining([
         expect.objectContaining({
-          outline_instance: expect.objectContaining({
-            rendered_document: "分析 湿度 的变化",
-            blocks: expect.arrayContaining([expect.objectContaining({ id: "focus_metric", value: "湿度" })]),
+          requirement_instance: expect.objectContaining({
+            rendered_requirement: "分析 湿度 的变化",
+            slots: expect.arrayContaining([expect.objectContaining({ id: "focus_metric", value: "湿度" })]),
           }),
         }),
       ]),
@@ -181,9 +181,9 @@ describe("ChatActionPanel", () => {
       "confirm_outline_generation",
       expect.arrayContaining([
         expect.objectContaining({
-          outline_instance: expect.objectContaining({
-            rendered_document: "分析 湿度 的变化",
-            blocks: expect.arrayContaining([expect.objectContaining({ id: "focus_metric", value: "湿度" })]),
+          requirement_instance: expect.objectContaining({
+            rendered_requirement: "分析 湿度 的变化",
+            slots: expect.arrayContaining([expect.objectContaining({ id: "focus_metric", value: "湿度" })]),
           }),
         }),
       ]),
@@ -210,17 +210,17 @@ describe("ChatActionPanel", () => {
               node_kind: "structured_leaf",
               ai_generated: false,
               children: [],
-              outline_instance: {
-                document_template: "分析 {@metric} 在 {@target_scene} 的变化",
-                rendered_document: "分析 温度 在 总部 的变化",
+              requirement_instance: {
+                requirement_template: "分析 {@metric} 在 {@target_scene} 的变化",
+                rendered_requirement: "分析 温度 在 总部 的变化",
                 segments: [
                   { kind: "text", text: "分析 " },
-                  { kind: "block", block_id: "metric", block_type: "indicator", value: "温度" },
+                  { kind: "slot", slot_id: "metric", slot_type: "indicator", value: "温度" },
                   { kind: "text", text: " 在 " },
-                  { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                  { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                   { kind: "text", text: " 的变化" },
                 ],
-                blocks: [
+                slots: [
                   { id: "metric", type: "indicator", hint: "指标", value: "温度", options: ["温度", "湿度"] },
                   { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
                 ],
@@ -261,15 +261,15 @@ describe("ChatActionPanel", () => {
               node_kind: "structured_leaf",
               ai_generated: false,
               children: [],
-              outline_instance: {
-                document_template: "分析 {@metric} 的变化",
-                rendered_document: "分析 温度 的变化",
+              requirement_instance: {
+                requirement_template: "分析 {@metric} 的变化",
+                rendered_requirement: "分析 温度 的变化",
                 segments: [
                   { kind: "text", text: "分析 " },
-                  { kind: "block", block_id: "metric", block_type: "indicator", value: "温度" },
+                  { kind: "slot", slot_id: "metric", slot_type: "indicator", value: "温度" },
                   { kind: "text", text: " 的变化" },
                 ],
-                blocks: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
+                slots: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
               },
             },
           ],
@@ -291,9 +291,9 @@ describe("ChatActionPanel", () => {
       "edit_outline",
       expect.arrayContaining([
         expect.objectContaining({
-          outline_instance: expect.objectContaining({
-            rendered_document: "分析 湿度 的变化",
-            blocks: expect.arrayContaining([expect.objectContaining({ id: "metric", value: "湿度" })]),
+          requirement_instance: expect.objectContaining({
+            rendered_requirement: "分析 湿度 的变化",
+            slots: expect.arrayContaining([expect.objectContaining({ id: "metric", value: "湿度" })]),
           }),
         }),
       ]),
@@ -320,15 +320,15 @@ describe("ChatActionPanel", () => {
               node_kind: "structured_leaf",
               ai_generated: false,
               children: [],
-              outline_instance: {
-                document_template: "分析 {@metric} 的变化",
-                rendered_document: "分析 温度 的变化",
+              requirement_instance: {
+                requirement_template: "分析 {@metric} 的变化",
+                rendered_requirement: "分析 温度 的变化",
                 segments: [
                   { kind: "text", text: "分析 " },
-                  { kind: "block", block_id: "metric", block_type: "indicator", value: "温度" },
+                  { kind: "slot", slot_id: "metric", slot_type: "indicator", value: "温度" },
                   { kind: "text", text: " 的变化" },
                 ],
-                blocks: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
+                slots: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
               },
             },
           ],
@@ -358,7 +358,7 @@ describe("ChatActionPanel", () => {
       ]),
     );
     const degradedNode = onSubmitOutline.mock.calls.at(-1)?.[1]?.[0];
-    expect(degradedNode).not.toHaveProperty("outline_instance");
+    expect(degradedNode).not.toHaveProperty("requirement_instance");
   });
 
   it("commits pending sentence edits before confirm generation", () => {
@@ -381,15 +381,15 @@ describe("ChatActionPanel", () => {
               node_kind: "structured_leaf",
               ai_generated: false,
               children: [],
-              outline_instance: {
-                document_template: "分析 {@metric} 的变化",
-                rendered_document: "分析 温度 的变化",
+              requirement_instance: {
+                requirement_template: "分析 {@metric} 的变化",
+                rendered_requirement: "分析 温度 的变化",
                 segments: [
                   { kind: "text", text: "分析 " },
-                  { kind: "block", block_id: "metric", block_type: "indicator", value: "温度" },
+                  { kind: "slot", slot_id: "metric", slot_type: "indicator", value: "温度" },
                   { kind: "text", text: " 的变化" },
                 ],
-                blocks: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
+                slots: [{ id: "metric", type: "indicator", hint: "指标", value: "温度" }],
               },
             },
           ],
@@ -418,7 +418,7 @@ describe("ChatActionPanel", () => {
       ]),
     );
     const degradedNode = onSubmitOutline.mock.calls.at(-1)?.[1]?.[0];
-    expect(degradedNode).not.toHaveProperty("outline_instance");
+    expect(degradedNode).not.toHaveProperty("requirement_instance");
   });
 
   it("commits pending block edits before confirm generation", () => {
@@ -441,15 +441,15 @@ describe("ChatActionPanel", () => {
               node_kind: "structured_leaf",
               ai_generated: false,
               children: [],
-              outline_instance: {
-                document_template: "分析 {@target_scene} 的变化",
-                rendered_document: "分析 总部 的变化",
+              requirement_instance: {
+                requirement_template: "分析 {@target_scene} 的变化",
+                rendered_requirement: "分析 总部 的变化",
                 segments: [
                   { kind: "text", text: "分析 " },
-                  { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                  { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                   { kind: "text", text: " 的变化" },
                 ],
-                blocks: [{ id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" }],
+                slots: [{ id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" }],
               },
             },
           ],
@@ -470,9 +470,9 @@ describe("ChatActionPanel", () => {
       "confirm_outline_generation",
       expect.arrayContaining([
         expect.objectContaining({
-          outline_instance: expect.objectContaining({
-            rendered_document: "分析 分部 的变化",
-            blocks: expect.arrayContaining([expect.objectContaining({ id: "target_scene", value: "分部" })]),
+          requirement_instance: expect.objectContaining({
+            rendered_requirement: "分析 分部 的变化",
+            slots: expect.arrayContaining([expect.objectContaining({ id: "target_scene", value: "分部" })]),
           }),
         }),
       ]),

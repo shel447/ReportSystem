@@ -1,21 +1,32 @@
 .template-workbench {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .template-workbench__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(320px, 0.9fr);
-  gap: 18px;
+  gap: 16px;
   align-items: start;
 }
 
 .template-workbench__parameters {
-  grid-column: 1 / -1;
+  grid-column: 1 / span 2;
 }
 
 .template-workbench__sections {
   grid-column: 1 / span 2;
+}
+
+.template-workbench__preview {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  position: sticky;
+  top: 16px;
+}
+
+.template-workbench .surface-card {
+  padding: 18px;
 }
 
 .template-workbench__footer {
@@ -25,8 +36,8 @@
 
 .workbench-split {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) 1px minmax(0, 1.4fr);
-  gap: 16px;
+  grid-template-columns: minmax(220px, 0.76fr) 1px minmax(0, 1.24fr);
+  gap: 14px;
   align-items: start;
 }
 
@@ -41,7 +52,7 @@
 }
 
 .workbench-split--wide {
-  grid-template-columns: minmax(240px, 0.8fr) 1px minmax(0, 1.6fr);
+  grid-template-columns: minmax(240px, 0.72fr) 1px minmax(0, 1.5fr);
 }
 
 .workbench-pane {
@@ -58,7 +69,7 @@
 
 .template-workbench__detail {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .section-tree-item {
@@ -78,15 +89,15 @@
 
 .outline-block-editor {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .outline-block-editor__typed {
   display: grid;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 16px;
-  background: rgba(21, 71, 110, 0.04);
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(21, 71, 110, 0.035);
   border: 1px solid rgba(21, 71, 110, 0.08);
 }
 
@@ -99,19 +110,19 @@
 
 .preview-tabs {
   display: inline-flex;
-  gap: 8px;
-  padding: 4px;
-  margin-bottom: 16px;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 14px;
   border-radius: 999px;
-  background: rgba(21, 71, 110, 0.06);
+  background: rgba(21, 71, 110, 0.05);
 }
 
 .section-detail-tabs {
   display: inline-flex;
-  gap: 8px;
-  padding: 4px;
+  gap: 4px;
+  padding: 3px;
   border-radius: 999px;
-  background: rgba(21, 71, 110, 0.06);
+  background: rgba(21, 71, 110, 0.05);
   width: fit-content;
 }
 
@@ -119,7 +130,7 @@
   border: 0;
   background: transparent;
   color: var(--text-secondary);
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: 999px;
   font: inherit;
   cursor: pointer;
@@ -160,7 +171,7 @@
 
 .sync-panel {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .sync-panel__header {
@@ -201,13 +212,97 @@
   overflow: auto;
 }
 
+.template-workbench .form-grid {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px 14px;
+}
+
+.template-workbench .field {
+  grid-column: span 6;
+  gap: 6px;
+}
+
+.template-workbench .field--full {
+  grid-column: 1 / -1;
+}
+
+.template-workbench .field--checkbox {
+  grid-column: span 4;
+}
+
+.template-workbench .field-label {
+  font-size: 0.86rem;
+}
+
+.template-workbench .list-header {
+  margin-bottom: 14px;
+}
+
+.template-workbench .action-row {
+  gap: 8px;
+}
+
+.template-workbench .action-row button,
+.template-workbench .action-row .button-link {
+  min-height: 36px;
+  padding-inline: 12px;
+  border-radius: 12px;
+}
+
+.list-item--compact {
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+
+.list-item--compact span {
+  margin-top: 4px;
+  font-size: 0.84rem;
+}
+
+.requirement-editor-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.requirement-editor-main,
+.requirement-editor-inspector {
+  display: grid;
+  gap: 12px;
+}
+
+.requirement-editor-inspector .inline-panel {
+  padding: 12px;
+}
+
+.requirement-slot-list {
+  display: grid;
+  gap: 10px;
+}
+
+.requirement-slot-list__stack {
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
 @media (max-width: 1280px) {
   .template-workbench__grid {
     grid-template-columns: 1fr;
   }
 
+  .template-workbench__parameters,
   .template-workbench__sections {
     grid-column: auto;
+  }
+
+  .template-workbench__preview {
+    grid-column: auto;
+    grid-row: auto;
+    position: static;
   }
 }
 
@@ -224,5 +319,18 @@
   .workbench-split > .workbench-pane:first-child,
   .workbench-split > .workbench-pane:last-child {
     grid-column: auto;
+  }
+
+  .template-workbench .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .template-workbench .field,
+  .template-workbench .field--checkbox {
+    grid-column: auto;
+  }
+
+  .requirement-editor-shell {
+    grid-template-columns: 1fr;
   }
 }

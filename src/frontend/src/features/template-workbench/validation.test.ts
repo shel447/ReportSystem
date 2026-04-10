@@ -125,13 +125,13 @@ describe("template workbench validation", () => {
     expect(errors).toContain("复合表至少需要一个分区：概览 {date}");
   });
 
-  it("reports invalid outline block bindings and param refs", () => {
+  it("reports invalid outline slot bindings and param refs", () => {
     const state = buildState();
     state.sections[0].outline = {
-      document: "分析 {@focus_metric}",
-      blocks: [
+      requirement: "分析 {@focus_metric}",
+      slots: [
         {
-          uiKey: "block-1",
+          uiKey: "slot-1",
           id: "focus_metric",
           type: "param_ref",
           hint: "指标来源",
@@ -148,7 +148,7 @@ describe("template workbench validation", () => {
       datasets: [],
       presentation: {
         type: "text",
-        template: "展示 {@missing_block}",
+        template: "展示 {@missing_slot}",
         anchor: "{$value}",
         datasetId: "",
         chartType: "bar",
@@ -159,6 +159,6 @@ describe("template workbench validation", () => {
     const errors = validateWorkbench(state);
 
     expect(errors).toContain("诉求要素 param_ref 必须绑定已有参数：概览 {date} / focus_metric");
-    expect(errors).toContain("执行链路引用了不存在的诉求要素：概览 {date} / missing_block");
+    expect(errors).toContain("执行链路引用了不存在的诉求要素：概览 {date} / missing_slot");
   });
 });

@@ -89,16 +89,16 @@ def _merge_outline_list(
             current["children"] = children
         outline_mode = str(raw.get("outline_mode") or "").strip()
         if outline_mode == "freeform":
-            current.pop("outline_instance", None)
+            current.pop("requirement_instance", None)
             current.pop("execution_bindings", None)
             current.pop("content", None)
             current.pop("resolved_content", None)
             current["source_kind"] = "manual"
             current["section_kind"] = "group" if children else "freeform_leaf"
         else:
-            merged_outline_instance = _merge_outline_instance(raw.get("outline_instance"), current.get("outline_instance"))
-            if merged_outline_instance:
-                current["outline_instance"] = merged_outline_instance
+            merged_requirement_instance = _merge_requirement_instance(raw.get("requirement_instance"), current.get("requirement_instance"))
+            if merged_requirement_instance:
+                current["requirement_instance"] = merged_requirement_instance
         current.pop("display_text", None)
         current.pop("ai_generated", None)
         current.pop("node_kind", None)
@@ -154,8 +154,8 @@ def _sanitize_outline_node(node: Dict[str, Any], *, include_internal: bool) -> D
     title = str(node.get("title") or "")
     description = str(node.get("description") or "")
     node_kind = str(node.get("node_kind") or node.get("section_kind") or ("group" if node.get("children") else "freeform_leaf"))
-    outline_instance = node.get("outline_instance") if isinstance(node.get("outline_instance"), dict) else {}
-    rendered_outline = str(outline_instance.get("rendered_document") or "").strip()
+    requirement_instance = node.get("requirement_instance") if isinstance(node.get("requirement_instance"), dict) else {}
+    rendered_outline = str(requirement_instance.get("rendered_requirement") or "").strip()
     payload = {
         "node_id": str(node.get("node_id") or ""),
         "title": title,
@@ -172,8 +172,8 @@ def _sanitize_outline_node(node: Dict[str, Any], *, include_internal: bool) -> D
     }
     if isinstance(node.get("dynamic_meta"), dict):
         payload["dynamic_meta"] = copy.deepcopy(node.get("dynamic_meta"))
-    if outline_instance:
-        payload["outline_instance"] = copy.deepcopy(outline_instance)
+    if requirement_instance:
+        payload["requirement_instance"] = copy.deepcopy(requirement_instance)
     if isinstance(node.get("execution_bindings"), list):
         payload["execution_bindings"] = copy.deepcopy(node.get("execution_bindings"))
     if include_internal:
@@ -204,39 +204,39 @@ def _resolve_outline_node(node: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _outline_context_from_node(node: Dict[str, Any]) -> Dict[str, Any]:
-    outline_instance = node.get("outline_instance") if isinstance(node.get("outline_instance"), dict) else {}
+    requirement_instance = node.get("requirement_instance") if isinstance(node.get("requirement_instance"), dict) else {}
     context: Dict[str, Any] = {}
-    for block in outline_instance.get("blocks") or []:
+    for block in requirement_instance.get("slots") or []:
         if not isinstance(block, dict):
             continue
-        block_id = str(block.get("id") or "").strip()
-        if not block_id:
+        slot_id = str(block.get("id") or "").strip()
+        if not slot_id:
             continue
-        context[block_id] = block.get("value")
+        context[slot_id] = block.get("value")
     return context
 
 
-def _merge_outline_instance(override: Any, current: Any) -> Dict[str, Any] | None:
+def _merge_requirement_instance(override: Any, current: Any) -> Dict[str, Any] | None:
     if not isinstance(override, dict):
         return copy.deepcopy(current) if isinstance(current, dict) else None
 
     current_instance = current if isinstance(current, dict) else {}
     current_blocks = {
         str(item.get("id") or "").strip(): copy.deepcopy(item)
-        for item in current_instance.get("blocks") or []
+        for item in current_instance.get("slots") or []
         if isinstance(item, dict) and str(item.get("id") or "").strip()
     }
 
     merged_blocks: List[Dict[str, Any]] = []
-    for raw_block in override.get("blocks") or []:
+    for raw_block in override.get("slots") or []:
         if not isinstance(raw_block, dict):
             continue
-        block_id = str(raw_block.get("id") or "").strip()
-        if not block_id:
+        slot_id = str(raw_block.get("id") or "").strip()
+        if not slot_id:
             continue
-        merged_block = current_blocks.get(block_id, {})
+        merged_block = current_blocks.get(slot_id, {})
         merged_block.update(copy.deepcopy(raw_block))
-        merged_block["id"] = block_id
+        merged_block["id"] = slot_id
         merged_block["value"] = str(merged_block.get("value") or "")
         merged_blocks.append(merged_block)
 
@@ -255,34 +255,34 @@ def _merge_outline_instance(override: Any, current: Any) -> Dict[str, Any] | Non
         if kind == "text":
             merged_segments.append({"kind": "text", "text": str(raw_segment.get("text") or "")})
             continue
-        if kind != "block":
+        if kind != "slot":
             continue
-        block_id = str(raw_segment.get("block_id") or "").strip()
-        if not block_id:
+        slot_id = str(raw_segment.get("slot_id") or "").strip()
+        if not slot_id:
             continue
-        block = merged_block_lookup.get(block_id, {})
+        block = merged_block_lookup.get(slot_id, {})
         merged_segments.append(
             {
-                "kind": "block",
-                "block_id": block_id,
-                "block_type": str(raw_segment.get("block_type") or block.get("type") or ""),
+                "kind": "slot",
+                "slot_id": slot_id,
+                "slot_type": str(raw_segment.get("slot_type") or block.get("type") or ""),
                 "value": str(block.get("value") or raw_segment.get("value") or ""),
             }
         )
 
-    rendered_document = "".join(
+    rendered_requirement = "".join(
         str(segment.get("text") if segment.get("kind") == "text" else segment.get("value") or "")
         for segment in merged_segments
     ).strip()
-    document_template = str(override.get("document_template") or current_instance.get("document_template") or "")
-    if not rendered_document:
-        rendered_document = str(override.get("rendered_document") or current_instance.get("rendered_document") or "").strip()
+    requirement_template = str(override.get("requirement_template") or current_instance.get("requirement_template") or "")
+    if not rendered_requirement:
+        rendered_requirement = str(override.get("rendered_requirement") or current_instance.get("rendered_requirement") or "").strip()
 
     return {
-        "document_template": document_template,
-        "rendered_document": rendered_document,
+        "requirement_template": requirement_template,
+        "rendered_requirement": rendered_requirement,
         "segments": merged_segments,
-        "blocks": merged_blocks,
+        "slots": merged_blocks,
     }
 
 

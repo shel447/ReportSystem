@@ -174,7 +174,7 @@ class ChatRouterTests(unittest.TestCase):
                     "description": "查看章节内容",
                     "outline": {
                         "document": "分析 {@target_scene} 的巡检情况",
-                        "blocks": [
+                        "slots": [
                             {
                                 "id": "target_scene",
                                 "type": "param_ref",
@@ -250,9 +250,9 @@ class ChatRouterTests(unittest.TestCase):
                  return_value={"document_id": "doc-outline", "download_url": "/rest/chatbi/v1/documents/doc-outline/download"},
              ):
             edited_outline = second["action"]["outline"]
-            edited_outline[0]["outline_instance"]["rendered_document"] = "分析 湿度 的巡检情况"
-            edited_outline[0]["outline_instance"]["segments"][1]["value"] = "湿度"
-            edited_outline[0]["outline_instance"]["blocks"][0]["value"] = "湿度"
+            edited_outline[0]["requirement_instance"]["rendered_requirement"] = "分析 湿度 的巡检情况"
+            edited_outline[0]["requirement_instance"]["segments"][1]["value"] = "湿度"
+            edited_outline[0]["requirement_instance"]["slots"][0]["value"] = "湿度"
             third = send_message(
                 ChatMessage(
                     session_id=first["session_id"],

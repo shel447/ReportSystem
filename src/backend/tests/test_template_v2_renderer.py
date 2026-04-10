@@ -315,11 +315,11 @@ class TemplateV2RendererTests(unittest.TestCase):
                     ],
                     "presentation": {"type": "text", "template": "指标 温度"},
                 },
-                "outline_instance": {
-                    "document_template": "分析 {@metric}",
-                    "rendered_document": "分析 温度",
+                "requirement_instance": {
+                    "requirement_template": "分析 {@metric}",
+                    "rendered_requirement": "分析 温度",
                     "segments": [],
-                    "blocks": [{"id": "metric", "type": "indicator", "value": "温度"}],
+                    "slots": [{"id": "metric", "type": "indicator", "value": "温度"}],
                 },
             }
         ]

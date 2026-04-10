@@ -101,12 +101,12 @@ class ChatFlowServiceTests(unittest.TestCase):
                     "node_kind": "freeform_leaf",
                     "display_text": "概览：说明",
                     "ai_generated": True,
-                    "outline_instance": {
-                        "document_template": "分析 {@metric}",
-                        "rendered_document": "分析 温度",
-                        "blocks": [{"id": "metric", "value": "温度"}],
+                    "requirement_instance": {
+                        "requirement_template": "分析 {@metric}",
+                        "rendered_requirement": "分析 温度",
+                        "slots": [{"id": "metric", "value": "温度"}],
                     },
-                    "execution_bindings": [{"block_id": "metric", "targets": ["presentation.template"]}],
+                    "execution_bindings": [{"slot_id": "metric", "targets": ["presentation.template"]}],
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 }
             ],
@@ -124,8 +124,8 @@ class ChatFlowServiceTests(unittest.TestCase):
         self.assertEqual(action["outline"][0]["display_text"], "概览：说明")
         self.assertEqual(action["outline"][0]["node_kind"], "freeform_leaf")
         self.assertTrue(action["outline"][0]["ai_generated"])
-        self.assertEqual(action["outline"][0]["outline_instance"]["rendered_document"], "分析 温度")
-        self.assertEqual(action["outline"][0]["execution_bindings"][0]["block_id"], "metric")
+        self.assertEqual(action["outline"][0]["requirement_instance"]["rendered_requirement"], "分析 温度")
+        self.assertEqual(action["outline"][0]["execution_bindings"][0]["slot_id"], "metric")
         self.assertEqual(action["params_snapshot"][0]["value"], "总部")
 
     def test_rewind_slots_for_param_clears_target_and_following_slots(self):

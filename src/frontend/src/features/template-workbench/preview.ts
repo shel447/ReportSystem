@@ -10,7 +10,7 @@ export type StructuralPreview = {
 };
 
 export function buildBlueprintPreview(state: TemplateWorkbenchState): StructuralPreview {
-  const sections = state.sections.flatMap((section) => renderSection(section, state.previewSamples, {}, 1, "blueprint"));
+  const sections = state.sections.flatMap((section) => renderSection(section, state.previewSamples, {}, 1, "requirement"));
   return { sections };
 }
 
@@ -24,7 +24,7 @@ function renderSection(
   samples: Record<string, string | string[]>,
   locals: Record<string, string>,
   level: number,
-  mode: "blueprint" | "execution",
+  mode: "requirement" | "execution",
 ): StructuralPreview["sections"] {
   if (section.foreachEnabled && section.foreachParam) {
     const values = normalizeSampleList(samples[section.foreachParam]);
@@ -54,7 +54,7 @@ function renderSection(
     {
       title,
       description,
-      content: mode === "blueprint" ? renderBlueprintContent(section, samples, locals, outlineValues) : renderContent(section, samples, locals, outlineValues),
+      content: mode === "requirement" ? renderRequirementContent(section, samples, locals, outlineValues) : renderContent(section, samples, locals, outlineValues),
       level,
     },
   ];
@@ -88,16 +88,16 @@ function renderContent(
   return "内容预览";
 }
 
-function renderBlueprintContent(
+function renderRequirementContent(
   section: WorkbenchSection,
   samples: Record<string, string | string[]>,
   locals: Record<string, string>,
   outlineValues: Record<string, string>,
 ): string {
   if (!section.outline) {
-    return "未配置诉求文稿";
+    return "未配置诉求句子";
   }
-  return renderText(section.outline.document, samples, locals, outlineValues);
+  return renderText(section.outline.requirement, samples, locals, outlineValues);
 }
 
 function renderText(
@@ -108,7 +108,7 @@ function renderText(
 ): string {
   return String(template || "")
     .replace(/\{\$([a-zA-Z0-9_]+)\}/g, (_match, alias: string) => locals[alias] ?? "")
-    .replace(/\{@([a-zA-Z0-9_]+)\}/g, (_match, blockId: string) => outlineValues[blockId] ?? "")
+    .replace(/\{@([a-zA-Z0-9_]+)\}/g, (_match, slotId: string) => outlineValues[slotId] ?? "")
     .replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, key: string) => stringifySample(samples[key]));
 }
 
@@ -118,24 +118,24 @@ function resolveOutlineValues(
   locals: Record<string, string>,
 ): Record<string, string> {
   const resolved: Record<string, string> = {};
-  for (const block of section.outline?.blocks ?? []) {
-    const blockId = block.id.trim();
-    if (!blockId) {
+  for (const slot of section.outline?.slots ?? []) {
+    const slotId = slot.id.trim();
+    if (!slotId) {
       continue;
     }
-    if (block.paramId.trim()) {
-      resolved[blockId] = stringifySample(samples[block.paramId.trim()]);
+    if (slot.paramId.trim()) {
+      resolved[slotId] = stringifySample(samples[slot.paramId.trim()]);
       continue;
     }
-    if (typeof samples[blockId] !== "undefined") {
-      resolved[blockId] = stringifySample(samples[blockId]);
+    if (typeof samples[slotId] !== "undefined") {
+      resolved[slotId] = stringifySample(samples[slotId]);
       continue;
     }
-    if (block.defaultValue.trim()) {
-      resolved[blockId] = renderText(block.defaultValue, samples, locals, resolved);
+    if (slot.defaultValue.trim()) {
+      resolved[slotId] = renderText(slot.defaultValue, samples, locals, resolved);
       continue;
     }
-    resolved[blockId] = block.hint || blockId;
+    resolved[slotId] = slot.hint || slotId;
   }
   return resolved;
 }

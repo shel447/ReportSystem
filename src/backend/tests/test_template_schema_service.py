@@ -185,8 +185,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
                 {
                     "title": "趋势分析",
                     "outline": {
-                        "document": "分析 {@target_device} 在 {@analysis_period} 内的振动趋势",
-                        "blocks": [
+                        "requirement": "分析 {@target_device} 在 {@analysis_period} 内的振动趋势",
+                        "slots": [
                             {"id": "target_device", "type": "param_ref", "hint": "目标设备", "param_id": "device_id"},
                             {"id": "analysis_period", "type": "time_range", "hint": "分析周期", "default": "最近7天", "widget": "date_range"},
                         ],
@@ -206,9 +206,9 @@ class TemplateSchemaServiceTests(unittest.TestCase):
 
         validated = validate_template_payload(payload)
 
-        self.assertEqual(validated["sections"][0]["outline"]["document"], "分析 {@target_device} 在 {@analysis_period} 内的振动趋势")
-        self.assertEqual(validated["sections"][0]["outline"]["blocks"][0]["id"], "target_device")
-        self.assertEqual(validated["sections"][0]["outline"]["blocks"][1]["type"], "time_range")
+        self.assertEqual(validated["sections"][0]["outline"]["requirement"], "分析 {@target_device} 在 {@analysis_period} 内的振动趋势")
+        self.assertEqual(validated["sections"][0]["outline"]["slots"][0]["id"], "target_device")
+        self.assertEqual(validated["sections"][0]["outline"]["slots"][1]["type"], "time_range")
 
     def test_validate_template_payload_rejects_invalid_v2_template(self):
         payload = {

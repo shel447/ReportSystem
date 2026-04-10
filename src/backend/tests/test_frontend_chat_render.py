@@ -109,8 +109,16 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("模板 JSON", workbench_content)
         self.assertIn("template-workbench__parameters", workbench_content)
         self.assertNotIn("<h3>兼容迁移</h3>", workbench_content)
-        self.assertIn("grid-template-columns: minmax(220px, 0.8fr) 1px minmax(0, 1.4fr);", workbench_styles)
+        self.assertIn(
+            "grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(320px, 0.9fr);",
+            workbench_styles,
+        )
         self.assertIn(".workbench-split::before {", workbench_styles)
+        self.assertIn(
+            ".requirement-editor-shell {\n  display: grid;\n  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);",
+            workbench_styles,
+        )
+        self.assertIn(".requirement-slot-list__stack {", workbench_styles)
 
     def test_chat_styles_keep_message_stream_balanced(self):
         base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))

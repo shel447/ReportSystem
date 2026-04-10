@@ -50,8 +50,8 @@ function createState(): TemplateWorkbenchState {
         foreachAlias: "item",
         kind: "content",
         outline: {
-          document: "分析 {@focus_metric} 在 {date} 的变化",
-          blocks: [
+          requirement: "分析 {@focus_metric} 在 {date} 的变化",
+          slots: [
             {
               uiKey: "b-1",
               id: "focus_metric",
@@ -81,8 +81,8 @@ function createState(): TemplateWorkbenchState {
         foreachAlias: "device",
         kind: "content",
         outline: {
-          document: "检查 {$device} 的 {@inspection_scope}",
-          blocks: [
+          requirement: "检查 {$device} 的 {@inspection_scope}",
+          slots: [
             {
               uiKey: "b-2",
               id: "inspection_scope",
@@ -112,7 +112,7 @@ function createState(): TemplateWorkbenchState {
 }
 
 describe("template workbench preview", () => {
-  it("renders outline blueprint preview with block defaults and foreach expansion", () => {
+  it("renders outline blueprint preview with slot defaults and foreach expansion", () => {
     const preview = buildBlueprintPreview(createState());
 
     expect(preview.sections).toHaveLength(3);

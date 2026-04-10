@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { TemplateDetailPage } from "./TemplateDetailPage";
@@ -43,8 +43,8 @@ function buildTemplatePayload(name = "设备巡检报告") {
       {
         title: "概览 {date}",
         outline: {
-          document: "分析 {@focus_metric} 在 {date} 的变化",
-          blocks: [
+          requirement: "分析 {@focus_metric} 在 {date} 的变化",
+          slots: [
             {
               id: "focus_metric",
               type: "indicator",
@@ -197,7 +197,13 @@ describe("TemplateDetailPage", () => {
 
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /场景/ }));
+    const parameterCard = screen.getByText("参数工作台").closest(".surface-card");
+    expect(parameterCard).not.toBeNull();
+    fireEvent.click(
+      within(parameterCard as HTMLElement).getByRole("button", {
+        name: /场景 scene \/ 固定选项 \/ 必填 \/ 单值 \/ 结构化表单/,
+      }),
+    );
     fireEvent.change(screen.getByLabelText("追问模式"), {
       target: { value: "chat" },
     });
@@ -420,7 +426,7 @@ describe("TemplateDetailPage", () => {
     });
   });
 
-  it("blocks save when parameter ids are duplicated", async () => {
+  it("slots save when parameter ids are duplicated", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -450,7 +456,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.getByRole("button", { name: "保存模板" })).toBeDisabled();
   });
 
-  it("renders typed outline block config controls in blueprint workbench", async () => {
+  it("renders typed outline slot config controls in blueprint workbench", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -469,15 +475,18 @@ describe("TemplateDetailPage", () => {
 
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
+    fireEvent.click(screen.getByRole("button", { name: /analysis_period/i }));
 
     expect(screen.getByLabelText("时间控件 analysis_period")).toHaveValue("date_range");
     expect(screen.queryByLabelText("动态来源 analysis_period")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("固定选项 analysis_period")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /target_scene/i }));
     expect(screen.getByLabelText("绑定参数 target_scene")).toHaveValue("scene");
     expect(screen.queryByLabelText("固定选项 target_scene")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("动态来源 target_scene")).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: /focus_metric/i }));
     expect(screen.getByLabelText("选项来源 focus_metric")).toHaveValue("options");
     expect(screen.getByLabelText("固定选项 focus_metric")).toHaveValue("温度, 湿度");
 
@@ -489,7 +498,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.queryByLabelText("固定选项 focus_metric")).not.toBeInTheDocument();
   });
 
-  it("renders specialized controls for number, threshold, boolean, and operator blocks", async () => {
+  it("renders specialized controls for number, threshold, boolean, and operator slots", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -508,15 +517,23 @@ describe("TemplateDetailPage", () => {
 
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
+    fireEvent.click(screen.getByRole("button", { name: /top_n/i }));
 
     expect(screen.getByLabelText("数值默认值 top_n")).toHaveAttribute("type", "number");
+    fireEvent.click(screen.getByRole("button", { name: /alarm_threshold/i }));
     expect(screen.getByLabelText("数值默认值 alarm_threshold")).toHaveAttribute("type", "number");
+    fireEvent.click(screen.getByRole("button", { name: /include_closed_loop/i }));
     expect(screen.getByLabelText("布尔默认值 include_closed_loop")).toHaveValue("true");
+    fireEvent.click(screen.getByRole("button", { name: /compare_operator/i }));
     expect(screen.getByLabelText("运算符默认值 compare_operator")).toHaveValue(">=");
 
+    fireEvent.click(screen.getByRole("button", { name: /top_n/i }));
     expect(screen.queryByLabelText("控件形态 top_n")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /alarm_threshold/i }));
     expect(screen.queryByLabelText("控件形态 alarm_threshold")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /include_closed_loop/i }));
     expect(screen.queryByLabelText("控件形态 include_closed_loop")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /compare_operator/i }));
     expect(screen.queryByLabelText("控件形态 compare_operator")).not.toBeInTheDocument();
   });
 });

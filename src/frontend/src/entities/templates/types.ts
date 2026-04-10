@@ -28,7 +28,7 @@ export type TemplateForeach = {
   as: string;
 };
 
-export type TemplateOutlineBlock = {
+export type TemplateRequirementSlot = {
   id: string;
   type: "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
   hint?: string;
@@ -40,9 +40,9 @@ export type TemplateOutlineBlock = {
   widget?: string;
 };
 
-export type TemplateOutlineBlueprint = {
-  document: string;
-  blocks: TemplateOutlineBlock[];
+export type TemplateSectionOutline = {
+  requirement: string;
+  slots: TemplateRequirementSlot[];
 };
 
 export type TemplateDatasetSource = {
@@ -107,7 +107,7 @@ export type TemplateContent = {
 export type TemplateSection = {
   title: string;
   description?: string;
-  outline?: TemplateOutlineBlueprint;
+  outline?: TemplateSectionOutline;
   foreach?: TemplateForeach;
   content?: TemplateContent;
   subsections?: TemplateSection[];

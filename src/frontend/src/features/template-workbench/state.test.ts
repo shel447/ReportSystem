@@ -24,8 +24,8 @@ describe("template workbench state", () => {
         {
           title: "概览 {date}",
           outline: {
-            document: "分析 {@focus_metric} 在 {date} 的变化",
-            blocks: [
+            requirement: "分析 {@focus_metric} 在 {date} 的变化",
+            slots: [
               { id: "focus_metric", type: "indicator", hint: "关注指标", default: "振动" },
             ],
           },
@@ -47,8 +47,8 @@ describe("template workbench state", () => {
     expect(state.parameters[0].label).toBe("日期");
     expect(state.parameters[1].multi).toBe(true);
     expect(state.sections).toHaveLength(1);
-    expect(state.sections[0].outline?.document).toBe("分析 {@focus_metric} 在 {date} 的变化");
-    expect(state.sections[0].outline?.blocks[0].id).toBe("focus_metric");
+    expect(state.sections[0].outline?.requirement).toBe("分析 {@focus_metric} 在 {date} 的变化");
+    expect(state.sections[0].outline?.slots[0].id).toBe("focus_metric");
     expect(state.sections[0].content?.datasets[0].source.kind).toBe("sql");
     expect(state.previewSamples).toEqual({});
   });
@@ -78,10 +78,10 @@ describe("template workbench state", () => {
       foreachAlias: "item",
       kind: "content",
       outline: {
-        document: "分析 {@focus_metric} 在 {date} 的变化",
-        blocks: [
+        requirement: "分析 {@focus_metric} 在 {date} 的变化",
+        slots: [
           {
-            uiKey: "block-1",
+            uiKey: "slot-1",
             id: "focus_metric",
             type: "indicator",
             hint: "关注指标",
@@ -114,8 +114,8 @@ describe("template workbench state", () => {
     expect(payload.sections[0]).toEqual({
       title: "概览 {date}",
       outline: {
-        document: "分析 {@focus_metric} 在 {date} 的变化",
-        blocks: [
+        requirement: "分析 {@focus_metric} 在 {date} 的变化",
+        slots: [
           {
             id: "focus_metric",
             type: "indicator",

@@ -27,14 +27,14 @@ export type InstanceBaselineNode = {
   dynamic_meta?: Record<string, unknown>;
   ai_generated?: boolean;
   node_kind?: "group" | "structured_leaf" | "freeform_leaf";
-  outline_instance?: {
-    document_template?: string;
-    rendered_document?: string;
+  requirement_instance?: {
+    requirement_template?: string;
+    rendered_requirement?: string;
     segments?: Array<
       | { kind: "text"; text: string }
-      | { kind: "block"; block_id: string; block_type?: string; value?: string }
+      | { kind: "slot"; slot_id: string; slot_type?: string; value?: string }
     >;
-    blocks?: Array<{
+    slots?: Array<{
       id: string;
       type?: string;
       hint?: string;
@@ -47,7 +47,7 @@ export type InstanceBaselineNode = {
     }>;
   };
   execution_bindings?: Array<{
-    block_id: string;
+    slot_id: string;
     targets: string[];
   }>;
   children: InstanceBaselineNode[];

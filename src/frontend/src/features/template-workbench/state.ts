@@ -3,12 +3,12 @@ import type {
   TemplateDataset,
   TemplateDetail,
   TemplateEditableDraft,
-  TemplateOutlineBlock,
-  TemplateOutlineBlueprint,
   TemplateLayout,
   TemplateParameter,
   TemplatePresentation,
+  TemplateRequirementSlot,
   TemplateSection,
+  TemplateSectionOutline,
   TemplateUpsertPayload,
 } from "../../entities/templates/types";
 
@@ -63,22 +63,22 @@ export type WorkbenchSection = {
   foreachParam: string;
   foreachAlias: string;
   kind: SectionKind;
-  outline: WorkbenchOutlineBlueprint | null;
+  outline: WorkbenchSectionOutline | null;
   content: WorkbenchContent | null;
   children: WorkbenchSection[];
 };
 
-export type OutlineBlockType = "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
+export type RequirementSlotType = "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
 
-export type WorkbenchOutlineBlueprint = {
-  document: string;
-  blocks: WorkbenchOutlineBlock[];
+export type WorkbenchSectionOutline = {
+  requirement: string;
+  slots: WorkbenchRequirementSlot[];
 };
 
-export type WorkbenchOutlineBlock = {
+export type WorkbenchRequirementSlot = {
   uiKey: string;
   id: string;
-  type: OutlineBlockType;
+  type: RequirementSlotType;
   hint: string;
   defaultValue: string;
   options: string[];
@@ -277,7 +277,7 @@ function serializeSection(value: WorkbenchSection): TemplateSection {
       as: value.foreachAlias.trim() || "item",
     };
   }
-  if (value.outline && (value.outline.document.trim() || value.outline.blocks.length)) {
+  if (value.outline && (value.outline.requirement.trim() || value.outline.slots.length)) {
     payload.outline = serializeOutline(value.outline);
   }
   if (value.kind === "group") {
@@ -297,24 +297,26 @@ function normalizeContent(value?: { datasets?: TemplateDataset[]; presentation?:
   };
 }
 
-function normalizeOutline(value?: TemplateOutlineBlueprint | null, keyPrefix = "outline"): WorkbenchOutlineBlueprint | null {
+function normalizeOutline(value?: TemplateSectionOutline | null, keyPrefix = "outline"): WorkbenchSectionOutline | null {
   if (!value) {
     return null;
   }
+  const legacyRequirement = (value as { document?: string }).document ?? "";
+  const legacySlots = (value as { blocks?: TemplateRequirementSlot[] }).blocks ?? [];
   return {
-    document: value.document ?? "",
-    blocks: (value.blocks ?? []).map((item, index) => normalizeOutlineBlock(item, `${keyPrefix}-block-${index + 1}`)),
+    requirement: value.requirement ?? legacyRequirement,
+    slots: (value.slots ?? legacySlots).map((item, index) => normalizeOutlineSlot(item, `${keyPrefix}-slot-${index + 1}`)),
   };
 }
 
-function serializeOutline(value: WorkbenchOutlineBlueprint): TemplateOutlineBlueprint {
+function serializeOutline(value: WorkbenchSectionOutline): TemplateSectionOutline {
   return {
-    document: value.document,
-    blocks: value.blocks.map(serializeOutlineBlock),
+    requirement: value.requirement,
+    slots: value.slots.map(serializeOutlineSlot),
   };
 }
 
-function normalizeOutlineBlock(value: TemplateOutlineBlock, uiKey: string): WorkbenchOutlineBlock {
+function normalizeOutlineSlot(value: TemplateRequirementSlot, uiKey: string): WorkbenchRequirementSlot {
   return {
     uiKey,
     id: value.id ?? "",
@@ -329,8 +331,8 @@ function normalizeOutlineBlock(value: TemplateOutlineBlock, uiKey: string): Work
   };
 }
 
-function serializeOutlineBlock(value: WorkbenchOutlineBlock): TemplateOutlineBlock {
-  const payload: TemplateOutlineBlock = {
+function serializeOutlineSlot(value: WorkbenchRequirementSlot): TemplateRequirementSlot {
+  const payload: TemplateRequirementSlot = {
     id: value.id.trim(),
     type: value.type,
   };

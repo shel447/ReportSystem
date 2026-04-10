@@ -73,15 +73,15 @@ describe("InstanceDetailPage", () => {
                 level: 1,
                 node_kind: "structured_leaf",
                 ai_generated: false,
-                outline_instance: {
-                  document_template: "分析 {@target_scene} 的巡检情况",
-                  rendered_document: "分析 总部 的巡检情况",
+                requirement_instance: {
+                  requirement_template: "分析 {@target_scene} 的巡检情况",
+                  rendered_requirement: "分析 总部 的巡检情况",
                   segments: [
                     { kind: "text", text: "分析 " },
-                    { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                    { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                     { kind: "text", text: " 的巡检情况" },
                   ],
-                  blocks: [
+                  slots: [
                     { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
                   ],
                 },
@@ -258,15 +258,15 @@ describe("InstanceDetailPage", () => {
                 level: 1,
                 node_kind: "structured_leaf",
                 ai_generated: false,
-                outline_instance: {
-                  document_template: "分析 {@target_scene} 的巡检情况",
-                  rendered_document: "分析 总部 的巡检情况",
+                requirement_instance: {
+                  requirement_template: "分析 {@target_scene} 的巡检情况",
+                  rendered_requirement: "分析 总部 的巡检情况",
                   segments: [
                     { kind: "text", text: "分析 " },
-                    { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                    { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                     { kind: "text", text: " 的巡检情况" },
                   ],
-                  blocks: [
+                  slots: [
                     { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
                   ],
                 },

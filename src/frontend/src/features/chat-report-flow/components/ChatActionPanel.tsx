@@ -49,7 +49,7 @@ type OutlineDraftRow = {
   ai_generated: boolean;
   node_kind: "group" | "structured_leaf" | "freeform_leaf";
   dynamic_meta?: Record<string, unknown>;
-  outline_instance?: OutlineDraftNode["outline_instance"];
+  requirement_instance?: OutlineDraftNode["requirement_instance"];
 };
 
 export function ChatActionPanel({
@@ -470,7 +470,7 @@ function ReviewOutlinePanel({
         onCommitEdit={commitInlineEdit}
         onCancelEdit={cancelInlineEdit}
         onBeginBlockEdit={(node, blockId) => {
-          const block = (node.outline_instance?.blocks ?? []).find((item) => item.id === blockId);
+          const block = (node.requirement_instance?.slots ?? []).find((item) => item.id === blockId);
           setSelectedNodeId(node.node_id);
           syncEditingNodeId(null);
           draftDisplayTextRef.current = "";
@@ -613,7 +613,7 @@ function flattenOutlineTree(nodes: OutlineDraftNode[]): OutlineDraftRow[] {
         ai_generated: Boolean(item.ai_generated),
         node_kind: item.node_kind ?? (item.children?.length ? "group" : "freeform_leaf"),
         ...(item.dynamic_meta ? { dynamic_meta: item.dynamic_meta } : {}),
-        ...(item.outline_instance ? { outline_instance: item.outline_instance } : {}),
+        ...(item.requirement_instance ? { requirement_instance: item.requirement_instance } : {}),
       });
       visit(item.children ?? []);
     });
@@ -637,7 +637,7 @@ function buildOutlineTree(rows: OutlineDraftRow[]): OutlineDraftNode[] {
       ai_generated: row.ai_generated,
       node_kind: row.node_kind,
       ...(row.dynamic_meta ? { dynamic_meta: row.dynamic_meta } : {}),
-      ...(row.outline_instance ? { outline_instance: row.outline_instance } : {}),
+      ...(row.requirement_instance ? { requirement_instance: row.requirement_instance } : {}),
     };
     while (stack.length && stack[stack.length - 1].level >= row.level) {
       stack.pop();
@@ -683,7 +683,7 @@ function applyInlineEditToTree(nodes: OutlineDraftNode[], nodeId: string, draftD
       node_kind: node.children.length ? "group" : "freeform_leaf",
       ai_generated: false,
     };
-    delete degradedNode.outline_instance;
+    delete degradedNode.requirement_instance;
     delete degradedNode.execution_bindings;
     return degradedNode;
   });
@@ -692,14 +692,14 @@ function applyInlineEditToTree(nodes: OutlineDraftNode[], nodeId: string, draftD
 function applyBlockEditToTree(nodes: OutlineDraftNode[], nodeId: string, blockId: string, draftValue: string) {
   const nextValue = draftValue.trim();
   return mapOutlineTree(nodes, nodeId, (node) => {
-    if (!node.outline_instance) {
+    if (!node.requirement_instance) {
       return node;
     }
-    const nextBlocks = (node.outline_instance.blocks ?? []).map((block) =>
+    const nextBlocks = (node.requirement_instance.slots ?? []).map((block) =>
       block.id === blockId ? { ...block, value: nextValue } : block,
     );
-    const nextSegments = (node.outline_instance.segments ?? []).map((segment) =>
-      segment.kind === "block" && segment.block_id === blockId ? { ...segment, value: nextValue } : segment,
+    const nextSegments = (node.requirement_instance.segments ?? []).map((segment) =>
+      segment.kind === "slot" && segment.slot_id === blockId ? { ...segment, value: nextValue } : segment,
     );
     const renderedDocument = nextSegments
       .map((segment) => (segment.kind === "text" ? segment.text : segment.value ?? ""))
@@ -709,10 +709,10 @@ function applyBlockEditToTree(nodes: OutlineDraftNode[], nodeId: string, blockId
       ...node,
       display_text: renderedDocument || node.display_text,
       outline_mode: undefined,
-      outline_instance: {
-        ...node.outline_instance,
-        rendered_document: renderedDocument,
-        blocks: nextBlocks,
+      requirement_instance: {
+        ...node.requirement_instance,
+        rendered_requirement: renderedDocument,
+        slots: nextBlocks,
         segments: nextSegments,
       },
     };
@@ -720,30 +720,30 @@ function applyBlockEditToTree(nodes: OutlineDraftNode[], nodeId: string, blockId
 }
 
 function tryPreserveStructuredSentence(node: OutlineDraftNode, nextDisplayText: string): OutlineDraftNode | null {
-  if (!node.outline_instance?.segments?.length) {
+  if (!node.requirement_instance?.segments?.length) {
     return null;
   }
-  const parsed = parseStructuredSentence(node.outline_instance.segments, nextDisplayText);
+  const parsed = parseStructuredSentence(node.requirement_instance.segments, nextDisplayText);
   if (!parsed) {
     return null;
   }
-  const nextBlocks = (node.outline_instance.blocks ?? []).map((block) => ({
+  const nextBlocks = (node.requirement_instance.slots ?? []).map((block) => ({
     ...block,
     value: parsed.blockValues.get(block.id) ?? block.value ?? "",
   }));
-  const nextSegments = (node.outline_instance.segments ?? []).map((segment) =>
-    segment.kind === "block"
-      ? { ...segment, value: parsed.blockValues.get(segment.block_id) ?? segment.value ?? "" }
+  const nextSegments = (node.requirement_instance.segments ?? []).map((segment) =>
+    segment.kind === "slot"
+      ? { ...segment, value: parsed.blockValues.get(segment.slot_id) ?? segment.value ?? "" }
       : segment,
   );
   const preservedNode: OutlineDraftNode = {
     ...node,
     display_text: nextDisplayText,
     outline_mode: undefined,
-    outline_instance: {
-      ...node.outline_instance,
-      rendered_document: nextDisplayText,
-      blocks: nextBlocks,
+    requirement_instance: {
+      ...node.requirement_instance,
+      rendered_requirement: nextDisplayText,
+      slots: nextBlocks,
       segments: nextSegments,
     },
   };
@@ -751,7 +751,7 @@ function tryPreserveStructuredSentence(node: OutlineDraftNode, nextDisplayText: 
 }
 
 function parseStructuredSentence(
-  segments: NonNullable<NonNullable<OutlineDraftNode["outline_instance"]>["segments"]>,
+  segments: NonNullable<NonNullable<OutlineDraftNode["requirement_instance"]>["segments"]>,
   sentence: string,
 ) {
   const blockIds: string[] = [];
@@ -760,7 +760,7 @@ function parseStructuredSentence(
       if (segment.kind === "text") {
         return escapeRegex(segment.text);
       }
-      blockIds.push(segment.block_id);
+      blockIds.push(segment.slot_id);
       return "(.*?)";
     })
     .join("");

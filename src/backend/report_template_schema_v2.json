@@ -95,7 +95,7 @@
         },
         "outline": {
           "$ref": "#/$defs/OutlineBlueprint",
-          "description": "面向用户的大纲蓝图，包含 document 与 blocks"
+          "description": "面向用户的大纲蓝图，包含 requirement 与 slots"
         },
         "foreach": {
           "$ref": "#/$defs/Foreach",
@@ -114,14 +114,14 @@
     },
     "OutlineBlueprint": {
       "type": "object",
-      "required": ["document", "blocks"],
+      "required": ["requirement", "slots"],
       "additionalProperties": false,
       "properties": {
-        "document": {
+        "requirement": {
           "type": "string",
-          "description": "蓝图文稿，可包含 {@block_id} 占位符"
+          "description": "蓝图文稿，可包含 {@slot_id} 占位符"
         },
-        "blocks": {
+        "slots": {
           "type": "array",
           "items": { "$ref": "#/$defs/OutlineBlock" }
         }

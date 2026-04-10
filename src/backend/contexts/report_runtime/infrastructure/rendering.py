@@ -241,10 +241,10 @@ def _build_outline_node(
             level=level,
         )
 
-    outline_instance = _build_outline_instance(section.get("outline"), params, locals_ctx)
+    requirement_instance = _build_requirement_instance(section.get("outline"), params, locals_ctx)
     outline_values = {
         str(item.get("id") or "").strip(): item.get("value")
-        for item in (outline_instance or {}).get("blocks", [])
+        for item in (requirement_instance or {}).get("slots", [])
         if str(item.get("id") or "").strip()
     }
     execution_bindings = _collect_execution_bindings(section, outline_values)
@@ -262,8 +262,8 @@ def _build_outline_node(
     dynamic_meta = _dynamic_meta_from_locals(locals_ctx)
     if dynamic_meta:
         node["dynamic_meta"] = dynamic_meta
-    if outline_instance:
-        node["outline_instance"] = outline_instance
+    if requirement_instance:
+        node["requirement_instance"] = requirement_instance
     if execution_bindings:
         node["execution_bindings"] = execution_bindings
 
@@ -283,7 +283,7 @@ def _build_outline_node(
         )
         node["section_kind"] = "group"
         node["node_kind"] = "group"
-        node["display_text"] = str((outline_instance or {}).get("rendered_document") or _outline_display_text(title, description))
+        node["display_text"] = str((requirement_instance or {}).get("rendered_requirement") or _outline_display_text(title, description))
         node["ai_generated"] = False
         node["children"] = rendered_children
         return [node]
@@ -306,7 +306,7 @@ def _build_outline_node(
         params,
         locals_ctx,
         outline_values,
-        outline_instance,
+        requirement_instance,
     )
     return [node]
 
@@ -1051,9 +1051,9 @@ def _outline_leaf_display_text(
     params: Dict[str, Any],
     locals_ctx: Dict[str, Any],
     outline_ctx: Dict[str, Any],
-    outline_instance: Dict[str, Any] | None,
+    requirement_instance: Dict[str, Any] | None,
 ) -> str:
-    rendered_outline = str((outline_instance or {}).get("rendered_document") or "").strip()
+    rendered_outline = str((requirement_instance or {}).get("rendered_requirement") or "").strip()
     if rendered_outline:
         return rendered_outline
     preview = str(description or "").strip()
@@ -1104,7 +1104,7 @@ def _content_uses_ai(content: Dict[str, Any]) -> bool:
     return False
 
 
-def _build_outline_instance(
+def _build_requirement_instance(
     outline: Any,
     params: Dict[str, Any],
     locals_ctx: Dict[str, Any],
@@ -1112,20 +1112,20 @@ def _build_outline_instance(
     if not isinstance(outline, dict):
         return None
     document = str(outline.get("document") or "")
-    blocks_input = _as_list(outline.get("blocks"))
+    blocks_input = _as_list(outline.get("slots"))
     blocks: List[Dict[str, Any]] = []
     outline_ctx: Dict[str, Any] = {}
     for raw in blocks_input:
         if not isinstance(raw, dict):
             continue
-        block_id = str(raw.get("id") or "").strip()
-        if not block_id:
+        slot_id = str(raw.get("id") or "").strip()
+        if not slot_id:
             continue
         value = _resolve_outline_block_value(raw, params, locals_ctx, outline_ctx)
-        outline_ctx[block_id] = value
+        outline_ctx[slot_id] = value
         blocks.append(
             {
-                "id": block_id,
+                "id": slot_id,
                 "type": str(raw.get("type") or "").strip(),
                 "hint": str(raw.get("hint") or "").strip(),
                 "value": value,
@@ -1145,13 +1145,13 @@ def _build_outline_instance(
             rendered_text = _render_text(raw_text, params, locals_ctx, outline_ctx)
             if rendered_text:
                 segments.append({"kind": "text", "text": rendered_text})
-        block_id = match.group(1)
+        slot_id = match.group(1)
         segments.append(
             {
-                "kind": "block",
-                "block_id": block_id,
-                "block_type": next((item.get("type") for item in blocks if item.get("id") == block_id), ""),
-                "value": outline_ctx.get(block_id, ""),
+                "kind": "slot",
+                "slot_id": slot_id,
+                "slot_type": next((item.get("type") for item in blocks if item.get("id") == slot_id), ""),
+                "value": outline_ctx.get(slot_id, ""),
             }
         )
         cursor = match.end()
@@ -1161,17 +1161,17 @@ def _build_outline_instance(
         if rendered_text:
             segments.append({"kind": "text", "text": rendered_text})
 
-    rendered_document = "".join(
+    rendered_requirement = "".join(
         str(segment.get("text") if segment.get("kind") == "text" else segment.get("value") or "")
         for segment in segments
     ).strip()
-    if not rendered_document:
-        rendered_document = _collapse_preview_text(_render_text(document, params, locals_ctx, outline_ctx))
+    if not rendered_requirement:
+        rendered_requirement = _collapse_preview_text(_render_text(document, params, locals_ctx, outline_ctx))
     return {
-        "document_template": document,
-        "rendered_document": rendered_document,
+        "requirement_template": document,
+        "rendered_requirement": rendered_requirement,
         "segments": segments,
-        "blocks": blocks,
+        "slots": blocks,
     }
 
 
@@ -1195,8 +1195,8 @@ def _resolve_outline_block_value(
 
 
 def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
-    available_block_ids = {key for key in outline_ctx.keys() if key}
-    if not available_block_ids:
+    available_slot_ids = {key for key in outline_ctx.keys() if key}
+    if not available_slot_ids:
         return []
 
     targets: Dict[str, List[str]] = {}
@@ -1204,12 +1204,12 @@ def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, 
     def collect(value: Any, target: str) -> None:
         text = str(value or "")
         for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", text):
-            block_id = str(match.group(1) or "").strip()
-            if not block_id or block_id not in available_block_ids:
+            slot_id = str(match.group(1) or "").strip()
+            if not slot_id or slot_id not in available_slot_ids:
                 continue
-            targets.setdefault(block_id, [])
-            if target not in targets[block_id]:
-                targets[block_id].append(target)
+            targets.setdefault(slot_id, [])
+            if target not in targets[slot_id]:
+                targets[slot_id].append(target)
 
     collect(section.get("title"), "title")
     collect(section.get("description"), "description")
@@ -1230,10 +1230,10 @@ def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, 
 
     return [
         {
-            "block_id": block_id,
+            "slot_id": slot_id,
             "targets": entries,
         }
-        for block_id, entries in sorted(targets.items())
+        for slot_id, entries in sorted(targets.items())
     ]
 
 

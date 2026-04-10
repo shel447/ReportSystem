@@ -45,7 +45,7 @@ describe("OutlineTree", () => {
     expect(screen.getByText("执行摘要：系统生成本节内容")).toBeInTheDocument();
   });
 
-  it("renders readonly structured blueprint nodes with readonly block chips and tooltip", () => {
+  it("renders readonly structured outline nodes with readonly slot chips and tooltip", () => {
     render(
       <OutlineTree
         mode="readonly"
@@ -59,15 +59,15 @@ describe("OutlineTree", () => {
             node_kind: "structured_leaf",
             ai_generated: false,
             children: [],
-            outline_instance: {
-              document_template: "分析 {@target_scene} 的巡检情况",
-              rendered_document: "分析 总部 的巡检情况",
+            requirement_instance: {
+              requirement_template: "分析 {@target_scene} 的巡检情况",
+              rendered_requirement: "分析 总部 的巡检情况",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                 { kind: "text", text: " 的巡检情况" },
               ],
-              blocks: [
+              slots: [
                 { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
               ],
             },
@@ -77,7 +77,8 @@ describe("OutlineTree", () => {
     );
 
     expect(screen.getByText("分析")).toBeInTheDocument();
-    const chip = screen.getByText("总部");
+    const chip = screen.getByText("总部").closest(".outline-tree__block-chip");
+    expect(chip).not.toBeNull();
     expect(chip).toHaveClass("outline-tree__block-chip", "outline-tree__block-chip--readonly");
     expect(chip).toHaveAttribute("title", "参数：场景（scene）");
     expect(screen.queryByText("分析 总部 的巡检情况")).not.toBeInTheDocument();
@@ -91,15 +92,15 @@ describe("OutlineTree", () => {
           {
             ...sampleOutline[0],
             children: [],
-            outline_instance: {
-              document_template: "分析 {@focus_metric} 的变化",
-              rendered_document: "分析 温度 的变化",
+            requirement_instance: {
+              requirement_template: "分析 {@focus_metric} 的变化",
+              rendered_requirement: "分析 温度 的变化",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "block", block_id: "focus_metric", block_type: "indicator", value: "温度" },
+                { kind: "slot", slot_id: "focus_metric", slot_type: "indicator", value: "温度" },
                 { kind: "text", text: " 的变化" },
               ],
-              blocks: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
+              slots: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
             },
           },
         ]}
@@ -136,7 +137,7 @@ describe("OutlineTree", () => {
     expect(screen.queryByLabelText("编辑章节 node-1")).not.toBeInTheDocument();
   });
 
-  it("renders time_range blocks with date range editors", () => {
+  it("renders time_range slots with date range editors", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -150,15 +151,15 @@ describe("OutlineTree", () => {
             node_kind: "structured_leaf",
             ai_generated: false,
             children: [],
-            outline_instance: {
-              document_template: "分析 {@period} 的变化",
-              rendered_document: "分析 2026-03-01 至 2026-03-07 的变化",
+            requirement_instance: {
+              requirement_template: "分析 {@period} 的变化",
+              rendered_requirement: "分析 2026-03-01 至 2026-03-07 的变化",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "block", block_id: "period", block_type: "time_range", value: "2026-03-01 至 2026-03-07" },
+                { kind: "slot", slot_id: "period", slot_type: "time_range", value: "2026-03-01 至 2026-03-07" },
                 { kind: "text", text: " 的变化" },
               ],
-              blocks: [
+              slots: [
                 { id: "period", type: "time_range", hint: "时间范围", value: "2026-03-01 至 2026-03-07", widget: "date_range" },
               ],
             },
@@ -198,7 +199,7 @@ describe("OutlineTree", () => {
     expect(screen.queryByLabelText("编辑要素值 period")).not.toBeInTheDocument();
   });
 
-  it("renders enum-like block editors with chip-aligned selects", () => {
+  it("renders enum-like slots with chip-aligned selects", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -212,15 +213,15 @@ describe("OutlineTree", () => {
             node_kind: "structured_leaf",
             ai_generated: false,
             children: [],
-            outline_instance: {
-              document_template: "分析 {@focus_metric} 的变化",
-              rendered_document: "分析 温度 的变化",
+            requirement_instance: {
+              requirement_template: "分析 {@focus_metric} 的变化",
+              rendered_requirement: "分析 温度 的变化",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "block", block_id: "focus_metric", block_type: "indicator", value: "温度" },
+                { kind: "slot", slot_id: "focus_metric", slot_type: "indicator", value: "温度" },
                 { kind: "text", text: " 的变化" },
               ],
-              blocks: [
+              slots: [
                 { id: "focus_metric", type: "indicator", hint: "指标", value: "温度", options: ["温度", "湿度"] },
               ],
             },
@@ -260,7 +261,7 @@ describe("OutlineTree", () => {
     expect(screen.getByText("的变化")).toBeInTheDocument();
   });
 
-  it("renders param_ref blocks as editable chips with hover tooltip", () => {
+  it("renders param_ref slots as editable chips with hover tooltip", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -274,15 +275,15 @@ describe("OutlineTree", () => {
             node_kind: "structured_leaf",
             ai_generated: false,
             children: [],
-            outline_instance: {
-              document_template: "分析 {@target_scene} 的巡检情况",
-              rendered_document: "分析 总部 的巡检情况",
+            requirement_instance: {
+              requirement_template: "分析 {@target_scene} 的巡检情况",
+              rendered_requirement: "分析 总部 的巡检情况",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                 { kind: "text", text: " 的巡检情况" },
               ],
-              blocks: [
+              slots: [
                 { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
               ],
             },
@@ -335,15 +336,15 @@ describe("OutlineTree", () => {
             node_kind: "structured_leaf",
             ai_generated: false,
             children: [],
-            outline_instance: {
-              document_template: "分析 {@target_scene} 的巡检情况",
-              rendered_document: "分析 总部 的巡检情况",
+            requirement_instance: {
+              requirement_template: "分析 {@target_scene} 的巡检情况",
+              rendered_requirement: "分析 总部 的巡检情况",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "block", block_id: "target_scene", block_type: "param_ref", value: "总部" },
+                { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
                 { kind: "text", text: " 的巡检情况" },
               ],
-              blocks: [
+              slots: [
                 { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
               ],
             },

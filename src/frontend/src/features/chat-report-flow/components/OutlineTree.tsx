@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { OutlineNode } from "../../../entities/chat/types";
 
-type OutlineBlock = NonNullable<NonNullable<OutlineNode["outline_instance"]>["blocks"]>[number];
+type OutlineBlock = NonNullable<NonNullable<OutlineNode["requirement_instance"]>["slots"]>[number];
 type BlockEditorMode = "date_range" | "select" | "text";
 
 export type OutlineDraftNode = Omit<OutlineNode, "children" | "display_text" | "ai_generated" | "node_kind"> & {
@@ -176,9 +176,9 @@ function OutlineTreeNodeView({
   const editing = mode === "editable" && editingNodeId === node.node_id;
   const selected = mode === "editable" && (selectedNodeId === node.node_id || editing);
   const blockLookup = new Map<string, OutlineBlock>(
-    (node.outline_instance?.blocks ?? []).map((block) => [block.id, block]),
+    (node.requirement_instance?.slots ?? []).map((block: OutlineBlock) => [block.id, block]),
   );
-  const hasStructuredOutline = mode === "editable" && Boolean(node.outline_instance?.segments?.length);
+  const hasStructuredOutline = mode === "editable" && Boolean(node.requirement_instance?.segments?.length);
   const isEditingBlockWithinNode =
     mode === "editable" && Boolean(editingBlockKey && editingBlockKey.startsWith(`${node.node_id}:`));
   const tools =
@@ -236,7 +236,7 @@ function OutlineTreeNodeView({
             onBeginEdit?.(node);
           }}
         >
-          {(node.outline_instance?.segments ?? []).map((segment, index) => {
+          {(node.requirement_instance?.segments ?? []).map((segment, index) => {
             if (segment.kind === "text") {
               return (
                 <span key={`${node.node_id}-text-${index}`} className="outline-tree__segment-text">
@@ -244,8 +244,8 @@ function OutlineTreeNodeView({
                 </span>
               );
             }
-            const blockKey = buildEditingBlockKey(node.node_id, segment.block_id);
-            const block = blockLookup.get(segment.block_id);
+            const blockKey = buildEditingBlockKey(node.node_id, segment.slot_id);
+            const block = blockLookup.get(segment.slot_id);
             const editorMode = getBlockEditorMode(block);
             const options = block?.options ?? [];
             const isEditingBlock = editingBlockKey === blockKey;
@@ -255,7 +255,7 @@ function OutlineTreeNodeView({
                 <span key={blockKey} className="outline-tree__date-range-editor">
                   <input
                     className="outline-tree__block-date outline-tree__block-date--chip-editing"
-                    aria-label={`开始日期 ${segment.block_id}`}
+                    aria-label={`开始日期 ${segment.slot_id}`}
                     data-range-block={blockKey}
                     type="date"
                     value={draftRange.start}
@@ -269,13 +269,13 @@ function OutlineTreeNodeView({
                       if (related?.dataset.rangeBlock === blockKey) {
                         return;
                       }
-                      onCommitBlockEdit?.(node.node_id, segment.block_id);
+                      onCommitBlockEdit?.(node.node_id, segment.slot_id);
                     }}
                   />
                   <span className="outline-tree__date-separator">至</span>
                   <input
                     className="outline-tree__block-date outline-tree__block-date--chip-editing"
-                    aria-label={`结束日期 ${segment.block_id}`}
+                    aria-label={`结束日期 ${segment.slot_id}`}
                     data-range-block={blockKey}
                     type="date"
                     value={draftRange.end}
@@ -288,7 +288,7 @@ function OutlineTreeNodeView({
                       if (related?.dataset.rangeBlock === blockKey) {
                         return;
                       }
-                      onCommitBlockEdit?.(node.node_id, segment.block_id);
+                      onCommitBlockEdit?.(node.node_id, segment.slot_id);
                     }}
                   />
                 </span>
@@ -299,15 +299,15 @@ function OutlineTreeNodeView({
                 <select
                   key={blockKey}
                   className="outline-tree__block-select outline-tree__block-select--chip-editing"
-                  aria-label={`编辑要素值 ${segment.block_id}`}
+                  aria-label={`编辑要素值 ${segment.slot_id}`}
                   value={blockDraftValue}
                   autoFocus
                   disabled={disabled}
                   onChange={(event) => {
                     onBlockDraftChange?.(event.target.value);
-                    onCommitBlockEdit?.(node.node_id, segment.block_id);
+                    onCommitBlockEdit?.(node.node_id, segment.slot_id);
                   }}
-                  onBlur={() => onCommitBlockEdit?.(node.node_id, segment.block_id)}
+                  onBlur={() => onCommitBlockEdit?.(node.node_id, segment.slot_id)}
                 >
                   {options.map((option) => (
                     <option key={option} value={option}>
@@ -333,7 +333,7 @@ function OutlineTreeNodeView({
                 <input
                   key={blockKey}
                   className="outline-tree__block-input outline-tree__block-input--inline outline-tree__block-input--chip-editing"
-                  aria-label={`编辑要素值 ${segment.block_id}`}
+                  aria-label={`编辑要素值 ${segment.slot_id}`}
                   type="text"
                   value={blockDraftValue}
                   size={inlineInputSize}
@@ -341,11 +341,11 @@ function OutlineTreeNodeView({
                   autoFocus
                   disabled={disabled}
                   onChange={(event) => onBlockDraftChange?.(event.target.value)}
-                  onBlur={() => onCommitBlockEdit?.(node.node_id, segment.block_id)}
+                  onBlur={() => onCommitBlockEdit?.(node.node_id, segment.slot_id)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      onCommitBlockEdit?.(node.node_id, segment.block_id);
+                      onCommitBlockEdit?.(node.node_id, segment.slot_id);
                     }
                     if (event.key === "Escape") {
                       event.preventDefault();
@@ -360,16 +360,16 @@ function OutlineTreeNodeView({
                 key={blockKey}
                 type="button"
                 className={`outline-tree__block-chip${block?.type === "param_ref" ? " outline-tree__block-chip--param-ref" : ""}`}
-                aria-label={`编辑要素 ${segment.block_id}`}
-                title={buildBlockTooltip(block, segment.block_id)}
+                aria-label={`编辑要素 ${segment.slot_id}`}
+                title={buildBlockTooltip(block, segment.slot_id)}
                 disabled={disabled}
                 onClick={(event) => {
                   event.stopPropagation();
                   onSelectNode?.(node.node_id);
-                  onBeginBlockEdit?.(node, segment.block_id);
+                  onBeginBlockEdit?.(node, segment.slot_id);
                 }}
               >
-                {segment.value || block?.hint || segment.block_id}
+                {segment.value || block?.hint || segment.slot_id}
               </button>
             );
           })}
@@ -393,10 +393,10 @@ function OutlineTreeNodeView({
   };
 
   const renderReadonlyContent = () => {
-    if (node.outline_instance?.segments?.length) {
+    if (node.requirement_instance?.segments?.length) {
       return (
         <div className="outline-tree__readonly-block">
-          {node.outline_instance.segments.map((segment, index) => {
+          {node.requirement_instance.segments.map((segment, index) => {
             if (segment.kind === "text") {
               return (
                 <span key={`${node.node_id}-readonly-text-${index}`} className="outline-tree__segment-text">
@@ -404,14 +404,14 @@ function OutlineTreeNodeView({
                 </span>
               );
             }
-            const block = blockLookup.get(segment.block_id);
+            const block = blockLookup.get(segment.slot_id);
             return (
               <span
-                key={`${node.node_id}-readonly-block-${segment.block_id}-${index}`}
+                key={`${node.node_id}-readonly-block-${segment.slot_id}-${index}`}
                 className="outline-tree__block-chip outline-tree__block-chip--readonly"
-                title={buildBlockTooltip(block, segment.block_id)}
+                title={buildBlockTooltip(block, segment.slot_id)}
               >
-                {segment.value || block?.hint || segment.block_id}
+                {segment.value || block?.hint || segment.slot_id}
               </span>
             );
           })}
@@ -514,7 +514,7 @@ export function serializeOutlineTree(nodes: OutlineDraftNode[]): OutlineNode[] {
     children: serializeOutlineTree(node.children),
     ...(node.outline_mode ? { outline_mode: node.outline_mode } : {}),
     ...(node.dynamic_meta ? { dynamic_meta: node.dynamic_meta } : {}),
-    ...(node.outline_instance ? { outline_instance: node.outline_instance } : {}),
+    ...(node.requirement_instance ? { requirement_instance: node.requirement_instance } : {}),
   }));
 }
 

@@ -53,10 +53,10 @@ export function collectParameterReferences(state: TemplateWorkbenchState, parame
     }
 
     if (section.outline) {
-      if (containsToken(section.outline.document, token)) {
-        references.push(`${breadcrumb}（诉求文稿）`);
+      if (containsToken(section.outline.requirement, token)) {
+        references.push(`${breadcrumb}（诉求句子）`);
       }
-      if (section.outline.blocks.some((block) => block.paramId === parameterId)) {
+      if (section.outline.slots.some((slot) => slot.paramId === parameterId)) {
         references.push(`${breadcrumb}（诉求要素）`);
       }
     }
@@ -128,37 +128,37 @@ function validateOutline(
 ) {
   if (!section.outline) {
     const summaryWithoutOutline = summarizeSectionOutlineBindings(section);
-    summaryWithoutOutline.invalidBlockIds.forEach((blockId) => {
-      errors.push(`执行链路引用了不存在的诉求要素：${sectionTitle} / ${blockId}`);
+    summaryWithoutOutline.invalidSlotIds.forEach((slotId) => {
+      errors.push(`执行链路引用了不存在的诉求要素：${sectionTitle} / ${slotId}`);
     });
     return;
   }
 
-  const blockIds = new Map<string, number>();
-  section.outline.blocks.forEach((block) => {
-    const blockId = block.id.trim();
-    if (!blockId) {
+  const slotIds = new Map<string, number>();
+  section.outline.slots.forEach((slot) => {
+    const slotId = slot.id.trim();
+    if (!slotId) {
       errors.push(`诉求要素标识不能为空：${sectionTitle}`);
       return;
     }
-    blockIds.set(blockId, (blockIds.get(blockId) ?? 0) + 1);
-    if (block.type === "param_ref" && !parametersById.has(block.paramId.trim())) {
-      errors.push(`诉求要素 param_ref 必须绑定已有参数：${sectionTitle} / ${blockId}`);
+    slotIds.set(slotId, (slotIds.get(slotId) ?? 0) + 1);
+    if (slot.type === "param_ref" && !parametersById.has(slot.paramId.trim())) {
+      errors.push(`诉求要素 param_ref 必须绑定已有参数：${sectionTitle} / ${slotId}`);
     }
-    if (["indicator", "scope", "enum_select"].includes(block.type) && !block.options.length && !block.source.trim()) {
-      errors.push(`诉求要素需要配置选项或来源：${sectionTitle} / ${blockId}`);
+    if (["indicator", "scope", "enum_select"].includes(slot.type) && !slot.options.length && !slot.source.trim()) {
+      errors.push(`诉求要素需要配置选项或来源：${sectionTitle} / ${slotId}`);
     }
   });
 
-  for (const [blockId, count] of blockIds.entries()) {
+  for (const [slotId, count] of slotIds.entries()) {
     if (count > 1) {
-      errors.push(`诉求要素标识不能重复：${sectionTitle} / ${blockId}`);
+      errors.push(`诉求要素标识不能重复：${sectionTitle} / ${slotId}`);
     }
   }
 
   const summary = summarizeSectionOutlineBindings(section);
-  summary.invalidBlockIds.forEach((blockId) => {
-    errors.push(`执行链路引用了不存在的诉求要素：${sectionTitle} / ${blockId}`);
+  summary.invalidSlotIds.forEach((slotId) => {
+    errors.push(`执行链路引用了不存在的诉求要素：${sectionTitle} / ${slotId}`);
   });
 }
 
