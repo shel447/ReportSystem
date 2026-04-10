@@ -82,14 +82,14 @@ class ConversationPersistenceGateway:
     def __init__(self, db) -> None:
         self.db = db
 
-    def list_sessions(self) -> list[dict[str, Any]]:
-        return list_chat_sessions(self.db)
+    def list_sessions(self, *, user_id: str) -> list[dict[str, Any]]:
+        return list_chat_sessions(self.db, user_id=user_id)
 
-    def get_session(self, session_id: str):
-        return self.db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
+    def get_session(self, session_id: str, *, user_id: str):
+        return self.db.query(ChatSession).filter(ChatSession.session_id == session_id, ChatSession.user_id == user_id).first()
 
-    def create_session(self):
-        session = ChatSession(session_id=gen_id(), messages=[])
+    def create_session(self, *, user_id: str):
+        session = ChatSession(session_id=gen_id(), user_id=user_id, messages=[])
         self.db.add(session)
         self.db.commit()
         self.db.refresh(session)
@@ -112,8 +112,8 @@ class ConversationPersistenceGateway:
     def derive_session_title(self, messages: list[dict[str, Any]]) -> str:
         return derive_session_title(messages)
 
-    def delete_session(self, session_id: str) -> bool:
-        session = self.get_session(session_id)
+    def delete_session(self, session_id: str, *, user_id: str) -> bool:
+        session = self.get_session(session_id, user_id=user_id)
         if not session:
             return False
         self.db.delete(session)
@@ -147,6 +147,13 @@ class ConversationPersistenceGateway:
 
     def get_generation_baseline(self, instance_id: str):
         return get_generation_baseline(self.db, instance_id)
+
+    def get_report_instance(self, instance_id: str, *, user_id: str):
+        return (
+            self.db.query(ReportInstance)
+            .filter(ReportInstance.instance_id == instance_id, ReportInstance.user_id == user_id)
+            .first()
+        )
 
     def delete_report_instance(self, instance_id: str) -> None:
         record = self.db.query(ReportInstance).filter(ReportInstance.instance_id == instance_id).first()
@@ -413,6 +420,9 @@ class ConversationReportGateway:
         template_id: str,
         input_params: dict[str, Any],
         outline_override: Optional[list[Any]],
+        user_id: str,
+        source_session_id: str | None,
+        source_message_id: str | None,
     ) -> dict[str, Any]:
         service = build_instance_application_service(self.db)
         try:
@@ -420,6 +430,9 @@ class ConversationReportGateway:
                 template_id=template_id,
                 input_params=input_params,
                 outline_override=outline_override,
+                user_id=user_id,
+                source_session_id=source_session_id,
+                source_message_id=source_message_id,
             )
         except AIConfigurationError as exc:
             raise ConversationReplyError(str(exc)) from exc

@@ -30,34 +30,34 @@ class SchedulingService:
     def list_tasks(self, *, user_id: str) -> list[dict[str, Any]]:
         return [serialize_task(task) for task in self.task_repository.list_for_user(user_id)]
 
-    def get_task(self, task_id: str) -> dict[str, Any]:
-        return serialize_task(self._require_task(task_id))
+    def get_task(self, task_id: str, *, user_id: str) -> dict[str, Any]:
+        return serialize_task(self._require_task(task_id, user_id=user_id))
 
-    def update_task(self, task_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        task = self.task_repository.update(task_id, updates)
+    def update_task(self, task_id: str, updates: dict[str, Any], *, user_id: str) -> dict[str, Any]:
+        task = self.task_repository.update(task_id, updates, user_id=user_id)
         if not task:
             raise NotFoundError("Task not found")
         return serialize_task(task)
 
-    def delete_task(self, task_id: str) -> dict[str, Any]:
-        if not self.task_repository.delete(task_id):
+    def delete_task(self, task_id: str, *, user_id: str) -> dict[str, Any]:
+        if not self.task_repository.delete(task_id, user_id=user_id):
             raise NotFoundError("Task not found")
         return {"message": "deleted"}
 
-    def pause_task(self, task_id: str) -> dict[str, Any]:
-        task = self.task_repository.update(task_id, {"status": "paused", "enabled": False})
+    def pause_task(self, task_id: str, *, user_id: str) -> dict[str, Any]:
+        task = self.task_repository.update(task_id, {"status": "paused", "enabled": False}, user_id=user_id)
         if not task:
             raise NotFoundError("Task not found")
         return {"message": "paused"}
 
-    def resume_task(self, task_id: str) -> dict[str, Any]:
-        task = self.task_repository.update(task_id, {"status": "active", "enabled": True})
+    def resume_task(self, task_id: str, *, user_id: str) -> dict[str, Any]:
+        task = self.task_repository.update(task_id, {"status": "active", "enabled": True}, user_id=user_id)
         if not task:
             raise NotFoundError("Task not found")
         return {"message": "resumed"}
 
-    def run_task_now(self, task_id: str) -> dict[str, Any]:
-        task = self._require_task(task_id)
+    def run_task_now(self, task_id: str, *, user_id: str) -> dict[str, Any]:
+        task = self._require_task(task_id, user_id=user_id)
         actual_run_time = self.clock.now()
         scheduled_time = actual_run_time
         params: dict[str, Any] = {}
@@ -70,6 +70,7 @@ class SchedulingService:
                 override_params=params,
                 report_time=scheduled_time if task.use_schedule_time_as_report_time else None,
                 report_time_source="scheduled_execution" if task.use_schedule_time_as_report_time else "",
+                user_id=task.user_id or "default",
             )
         except Exception as exc:
             self.execution_repository.record_failure(task.task_id, params, str(exc), actual_run_time)
@@ -93,12 +94,12 @@ class SchedulingService:
             "document_id": generated_document_id,
         }
 
-    def list_executions(self, task_id: str) -> list[dict[str, Any]]:
-        self._require_task(task_id)
+    def list_executions(self, task_id: str, *, user_id: str) -> list[dict[str, Any]]:
+        self._require_task(task_id, user_id=user_id)
         return self.execution_repository.list_for_task(task_id)
 
-    def _require_task(self, task_id: str) -> ScheduledTask:
-        task = self.task_repository.get(task_id)
+    def _require_task(self, task_id: str, *, user_id: str) -> ScheduledTask:
+        task = self.task_repository.get(task_id, user_id=user_id)
         if not task:
             raise NotFoundError("Task not found")
         return task

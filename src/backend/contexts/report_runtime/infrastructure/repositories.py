@@ -4,7 +4,6 @@ from copy import deepcopy
 from typing import Any
 
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
 from ..domain.models import GenerationBaseline, ReportInstance
 from ...template_catalog.domain.models import ReportTemplate
@@ -34,12 +33,18 @@ class SqlAlchemyReportInstanceRepository:
         status: str = "draft",
         report_time=None,
         report_time_source: str = "",
+        user_id: str = "default",
+        source_session_id: str | None = None,
+        source_message_id: str | None = None,
     ) -> ReportInstance:
         row = ReportInstanceModel(
             instance_id=gen_id(),
             template_id=template_id,
             template_version=template_version,
             status=status,
+            user_id=user_id or "default",
+            source_session_id=source_session_id,
+            source_message_id=source_message_id,
             input_params=input_params,
             outline_content=outline_content,
             report_time=report_time,
@@ -50,18 +55,26 @@ class SqlAlchemyReportInstanceRepository:
         self.db.refresh(row)
         return _to_instance(row)
 
-    def get(self, instance_id: str) -> ReportInstance | None:
-        row = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id).first()
+    def get(self, instance_id: str, user_id: str | None = None) -> ReportInstance | None:
+        query = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id)
+        if user_id:
+            query = query.filter(ReportInstanceModel.user_id == user_id)
+        row = query.first()
         return _to_instance(row) if row else None
 
-    def list(self, template_id: str | None = None) -> list[ReportInstance]:
+    def list(self, template_id: str | None = None, user_id: str | None = None) -> list[ReportInstance]:
         query = self.db.query(ReportInstanceModel)
         if template_id:
             query = query.filter(ReportInstanceModel.template_id == template_id)
+        if user_id:
+            query = query.filter(ReportInstanceModel.user_id == user_id)
         return [_to_instance(row) for row in query.order_by(ReportInstanceModel.created_at.desc()).all()]
 
-    def update_fields(self, instance_id: str, updates: dict[str, Any]) -> ReportInstance:
-        row = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id).first()
+    def update_fields(self, instance_id: str, updates: dict[str, Any], user_id: str | None = None) -> ReportInstance:
+        query = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id)
+        if user_id:
+            query = query.filter(ReportInstanceModel.user_id == user_id)
+        row = query.first()
         if not row:
             raise LookupError("Instance not found")
         for key, value in updates.items():
@@ -70,20 +83,25 @@ class SqlAlchemyReportInstanceRepository:
         self.db.refresh(row)
         return _to_instance(row)
 
-    def replace_outline_section(self, instance_id: str, section_index: int, section_payload: dict[str, Any]) -> ReportInstance:
-        row = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id).first()
+    def replace_outline_section(self, instance_id: str, section_index: int, section_payload: dict[str, Any], user_id: str | None = None) -> ReportInstance:
+        query = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id)
+        if user_id:
+            query = query.filter(ReportInstanceModel.user_id == user_id)
+        row = query.first()
         if not row:
             raise LookupError("Instance not found")
         content = list(row.outline_content or [])
         content[section_index] = section_payload
         row.outline_content = content
-        flag_modified(row, "outline_content")
         self.db.commit()
         self.db.refresh(row)
         return _to_instance(row)
 
-    def delete(self, instance_id: str) -> None:
-        row = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id).first()
+    def delete(self, instance_id: str, user_id: str | None = None) -> None:
+        query = self.db.query(ReportInstanceModel).filter(ReportInstanceModel.instance_id == instance_id)
+        if user_id:
+            query = query.filter(ReportInstanceModel.user_id == user_id)
+        row = query.first()
         if not row:
             raise LookupError("Instance not found")
         self.db.delete(row)
@@ -156,6 +174,9 @@ def _to_instance(row: ReportInstanceModel) -> ReportInstance:
         instance_id=row.instance_id,
         template_id=row.template_id,
         status=row.status,
+        user_id=row.user_id or "default",
+        source_session_id=row.source_session_id,
+        source_message_id=row.source_message_id,
         input_params=deepcopy(row.input_params or {}),
         outline_content=deepcopy(row.outline_content or []),
         report_time=row.report_time,

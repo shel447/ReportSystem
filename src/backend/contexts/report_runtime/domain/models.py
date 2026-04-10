@@ -10,6 +10,9 @@ class ReportInstance:
     instance_id: str
     template_id: str
     status: str
+    user_id: str = "default"
+    source_session_id: str | None = None
+    source_message_id: str | None = None
     input_params: dict[str, Any] = field(default_factory=dict)
     outline_content: list[Any] = field(default_factory=list)
     report_time: datetime | None = None

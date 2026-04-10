@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
 from .flow import apply_template_selection, build_review_outline_action, upsert_slots_from_params
 from .sessions import (
@@ -51,7 +50,6 @@ def fork_session_from_message(
     source_message_id: str,
 ) -> Dict[str, Any]:
     ensure_session_metadata(source_session)
-    flag_modified(source_session, "messages")
     db.commit()
     db.refresh(source_session)
 
@@ -69,6 +67,7 @@ def fork_session_from_message(
         copied_messages = deepcopy(source_messages[:end_index])
         draft_message = ""
 
+    _refresh_message_ids(copied_messages)
     fork_session_id = gen_id()
     restored_state = restore_state_from_history(copied_messages) or new_context_state(fork_session_id)
     restored_state.setdefault("meta", {})["session_id"] = fork_session_id
@@ -202,6 +201,14 @@ def _build_outline_review_session_from_template_instance(
     payload = serialize_chat_session_detail(forked)
     payload["draft_message"] = ""
     return payload
+
+
+
+def _refresh_message_ids(messages: List[Dict[str, Any]]) -> None:
+    for item in messages or []:
+        if not isinstance(item, dict):
+            continue
+        item["message_id"] = gen_id()
 
 
 def _template_instance_preview(template_instance: TemplateInstance, *, for_update: bool = False) -> str:

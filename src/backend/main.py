@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .infrastructure.persistence.database import init_db
-from .routers import chat, design, documents, feedback, instances, system_settings, tasks, template_instances, templates
+from .infrastructure.persistence.database import SessionLocal, init_db
+from .infrastructure.persistence.models import User
+from .routers import chat, design, documents, feedback, instances, parameter_options, system_settings, tasks, template_instances, templates
+from .shared.kernel.http import resolve_user_id
 
 CHATBI_PREFIX = "/rest/chatbi/v1"
 DEV_PREFIX = "/rest/dev"
@@ -26,6 +29,7 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     app.include_router(documents.router, prefix=CHATBI_PREFIX)
     app.include_router(tasks.router, prefix=CHATBI_PREFIX)
     app.include_router(chat.router, prefix=CHATBI_PREFIX)
+    app.include_router(parameter_options.router, prefix=CHATBI_PREFIX)
 
     app.include_router(design.router, prefix=DEV_PREFIX)
     app.include_router(feedback.router, prefix=DEV_PREFIX)
@@ -35,6 +39,23 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     assets_dir = os.path.join(resolved_frontend_dir, "assets")
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.middleware("http")
+    async def ensure_chatbi_user(request: Request, call_next):
+        if request.url.path.startswith(CHATBI_PREFIX):
+            user_id = resolve_user_id(request.headers.get("X-User-Id"))
+            db = SessionLocal()
+            try:
+                User.__table__.create(bind=db.get_bind(), checkfirst=True)
+                row = db.query(User).filter(User.id == user_id).first()
+                if row is None:
+                    row = User(id=user_id, display_name=user_id, status="active", profile_json={})
+                    db.add(row)
+                row.last_seen_at = datetime.now(timezone.utc).replace(microsecond=0)
+                db.commit()
+            finally:
+                db.close()
+        return await call_next(request)
 
     @app.get("/")
     async def index() -> FileResponse:

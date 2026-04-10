@@ -440,7 +440,7 @@ describe("TemplateDetailPage", () => {
     expect(await screen.findByDisplayValue("设备巡检报告")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /设备列表/ }));
-    await screen.findByLabelText("设备列表预览值");
+    await screen.findByLabelText("参数标识");
     fireEvent.change(screen.getByLabelText("参数标识"), {
       target: { value: "date" },
     });

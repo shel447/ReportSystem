@@ -652,10 +652,10 @@ function buildOptimisticActionMessage(payload: Omit<ChatRequest, "session_id">, 
     return candidate ? `选择模板：${candidate.template_name}` : "选择模板";
   }
   if (payload.command === "prepare_outline_review" || payload.command === "confirm_generation") {
-    return "确认参数并生成大纲";
+    return "确认参数并生成诉求";
   }
   if (payload.command === "edit_outline") {
-    return "保存大纲";
+    return "保存诉求";
   }
   if (payload.command === "confirm_outline_generation") {
     return "确认生成";
@@ -756,13 +756,13 @@ function getSessionSourceBanner(meta: ChatForkMeta | null, sessionTitle: string)
   if (meta.source_kind === "update_from_instance") {
     return {
       title: "更新来源",
-      body: `来源：${meta.source_title || sessionTitle || "未命名会话"} · 来自确认大纲`,
+      body: `来源：${meta.source_title || sessionTitle || "未命名会话"} · 来自确认诉求`,
     };
   }
 
   return {
     title: "Fork 来源",
-    body: `来源：${sessionTitle || meta.source_title || "未命名分支"} · ${meta.source_kind === "session_message" ? "来自历史消息" : "来自确认大纲"}`,
+    body: `来源：${sessionTitle || meta.source_title || "未命名分支"} · ${meta.source_kind === "session_message" ? "来自历史消息" : "来自确认诉求"}`,
   };
 }
 

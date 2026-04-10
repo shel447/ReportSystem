@@ -19,8 +19,11 @@ class SqlAlchemyScheduledTaskRepository:
         self.db.refresh(row)
         return _to_task(row)
 
-    def get(self, task_id: str) -> ScheduledTask | None:
-        row = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id).first()
+    def get(self, task_id: str, *, user_id: str | None = None) -> ScheduledTask | None:
+        query = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id)
+        if user_id:
+            query = query.filter(ScheduledTaskModel.user_id == user_id)
+        row = query.first()
         return _to_task(row) if row else None
 
     def list_for_user(self, user_id: str) -> list[ScheduledTask]:
@@ -35,8 +38,11 @@ class SqlAlchemyScheduledTaskRepository:
     def count_active_global(self) -> int:
         return self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.status.in_(["active", "paused"])).count()
 
-    def update(self, task_id: str, updates: dict) -> ScheduledTask | None:
-        row = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id).first()
+    def update(self, task_id: str, updates: dict, *, user_id: str | None = None) -> ScheduledTask | None:
+        query = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id)
+        if user_id:
+            query = query.filter(ScheduledTaskModel.user_id == user_id)
+        row = query.first()
         if not row:
             return None
         for key, value in updates.items():
@@ -45,8 +51,11 @@ class SqlAlchemyScheduledTaskRepository:
         self.db.refresh(row)
         return _to_task(row)
 
-    def delete(self, task_id: str) -> bool:
-        row = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id).first()
+    def delete(self, task_id: str, *, user_id: str | None = None) -> bool:
+        query = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id)
+        if user_id:
+            query = query.filter(ScheduledTaskModel.user_id == user_id)
+        row = query.first()
         if not row:
             return False
         self.db.delete(row)

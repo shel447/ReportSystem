@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 
+import { resolveParameterOptions } from "../../entities/parameter-options/api";
 import { EmptyState } from "../../shared/ui/EmptyState";
 import { StatusBanner } from "../../shared/ui/StatusBanner";
 import { SurfaceCard } from "../../shared/ui/SurfaceCard";
@@ -94,6 +96,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
   const [selectedSectionTab, setSelectedSectionTab] = useState<"outline" | "execution" | "sync">("outline");
   const [previewTab, setPreviewTab] = useState<"blueprint" | "execution" | "json">("blueprint");
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [dynamicQuery, setDynamicQuery] = useState("");
 
   const validationErrors = useMemo(() => validateWorkbench(value), [value]);
 
@@ -122,6 +125,16 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
     [selectedSection],
   );
   const saveDisabled = savePending || validationErrors.length > 0;
+  const dynamicOptionsMutation = useMutation({
+    mutationFn: () =>
+      resolveParameterOptions({
+        template_id: value.meta.templateId,
+        param_id: selectedParameter?.id ?? "",
+        source: selectedParameter?.source ?? "",
+        query: dynamicQuery.trim() || undefined,
+        selected_params: buildSelectedParams(value),
+      }),
+  });
 
   useEffect(() => {
     const datasets = selectedSection?.content?.datasets ?? [];
@@ -144,6 +157,11 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
     const timer = window.setTimeout(() => setFeedbackMessage(""), 3000);
     return () => window.clearTimeout(timer);
   }, [feedbackMessage]);
+
+  useEffect(() => {
+    setDynamicQuery("");
+    dynamicOptionsMutation.reset();
+  }, [selectedParamKey]);
 
   function updateState(mutator: (draft: TemplateWorkbenchState) => void) {
     const draft = JSON.parse(JSON.stringify(value)) as TemplateWorkbenchState;
@@ -583,10 +601,50 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                     </label>
                   )}
                   {selectedParameter.inputType === "dynamic" && (
-                    <label className="field field--full">
-                      <span className="field-label">动态来源</span>
-                      <input value={selectedParameter.source} onChange={(event) => updateParameter("source", event.target.value)} />
-                    </label>
+                    <>
+                      <label className="field field--full">
+                        <span className="field-label">动态来源</span>
+                        <input value={selectedParameter.source} onChange={(event) => updateParameter("source", event.target.value)} />
+                      </label>
+                      <div className="field field--full">
+                        <div className="workbench-inline-header">
+                          <span className="field-label">动态选项解析</span>
+                          <button
+                            className="ghost-button"
+                            type="button"
+                            onClick={() => dynamicOptionsMutation.mutate()}
+                            disabled={!selectedParameter.source.trim() || dynamicOptionsMutation.isPending}
+                          >
+                            {dynamicOptionsMutation.isPending ? "解析中..." : "解析动态选项"}
+                          </button>
+                        </div>
+                        <input
+                          aria-label="动态选项查询"
+                          value={dynamicQuery}
+                          onChange={(event) => setDynamicQuery(event.target.value)}
+                          placeholder="可选：输入查询词以过滤外部参数源"
+                        />
+                        {dynamicOptionsMutation.error ? (
+                          <p className="muted-text">解析失败：{dynamicOptionsMutation.error instanceof Error ? dynamicOptionsMutation.error.message : "请求失败"}</p>
+                        ) : null}
+                        {dynamicOptionsMutation.data ? (
+                          <div className="inline-panel">
+                            <strong>解析结果</strong>
+                            <div className="reason-list">
+                              {dynamicOptionsMutation.data.items.length
+                                ? dynamicOptionsMutation.data.items.map((item) => (
+                                    <span key={`${item.label}-${item.value}`}>{item.label}（{item.value}）</span>
+                                  ))
+                                : [<span key="empty">暂无可选值</span>]}
+                            </div>
+                            <p className="muted-text">
+                              返回 {dynamicOptionsMutation.data.meta.returned} 项
+                              {dynamicOptionsMutation.data.meta.retryable ? "，当前错误可重试。" : ""}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </>
                   )}
                   <label className="field field--full">
                     <span className="field-label">{`${selectedParameter.label || "参数"}预览值`}</span>
@@ -1706,6 +1764,14 @@ function formatPreviewSample(value: string | string[] | undefined): string {
     return value.join(", ");
   }
   return value ?? "";
+}
+
+function buildSelectedParams(state: TemplateWorkbenchState): Record<string, unknown> {
+  return Object.fromEntries(
+    state.parameters
+      .filter((parameter) => parameter.id)
+      .map((parameter) => [parameter.id, state.previewSamples[parameter.id] ?? ""]),
+  );
 }
 
 function suggestId(existingIds: string[], prefix: string) {

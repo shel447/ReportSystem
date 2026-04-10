@@ -164,7 +164,6 @@ export type ChatSessionSummary = {
   message_count: number;
   last_message_preview: string;
   matched_template_id?: string | null;
-  instance_id?: string | null;
   fork_meta?: ChatForkMeta | null;
 };
 

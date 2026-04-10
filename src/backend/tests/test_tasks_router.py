@@ -38,6 +38,35 @@ class TasksRouterTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
+    def test_list_tasks_uses_header_user_id_instead_of_query_default(self):
+        create_task(
+            TaskCreate(
+                name="默认用户任务",
+                source_instance_id="inst-src",
+                template_id="tpl-1",
+                user_id="default",
+            ),
+            db=self.db,
+            user_id="default",
+        )
+        create_task(
+            TaskCreate(
+                name="其他用户任务",
+                source_instance_id="inst-src",
+                template_id="tpl-1",
+                user_id="other",
+            ),
+            db=self.db,
+            user_id="other",
+        )
+
+        from backend.routers.tasks import list_tasks
+
+        payload = list_tasks(db=self.db, user_id="default")
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["name"], "默认用户任务")
+
     def test_create_task_round_trips_time_mapping_fields(self):
         created = create_task(
             TaskCreate(
@@ -78,12 +107,13 @@ class TasksRouterTests(unittest.TestCase):
         captured = {}
 
         class FakeSchedulingService:
-            def run_task_now(self, _task_id):
+            def run_task_now(self, _task_id, user_id=None):
                 captured.update(
                     {
                         "override_params": {"report_date": "2026-03-31 08:00"},
                         "report_time": datetime(2026, 3, 31, 8, 0, 0),
                         "report_time_source": "scheduled_execution",
+                        "user_id": user_id,
                     }
                 )
                 return {
@@ -98,6 +128,7 @@ class TasksRouterTests(unittest.TestCase):
         self.assertEqual(captured["override_params"]["report_date"], "2026-03-31 08:00")
         self.assertEqual(captured["report_time"], datetime(2026, 3, 31, 8, 0, 0))
         self.assertEqual(captured["report_time_source"], "scheduled_execution")
+        self.assertEqual(captured["user_id"], "default")
 
 
 if __name__ == "__main__":

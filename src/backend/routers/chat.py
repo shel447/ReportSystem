@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..infrastructure.persistence.database import get_db
 from ..infrastructure.dependencies import build_conversation_service
+from ..shared.kernel.http import resolve_user_id
 from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -35,14 +36,14 @@ class ChatForkRequest(BaseModel):
 
 
 @router.get("")
-def list_sessions(db: Session = Depends(get_db)):
-    return build_conversation_service(db).list_sessions()
+def list_sessions(db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
+    return build_conversation_service(db).list_sessions(user_id=resolve_user_id(user_id))
 
 
 @router.post("")
-def send_message(data: ChatMessage, db: Session = Depends(get_db)):
+def send_message(data: ChatMessage, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_conversation_service(db).send_message(data=data)
+        return build_conversation_service(db).send_message(data=data, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -52,17 +53,17 @@ def send_message(data: ChatMessage, db: Session = Depends(get_db)):
 
 
 @router.get("/{session_id}")
-def get_session(session_id: str, db: Session = Depends(get_db)):
+def get_session(session_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_conversation_service(db).get_session(session_id=session_id)
+        return build_conversation_service(db).get_session(session_id=session_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/forks")
-def fork_session(data: ChatForkRequest, db: Session = Depends(get_db)):
+def fork_session(data: ChatForkRequest, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_conversation_service(db).fork_session(data=data)
+        return build_conversation_service(db).fork_session(data=data, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConflictError as exc:
@@ -72,8 +73,8 @@ def fork_session(data: ChatForkRequest, db: Session = Depends(get_db)):
 
 
 @router.delete("/{session_id}")
-def delete_session(session_id: str, db: Session = Depends(get_db)):
+def delete_session(session_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_conversation_service(db).delete_session(session_id=session_id)
+        return build_conversation_service(db).delete_session(session_id=session_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

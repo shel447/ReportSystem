@@ -52,7 +52,7 @@ describe("ChatActionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "确认参数并生成大纲" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认参数并生成诉求" }));
 
     expect(screen.getByText("D00001、D00002")).toBeInTheDocument();
     expect(onCommand).toHaveBeenCalledWith("prepare_outline_review");
@@ -161,7 +161,7 @@ describe("ChatActionPanel", () => {
     fireEvent.change(inlineBlockInput, { target: { value: "湿度" } });
     fireEvent.keyDown(inlineBlockInput, { key: "Enter" });
 
-    fireEvent.click(screen.getByRole("button", { name: "保存大纲" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存诉求" }));
     fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
     fireEvent.click(screen.getByRole("button", { name: "返回改参数" }));
 
@@ -285,7 +285,7 @@ describe("ChatActionPanel", () => {
     const input = screen.getByLabelText("编辑章节 node-4");
     fireEvent.change(input, { target: { value: "分析 湿度 的变化" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "保存大纲" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存诉求" }));
 
     expect(onSubmitOutline).toHaveBeenCalledWith(
       "edit_outline",
@@ -344,7 +344,7 @@ describe("ChatActionPanel", () => {
     const input = screen.getByLabelText("编辑章节 node-5");
     fireEvent.change(input, { target: { value: "重点分析 湿度 的变化" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.click(screen.getByRole("button", { name: "保存大纲" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存诉求" }));
 
     expect(onSubmitOutline).toHaveBeenCalledWith(
       "edit_outline",

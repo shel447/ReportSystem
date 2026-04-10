@@ -24,7 +24,7 @@ export class ApiError extends Error {
 }
 
 export async function requestJson<T>(url: string, options?: RequestOptions): Promise<T> {
-  const response = await fetch(url, options);
+  const response = await fetch(url, withApiHeaders(url, options));
   if (!response.ok) {
     throw new ApiError(await readError(response), response.status);
   }
@@ -42,6 +42,30 @@ export function postJson<TResponse>(url: string, body: unknown): Promise<TRespon
     },
     body: JSON.stringify(body),
   });
+}
+
+function withApiHeaders(url: string, options?: RequestOptions): RequestOptions | undefined {
+  if (!isChatbiUrl(url)) {
+    return options;
+  }
+
+  const nextHeaders = new Headers(options?.headers ?? {});
+  if (!nextHeaders.has("X-User-Id")) {
+    nextHeaders.set("X-User-Id", "default");
+  }
+
+  return {
+    ...options,
+    headers: nextHeaders,
+  };
+}
+
+function isChatbiUrl(url: string): boolean {
+  return (
+    url.startsWith(CHATBI_API_PREFIX)
+    || url.includes(`${CHATBI_API_PREFIX}/`)
+    || url.includes(CHATBI_API_PREFIX)
+  );
 }
 
 export function putJson<TResponse>(url: string, body: unknown): Promise<TResponse> {

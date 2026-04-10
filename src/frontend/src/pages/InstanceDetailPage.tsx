@@ -201,12 +201,12 @@ export function InstanceDetailPage() {
                   <SurfaceCard>
                     <div className="action-row action-row--compact">
                       <button className="ghost-button" type="button" onClick={() => setShowBaseline((value) => !value)}>
-                        查看确认大纲
+                        查看确认诉求
                       </button>
                     </div>
                     {showBaseline && baselineQuery.data ? (
                       <div className="detail-block detail-block--wide">
-                        <p className="muted-text">更新预览：确认大纲 / 生成基线</p>
+                        <p className="muted-text">更新预览：确认诉求 / 生成基线</p>
                         <div className="inline-panel">
                           <strong>已确认参数</strong>
                           <div className="reason-list">

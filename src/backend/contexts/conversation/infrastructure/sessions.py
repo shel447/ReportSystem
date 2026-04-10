@@ -4,7 +4,6 @@ from copy import deepcopy
 from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.attributes import flag_modified
 
 from ....infrastructure.persistence.models import ChatSession, gen_id
 
@@ -33,7 +32,6 @@ def serialize_chat_session_summary(session: ChatSession) -> Dict[str, Any]:
         "session_id": session.session_id,
         "title": session.title or derive_session_title(session.messages or []),
         "matched_template_id": session.matched_template_id,
-        "instance_id": session.instance_id,
         "message_count": len(visible),
         "created_at": session.created_at.isoformat() if session.created_at else None,
         "updated_at": session.updated_at.isoformat() if session.updated_at else None,
@@ -57,7 +55,6 @@ def ensure_session_metadata(session: ChatSession) -> bool:
     messages = list(session.messages or [])
     if ensure_message_ids(messages):
         session.messages = messages
-        flag_modified(session, "messages")
         changed = True
     if not (session.title or "").strip():
         derived_title = derive_session_title(messages)

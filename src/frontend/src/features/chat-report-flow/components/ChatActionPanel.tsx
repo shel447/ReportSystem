@@ -286,7 +286,7 @@ function ReviewPanel({
           disabled={disabled}
           onClick={() => onCommand("prepare_outline_review")}
         >
-          确认参数并生成大纲
+          确认参数并生成诉求
         </button>
       </div>
     </section>
@@ -402,7 +402,7 @@ function ReviewOutlinePanel({
     <section className="action-card">
       <div className="card-heading">
         <div>
-          <p className="section-kicker">大纲确认</p>
+          <p className="section-kicker">诉求确认</p>
           {action.template_name ? (
             <p className="template-hint">
               <span>已匹配模板：</span>
@@ -510,7 +510,7 @@ function ReviewOutlinePanel({
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onSubmitOutline("edit_outline", flushPendingOutlineEdits())}
         >
-          保存大纲
+          保存诉求
         </button>
         <button
           className="primary-button"

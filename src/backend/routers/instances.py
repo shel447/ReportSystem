@@ -1,13 +1,14 @@
 """Report instance routes."""
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..infrastructure.persistence.database import get_db
 from ..infrastructure.dependencies import build_conversation_service, build_report_runtime_service
 from ..shared.kernel.errors import ConflictError, NotFoundError, UpstreamError, ValidationError
+from ..shared.kernel.http import resolve_user_id
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -24,13 +25,14 @@ class InstanceUpdate(BaseModel):
 
 
 @router.post("")
-def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
+def create_instance(data: InstanceCreate, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     service = build_report_runtime_service(db)
     try:
         result = service.create_instance(
             template_id=data.template_id,
             input_params=data.input_params or {},
             outline_override=data.outline_override,
+            user_id=resolve_user_id(user_id),
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -42,6 +44,9 @@ def create_instance(data: InstanceCreate, db: Session = Depends(get_db)):
         "instance_id": result["instance_id"],
         "template_id": result["template_id"],
         "status": result["status"],
+        "user_id": result.get("user_id", resolve_user_id(user_id)),
+        "source_session_id": result.get("source_session_id"),
+        "source_message_id": result.get("source_message_id"),
         "input_params": result["input_params"],
         "outline_content": result["outline_content"],
         "report_time": result.get("report_time"),
@@ -61,9 +66,9 @@ def get_instance_baseline(instance_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{instance_id}/update-chat")
-def update_instance_chat(instance_id: str, db: Session = Depends(get_db)):
+def update_instance_chat(instance_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_conversation_service(db).update_session_from_instance(instance_id=instance_id)
+        return build_conversation_service(db).update_session_from_instance(instance_id=instance_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConflictError as exc:
@@ -71,19 +76,20 @@ def update_instance_chat(instance_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{instance_id}/fork-sources")
-def list_instance_fork_sources(instance_id: str, db: Session = Depends(get_db)):
+def list_instance_fork_sources(instance_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_conversation_service(db).list_instance_fork_sources(instance_id=instance_id)
+        return build_conversation_service(db).list_instance_fork_sources(instance_id=instance_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/{instance_id}/fork-chat")
-def fork_instance_chat(instance_id: str, data: Dict[str, Any], db: Session = Depends(get_db)):
+def fork_instance_chat(instance_id: str, data: Dict[str, Any], db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
         return build_conversation_service(db).fork_instance_chat(
             instance_id=instance_id,
             source_message_id=str((data or {}).get("source_message_id") or "").strip(),
+            user_id=resolve_user_id(user_id),
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -92,41 +98,41 @@ def fork_instance_chat(instance_id: str, data: Dict[str, Any], db: Session = Dep
 
 
 @router.get("/{instance_id}")
-def get_instance(instance_id: str, db: Session = Depends(get_db)):
+def get_instance(instance_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_report_runtime_service(db).get_instance(instance_id)
+        return build_report_runtime_service(db).get_instance(instance_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.put("/{instance_id}")
-def update_instance(instance_id: str, data: InstanceUpdate, db: Session = Depends(get_db)):
+def update_instance(instance_id: str, data: InstanceUpdate, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_report_runtime_service(db).update_instance(instance_id, data.model_dump(exclude_none=True))
+        return build_report_runtime_service(db).update_instance(instance_id, data.model_dump(exclude_none=True), user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.delete("/{instance_id}")
-def delete_instance(instance_id: str, db: Session = Depends(get_db)):
+def delete_instance(instance_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_report_runtime_service(db).delete_instance(instance_id)
+        return build_report_runtime_service(db).delete_instance(instance_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/{instance_id}/finalize")
-def finalize_instance(instance_id: str, db: Session = Depends(get_db)):
+def finalize_instance(instance_id: str, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_report_runtime_service(db).finalize_instance(instance_id)
+        return build_report_runtime_service(db).finalize_instance(instance_id, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post("/{instance_id}/regenerate/{section_index}")
-def regenerate_section(instance_id: str, section_index: int, db: Session = Depends(get_db)):
+def regenerate_section(instance_id: str, section_index: int, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
     try:
-        return build_report_runtime_service(db).regenerate_section(instance_id, section_index)
+        return build_report_runtime_service(db).regenerate_section(instance_id, section_index, user_id=resolve_user_id(user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -136,5 +142,5 @@ def regenerate_section(instance_id: str, section_index: int, db: Session = Depen
 
 
 @router.get("")
-def list_instances(template_id: Optional[str] = None, db: Session = Depends(get_db)):
-    return build_report_runtime_service(db).list_instances(template_id=template_id)
+def list_instances(template_id: Optional[str] = None, db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
+    return build_report_runtime_service(db).list_instances(template_id=template_id, user_id=resolve_user_id(user_id))

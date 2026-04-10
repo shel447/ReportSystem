@@ -23,60 +23,63 @@ class ReportRuntimeService:
         self.template_repository = template_repository
         self.legacy_runtime = legacy_runtime
 
-    def create_instance(self, *, template_id: str, input_params: dict[str, Any], outline_override: Optional[list[Any]] = None) -> dict[str, Any]:
+    def create_instance(self, *, template_id: str, input_params: dict[str, Any], outline_override: Optional[list[Any]] = None, user_id: str = "default", source_session_id: str | None = None, source_message_id: str | None = None) -> dict[str, Any]:
         try:
             return self.instance_creator.create_instance(
                 template_id=template_id,
                 input_params=input_params or {},
                 outline_override=outline_override,
+                user_id=user_id,
+                source_session_id=source_session_id,
+                source_message_id=source_message_id,
             )
         except ValueError as exc:
             if str(exc) == "Template not found":
                 raise NotFoundError("Template not found") from exc
             raise ValidationError(str(exc)) from exc
 
-    def get_instance(self, instance_id: str) -> dict[str, Any]:
-        instance = self._require_instance(instance_id)
+    def get_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
+        instance = self._require_instance(instance_id, user_id=user_id)
         baseline = self.generation_baseline_repository.get_by_instance(instance_id)
         return self.serialize_instance(instance, baseline)
 
-    def list_instances(self, *, template_id: str | None = None) -> list[dict[str, Any]]:
-        instances = self.instance_repository.list(template_id)
+    def list_instances(self, *, template_id: str | None = None, user_id: str = "default") -> list[dict[str, Any]]:
+        instances = self.instance_repository.list(template_id, user_id=user_id)
         baseline_map = self.generation_baseline_repository.list_map_by_instances([item.instance_id for item in instances])
         return [self.serialize_instance(item, baseline_map.get(item.instance_id)) for item in instances]
 
-    def update_instance(self, instance_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    def update_instance(self, instance_id: str, updates: dict[str, Any], *, user_id: str = "default") -> dict[str, Any]:
         try:
-            instance = self.instance_repository.update_fields(instance_id, updates)
+            instance = self.instance_repository.update_fields(instance_id, updates, user_id=user_id)
         except LookupError as exc:
             raise NotFoundError("Instance not found") from exc
         baseline = self.generation_baseline_repository.get_by_instance(instance_id)
         return self.serialize_instance(instance, baseline)
 
-    def delete_instance(self, instance_id: str) -> dict[str, Any]:
+    def delete_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
         try:
             self.generation_baseline_repository.delete_by_instance(instance_id)
-            self.instance_repository.delete(instance_id)
+            self.instance_repository.delete(instance_id, user_id=user_id)
         except LookupError as exc:
             raise NotFoundError("Instance not found") from exc
         return {"message": "deleted"}
 
-    def finalize_instance(self, instance_id: str) -> dict[str, Any]:
+    def finalize_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
         try:
-            self.instance_repository.update_fields(instance_id, {"status": "finalized"})
+            self.instance_repository.update_fields(instance_id, {"status": "finalized"}, user_id=user_id)
         except LookupError as exc:
             raise NotFoundError("Instance not found") from exc
         return {"message": "finalized", "instance_id": instance_id}
 
-    def get_generation_baseline(self, instance_id: str) -> dict[str, Any]:
-        self._require_instance(instance_id)
+    def get_generation_baseline(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
+        self._require_instance(instance_id, user_id=user_id)
         baseline = self.generation_baseline_repository.get_by_instance(instance_id)
         if not baseline:
             raise NotFoundError("Generation baseline not found")
         return build_generation_baseline_payload(baseline)
 
-    def regenerate_section(self, instance_id: str, section_index: int) -> dict[str, Any]:
-        instance = self._require_instance(instance_id)
+    def regenerate_section(self, instance_id: str, section_index: int, *, user_id: str = "default") -> dict[str, Any]:
+        instance = self._require_instance(instance_id, user_id=user_id)
         content = list(instance.outline_content or [])
         if section_index < 0 or section_index >= len(content):
             raise ValidationError("Invalid section index")
@@ -96,6 +99,7 @@ class ReportRuntimeService:
             instance_id,
             section_index,
             {**current, **regenerated, "regenerated": True},
+            user_id=user_id,
         )
         baseline = self.generation_baseline_repository.get_by_instance(instance_id)
         return self.serialize_instance(updated, baseline)
@@ -108,6 +112,9 @@ class ReportRuntimeService:
             "instance_id": instance.instance_id,
             "template_id": instance.template_id,
             "status": instance.status,
+            "user_id": instance.user_id,
+            "source_session_id": instance.source_session_id,
+            "source_message_id": instance.source_message_id,
             "input_params": deepcopy(instance.input_params or {}),
             "outline_content": deepcopy(instance.outline_content or []),
             "report_time": str(instance.report_time) if instance.report_time else None,
@@ -119,8 +126,8 @@ class ReportRuntimeService:
             "supports_fork_chat": supports_fork_chat,
         }
 
-    def _require_instance(self, instance_id: str) -> ReportInstance:
-        instance = self.instance_repository.get(instance_id)
+    def _require_instance(self, instance_id: str, *, user_id: str = "default") -> ReportInstance:
+        instance = self.instance_repository.get(instance_id, user_id=user_id)
         if not instance:
             raise NotFoundError("Instance not found")
         return instance

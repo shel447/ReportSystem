@@ -56,6 +56,16 @@ class ChatRouterTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
+    def test_list_sessions_uses_header_user_id_filter(self):
+        self.db.add(ChatSession(session_id="sess-default", user_id="default", title="默认用户"))
+        self.db.add(ChatSession(session_id="sess-other", user_id="other", title="其他用户"))
+        self.db.commit()
+
+        payload = list_sessions(user_id="default", db=self.db)
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["session_id"], "sess-default")
+
     def test_send_message_returns_review_params_before_generation(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
@@ -74,7 +84,7 @@ class ChatRouterTests(unittest.TestCase):
             response = send_message(ChatMessage(message="制作设备巡检报告"), db=self.db)
 
         self.assertEqual(response["action"]["type"], "review_params")
-        self.assertEqual(response["reply"], "参数已收集完成，请确认后生成大纲。")
+        self.assertEqual(response["reply"], "参数已收集完成，请确认后生成诉求。")
         self.assertEqual(response["action"]["params"][0]["id"], "scene")
 
     def test_send_message_confirms_then_generates_document(self):
@@ -685,7 +695,7 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(sessions[0]["last_message_preview"], "已生成结果。")
         self.assertEqual(sessions[1]["title"], "制作设备巡检报告并输出总部结果")
         self.assertEqual(sessions[1]["matched_template_id"], "tpl-1")
-        self.assertEqual(sessions[1]["instance_id"], "inst-1")
+        self.assertNotIn("instance_id", sessions[1])
 
     def test_get_session_lazy_backfills_message_ids(self):
         session = ChatSession(
@@ -972,7 +982,7 @@ class ChatRouterTests(unittest.TestCase):
         self.assertIsNone(second["action"])
         self.assertEqual(second["reply"], "请提供参数「分析目标」的取值。")
         self.assertEqual(third["action"]["type"], "review_params")
-        self.assertEqual(third["reply"], "参数已收集完成，请确认后生成大纲。")
+        self.assertEqual(third["reply"], "参数已收集完成，请确认后生成诉求。")
 
     def test_send_message_still_confirms_switch_when_chat_mode_pending_and_user_explicitly_switches(self):
         mixed_template = ReportTemplate(

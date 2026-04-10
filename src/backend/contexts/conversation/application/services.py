@@ -16,7 +16,7 @@ def _resume_report_action(
     flow = state.get("flow") or {}
     stage = str(flow.get("stage") or "idle")
     if stage == "outline_review":
-        return "已保留当前任务，请继续确认报告大纲。", report_gateway.build_review_outline_action(state, template_params)
+        return "已保留当前任务，请继续确认报告诉求。", report_gateway.build_review_outline_action(state, template_params)
     if (state.get("missing") or {}).get("required"):
         return _build_missing_required_response(
             report_gateway,
@@ -72,10 +72,10 @@ class ConversationService:
         self.report_gateway = report_gateway
         self.fork_gateway = fork_gateway
 
-    def list_sessions(self) -> list[dict[str, Any]]:
-        return self.persistence.list_sessions()
+    def list_sessions(self, *, user_id: str) -> list[dict[str, Any]]:
+        return self.persistence.list_sessions(user_id=user_id)
 
-    def send_message(self, *, data) -> dict[str, Any]:
+    def send_message(self, *, data, user_id: str) -> dict[str, Any]:
         user_message = str(data.message or "")
         has_request_intent = bool(
             user_message.strip()
@@ -86,7 +86,7 @@ class ConversationService:
 
         session = None
         if data.session_id:
-            session = self.persistence.get_session(data.session_id)
+            session = self.persistence.get_session(data.session_id, user_id=user_id)
             if session and self.persistence.ensure_session_metadata(session):
                 self.persistence.save_session(session)
         if not session and not has_request_intent:
@@ -98,7 +98,7 @@ class ConversationService:
                 "messages": [],
             }
         if not session:
-            session = self.persistence.create_session()
+            session = self.persistence.create_session(user_id=user_id)
 
         messages = list(session.messages or [])
         should_append_user_message = bool(
@@ -334,19 +334,19 @@ class ConversationService:
             "messages": messages,
         }
 
-    def get_session(self, *, session_id: str) -> dict[str, Any]:
-        session = self.persistence.get_session(session_id)
+    def get_session(self, *, session_id: str, user_id: str) -> dict[str, Any]:
+        session = self.persistence.get_session(session_id, user_id=user_id)
         if not session:
             raise NotFoundError("Session not found")
         if self.persistence.ensure_session_metadata(session):
             self.persistence.save_session(session)
         return self.persistence.serialize_session_detail(session)
 
-    def fork_session(self, *, data) -> dict[str, Any]:
+    def fork_session(self, *, data, user_id: str) -> dict[str, Any]:
         if data.source_kind == "session_message":
             if not data.source_session_id or not data.source_message_id:
                 raise NotFoundError("Source session or message not found")
-            source_session = self.persistence.get_session(data.source_session_id)
+            source_session = self.persistence.get_session(data.source_session_id, user_id=user_id)
             if not source_session:
                 raise NotFoundError("Source session not found")
             return self.fork_gateway.fork_session_from_message(
@@ -364,25 +364,28 @@ class ConversationService:
 
         raise ValidationError("Unsupported fork source")
 
-    def delete_session(self, *, session_id: str) -> dict[str, Any]:
-        if not self.persistence.delete_session(session_id):
+    def delete_session(self, *, session_id: str, user_id: str) -> dict[str, Any]:
+        if not self.persistence.delete_session(session_id, user_id=user_id):
             raise NotFoundError("Session not found")
         return {"message": "deleted"}
 
-    def update_session_from_instance(self, *, instance_id: str) -> dict[str, Any]:
+    def update_session_from_instance(self, *, instance_id: str, user_id: str = "default") -> dict[str, Any]:
         baseline = self.persistence.get_generation_baseline(instance_id)
         if not baseline:
             raise NotFoundError("Generation baseline not found")
+        report_instance = self.persistence.get_report_instance(instance_id, user_id=user_id)
+        preferred_session_id = str(getattr(report_instance, "source_session_id", "") or "").strip() if report_instance else ""
+        if preferred_session_id:
+            source_session = self.persistence.get_session(preferred_session_id, user_id=user_id)
+            if not source_session:
+                raise NotFoundError("Source session not found")
         return self.fork_gateway.update_session_from_generation_baseline(template_instance=baseline)
 
-    def list_instance_fork_sources(self, *, instance_id: str) -> list[dict[str, Any]]:
-        baseline = self.persistence.get_generation_baseline(instance_id)
-        if not baseline:
-            raise NotFoundError("Generation baseline not found")
-        session_id = str(getattr(baseline, "session_id", "") or "").strip()
+    def list_instance_fork_sources(self, *, instance_id: str, user_id: str = "default") -> list[dict[str, Any]]:
+        session_id = self._resolve_instance_source_session_id(instance_id=instance_id, user_id=user_id)
         if not session_id:
             raise NotFoundError("Source session not found")
-        source_session = self.persistence.get_session(session_id)
+        source_session = self.persistence.get_session(session_id, user_id=user_id)
         if not source_session:
             raise NotFoundError("Source session not found")
         if self.persistence.ensure_session_metadata(source_session):
@@ -390,14 +393,11 @@ class ConversationService:
         visible = self.persistence.visible_messages(source_session.messages or [])
         return [_serialize_fork_source_message(item) for item in visible]
 
-    def fork_instance_chat(self, *, instance_id: str, source_message_id: str) -> dict[str, Any]:
-        baseline = self.persistence.get_generation_baseline(instance_id)
-        if not baseline:
-            raise NotFoundError("Generation baseline not found")
-        session_id = str(getattr(baseline, "session_id", "") or "").strip()
+    def fork_instance_chat(self, *, instance_id: str, source_message_id: str, user_id: str = "default") -> dict[str, Any]:
+        session_id = self._resolve_instance_source_session_id(instance_id=instance_id, user_id=user_id)
         if not session_id:
             raise NotFoundError("Source session not found")
-        source_session = self.persistence.get_session(session_id)
+        source_session = self.persistence.get_session(session_id, user_id=user_id)
         if not source_session:
             raise NotFoundError("Source session not found")
         if not source_message_id:
@@ -564,7 +564,7 @@ class ConversationService:
                     report["pending_outline_review"] = outline_review
                     report["outline_review_warnings"] = outline_warnings
                     state["report"] = report
-                    reply = "参数已确认，请检查报告大纲。"
+                    reply = "参数已确认，请检查报告诉求。"
                     action = self.report_gateway.build_review_outline_action(state, template_params)
                     flow = state.get("flow") or {}
                     flow["stage"] = "outline_review"
@@ -577,7 +577,7 @@ class ConversationService:
                 pending_outline = report.get("pending_outline_review") or []
                 report["pending_outline_review"] = self.report_gateway.merge_outline_override(pending_outline, data.outline_override or [])
                 state["report"] = report
-                reply = "报告大纲已更新，请继续确认。"
+                reply = "报告诉求已更新，请继续确认。"
                 action = self.report_gateway.build_review_outline_action(state, template_params)
                 flow = state.get("flow") or {}
                 flow["stage"] = "outline_review"
@@ -605,6 +605,9 @@ class ConversationService:
                         template_id=template.template_id,
                         input_params=merged,
                         outline_override=resolved_outline,
+                        user_id=session.user_id or "default",
+                        source_session_id=session.session_id,
+                        source_message_id=None,
                     )
                     try:
                         self.report_gateway.capture_generation_baseline(
@@ -631,7 +634,6 @@ class ConversationService:
                     summary = state.get("summary") or {}
                     summary["open_question"] = ""
                     state["summary"] = summary
-                    session.instance_id = created["instance_id"]
             elif missing_required:
                 reply, action = _build_missing_required_response(
                     self.report_gateway,
@@ -646,7 +648,7 @@ class ConversationService:
                 summary["open_question"] = reply
                 state["summary"] = summary
             else:
-                reply = "参数已收集完成，请确认后生成大纲。"
+                reply = "参数已收集完成，请确认后生成诉求。"
                 action = self.report_gateway.build_review_params_action(state, template_params)
                 flow = state.get("flow") or {}
                 flow["stage"] = "review_ready"
@@ -670,6 +672,18 @@ class ConversationService:
             reply = self.capability_gateway.generate_chat_reply(user_message)
         state = self.capability_gateway.sync_report_task_state(state)
         return reply, action
+
+    def _resolve_instance_source_session_id(self, *, instance_id: str, user_id: str) -> str:
+        report_instance = self.persistence.get_report_instance(instance_id, user_id=user_id)
+        if not report_instance:
+            raise NotFoundError("Instance not found")
+        preferred = str(getattr(report_instance, "source_session_id", "") or "").strip()
+        if preferred:
+            return preferred
+        baseline = self.persistence.get_generation_baseline(instance_id)
+        if not baseline:
+            raise NotFoundError("Generation baseline not found")
+        return str(getattr(baseline, "session_id", "") or "").strip()
 
     @staticmethod
     def _clone_chat_message(source, **overrides):

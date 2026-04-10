@@ -75,6 +75,9 @@ export type ReportInstance = {
   instance_id: string;
   template_id: string;
   status: string;
+  user_id?: string;
+  source_session_id?: string | null;
+  source_message_id?: string | null;
   input_params: Record<string, unknown>;
   outline_content: InstanceSection[];
   report_time?: string | null;

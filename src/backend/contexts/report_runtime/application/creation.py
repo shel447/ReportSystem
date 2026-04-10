@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import inspect
 from datetime import datetime
 from typing import Any
 
@@ -31,6 +32,9 @@ class ReportInstanceCreationService:
         outline_override: list[Any] | None = None,
         report_time: datetime | None = None,
         report_time_source: str = "",
+        user_id: str = "default",
+        source_session_id: str | None = None,
+        source_message_id: str | None = None,
     ) -> dict[str, Any]:
         template = self.template_reader.get_by_id(template_id)
         if not template:
@@ -60,15 +64,19 @@ class ReportInstanceCreationService:
                 outline_content = self.content_generator.generate(template, expansion.nodes, input_params or {})
                 warnings = expansion.warnings
 
-        created = self.instance_writer.create(
-            template_id=template.template_id,
-            template_version=template.version,
-            input_params=input_params or {},
-            outline_content=outline_content,
-            status="draft",
-            report_time=report_time,
-            report_time_source=report_time_source,
-        )
+        create_kwargs = {
+            "template_id": template.template_id,
+            "template_version": template.version,
+            "input_params": input_params or {},
+            "outline_content": outline_content,
+            "status": "draft",
+            "report_time": report_time,
+            "report_time_source": report_time_source,
+            "user_id": user_id,
+            "source_session_id": source_session_id,
+            "source_message_id": source_message_id,
+        }
+        created = self._create_instance_row(create_kwargs)
         payload = asdict(created)
         if payload.get("report_time") is not None:
             payload["report_time"] = str(payload["report_time"])
@@ -78,6 +86,11 @@ class ReportInstanceCreationService:
             payload["updated_at"] = str(payload["updated_at"])
         payload["warnings"] = warnings
         return payload
+
+    def _create_instance_row(self, create_kwargs: dict[str, Any]):
+        signature = inspect.signature(self.instance_writer.create)
+        allowed = {key: value for key, value in create_kwargs.items() if key in signature.parameters}
+        return self.instance_writer.create(**allowed)
 
 
 class ScheduledReportRunService:
@@ -98,6 +111,9 @@ class ScheduledReportRunService:
         override_params: dict[str, Any],
         report_time: datetime | None = None,
         report_time_source: str = "",
+        user_id: str = "default",
+        source_session_id: str | None = None,
+        source_message_id: str | None = None,
     ) -> dict[str, Any]:
         base_params: dict[str, Any] = {}
         if source_instance_id:
@@ -114,6 +130,9 @@ class ScheduledReportRunService:
             outline_override=None,
             report_time=report_time,
             report_time_source=report_time_source,
+            user_id=user_id,
+            source_session_id=source_session_id,
+            source_message_id=source_message_id,
         )
 
 

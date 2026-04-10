@@ -95,7 +95,12 @@ describe("ChatPage", () => {
       expect(screen.getByText("暂无历史会话")).toBeInTheDocument();
     });
     expect(fetchMock).toHaveBeenCalledWith("/rest/dev/system-settings", undefined);
-    expect(fetchMock).toHaveBeenCalledWith("/rest/chatbi/v1/chat", undefined);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/rest/chatbi/v1/chat",
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
     expect(fetchMock).not.toHaveBeenCalledWith(
       "/rest/chatbi/v1/chat",
       expect.objectContaining({ method: "POST" }),
@@ -341,14 +346,14 @@ describe("ChatPage", () => {
 
     resolveSecondChat?.({
       session_id: "s-1",
-      reply: "参数已收集完成，请确认后生成大纲。",
+      reply: "参数已收集完成，请确认后生成诉求。",
       messages: [
         { role: "user", content: "制作设备巡检报告" },
         { role: "assistant", content: "请提供参数「报告日期」的取值。" },
         { role: "user", content: "2026-03-19" },
         {
           role: "assistant",
-          content: "参数已收集完成，请确认后生成大纲。",
+          content: "参数已收集完成，请确认后生成诉求。",
           action: {
             type: "review_params",
             template_name: "设备巡检报告",
@@ -362,11 +367,11 @@ describe("ChatPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("参数已收集完成，请确认后生成大纲。")).toBeInTheDocument();
+      expect(screen.getByText("参数已收集完成，请确认后生成诉求。")).toBeInTheDocument();
     });
 
     expect(screen.queryByText("正在处理中")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "确认参数并生成大纲" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "确认参数并生成诉求" })).toBeEnabled();
   });
 
   it("shows outline review before final generation", async () => {
@@ -406,12 +411,12 @@ describe("ChatPage", () => {
 
     resolveFirstChat?.({
       session_id: "s-1",
-      reply: "参数已收集完成，请确认后生成大纲。",
+      reply: "参数已收集完成，请确认后生成诉求。",
       messages: [
         { role: "user", content: "制作设备巡检报告" },
         {
           role: "assistant",
-          content: "参数已收集完成，请确认后生成大纲。",
+          content: "参数已收集完成，请确认后生成诉求。",
           action: {
             type: "review_params",
             template_name: "设备巡检报告",
@@ -423,24 +428,24 @@ describe("ChatPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "确认参数并生成大纲" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "确认参数并生成诉求" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "确认参数并生成大纲" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认参数并生成诉求" }));
 
-    expect(screen.getByRole("button", { name: "确认参数并生成大纲" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "确认参数并生成诉求" })).toBeDisabled();
     expect(screen.getByText("正在处理中")).toBeInTheDocument();
 
     resolveSecondChat?.({
       session_id: "s-1",
-      reply: "参数已确认，请检查报告大纲。",
+      reply: "参数已确认，请检查报告诉求。",
       messages: [
         { role: "user", content: "制作设备巡检报告" },
-        { role: "assistant", content: "参数已收集完成，请确认后生成大纲。" },
-        { role: "user", content: "确认参数并生成大纲" },
+        { role: "assistant", content: "参数已收集完成，请确认后生成诉求。" },
+        { role: "user", content: "确认参数并生成诉求" },
         {
           role: "assistant",
-          content: "参数已确认，请检查报告大纲。",
+          content: "参数已确认，请检查报告诉求。",
           action: {
             type: "review_outline",
             template_name: "设备巡检报告",
@@ -468,7 +473,7 @@ describe("ChatPage", () => {
       expect(screen.getByText("总部概览：巡检范围")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("button", { name: "保存大纲" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "保存诉求" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "确认生成" })).toBeEnabled();
   });
 
@@ -544,13 +549,13 @@ describe("ChatPage", () => {
           fork_meta: {
             source_kind: "update_from_instance",
             source_title: "设备巡检报告",
-            source_preview: "确认大纲：生成基线",
+            source_preview: "确认诉求：生成基线",
             source_report_instance_id: "inst-1",
           },
           messages: [
             {
               role: "assistant",
-              content: "参数已确认，请检查报告大纲。",
+              content: "参数已确认，请检查报告诉求。",
               action: {
                 type: "review_outline",
                 template_name: "设备巡检报告",
@@ -560,9 +565,9 @@ describe("ChatPage", () => {
                 outline: [
                   {
                     node_id: "node-1",
-                    title: "确认大纲",
+                    title: "确认诉求",
                     description: "生成基线",
-                    display_text: "确认大纲：生成基线",
+                    display_text: "确认诉求：生成基线",
                     level: 1,
                     children: [],
                   },
@@ -576,9 +581,9 @@ describe("ChatPage", () => {
       },
     });
 
-    expect(await screen.findByText("参数已确认，请检查报告大纲。")).toBeInTheDocument();
+    expect(await screen.findByText("参数已确认，请检查报告诉求。")).toBeInTheDocument();
     expect(screen.getByText("更新来源")).toBeInTheDocument();
-    expect(screen.getByText("来源：设备巡检报告 · 来自确认大纲")).toBeInTheDocument();
+    expect(screen.getByText("来源：设备巡检报告 · 来自确认诉求")).toBeInTheDocument();
     expect(screen.queryByText("Fork 来源")).not.toBeInTheDocument();
 
     resolveSession?.({
@@ -588,13 +593,13 @@ describe("ChatPage", () => {
       fork_meta: {
         source_kind: "update_from_instance",
         source_title: "设备巡检报告",
-        source_preview: "确认大纲：生成基线",
+        source_preview: "确认诉求：生成基线",
         source_report_instance_id: "inst-1",
       },
       messages: [
         {
           role: "assistant",
-          content: "参数已确认，请检查报告大纲。",
+          content: "参数已确认，请检查报告诉求。",
           action: {
             type: "review_outline",
             template_name: "设备巡检报告",
@@ -604,9 +609,9 @@ describe("ChatPage", () => {
             outline: [
               {
                 node_id: "node-1",
-                title: "确认大纲",
+                title: "确认诉求",
                 description: "生成基线",
-                display_text: "确认大纲：生成基线",
+                display_text: "确认诉求：生成基线",
                 level: 1,
                 children: [],
               },
@@ -616,12 +621,17 @@ describe("ChatPage", () => {
           message_id: "msg-update-1",
         },
       ],
-    });
+      });
 
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/rest/chatbi/v1/chat/s-update", undefined);
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith(
+          "/rest/chatbi/v1/chat/s-update",
+          expect.objectContaining({
+            headers: expect.any(Headers),
+          }),
+        );
+      });
     });
-  });
 
   it("forks a user message into a new session and prefills the compose draft", async () => {
     let sessionList = [

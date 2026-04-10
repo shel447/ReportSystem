@@ -67,7 +67,7 @@ describe("InstanceDetailPage", () => {
             outline: [
               {
                 node_id: "node-1",
-                title: "确认大纲",
+                title: "确认诉求",
                 description: "生成基线",
                 display_text: "分析 总部 的巡检情况",
                 level: 1,
@@ -101,13 +101,13 @@ describe("InstanceDetailPage", () => {
             fork_meta: {
               source_kind: "update_from_instance",
               source_title: "设备巡检报告",
-              source_preview: "确认大纲",
+              source_preview: "确认诉求",
               source_report_instance_id: "inst-1",
             },
             messages: [
               {
                 role: "assistant",
-                content: "已恢复确认大纲，请继续修改。",
+                content: "已恢复确认诉求，请继续修改。",
                 action: {
                   type: "review_outline",
                   template_name: "设备巡检报告",
@@ -117,9 +117,9 @@ describe("InstanceDetailPage", () => {
                   outline: [
                     {
                       node_id: "node-1",
-                      title: "确认大纲",
+                      title: "确认诉求",
                       description: "生成基线",
-                      display_text: "确认大纲：生成基线",
+                      display_text: "确认诉求：生成基线",
                       level: 1,
                       children: [],
                     },
@@ -194,9 +194,9 @@ describe("InstanceDetailPage", () => {
     expect(screen.getByText("查看调试信息")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fork" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "查看确认大纲" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查看确认诉求" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "查看确认大纲" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看确认诉求" }));
 
     expect(await screen.findByText("分析")).toBeInTheDocument();
     expect(screen.getByText("总部")).toHaveClass("outline-tree__block-chip--readonly");
@@ -252,7 +252,7 @@ describe("InstanceDetailPage", () => {
             outline: [
               {
                 node_id: "node-1",
-                title: "确认大纲",
+                title: "确认诉求",
                 description: "生成基线",
                 display_text: "分析 总部 的巡检情况",
                 level: 1,
@@ -286,13 +286,13 @@ describe("InstanceDetailPage", () => {
             fork_meta: {
               source_kind: "update_from_instance",
               source_title: "设备巡检报告",
-              source_preview: "确认大纲",
+              source_preview: "确认诉求",
               source_report_instance_id: "inst-1",
             },
             messages: [
               {
                 role: "assistant",
-                content: "已恢复确认大纲，请继续修改。",
+                content: "已恢复确认诉求，请继续修改。",
                 action: {
                   type: "review_outline",
                   template_name: "设备巡检报告",
@@ -302,9 +302,9 @@ describe("InstanceDetailPage", () => {
                   outline: [
                     {
                       node_id: "node-1",
-                      title: "确认大纲",
+                      title: "确认诉求",
                       description: "生成基线",
-                      display_text: "确认大纲：生成基线",
+                      display_text: "确认诉求：生成基线",
                       level: 1,
                       children: [],
                     },
