@@ -132,7 +132,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.getByText("参数工作台")).toBeInTheDocument();
     expect(screen.getByText("章节工作台")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "结构预览" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "蓝图预览" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "诉求预览" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "执行预览" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "模板 JSON" })).toBeInTheDocument();
     expect(screen.queryByText("兼容迁移")).not.toBeInTheDocument();
@@ -140,10 +140,10 @@ describe("TemplateDetailPage", () => {
     expect(screen.queryByText("sections")).not.toBeInTheDocument();
     expect(screen.getByText("参数工作台").closest(".surface-card")).toHaveClass("template-workbench__parameters");
     fireEvent.click(screen.getByRole("button", { name: /概览 \{date\}/ }));
-    expect(screen.getByRole("tab", { name: "蓝图" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "诉求" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "执行链路" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "同步状态" })).toBeInTheDocument();
-    expect(screen.getByLabelText("蓝图文稿")).toHaveValue("分析 {@focus_metric} 在 {date} 的变化");
+    expect(screen.getByLabelText("诉求文稿")).toHaveValue("分析 {@focus_metric} 在 {date} 的变化");
 
     const exportLink = screen.getByRole("link", { name: "导出 JSON" });
     expect(exportLink).toHaveAttribute("href", "/rest/chatbi/v1/templates/tpl-1/export");
@@ -151,7 +151,7 @@ describe("TemplateDetailPage", () => {
     fireEvent.change(screen.getByLabelText("日期预览值"), {
       target: { value: "2026-03-19" },
     });
-    fireEvent.click(screen.getByRole("tab", { name: "蓝图预览" }));
+    fireEvent.click(screen.getByRole("tab", { name: "诉求预览" }));
     expect(await screen.findByText("分析 温度 在 2026-03-19 的变化")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /设备列表/ }));

@@ -147,7 +147,7 @@ describe("ChatActionPanel", () => {
     expect(screen.queryByText("章节说明")).not.toBeInTheDocument();
     expect(screen.getByText("AI")).toBeInTheDocument();
     expect(screen.getByText("分析")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "编辑区块 focus_metric" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "编辑要素 focus_metric" })).toBeInTheDocument();
     expect(screen.getByText("二级小节：系统生成本节内容")).toBeInTheDocument();
     expect(screen.queryByText("新增同级")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新增同级章节 node-1" })).toBeInTheDocument();
@@ -156,8 +156,8 @@ describe("ChatActionPanel", () => {
     expect(screen.queryByText("二级小节：系统生成本节内容")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "展开章节 node-1" }));
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑区块 focus_metric" }));
-    const inlineBlockInput = screen.getByLabelText("编辑区块值 focus_metric");
+    fireEvent.click(screen.getByRole("button", { name: "编辑要素 focus_metric" }));
+    const inlineBlockInput = screen.getByLabelText("编辑要素值 focus_metric");
     fireEvent.change(inlineBlockInput, { target: { value: "湿度" } });
     fireEvent.keyDown(inlineBlockInput, { key: "Enter" });
 
@@ -235,9 +235,9 @@ describe("ChatActionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑区块 metric" }));
-    expect(screen.getByLabelText("编辑区块值 metric")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "编辑区块 target_scene" })).toHaveAttribute("title", "参数：场景（scene）");
+    fireEvent.click(screen.getByRole("button", { name: "编辑要素 metric" }));
+    expect(screen.getByLabelText("编辑要素值 metric")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "编辑要素 target_scene" })).toHaveAttribute("title", "参数：场景（scene）");
     expect(screen.queryByText("来自参数 scene")).not.toBeInTheDocument();
   });
 
@@ -461,8 +461,8 @@ describe("ChatActionPanel", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "编辑区块 target_scene" }));
-    const input = screen.getByLabelText("编辑区块值 target_scene");
+    fireEvent.click(screen.getByRole("button", { name: "编辑要素 target_scene" }));
+    const input = screen.getByLabelText("编辑要素值 target_scene");
     fireEvent.change(input, { target: { value: "分部" } });
     fireEvent.click(screen.getByRole("button", { name: "确认生成" }));
 

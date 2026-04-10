@@ -131,7 +131,7 @@ describe("OutlineTree", () => {
     );
 
     expect(screen.getByText("分析")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "编辑区块 focus_metric" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "编辑要素 focus_metric" })).toBeInTheDocument();
     expect(screen.getByText("温度")).toBeInTheDocument();
     expect(screen.queryByLabelText("编辑章节 node-1")).not.toBeInTheDocument();
   });
@@ -195,7 +195,7 @@ describe("OutlineTree", () => {
     expect(screen.getByLabelText("结束日期 period")).toHaveAttribute("type", "date");
     expect(screen.getByLabelText("开始日期 period")).toHaveClass("outline-tree__block-date--chip-editing");
     expect(screen.getByLabelText("结束日期 period")).toHaveClass("outline-tree__block-date--chip-editing");
-    expect(screen.queryByLabelText("编辑区块值 period")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("编辑要素值 period")).not.toBeInTheDocument();
   });
 
   it("renders enum-like block editors with chip-aligned selects", () => {
@@ -253,7 +253,7 @@ describe("OutlineTree", () => {
       />,
     );
 
-    expect(screen.getByLabelText("编辑区块值 focus_metric")).toHaveClass(
+    expect(screen.getByLabelText("编辑要素值 focus_metric")).toHaveClass(
       "outline-tree__block-select--chip-editing",
     );
     expect(screen.getByText("分析")).toBeInTheDocument();
@@ -315,7 +315,7 @@ describe("OutlineTree", () => {
       />,
     );
 
-    const chip = screen.getByRole("button", { name: "编辑区块 target_scene" });
+    const chip = screen.getByRole("button", { name: "编辑要素 target_scene" });
     expect(chip).toHaveTextContent("总部");
     expect(chip).toHaveAttribute("title", "参数：场景（scene）");
     expect(screen.queryByText("来自参数 scene")).not.toBeInTheDocument();
@@ -379,7 +379,7 @@ describe("OutlineTree", () => {
     expect(container.querySelector(".outline-tree__segments--editing-block")).not.toBeNull();
     expect(screen.getByText("分析")).toBeInTheDocument();
     expect(screen.getByText("的巡检情况")).toBeInTheDocument();
-    expect(screen.getByLabelText("编辑区块值 target_scene")).toHaveClass(
+    expect(screen.getByLabelText("编辑要素值 target_scene")).toHaveClass(
       "outline-tree__block-input--inline",
       "outline-tree__block-input--chip-editing",
     );

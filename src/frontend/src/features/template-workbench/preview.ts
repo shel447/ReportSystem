@@ -95,7 +95,7 @@ function renderBlueprintContent(
   outlineValues: Record<string, string>,
 ): string {
   if (!section.outline) {
-    return "未配置蓝图文稿";
+    return "未配置诉求文稿";
   }
   return renderText(section.outline.document, samples, locals, outlineValues);
 }

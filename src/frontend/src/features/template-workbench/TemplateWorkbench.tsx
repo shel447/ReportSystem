@@ -82,7 +82,7 @@ const OPERATOR_OPTIONS = [">=", ">", "<=", "<", "=", "!=", "包含", "不包含"
 const SELECTABLE_OUTLINE_BLOCK_TYPES = new Set<OutlineBlockType>(["indicator", "scope", "enum_select"]);
 
 const OUTLINE_SYNC_STATUS_LABELS = {
-  not_configured: "未启用蓝图",
+  not_configured: "未启用诉求",
   stale: "待同步",
   in_sync: "已同步",
   compile_error: "引用异常",
@@ -703,7 +703,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                       className={`preview-tab ${selectedSectionTab === "outline" ? "is-active" : ""}`}
                       onClick={() => setSelectedSectionTab("outline")}
                     >
-                      蓝图
+                      诉求
                     </button>
                     <button
                       type="button"
@@ -726,7 +726,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                   </div>
 
                   {selectedSectionTab === "outline" ? (
-                    <div className="template-workbench__detail" role="tabpanel" aria-label="蓝图">
+                    <div className="template-workbench__detail" role="tabpanel" aria-label="诉求">
                       <div className="form-grid">
                         <label className="field">
                           <span className="field-label">章节标题</span>
@@ -775,23 +775,23 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                           <div className="list-header">
                             <div>
                               <p className="section-kicker">Outline</p>
-                              <h4>蓝图定义</h4>
+                              <h4>诉求定义</h4>
                               <p className="muted-text">面向用户的章节文稿，支持插入 {`{@block_id}`} 与全局参数占位符。</p>
                             </div>
                             <div className="action-row action-row--compact">
-                              <button className="secondary-button" type="button" onClick={() => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.push(createOutlineBlock(section.outline.blocks)); } })}>新增区块</button>
-                              <button className="ghost-button" type="button" onClick={() => updateSelectedSection((section) => { section.outline = null; })}>移除蓝图</button>
+                              <button className="secondary-button" type="button" onClick={() => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.push(createOutlineBlock(section.outline.blocks)); } })}>新增要素</button>
+                              <button className="ghost-button" type="button" onClick={() => updateSelectedSection((section) => { section.outline = null; })}>移除诉求</button>
                             </div>
                           </div>
                           <div className="form-grid">
                             <label className="field field--full">
-                              <span className="field-label">蓝图文稿</span>
-                              <textarea aria-label="蓝图文稿" rows={4} value={selectedSection.outline.document} onChange={(event) => updateSelectedSection((section) => { if (section.outline) { section.outline.document = event.target.value; } })} />
+                              <span className="field-label">诉求文稿</span>
+                              <textarea aria-label="诉求文稿" rows={4} value={selectedSection.outline.document} onChange={(event) => updateSelectedSection((section) => { if (section.outline) { section.outline.document = event.target.value; } })} />
                             </label>
                           </div>
                           <FieldArrayEditor
-                            title="蓝图区块"
-                            actionLabel="新增区块"
+                            title="诉求要素"
+                            actionLabel="新增要素"
                             items={selectedSection.outline.blocks}
                             onAdd={() => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.push(createOutlineBlock(section.outline.blocks)); } })}
                             onRemove={(index) => updateSelectedSection((section) => { if (section.outline) { section.outline.blocks.splice(index, 1); } })}
@@ -811,8 +811,8 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                         </div>
                       ) : (
                         <div className="inline-panel">
-                          <p>当前章节尚未启用蓝图。启用后可配置 document + blocks[] 作为用户侧大纲抽象。</p>
-                          <button className="secondary-button" type="button" onClick={() => updateSelectedSection((section) => { section.outline = createOutlineBlueprint(); })}>启用蓝图</button>
+                          <p>当前章节尚未启用诉求。启用后可配置 document + blocks[] 作为用户侧诉求抽象。</p>
+                          <button className="secondary-button" type="button" onClick={() => updateSelectedSection((section) => { section.outline = createOutlineBlueprint(); })}>启用诉求</button>
                         </div>
                       )}
                     </div>
@@ -821,7 +821,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                   {selectedSectionTab === "execution" ? (
                     <div role="tabpanel" aria-label="执行链路">
                       <div className="inline-panel">
-                        <p>执行链路面向系统内部生成。这里可以继续使用 {`{param}`}、{`{$var}`} 与 {`{@block_id}`} 引用蓝图值。</p>
+                        <p>执行链路面向系统内部生成。这里可以继续使用 {`{param}`}、{`{$var}`} 与 {`{@block_id}`} 引用诉求值。</p>
                       </div>
                   {selectedSection.kind === "content" && selectedSection.content ? (
                     <div className="template-workbench__detail">
@@ -1033,15 +1033,15 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                       <div className="sync-panel__header">
                         <span className={`status-chip status-chip--${selectedOutlineSummary?.status ?? "not_configured"}`}>{OUTLINE_SYNC_STATUS_LABELS[selectedOutlineSummary?.status ?? "not_configured"]}</span>
                         <span className="muted-text">
-                          {selectedOutlineSummary?.status === "in_sync" ? `执行链路已引用 ${selectedOutlineSummary.bindings.length} 个蓝图区块。` : null}
-                          {selectedOutlineSummary?.status === "stale" ? "已配置蓝图，但执行链路还没有使用任何蓝图区块引用。" : null}
-                          {selectedOutlineSummary?.status === "not_configured" ? "当前章节尚未启用蓝图。执行链路仍可独立维护。" : null}
+                          {selectedOutlineSummary?.status === "in_sync" ? `执行链路已引用 ${selectedOutlineSummary.bindings.length} 个诉求要素。` : null}
+                          {selectedOutlineSummary?.status === "stale" ? "已配置诉求，但执行链路还没有使用任何诉求要素引用。" : null}
+                          {selectedOutlineSummary?.status === "not_configured" ? "当前章节尚未启用诉求。执行链路仍可独立维护。" : null}
                           {selectedOutlineSummary?.status === "compile_error" ? "执行链路中存在无法解析的 {@block_id} 引用。" : null}
                         </span>
                       </div>
                       {selectedOutlineSummary?.bindings.length ? (
                         <div className="sync-panel__group">
-                          <strong>已引用区块</strong>
+                          <strong>已引用要素</strong>
                           <ul className="validation-list">
                             {selectedOutlineSummary.bindings.map((binding) => (
                               <li key={binding.blockId}>{binding.blockId} · {binding.targets.join(" / ")}</li>
@@ -1061,10 +1061,10 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                       ) : null}
                       {selectedSection.outline?.blocks.length ? (
                         <div className="sync-panel__group">
-                          <strong>当前蓝图区块</strong>
+                          <strong>当前诉求要素</strong>
                           <div className="chip-grid">
                             {selectedSection.outline.blocks.map((block) => (
-                              <span key={block.uiKey} className="inline-badge">{block.id || "未命名区块"}</span>
+                              <span key={block.uiKey} className="inline-badge">{block.id || "未命名要素"}</span>
                             ))}
                           </div>
                         </div>
@@ -1083,7 +1083,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
             <div>
               <p className="section-kicker">Preview</p>
               <h3>结构预览</h3>
-              <p className="muted-text">切换查看蓝图层、执行层和模板 JSON。</p>
+              <p className="muted-text">切换查看诉求层、执行层和模板 JSON。</p>
             </div>
           </div>
           <div className="preview-tabs" role="tablist" aria-label="结构预览切换">
@@ -1094,7 +1094,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
               className={`preview-tab ${previewTab === "blueprint" ? "is-active" : ""}`}
               onClick={() => setPreviewTab("blueprint")}
             >
-              蓝图预览
+              诉求预览
             </button>
             <button
               type="button"
@@ -1116,7 +1116,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
             </button>
           </div>
           {previewTab === "blueprint" ? (
-            <div className="preview-stack" role="tabpanel" aria-label="蓝图预览">
+            <div className="preview-stack" role="tabpanel" aria-label="诉求预览">
               {blueprintPreview.sections.length ? (
                 blueprintPreview.sections.map((item, index) => (
                   <article key={`${item.title}-${index}`} className="preview-section" data-level={item.level}>
@@ -1126,7 +1126,7 @@ export function TemplateWorkbench({ value, onChange, onSave, savePending = false
                   </article>
                 ))
               ) : (
-                <EmptyState title="蓝图预览为空" description="请先添加蓝图文稿或示例值。" />
+                <EmptyState title="诉求预览为空" description="请先添加诉求文稿或示例值。" />
               )}
             </div>
           ) : null}
@@ -1235,20 +1235,20 @@ function OutlineBlockEditor({
     <div className="outline-block-editor">
       <div className="array-editor__inline-grid array-editor__inline-grid--triple">
         <label className="field">
-          <span className="field-label">区块 ID</span>
+          <span className="field-label">要素 ID</span>
           <input
-            aria-label={`区块 ID ${blockLabel}`}
+            aria-label={`要素 ID ${blockLabel}`}
             value={block.id}
             onChange={(event) => onChange((current) => {
               current.id = event.target.value;
             })}
-            placeholder="区块 ID"
+            placeholder="要素 ID"
           />
         </label>
         <label className="field">
-          <span className="field-label">区块类型</span>
+          <span className="field-label">要素类型</span>
           <select
-            aria-label={`区块类型 ${blockLabel}`}
+            aria-label={`要素类型 ${blockLabel}`}
             value={block.type}
             onChange={(event) => onChange((current) => {
               applyOutlineBlockType(current, event.target.value as OutlineBlockType);
@@ -1319,7 +1319,7 @@ function OutlineBlockEditor({
                 ))}
               </select>
             </label>
-            <p className="outline-block-editor__hint">该区块的取值直接来自全局参数，不在章节蓝图内重复配置选项。</p>
+            <p className="outline-block-editor__hint">该要素的取值直接来自全局参数，不在章节诉求内重复配置选项。</p>
           </>
         ) : null}
 

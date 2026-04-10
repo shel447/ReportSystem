@@ -299,7 +299,7 @@ function OutlineTreeNodeView({
                 <select
                   key={blockKey}
                   className="outline-tree__block-select outline-tree__block-select--chip-editing"
-                  aria-label={`编辑区块值 ${segment.block_id}`}
+                  aria-label={`编辑要素值 ${segment.block_id}`}
                   value={blockDraftValue}
                   autoFocus
                   disabled={disabled}
@@ -333,7 +333,7 @@ function OutlineTreeNodeView({
                 <input
                   key={blockKey}
                   className="outline-tree__block-input outline-tree__block-input--inline outline-tree__block-input--chip-editing"
-                  aria-label={`编辑区块值 ${segment.block_id}`}
+                  aria-label={`编辑要素值 ${segment.block_id}`}
                   type="text"
                   value={blockDraftValue}
                   size={inlineInputSize}
@@ -360,7 +360,7 @@ function OutlineTreeNodeView({
                 key={blockKey}
                 type="button"
                 className={`outline-tree__block-chip${block?.type === "param_ref" ? " outline-tree__block-chip--param-ref" : ""}`}
-                aria-label={`编辑区块 ${segment.block_id}`}
+                aria-label={`编辑要素 ${segment.block_id}`}
                 title={buildBlockTooltip(block, segment.block_id)}
                 disabled={disabled}
                 onClick={(event) => {

@@ -158,7 +158,7 @@ describe("template workbench validation", () => {
 
     const errors = validateWorkbench(state);
 
-    expect(errors).toContain("蓝图区块 param_ref 必须绑定已有参数：概览 {date} / focus_metric");
-    expect(errors).toContain("执行链路引用了不存在的蓝图区块：概览 {date} / missing_block");
+    expect(errors).toContain("诉求要素 param_ref 必须绑定已有参数：概览 {date} / focus_metric");
+    expect(errors).toContain("执行链路引用了不存在的诉求要素：概览 {date} / missing_block");
   });
 });
