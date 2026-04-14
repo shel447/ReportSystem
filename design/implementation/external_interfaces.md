@@ -32,7 +32,7 @@
 - `conversation/infrastructure/capabilities.py`
   - 智能问数、故障诊断、能力级回复
 - `report_runtime/infrastructure/generation.py`
-  - 章节内容生成、v2 蓝图生成
+  - 章节内容生成、v2 诉求生成
 - `infrastructure/query/engine.py`
   - QuerySpec 规划、Ibis 代码生成
 - `routers/system_settings.py`
@@ -275,3 +275,4 @@
 - Completion/Embedding 都采用同步 `httpx.Client`，没有 async client、streaming 和统一重试
 - SQLite/Ibis 链路仍是单机样例型实现
 - 文档存储仍是本地文件系统，不适合直接外推为生产对象存储方案
+

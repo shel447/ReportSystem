@@ -125,11 +125,11 @@ describe("template workbench validation", () => {
     expect(errors).toContain("复合表至少需要一个分区：概览 {date}");
   });
 
-  it("reports invalid outline slot bindings and param refs", () => {
+  it("reports invalid outline item bindings and param refs", () => {
     const state = buildState();
     state.sections[0].outline = {
       requirement: "分析 {@focus_metric}",
-      slots: [
+      items: [
         {
           uiKey: "slot-1",
           id: "focus_metric",

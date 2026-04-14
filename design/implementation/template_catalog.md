@@ -23,10 +23,10 @@
 ## 3. 核心领域概念
 
 - `ReportTemplate`
-  - 模板主对象，承载名称、描述、参数、章节、蓝图、执行链路等静态定义
+  - 模板主对象，承载名称、描述、参数、章节、诉求、执行链路等静态定义
 - `TemplateMatchResult`
   - 模板匹配结果，区分自动命中和候选列表两种输出模式
-- `OutlineBlueprint`
+- `OutlineRequirement`
   - 业务上属于模板章节定义的一部分；当前代码中仍以内嵌 JSON 结构存在于 `parameters / sections / outline` 中，而不是独立 dataclass
 
 ## 4. 分层职责
@@ -140,7 +140,7 @@ sequenceDiagram
 
 ### 业务规格
 
-- 模板的参数/章节/蓝图/执行链路双层结构
+- 模板的参数/章节/诉求/执行链路双层结构
 - 参数映射与诉求要素映射同构（`value_mode + value_mapping`），仅 `enum/dynamic` 生效
 - `param_ref` 必须继承参数 `display/value/query`，不允许局部覆写 `query` 映射
 - 导出时不携带系统字段
@@ -154,4 +154,5 @@ sequenceDiagram
 - SQLAlchemy repository 可以替换为别的持久化实现
 - `schema.py` 当前采用 JSON-schema 风格校验，后续可替换为别的校验器
 - `indexing.py` 当前依赖 embedding 检索，后续可替换为向量库或其他模板召回策略，只要保留 `match()` 与索引状态协议
+
 

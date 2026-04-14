@@ -115,7 +115,7 @@ graph LR
 - 报告参数定义（结构化输入参数）
 - 参数追问模式（`form | chat`）
 - 报告章节结构
-- 面向用户的章节诉求（`outline document + blocks[]`）
+- 面向用户的章节诉求（`outline requirement + items[]`）
 - 面向系统的执行链路（`content / datasets / presentation`）
 
 ### 2.2 统一对话模块运行策略
@@ -196,7 +196,7 @@ sequenceDiagram
 
 ### 3.0 术语统一说明
 
-本系统后续统一使用“诉求”术语替代早期文档中的“蓝图”表述。
+本系统后续统一使用“诉求”术语替代早期文档中的“诉求”表述。
 
 文档侧重说明：
 
@@ -377,12 +377,12 @@ graph TB
 
 **模板双层模型**:
 - 模板章节节点统一采用“双层共存”模式：
-  - `outline`：面向用户的章节诉求定义，采用 `document + blocks[]`
+  - `outline`：面向用户的章节诉求定义，采用 `requirement + items[]`
   - `execution chain`：面向系统的执行链路，采用 `content / datasets / presentation`
-- 两层不冲突，并通过同章节节点以及 `{@block_id}` 显式绑定：
+- 两层不冲突，并通过同章节节点以及 `{@item_id}` 显式绑定：
   - `{param_id}`：模板级参数
   - `{$var}`：`foreach` 局部变量
-  - `{@block_id}`：章节诉求要素
+  - `{@item_id}`：章节诉求要素
 - 对话助手的大纲确认阶段优先操作实例级诉求树；确认生成时再把诉求要素值注入执行链路，形成实例级执行基线。
 
 
@@ -496,3 +496,7 @@ graph TD
 | v1.5 | 2026-03-31 | Antigravity | 统一对话模块扩展到报告生成/智能问数/智能故障；模板参数支持 `interaction_mode=form|chat`；定时任务新增双时间模型与“从已有实例创建”语义 |
 | v1.6 | 2026-03-31 | Antigravity | 新增 DFX 接口治理专题文档，统一异常响应、错误码、分页/排序、限流、容量上限与数据保留策略，并记录定时任务时间语义重构为后续专题 |
 | v1.7 | 2026-04-01 | Codex | 新增 `design/implementation/` 后端实现文档组，补齐 4 个 bounded context、共享基础设施、数据库表定义总览，以及外部接口与用法说明 |
+
+
+
+

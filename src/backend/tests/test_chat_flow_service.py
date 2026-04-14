@@ -102,11 +102,11 @@ class ChatFlowServiceTests(unittest.TestCase):
                     "display_text": "概览：说明",
                     "ai_generated": True,
                     "requirement_instance": {
-                        "requirement_template": "分析 {@metric}",
+                        "requirement": "分析 {@metric}",
                         "rendered_requirement": "分析 温度",
-                        "slots": [{"id": "metric", "value": "温度"}],
+                        "items": [{"id": "metric", "value": "温度"}],
                     },
-                    "execution_bindings": [{"slot_id": "metric", "targets": ["presentation.template"]}],
+                    "execution_bindings": [{"item_id": "metric", "targets": ["presentation.template"]}],
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 }
             ],
@@ -125,7 +125,7 @@ class ChatFlowServiceTests(unittest.TestCase):
         self.assertEqual(action["outline"][0]["node_kind"], "freeform_leaf")
         self.assertTrue(action["outline"][0]["ai_generated"])
         self.assertEqual(action["outline"][0]["requirement_instance"]["rendered_requirement"], "分析 温度")
-        self.assertEqual(action["outline"][0]["execution_bindings"][0]["slot_id"], "metric")
+        self.assertEqual(action["outline"][0]["execution_bindings"][0]["item_id"], "metric")
         self.assertEqual(action["params_snapshot"][0]["value"], "总部")
 
     def test_rewind_slots_for_param_clears_target_and_following_slots(self):

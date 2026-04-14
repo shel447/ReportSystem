@@ -9,7 +9,7 @@ export type StructuralPreview = {
   }>;
 };
 
-export function buildBlueprintPreview(state: TemplateWorkbenchState): StructuralPreview {
+export function buildRequirementPreview(state: TemplateWorkbenchState): StructuralPreview {
   const sections = state.sections.flatMap((section) => renderSection(section, state.previewSamples, {}, 1, "requirement"));
   return { sections };
 }
@@ -108,7 +108,7 @@ function renderText(
 ): string {
   return String(template || "")
     .replace(/\{\$([a-zA-Z0-9_]+)\}/g, (_match, alias: string) => locals[alias] ?? "")
-    .replace(/\{@([a-zA-Z0-9_]+)\}/g, (_match, slotId: string) => outlineValues[slotId] ?? "")
+    .replace(/\{@([a-zA-Z0-9_]+)\}/g, (_match, itemId: string) => outlineValues[itemId] ?? "")
     .replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, key: string) => stringifySample(samples[key]));
 }
 
@@ -118,24 +118,24 @@ function resolveOutlineValues(
   locals: Record<string, string>,
 ): Record<string, string> {
   const resolved: Record<string, string> = {};
-  for (const slot of section.outline?.slots ?? []) {
-    const slotId = slot.id.trim();
-    if (!slotId) {
+  for (const item of section.outline?.items ?? []) {
+    const itemId = item.id.trim();
+    if (!itemId) {
       continue;
     }
-    if (slot.paramId.trim()) {
-      resolved[slotId] = stringifySample(samples[slot.paramId.trim()]);
+    if (item.paramId.trim()) {
+      resolved[itemId] = stringifySample(samples[item.paramId.trim()]);
       continue;
     }
-    if (typeof samples[slotId] !== "undefined") {
-      resolved[slotId] = stringifySample(samples[slotId]);
+    if (typeof samples[itemId] !== "undefined") {
+      resolved[itemId] = stringifySample(samples[itemId]);
       continue;
     }
-    if (slot.defaultValue.trim()) {
-      resolved[slotId] = renderText(slot.defaultValue, samples, locals, resolved);
+    if (item.defaultValue.trim()) {
+      resolved[itemId] = renderText(item.defaultValue, samples, locals, resolved);
       continue;
     }
-    resolved[slotId] = slot.hint || slotId;
+    resolved[itemId] = item.hint || itemId;
   }
   return resolved;
 }

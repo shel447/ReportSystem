@@ -2,7 +2,7 @@
 
 > 本文档是 [总设计文档 (design.md)](design.md) 的子文档，描述报告模板在当前版本下的数据模型、章节双层结构与配置原则。
 
-> 术语使用约定：本模块文档在业务语义上统一使用“诉求”体系；当出现 `outline`、`OutlineBlueprint` 等旧结构名时，仅表示当前结构命名仍沿用历史实现。
+> 术语使用约定：本模块文档在业务语义上统一使用“诉求”体系；当出现 `outline`、`OutlineRequirement` 等旧结构名时，仅表示当前结构命名仍沿用历史实现。
 
 ---
 
@@ -17,7 +17,7 @@
 
 - **诉求层 (`outline`)**
   - 面向用户
-  - 使用 `document + blocks[]` 描述章节诉求与表达口径
+  - 使用 `requirement + items[]` 描述章节诉求与表达口径
 - **执行层 (`content / datasets / presentation`)**
   - 面向系统
   - 描述数据准备、内容生成和展示方式
@@ -41,7 +41,7 @@
 - 不是最终报告正文
 - 会继续驱动执行层生成结果
 
-因此，早期文档中的“蓝图”在业务语义上统一收敛为“诉求”。
+因此，早期文档中的“诉求”在业务语义上统一收敛为“诉求”。
 
 ### 诉求要素
 
@@ -87,7 +87,7 @@
 
 兼容说明：
 
-- 本阶段文档中，`outline`、`OutlineBlueprint`、`outline_instance` 等旧名仍可能在结构字段和接口动作中出现
+- 本阶段文档中，`outline`、`OutlineRequirement`、`outline_instance` 等旧名仍可能在结构字段和接口动作中出现
 - 但其业务语义统一按“诉求定义 / 诉求实例”理解
 
 ---
@@ -376,7 +376,7 @@ class TemplateSection:
     description: str
 
     foreach: Optional[ForeachConfig]
-    outline: Optional[OutlineBlueprint]  # 业务语义：章节诉求定义
+    outline: Optional[OutlineRequirement]  # 业务语义：章节诉求定义
 
     content: Optional[SectionContent]
     subsections: List["TemplateSection"]
@@ -396,9 +396,9 @@ class TemplateSection:
 
 - `{param_id}`：模板级参数
 - `{$var}`：`foreach` 局部变量
-- `{@block_id}`：当前章节诉求要素
+- `{@item_id}`：当前章节诉求要素
 
-其中 `{@block_id}` 不仅能出现在章节诉求文本中，也能出现在执行层文本字段里，例如：
+其中 `{@item_id}` 不仅能出现在章节诉求文本中，也能出现在执行层文本字段里，例如：
 
 - `section.title`
 - `section.description`
@@ -409,18 +409,18 @@ class TemplateSection:
 
 ---
 
-## 5. 诉求层 (OutlineBlueprint)
+## 5. 诉求层 (OutlineRequirement)
 
 ```python
 @dataclass
-class OutlineBlueprint:
-    document: str
-    blocks: List[OutlineBlock]
+class OutlineRequirement:
+    requirement: str
+    items: List[RequirementItem]
 ```
 
 ```python
 @dataclass
-class OutlineBlock:
+class RequirementItem:
     id: str
     type: str
     hint: str
@@ -438,8 +438,8 @@ class OutlineBlock:
 
 在业务语义上：
 
-- `OutlineBlueprint` = `章节诉求定义`
-- `OutlineBlock` = `诉求要素`
+- `OutlineRequirement` = `章节诉求定义`
+- `RequirementItem` = `诉求要素`
 
 ### 5.1 诉求要素类型
 
@@ -458,8 +458,8 @@ class OutlineBlock:
 
 ### 5.2 诉求层设计原则
 
-- `document` 是用户在大纲确认中直接感知的章节诉求表达
-- `blocks[]` 是章节级诉求要素，不等同于模板全局参数
+- `requirement` 是用户在大纲确认中直接感知的章节诉求表达
+- `items[]` 是章节级诉求要素，不等同于模板全局参数
 - `param_ref` 用于把模板参数直接映射为章节诉求要素值
 - `param_ref` 绑定参数后，完整继承参数的 `display / value / query`
 - `param_ref` 不再单独定义映射规则，避免参数与诉求双源配置冲突
@@ -471,11 +471,11 @@ class OutlineBlock:
 
 - `{param_id}`：全模板可见，语义固定为参数 `display`（用户可见值）
 - `{$var}`：当前 `foreach` 节点及其子树可见
-- `{@block_id}`：兼容写法，等价于 `{@block_id.display}`
-- `{@block_id.display}`：诉求展示值（面向用户可读）
-- `{@block_id.value}`：诉求规范值（面向结构化表达，通常是稳定 key）
-- `{@block_id.query}`：执行查询值（由 `value_mapping.query` 计算得到）
-- 参数占位符不新增 `{param_id.query}` / `{param_id.value}`，执行值必须通过 `param_ref` 进入 `{@block_id.query}`
+- `{@item_id}`：兼容写法，等价于 `{@item_id.display}`
+- `{@item_id.display}`：诉求展示值（面向用户可读）
+- `{@item_id.value}`：诉求规范值（面向结构化表达，通常是稳定 key）
+- `{@item_id.query}`：执行查询值（由 `value_mapping.query` 计算得到）
+- 参数占位符不新增 `{param_id.query}` / `{param_id.value}`，执行值必须通过 `param_ref` 进入 `{@item_id.query}`
 - 不允许同一路径上的诉求要素 `id` 重名覆盖
 
 ### 5.4 值映射 (value_mapping)
@@ -506,7 +506,7 @@ class OutlineBlock:
 
 规则说明：
 
-- `value_mode=key` 时，`{@block_id.value}` 优先取稳定 key；`display` 仍展示 label。
+- `value_mode=key` 时，`{@item_id.value}` 优先取稳定 key；`display` 仍展示 label。
 - `value_mapping.query.map` 支持标量和标量数组，兼容等值和 `IN (...)` 场景。
 - `on_unmapped` 默认 `error`，避免执行层在未知值上静默退化。
 - `query` 通道是执行层通道，不等同于任何单一数据源类型（例如 SQL 只是其一种消费者）。
@@ -551,7 +551,7 @@ class SectionDataset:
 ### 6.3 执行层设计原则
 
 - 执行层负责“怎么查、怎么生成、怎么展示”
-- 执行层允许显式引用诉求要素 `{@block_id}`
+- 执行层允许显式引用诉求要素 `{@item_id}`
 - 执行层本身不直接暴露给普通使用者编辑；在模板工作台中作为章节详情的独立页签维护
 
 ---
@@ -563,8 +563,8 @@ class SectionDataset:
 映射关系采用“同章节节点双层共存 + 要素级显式绑定”：
 
 - 一个章节节点同时持有 `outline`（诉求定义）与 `content`
-- 执行层通过 `{@block_id.query}` 显式消费执行查询值
-- 展示层通过 `{@block_id.display}` 消费可读值
+- 执行层通过 `{@item_id.query}` 显式消费执行查询值
+- 展示层通过 `{@item_id.display}` 消费可读值
 - 运行时对章节诉求求值后，再解析执行层
 
 ### 7.2 对话生成时序
@@ -589,7 +589,7 @@ sequenceDiagram
 
 在实例生成时，系统内部会形成两份相关快照：
 
-- `confirmed_outline_blueprint`
+- `confirmed_outline`
   - 业务语义：用户确认后的实例级诉求树
 - `resolved_execution_baseline`
   - 用诉求值解析后的执行层基线
@@ -640,10 +640,10 @@ sequenceDiagram
 - `date` 不允许 `multi=true`
 - `enum/dynamic` 支持 `value_mode` 与 `value_mapping`；`free_text/date` 不允许声明参数映射字段
 - 参数 `value_mapping.query.on_unmapped` 默认 `error`
-- `{@block_id}` 必须能在当前章节或祖先章节解析
+- `{@item_id}` 必须能在当前章节或祖先章节解析
 - `param_ref` 必须绑定已有模板参数
 - `param_ref` 绑定后必须继承参数映射，不允许局部覆写 `query` 映射
-- `value_mapping.query.by=key` 时，区块候选项必须可产出稳定 key
+- `value_mapping.query.by=key` 时，要素候选项必须可产出稳定 key
 - `value_mapping.query.map` 的 value 仅允许标量或标量数组
 - `value_mapping.query.on_unmapped=error` 时，不允许回退到展示值继续执行
 - `input_type=dynamic` 的候选项响应必须包含合法 `query` 值（标量或标量数组）
@@ -691,3 +691,13 @@ sequenceDiagram
 - [implementation/template_catalog.md](implementation/template_catalog.md)
 - [implementation/database_schema.md](implementation/database_schema.md)
 - [implementation/external_interfaces.md](implementation/external_interfaces.md)
+
+
+
+
+
+
+
+
+
+

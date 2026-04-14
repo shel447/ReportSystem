@@ -42,7 +42,7 @@
 - `OutlineExpansionService`
   - 负责旧 `outline` 结构的参数替换、repeat 展开和 warning 产出
 - `is_v2_template()`
-  - 负责模板判型，决定实例生成走旧 outline 还是 v2 sections/outline blueprint 链路
+  - 负责模板判型，决定实例生成走旧 outline 还是 v2 sections/outline requirement 链路
 
 ### application
 
@@ -62,11 +62,11 @@
 - `gateways.py`
   - application 组合入口，统一把技术错误转换成 `ValidationError / UpstreamError`
 - `outline.py`
-  - 实例级大纲树构建、merge、蓝图退化与执行基线解析
+  - 实例级大纲树构建、merge、诉求退化与执行基线解析
 - `rendering.py`
   - 执行链路和样例数据查询编排
 - `generation.py`
-  - OpenAI 内容生成器、章节生成、v2 蓝图驱动生成
+  - OpenAI 内容生成器、章节生成、v2 诉求驱动生成
 - `baselines.py`
   - 生成基线的捕获和读取
 - `documents.py`
@@ -113,7 +113,7 @@ sequenceDiagram
 ### 5.3 章节重生成
 
 - 旧模板：复用 legacy 单节生成逻辑
-- v2 模板：优先用 `outline_node` 和蓝图上下文重建该节
+- v2 模板：优先用 `outline_node` 和诉求上下文重建该节
 - 所有技术异常统一在 gateway 层收敛为 `ValidationError / UpstreamError`
 
 ### 5.4 文档导出
@@ -128,7 +128,7 @@ sequenceDiagram
 ### 对外依赖
 
 - `template_catalog`：读取模板定义
-- `infrastructure.ai.openai_compat`：章节生成和蓝图扩展相关 LLM 调用
+- `infrastructure.ai.openai_compat`：章节生成和诉求扩展相关 LLM 调用
 - `infrastructure.query.*`：结构化查询与证据查询
 - `infrastructure.demo.*`：样例 SQLite 数据
 - `shared/kernel/errors.py`
@@ -155,7 +155,7 @@ sequenceDiagram
 
 ### 业务规格
 
-- 模板双层模型：蓝图确认在前，执行链路解析在后
+- 模板双层模型：诉求确认在前，执行链路解析在后
 - `GenerationBaseline` 作为内部生成基线快照
 - 章节重生成和文档导出生命周期
 
@@ -165,4 +165,6 @@ sequenceDiagram
 - 查询引擎可替换成其他 SQL / Ibis / 向量检索方案
 - 文档渲染器和文件存储可替换成对象存储、其他格式渲染器
 - 只要 `ReportRuntimeService`、`ReportDocumentService` 和 `ReportInstanceCreationService` 的行为契约不变，业务规格不需要改
+
+
 

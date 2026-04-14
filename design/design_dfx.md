@@ -111,7 +111,7 @@
 | `TEMPLATE_NOT_FOUND` | `not_found` | 模板不存在 |
 | `TEMPLATE_SCHEMA_INVALID` | `validation_error` | schema 校验失败 |
 | `TEMPLATE_PARAM_ID_DUPLICATED` | `validation_error` | 参数 ID 重复 |
-| `TEMPLATE_OUTLINE_REFERENCE_INVALID` | `validation_error` | 章节引用或蓝图区块引用失效 |
+| `TEMPLATE_OUTLINE_REFERENCE_INVALID` | `validation_error` | 章节引用或诉求要素引用失效 |
 | `TEMPLATE_EXPORT_TARGET_NOT_FOUND` | `not_found` | 导出目标模板不存在 |
 
 #### 3.2.3 对话
@@ -205,7 +205,7 @@
 | 模板总 JSON | `512 KB` |
 | 模板参数数 | `<= 50` |
 | 模板章节总节点数 | `<= 200` |
-| 单章节蓝图区块数 | `<= 20` |
+| 单章节诉求要素数 | `<= 20` |
 | 单章节 datasets 数 | `<= 10` |
 | 实例 `input_params` JSON | `<= 128 KB` |
 | 实例章节数 | `<= 300` |
@@ -347,3 +347,5 @@
 - 限流器实现
 - 自动清理任务实现
 - 定时任务时间语义重构实现
+
+

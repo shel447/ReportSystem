@@ -179,8 +179,8 @@ class OutlineReviewServiceTests(unittest.TestCase):
                 {
                     "title": "概览 {date}",
                     "outline": {
-                        "document": "分析 {@focus_metric} 在 {date} 的变化",
-                        "slots": [
+                        "requirement": "分析 {@focus_metric} 在 {date} 的变化",
+                        "items": [
                             {
                                 "id": "focus_metric",
                                 "type": "indicator",
@@ -204,8 +204,8 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(warnings, [])
         self.assertEqual(outline[0]["display_text"], "分析 温度 在 2026-03-19 的变化")
         self.assertEqual(outline[0]["requirement_instance"]["rendered_requirement"], "分析 温度 在 2026-03-19 的变化")
-        self.assertEqual(outline[0]["requirement_instance"]["slots"][0]["value"], "温度")
-        self.assertEqual(outline[0]["execution_bindings"][0]["slot_id"], "focus_metric")
+        self.assertEqual(outline[0]["requirement_instance"]["items"][0]["value"], "温度")
+        self.assertEqual(outline[0]["execution_bindings"][0]["item_id"], "focus_metric")
         self.assertEqual(outline[0]["execution_bindings"][0]["targets"], ["presentation.template"])
 
     def test_merge_outline_override_preserves_structured_content_and_marks_new_nodes(self):
@@ -266,14 +266,14 @@ class OutlineReviewServiceTests(unittest.TestCase):
                     }
                 },
                 "requirement_instance": {
-                    "requirement_template": "分析 {@focus_metric} 的变化",
+                    "requirement": "分析 {@focus_metric} 的变化",
                     "rendered_requirement": "分析 温度 的变化",
                     "segments": [
                         {"kind": "text", "text": "分析 "},
-                        {"kind": "slot", "slot_id": "focus_metric", "slot_type": "indicator", "value": "温度"},
+                        {"kind": "item", "item_id": "focus_metric", "item_type": "indicator", "value": "温度"},
                         {"kind": "text", "text": " 的变化"},
                     ],
-                    "slots": [
+                    "items": [
                         {"id": "focus_metric", "type": "indicator", "hint": "指标", "value": "温度"},
                     ],
                 },
@@ -287,14 +287,14 @@ class OutlineReviewServiceTests(unittest.TestCase):
                 "level": 1,
                 "children": [],
                 "requirement_instance": {
-                    "requirement_template": "分析 {@focus_metric} 的变化",
+                    "requirement": "分析 {@focus_metric} 的变化",
                     "rendered_requirement": "分析 湿度 的变化",
                     "segments": [
                         {"kind": "text", "text": "分析 "},
-                        {"kind": "slot", "slot_id": "focus_metric", "slot_type": "indicator", "value": "湿度"},
+                        {"kind": "item", "item_id": "focus_metric", "item_type": "indicator", "value": "湿度"},
                         {"kind": "text", "text": " 的变化"},
                     ],
-                    "slots": [
+                    "items": [
                         {"id": "focus_metric", "type": "indicator", "hint": "指标", "value": "湿度"},
                     ],
                 },
@@ -306,7 +306,7 @@ class OutlineReviewServiceTests(unittest.TestCase):
         resolved = resolve_outline_execution_baseline(merged)
 
         self.assertEqual(frontend[0]["display_text"], "分析 湿度 的变化")
-        self.assertEqual(frontend[0]["requirement_instance"]["slots"][0]["value"], "湿度")
+        self.assertEqual(frontend[0]["requirement_instance"]["items"][0]["value"], "湿度")
         self.assertEqual(
             resolved[0]["resolved_content"]["presentation"]["template"],
             "展示 湿度",
@@ -328,16 +328,16 @@ class OutlineReviewServiceTests(unittest.TestCase):
                         "template": "展示 {@focus_metric}",
                     }
                 },
-                "execution_bindings": [{"slot_id": "focus_metric", "targets": ["presentation.template"]}],
+                "execution_bindings": [{"item_id": "focus_metric", "targets": ["presentation.template"]}],
                 "requirement_instance": {
-                    "requirement_template": "分析 {@focus_metric} 的变化",
+                    "requirement": "分析 {@focus_metric} 的变化",
                     "rendered_requirement": "分析 温度 的变化",
                     "segments": [
                         {"kind": "text", "text": "分析 "},
-                        {"kind": "slot", "slot_id": "focus_metric", "slot_type": "indicator", "value": "温度"},
+                        {"kind": "item", "item_id": "focus_metric", "item_type": "indicator", "value": "温度"},
                         {"kind": "text", "text": " 的变化"},
                     ],
-                    "slots": [
+                    "items": [
                         {"id": "focus_metric", "type": "indicator", "hint": "指标", "value": "温度"},
                     ],
                 },

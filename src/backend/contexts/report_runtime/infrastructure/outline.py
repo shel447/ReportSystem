@@ -206,13 +206,13 @@ def _resolve_outline_node(node: Dict[str, Any]) -> Dict[str, Any]:
 def _outline_context_from_node(node: Dict[str, Any]) -> Dict[str, Any]:
     requirement_instance = node.get("requirement_instance") if isinstance(node.get("requirement_instance"), dict) else {}
     context: Dict[str, Any] = {}
-    for block in requirement_instance.get("slots") or []:
-        if not isinstance(block, dict):
+    for item in requirement_instance.get("items") or requirement_instance.get("slots") or []:
+        if not isinstance(item, dict):
             continue
-        slot_id = str(block.get("id") or "").strip()
-        if not slot_id:
+        item_id = str(item.get("id") or "").strip()
+        if not item_id:
             continue
-        context[slot_id] = block.get("value")
+        context[item_id] = item.get("value")
     return context
 
 
@@ -221,28 +221,32 @@ def _merge_requirement_instance(override: Any, current: Any) -> Dict[str, Any] |
         return copy.deepcopy(current) if isinstance(current, dict) else None
 
     current_instance = current if isinstance(current, dict) else {}
-    current_blocks = {
+    current_items = {
         str(item.get("id") or "").strip(): copy.deepcopy(item)
-        for item in current_instance.get("slots") or []
+        for item in current_instance.get("items") or current_instance.get("slots") or []
         if isinstance(item, dict) and str(item.get("id") or "").strip()
     }
 
-    merged_blocks: List[Dict[str, Any]] = []
-    for raw_block in override.get("slots") or []:
-        if not isinstance(raw_block, dict):
-            continue
-        slot_id = str(raw_block.get("id") or "").strip()
-        if not slot_id:
-            continue
-        merged_block = current_blocks.get(slot_id, {})
-        merged_block.update(copy.deepcopy(raw_block))
-        merged_block["id"] = slot_id
-        merged_block["value"] = str(merged_block.get("value") or "")
-        merged_blocks.append(merged_block)
+    override_items = override.get("items")
+    if not isinstance(override_items, list):
+        override_items = override.get("slots") or []
 
-    merged_block_lookup = {
+    merged_items: List[Dict[str, Any]] = []
+    for raw_item in override_items or []:
+        if not isinstance(raw_item, dict):
+            continue
+        item_id = str(raw_item.get("id") or "").strip()
+        if not item_id:
+            continue
+        merged_item = current_items.get(item_id, {})
+        merged_item.update(copy.deepcopy(raw_item))
+        merged_item["id"] = item_id
+        merged_item["value"] = str(merged_item.get("value") or "")
+        merged_items.append(merged_item)
+
+    merged_item_lookup = {
         str(item.get("id") or "").strip(): item
-        for item in merged_blocks
+        for item in merged_items
         if isinstance(item, dict) and str(item.get("id") or "").strip()
     }
 
@@ -255,18 +259,18 @@ def _merge_requirement_instance(override: Any, current: Any) -> Dict[str, Any] |
         if kind == "text":
             merged_segments.append({"kind": "text", "text": str(raw_segment.get("text") or "")})
             continue
-        if kind != "slot":
+        if kind != "item":
             continue
-        slot_id = str(raw_segment.get("slot_id") or "").strip()
-        if not slot_id:
+        item_id = str(raw_segment.get("item_id") or raw_segment.get("slot_id") or "").strip()
+        if not item_id:
             continue
-        block = merged_block_lookup.get(slot_id, {})
+        item = merged_item_lookup.get(item_id, {})
         merged_segments.append(
             {
-                "kind": "slot",
-                "slot_id": slot_id,
-                "slot_type": str(raw_segment.get("slot_type") or block.get("type") or ""),
-                "value": str(block.get("value") or raw_segment.get("value") or ""),
+                "kind": "item",
+                "item_id": item_id,
+                "item_type": str(raw_segment.get("item_type") or raw_segment.get("slot_type") or item.get("type") or ""),
+                "value": str(item.get("value") or raw_segment.get("value") or ""),
             }
         )
 
@@ -274,15 +278,15 @@ def _merge_requirement_instance(override: Any, current: Any) -> Dict[str, Any] |
         str(segment.get("text") if segment.get("kind") == "text" else segment.get("value") or "")
         for segment in merged_segments
     ).strip()
-    requirement_template = str(override.get("requirement_template") or current_instance.get("requirement_template") or "")
+    requirement = str(override.get("requirement") or override.get("requirement_template") or current_instance.get("requirement") or current_instance.get("requirement_template") or "")
     if not rendered_requirement:
         rendered_requirement = str(override.get("rendered_requirement") or current_instance.get("rendered_requirement") or "").strip()
 
     return {
-        "requirement_template": requirement_template,
+        "requirement": requirement,
         "rendered_requirement": rendered_requirement,
         "segments": merged_segments,
-        "slots": merged_blocks,
+        "items": merged_items,
     }
 
 

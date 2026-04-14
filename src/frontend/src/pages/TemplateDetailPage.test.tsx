@@ -44,7 +44,7 @@ function buildTemplatePayload(name = "设备巡检报告") {
         title: "概览 {date}",
         outline: {
           requirement: "分析 {@focus_metric} 在 {date} 的变化",
-          slots: [
+          items: [
             {
               id: "focus_metric",
               type: "indicator",
@@ -426,7 +426,7 @@ describe("TemplateDetailPage", () => {
     });
   });
 
-  it("slots save when parameter ids are duplicated", async () => {
+  it("items save when parameter ids are duplicated", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -456,7 +456,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.getByRole("button", { name: "保存模板" })).toBeDisabled();
   });
 
-  it("renders typed outline slot config controls in blueprint workbench", async () => {
+  it("renders typed outline item config controls in requirement workbench", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -498,7 +498,7 @@ describe("TemplateDetailPage", () => {
     expect(screen.queryByLabelText("固定选项 focus_metric")).not.toBeInTheDocument();
   });
 
-  it("renders specialized controls for number, threshold, boolean, and operator slots", async () => {
+  it("renders specialized controls for number, threshold, boolean, and operator items", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

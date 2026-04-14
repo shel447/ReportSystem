@@ -143,7 +143,18 @@ class SchemaCutoverMigrationTests(unittest.TestCase):
                     "inspection",
                     "总部",
                     json.dumps([{"id": "scene", "label": "场景"}], ensure_ascii=False),
-                    json.dumps([{"title": "总览"}], ensure_ascii=False),
+                    json.dumps(
+                        [
+                            {
+                                "title": "总览",
+                                "outline": {
+                                    "document": "分析 {@metric}",
+                                    "blocks": [{"id": "metric", "type": "indicator", "hint": "指标"}],
+                                },
+                            }
+                        ],
+                        ensure_ascii=False,
+                    ),
                     "v2.0",
                     json.dumps(["巡检"], ensure_ascii=False),
                     json.dumps(["md"], ensure_ascii=False),
@@ -162,7 +173,20 @@ class SchemaCutoverMigrationTests(unittest.TestCase):
                     "1.0",
                     "generated",
                     json.dumps({"scene": "总部"}, ensure_ascii=False),
-                    json.dumps([{"title": "总览"}], ensure_ascii=False),
+                    json.dumps(
+                        [
+                            {
+                                "title": "总览",
+                                "requirement_instance": {
+                                    "requirement_template": "分析 {@metric}",
+                                    "segments": [{"kind": "slot", "slot_id": "metric", "value": "温度"}],
+                                    "slots": [{"id": "metric", "type": "indicator", "value": "温度"}],
+                                },
+                                "execution_bindings": [{"slot_id": "metric", "targets": ["presentation.template"]}],
+                            }
+                        ],
+                        ensure_ascii=False,
+                    ),
                     "scheduled_execution",
                 ),
             )
@@ -180,7 +204,19 @@ class SchemaCutoverMigrationTests(unittest.TestCase):
                     "sess-1",
                     "generation_baseline",
                     json.dumps({"scene": "总部"}, ensure_ascii=False),
-                    json.dumps([{"title": "总览"}], ensure_ascii=False),
+                    json.dumps(
+                        [
+                            {
+                                "title": "总览",
+                                "requirement_instance": {
+                                    "requirement_template": "分析 {@metric}",
+                                    "segments": [{"kind": "slot", "slot_id": "metric", "value": "温度"}],
+                                    "slots": [{"id": "metric", "type": "indicator", "value": "温度"}],
+                                },
+                            }
+                        ],
+                        ensure_ascii=False,
+                    ),
                     json.dumps([], ensure_ascii=False),
                     "inst-1",
                 ),
@@ -243,6 +279,8 @@ class SchemaCutoverMigrationTests(unittest.TestCase):
             template_content = json.loads(template_row[2])
             self.assertEqual(template_content["parameters"][0]["id"], "scene")
             self.assertEqual(template_content["sections"][0]["title"], "总览")
+            self.assertEqual(template_content["sections"][0]["outline"]["requirement"], "分析 {@metric}")
+            self.assertEqual(template_content["sections"][0]["outline"]["items"][0]["id"], "metric")
 
             instance_row = cursor.execute(
                 "SELECT id, user_id, source_session_id, source_message_id, schema_version, content FROM tbl_report_instances WHERE id='inst-1'"
@@ -253,11 +291,18 @@ class SchemaCutoverMigrationTests(unittest.TestCase):
             self.assertIsNone(instance_row[3])
             instance_content = json.loads(instance_row[5])
             self.assertEqual(instance_content["input_params"]["scene"], "总部")
+            self.assertEqual(instance_content["outline_content"][0]["requirement_instance"]["requirement"], "分析 {@metric}")
+            self.assertEqual(instance_content["outline_content"][0]["requirement_instance"]["segments"][0]["kind"], "item")
+            self.assertEqual(instance_content["outline_content"][0]["requirement_instance"]["items"][0]["id"], "metric")
+            self.assertEqual(instance_content["outline_content"][0]["execution_bindings"][0]["item_id"], "metric")
 
             baseline_row = cursor.execute(
                 "SELECT id, report_instance_id, schema_version, content FROM tbl_template_instances WHERE id='baseline-1'"
             ).fetchone()
             self.assertEqual(baseline_row[1], "inst-1")
+            baseline_content = json.loads(baseline_row[3])
+            self.assertEqual(baseline_content["outline_snapshot"][0]["requirement_instance"]["requirement"], "分析 {@metric}")
+            self.assertEqual(baseline_content["outline_snapshot"][0]["requirement_instance"]["items"][0]["id"], "metric")
             baseline_content = json.loads(baseline_row[3])
             self.assertEqual(baseline_content["session_id"], "sess-1")
 

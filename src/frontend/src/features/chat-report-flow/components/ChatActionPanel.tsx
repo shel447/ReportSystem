@@ -470,7 +470,7 @@ function ReviewOutlinePanel({
         onCommitEdit={commitInlineEdit}
         onCancelEdit={cancelInlineEdit}
         onBeginBlockEdit={(node, blockId) => {
-          const block = (node.requirement_instance?.slots ?? []).find((item) => item.id === blockId);
+          const block = (node.requirement_instance?.items ?? []).find((item) => item.id === blockId);
           setSelectedNodeId(node.node_id);
           syncEditingNodeId(null);
           draftDisplayTextRef.current = "";
@@ -695,11 +695,11 @@ function applyBlockEditToTree(nodes: OutlineDraftNode[], nodeId: string, blockId
     if (!node.requirement_instance) {
       return node;
     }
-    const nextBlocks = (node.requirement_instance.slots ?? []).map((block) =>
+    const nextBlocks = (node.requirement_instance.items ?? []).map((block) =>
       block.id === blockId ? { ...block, value: nextValue } : block,
     );
     const nextSegments = (node.requirement_instance.segments ?? []).map((segment) =>
-      segment.kind === "slot" && segment.slot_id === blockId ? { ...segment, value: nextValue } : segment,
+      segment.kind === "item" && segment.item_id === blockId ? { ...segment, value: nextValue } : segment,
     );
     const renderedDocument = nextSegments
       .map((segment) => (segment.kind === "text" ? segment.text : segment.value ?? ""))
@@ -712,7 +712,7 @@ function applyBlockEditToTree(nodes: OutlineDraftNode[], nodeId: string, blockId
       requirement_instance: {
         ...node.requirement_instance,
         rendered_requirement: renderedDocument,
-        slots: nextBlocks,
+        items: nextBlocks,
         segments: nextSegments,
       },
     };
@@ -727,13 +727,13 @@ function tryPreserveStructuredSentence(node: OutlineDraftNode, nextDisplayText: 
   if (!parsed) {
     return null;
   }
-  const nextBlocks = (node.requirement_instance.slots ?? []).map((block) => ({
+  const nextBlocks = (node.requirement_instance.items ?? []).map((block) => ({
     ...block,
     value: parsed.blockValues.get(block.id) ?? block.value ?? "",
   }));
   const nextSegments = (node.requirement_instance.segments ?? []).map((segment) =>
-    segment.kind === "slot"
-      ? { ...segment, value: parsed.blockValues.get(segment.slot_id) ?? segment.value ?? "" }
+    segment.kind === "item"
+      ? { ...segment, value: parsed.blockValues.get(segment.item_id) ?? segment.value ?? "" }
       : segment,
   );
   const preservedNode: OutlineDraftNode = {
@@ -743,7 +743,7 @@ function tryPreserveStructuredSentence(node: OutlineDraftNode, nextDisplayText: 
     requirement_instance: {
       ...node.requirement_instance,
       rendered_requirement: nextDisplayText,
-      slots: nextBlocks,
+      items: nextBlocks,
       segments: nextSegments,
     },
   };
@@ -760,7 +760,7 @@ function parseStructuredSentence(
       if (segment.kind === "text") {
         return escapeRegex(segment.text);
       }
-      blockIds.push(segment.slot_id);
+      blockIds.push(segment.item_id);
       return "(.*?)";
     })
     .join("");
@@ -902,3 +902,4 @@ function createRow(level: number): OutlineDraftRow {
     node_kind: "freeform_leaf",
   };
 }
+

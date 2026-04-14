@@ -174,7 +174,7 @@ class ChatRouterTests(unittest.TestCase):
                     "description": "查看章节内容",
                     "outline": {
                         "document": "分析 {@target_scene} 的巡检情况",
-                        "slots": [
+                        "items": [
                             {
                                 "id": "target_scene",
                                 "type": "param_ref",
@@ -252,7 +252,7 @@ class ChatRouterTests(unittest.TestCase):
             edited_outline = second["action"]["outline"]
             edited_outline[0]["requirement_instance"]["rendered_requirement"] = "分析 湿度 的巡检情况"
             edited_outline[0]["requirement_instance"]["segments"][1]["value"] = "湿度"
-            edited_outline[0]["requirement_instance"]["slots"][0]["value"] = "湿度"
+            edited_outline[0]["requirement_instance"]["items"][0]["value"] = "湿度"
             third = send_message(
                 ChatMessage(
                     session_id=first["session_id"],
@@ -1054,3 +1054,5 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -6,7 +6,7 @@ import type {
   TemplateLayout,
   TemplateParameter,
   TemplatePresentation,
-  TemplateRequirementSlot,
+  TemplateRequirementItem,
   TemplateSection,
   TemplateSectionOutline,
   TemplateUpsertPayload,
@@ -68,17 +68,17 @@ export type WorkbenchSection = {
   children: WorkbenchSection[];
 };
 
-export type RequirementSlotType = "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
+export type RequirementItemType = "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
 
 export type WorkbenchSectionOutline = {
   requirement: string;
-  slots: WorkbenchRequirementSlot[];
+  items: WorkbenchRequirementItem[];
 };
 
-export type WorkbenchRequirementSlot = {
+export type WorkbenchRequirementItem = {
   uiKey: string;
   id: string;
-  type: RequirementSlotType;
+  type: RequirementItemType;
   hint: string;
   defaultValue: string;
   options: string[];
@@ -277,7 +277,7 @@ function serializeSection(value: WorkbenchSection): TemplateSection {
       as: value.foreachAlias.trim() || "item",
     };
   }
-  if (value.outline && (value.outline.requirement.trim() || value.outline.slots.length)) {
+  if (value.outline && (value.outline.requirement.trim() || value.outline.items.length)) {
     payload.outline = serializeOutline(value.outline);
   }
   if (value.kind === "group") {
@@ -302,21 +302,24 @@ function normalizeOutline(value?: TemplateSectionOutline | null, keyPrefix = "ou
     return null;
   }
   const legacyRequirement = (value as { document?: string }).document ?? "";
-  const legacySlots = (value as { blocks?: TemplateRequirementSlot[] }).blocks ?? [];
+  const legacyItems =
+    (value as { slots?: TemplateRequirementItem[] }).slots ??
+    (value as { blocks?: TemplateRequirementItem[] }).blocks ??
+    [];
   return {
     requirement: value.requirement ?? legacyRequirement,
-    slots: (value.slots ?? legacySlots).map((item, index) => normalizeOutlineSlot(item, `${keyPrefix}-slot-${index + 1}`)),
+    items: (value.items ?? legacyItems).map((item, index) => normalizeOutlineItem(item, `${keyPrefix}-item-${index + 1}`)),
   };
 }
 
 function serializeOutline(value: WorkbenchSectionOutline): TemplateSectionOutline {
   return {
     requirement: value.requirement,
-    slots: value.slots.map(serializeOutlineSlot),
+    items: value.items.map(serializeOutlineItem),
   };
 }
 
-function normalizeOutlineSlot(value: TemplateRequirementSlot, uiKey: string): WorkbenchRequirementSlot {
+function normalizeOutlineItem(value: TemplateRequirementItem, uiKey: string): WorkbenchRequirementItem {
   return {
     uiKey,
     id: value.id ?? "",
@@ -331,8 +334,8 @@ function normalizeOutlineSlot(value: TemplateRequirementSlot, uiKey: string): Wo
   };
 }
 
-function serializeOutlineSlot(value: WorkbenchRequirementSlot): TemplateRequirementSlot {
-  const payload: TemplateRequirementSlot = {
+function serializeOutlineItem(value: WorkbenchRequirementItem): TemplateRequirementItem {
+  const payload: TemplateRequirementItem = {
     id: value.id.trim(),
     type: value.type,
   };

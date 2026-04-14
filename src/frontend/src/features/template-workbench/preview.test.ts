@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TemplateWorkbenchState } from "./state";
-import { buildBlueprintPreview, buildStructuralPreview } from "./preview";
+import { buildRequirementPreview, buildStructuralPreview } from "./preview";
 
 function createState(): TemplateWorkbenchState {
   return {
@@ -51,7 +51,7 @@ function createState(): TemplateWorkbenchState {
         kind: "content",
         outline: {
           requirement: "分析 {@focus_metric} 在 {date} 的变化",
-          slots: [
+          items: [
             {
               uiKey: "b-1",
               id: "focus_metric",
@@ -82,7 +82,7 @@ function createState(): TemplateWorkbenchState {
         kind: "content",
         outline: {
           requirement: "检查 {$device} 的 {@inspection_scope}",
-          slots: [
+          items: [
             {
               uiKey: "b-2",
               id: "inspection_scope",
@@ -112,8 +112,8 @@ function createState(): TemplateWorkbenchState {
 }
 
 describe("template workbench preview", () => {
-  it("renders outline blueprint preview with slot defaults and foreach expansion", () => {
-    const preview = buildBlueprintPreview(createState());
+  it("renders outline blueprint preview with item defaults and foreach expansion", () => {
+    const preview = buildRequirementPreview(createState());
 
     expect(preview.sections).toHaveLength(3);
     expect(preview.sections[0].title).toBe("概览 2026-03-19");

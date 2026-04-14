@@ -28,13 +28,13 @@ export type InstanceBaselineNode = {
   ai_generated?: boolean;
   node_kind?: "group" | "structured_leaf" | "freeform_leaf";
   requirement_instance?: {
-    requirement_template?: string;
+    requirement?: string;
     rendered_requirement?: string;
     segments?: Array<
       | { kind: "text"; text: string }
-      | { kind: "slot"; slot_id: string; slot_type?: string; value?: string }
+      | { kind: "item"; item_id: string; item_type?: string; value?: string }
     >;
-    slots?: Array<{
+    items?: Array<{
       id: string;
       type?: string;
       hint?: string;
@@ -47,7 +47,7 @@ export type InstanceBaselineNode = {
     }>;
   };
   execution_bindings?: Array<{
-    slot_id: string;
+    item_id: string;
     targets: string[];
   }>;
   children: InstanceBaselineNode[];

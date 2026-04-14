@@ -51,6 +51,8 @@ def _ensure_target_table_columns(conn: sqlite3.Connection, table_name: str, colu
 
 
 def migrate_legacy_database_to_target_schema(db_path: str) -> None:
+    from . import models  # noqa: F401
+
     temp_engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
     try:
         Base.metadata.create_all(bind=temp_engine)
@@ -120,6 +122,55 @@ def _gen_id() -> str:
     return str(uuid.uuid4())
 
 
+def _normalize_requirement_payload(value: object) -> object:
+    if isinstance(value, list):
+        return [_normalize_requirement_payload(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    normalized = {key: _normalize_requirement_payload(item) for key, item in value.items()}
+
+    if "document" in normalized and "requirement" not in normalized:
+        normalized["requirement"] = normalized.pop("document")
+    else:
+        normalized.pop("document", None)
+
+    if "requirement_template" in normalized and "requirement" not in normalized:
+        normalized["requirement"] = normalized.pop("requirement_template")
+    else:
+        normalized.pop("requirement_template", None)
+
+    if "blocks" in normalized and "items" not in normalized:
+        normalized["items"] = normalized.pop("blocks")
+    else:
+        normalized.pop("blocks", None)
+
+    if "slots" in normalized and "items" not in normalized:
+        normalized["items"] = normalized.pop("slots")
+    else:
+        normalized.pop("slots", None)
+
+    if "slot_id" in normalized and "item_id" not in normalized:
+        normalized["item_id"] = normalized.pop("slot_id")
+    else:
+        normalized.pop("slot_id", None)
+
+    if "slot_type" in normalized and "item_type" not in normalized:
+        normalized["item_type"] = normalized.pop("slot_type")
+    else:
+        normalized.pop("slot_type", None)
+
+    if "slot_id" in normalized and "item_id" in normalized:
+        normalized.pop("slot_id", None)
+    if "slot_type" in normalized and "item_type" in normalized:
+        normalized.pop("slot_type", None)
+
+    if normalized.get("kind") == "slot":
+        normalized["kind"] = "item"
+
+    return normalized
+
+
 def _migrate_users(conn: sqlite3.Connection, tables: set[str]) -> None:
     if "tbl_users" not in tables:
         return
@@ -137,11 +188,11 @@ def _migrate_templates(conn: sqlite3.Connection, tables: set[str]) -> None:
     rows = conn.execute("SELECT * FROM report_templates").fetchall()
     for row in rows:
         content = {
-            "parameters": _load_json(_row_value(row, "parameters"), default=[]),
-            "sections": _load_json(_row_value(row, "sections"), default=[]),
+            "parameters": _normalize_requirement_payload(_load_json(_row_value(row, "parameters"), default=[])),
+            "sections": _normalize_requirement_payload(_load_json(_row_value(row, "sections"), default=[])),
             "match_keywords": _load_json(_row_value(row, "match_keywords"), default=[]),
             "content_params": _load_json(_row_value(row, "content_params"), default=[]),
-            "outline": _load_json(_row_value(row, "outline"), default=[]),
+            "outline": _normalize_requirement_payload(_load_json(_row_value(row, "outline"), default=[])),
             "output_formats": _load_json(_row_value(row, "output_formats"), default=["md"]),
         }
         conn.execute(
@@ -202,7 +253,7 @@ def _migrate_instances(conn: sqlite3.Connection, tables: set[str]) -> None:
         _ensure_user(conn, user_id)
         content = {
             "input_params": _load_json(row["input_params"], default={}),
-            "outline_content": _load_json(row["outline_content"], default=[]),
+            "outline_content": _normalize_requirement_payload(_load_json(row["outline_content"], default=[])),
         }
         conn.execute(
             """
@@ -238,7 +289,7 @@ def _migrate_template_instances(conn: sqlite3.Connection, tables: set[str]) -> N
         content = {
             "session_id": row["session_id"] or "",
             "input_params_snapshot": _load_json(row["input_params_snapshot"], default={}),
-            "outline_snapshot": _load_json(row["outline_snapshot"], default=[]),
+            "outline_snapshot": _normalize_requirement_payload(_load_json(row["outline_snapshot"], default=[])),
             "warnings": _load_json(row["warnings"], default=[]),
         }
         conn.execute(
@@ -302,7 +353,11 @@ def _migrate_sessions_and_messages(conn: sqlite3.Connection, tables: set[str]) -
                     user_id,
                     str(payload.get("role") or "assistant"),
                     str(payload.get("content") or ""),
-                    _to_json(payload.get("action") if isinstance(payload.get("action"), dict) else None),
+                    _to_json(
+                        _normalize_requirement_payload(payload.get("action"))
+                        if isinstance(payload.get("action"), dict)
+                        else None
+                    ),
                     _to_json(_load_json(payload.get("meta"), default={})),
                     seq_no,
                     payload.get("created_at") or row["created_at"],

@@ -59,12 +59,32 @@ def _normalize_section(section: Any) -> Any:
     if not isinstance(section, dict):
         return section
     normalized = copy.deepcopy(section)
+    outline = normalized.get("outline")
+    if isinstance(outline, dict):
+        normalized["outline"] = _normalize_outline(outline)
     content = normalized.get("content")
     if isinstance(content, dict):
         normalized["content"] = _normalize_content(content)
     subsections = normalized.get("subsections")
     if isinstance(subsections, list):
         normalized["subsections"] = [_normalize_section(item) for item in subsections]
+    return normalized
+
+
+def _normalize_outline(outline: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = copy.deepcopy(outline)
+    if "requirement" not in normalized and normalized.get("document") is not None:
+        normalized["requirement"] = normalized.pop("document")
+    else:
+        normalized.pop("document", None)
+
+    if "items" not in normalized:
+        if isinstance(normalized.get("slots"), list):
+            normalized["items"] = normalized.pop("slots")
+        elif isinstance(normalized.get("blocks"), list):
+            normalized["items"] = normalized.pop("blocks")
+    normalized.pop("slots", None)
+    normalized.pop("blocks", None)
     return normalized
 
 

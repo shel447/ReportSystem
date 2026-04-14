@@ -316,10 +316,10 @@ class TemplateV2RendererTests(unittest.TestCase):
                     "presentation": {"type": "text", "template": "指标 温度"},
                 },
                 "requirement_instance": {
-                    "requirement_template": "分析 {@metric}",
+                    "requirement": "分析 {@metric}",
                     "rendered_requirement": "分析 温度",
                     "segments": [],
-                    "slots": [{"id": "metric", "type": "indicator", "value": "温度"}],
+                    "items": [{"id": "metric", "type": "indicator", "value": "温度"}],
                 },
             }
         ]
@@ -333,3 +333,5 @@ class TemplateV2RendererTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

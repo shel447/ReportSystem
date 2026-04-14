@@ -6,17 +6,17 @@ import { StatusBanner } from "../../shared/ui/StatusBanner";
 import { SurfaceCard } from "../../shared/ui/SurfaceCard";
 import { prettyJson } from "../../shared/utils/format";
 import { summarizeSectionOutlineBindings } from "./outlineBindings";
-import { buildBlueprintPreview, buildStructuralPreview } from "./preview";
+import { buildRequirementPreview, buildStructuralPreview } from "./preview";
 import type {
   DatasetSourceKind,
   LayoutType,
-  RequirementSlotType,
+  RequirementItemType,
   ParameterInputType,
   TemplateWorkbenchState,
   WorkbenchCompositeSection,
   WorkbenchDataset,
   WorkbenchLayout,
-  WorkbenchRequirementSlot,
+  WorkbenchRequirementItem,
   WorkbenchParameter,
   WorkbenchSection,
 } from "./state";
@@ -51,7 +51,7 @@ const PRESENTATION_LABELS: Record<string, string> = {
   chart: "图表占位",
   composite_table: "复合表",
 };
-const REQUIREMENT_SLOT_LABELS: Record<RequirementSlotType, string> = {
+const REQUIREMENT_ITEM_LABELS: Record<RequirementItemType, string> = {
   indicator: "指标",
   time_range: "时间范围",
   scope: "范围",
@@ -78,7 +78,7 @@ const OPERATOR_OPTIONS = [
   "包含",
   "不包含",
 ] as const;
-const SELECTABLE_REQUIREMENT_SLOT_TYPES = new Set<RequirementSlotType>([
+const SELECTABLE_REQUIREMENT_ITEM_TYPES = new Set<RequirementItemType>([
   "indicator",
   "scope",
   "enum_select",
@@ -99,13 +99,13 @@ export function TemplateWorkbench({
   const [selectedSectionKey, setSelectedSectionKey] = useState("");
   const [selectedDatasetKey, setSelectedDatasetKey] = useState("");
   const [selectedCompositeKey, setSelectedCompositeKey] = useState("");
-  const [selectedSlotKey, setSelectedSlotKey] = useState("");
+  const [selectedItemKey, setSelectedItemKey] = useState("");
   const [selectedSectionTab, setSelectedSectionTab] = useState<
     "outline" | "execution" | "sync"
   >("outline");
   const [previewTab, setPreviewTab] = useState<
-    "blueprint" | "execution" | "json"
-  >("blueprint");
+    "requirement" | "execution" | "json"
+  >("requirement");
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [dynamicQuery, setDynamicQuery] = useState("");
   const validationErrors = useMemo(() => validateWorkbench(value), [value]);
@@ -139,11 +139,11 @@ export function TemplateWorkbench({
     selectedSection?.content?.presentation.sections.find(
       (item) => item.uiKey === selectedCompositeKey,
     ) ?? null;
-  const selectedRequirementSlot =
-    selectedSection?.outline?.slots.find((item) => item.uiKey === selectedSlotKey) ??
-    selectedSection?.outline?.slots[0] ??
+  const selectedRequirementItem =
+    selectedSection?.outline?.items.find((item) => item.uiKey === selectedItemKey) ??
+    selectedSection?.outline?.items[0] ??
     null;
-  const blueprintPreview = useMemo(() => buildBlueprintPreview(value), [value]);
+  const requirementPreview = useMemo(() => buildRequirementPreview(value), [value]);
   const executionPreview = useMemo(
     () => buildStructuralPreview(value),
     [value],
@@ -190,15 +190,15 @@ export function TemplateWorkbench({
     }
   }, [selectedCompositeKey, selectedSection]);
   useEffect(() => {
-    const slots = selectedSection?.outline?.slots ?? [];
-    if (!slots.length) {
-      setSelectedSlotKey("");
+    const items = selectedSection?.outline?.items ?? [];
+    if (!items.length) {
+      setSelectedItemKey("");
       return;
     }
-    if (!selectedSlotKey || !slots.some((item) => item.uiKey === selectedSlotKey)) {
-      setSelectedSlotKey(slots[0].uiKey);
+    if (!selectedItemKey || !items.some((item) => item.uiKey === selectedItemKey)) {
+      setSelectedItemKey(items[0].uiKey);
     }
-  }, [selectedSection, selectedSlotKey]);
+  }, [selectedSection, selectedItemKey]);
   useEffect(() => {
     if (!feedbackMessage) {
       return;
@@ -1183,7 +1183,7 @@ export function TemplateWorkbench({
                                 <p className="section-kicker">Requirement</p>{" "}
                                 <h4>诉求定义</h4>{" "}
                                 <p className="muted-text">
-                                  面向用户的章节诉求句子，支持插入 {`{@slot_id}`}{" "}
+                                  面向用户的章节诉求句子，支持插入 {`{@item_id}`}{" "}
                                   与全局参数占位符。
                                 </p>{" "}
                               </div>{" "}
@@ -1222,7 +1222,7 @@ export function TemplateWorkbench({
                                 />{" "}
                               </label>{" "}
                             </div>{" "}
-                            <div className="requirement-slot-list">
+                            <div className="requirement-item-list">
                               <div className="workbench-inline-header">
                                 <strong>诉求要素</strong>
                                 <button
@@ -1233,37 +1233,37 @@ export function TemplateWorkbench({
                                       if (!section.outline) {
                                         return;
                                       }
-                                      const nextSlot = createRequirementSlot(
-                                        section.outline.slots,
+                                      const nextItem = createRequirementItem(
+                                        section.outline.items,
                                       );
-                                      section.outline.slots.push(nextSlot);
-                                      setSelectedSlotKey(nextSlot.uiKey);
+                                      section.outline.items.push(nextItem);
+                                      setSelectedItemKey(nextItem.uiKey);
                                     })
                                   }
                                 >
                                   新增要素
                                 </button>
                               </div>
-                              <div className="requirement-slot-list__stack">
-                                {selectedSection.outline.slots.length ? (
-                                  selectedSection.outline.slots.map((slot) => (
+                              <div className="requirement-item-list__stack">
+                                {selectedSection.outline.items.length ? (
+                                  selectedSection.outline.items.map((item) => (
                                     <button
-                                      key={slot.uiKey}
+                                      key={item.uiKey}
                                       type="button"
-                                      className={`list-item list-item--compact ${slot.uiKey === selectedSlotKey ? "active" : ""}`}
-                                      onClick={() => setSelectedSlotKey(slot.uiKey)}
+                                      className={`list-item list-item--compact ${item.uiKey === selectedItemKey ? "active" : ""}`}
+                                      onClick={() => setSelectedItemKey(item.uiKey)}
                                     >
-                                      <strong>{slot.id || "未命名要素"}</strong>
+                                      <strong>{item.id || "未命名要素"}</strong>
                                       <span>
                                         {[
-                                          REQUIREMENT_SLOT_LABELS[slot.type],
-                                          slot.hint || "未设置提示语",
-                                          slot.paramId
-                                            ? `参数 ${slot.paramId}`
-                                            : slot.source
-                                              ? `动态 ${slot.source}`
-                                              : slot.options.length
-                                                ? `固定 ${slot.options.length} 项`
+                                          REQUIREMENT_ITEM_LABELS[item.type],
+                                          item.hint || "未设置提示语",
+                                          item.paramId
+                                            ? `参数 ${item.paramId}`
+                                            : item.source
+                                              ? `动态 ${item.source}`
+                                              : item.options.length
+                                                ? `固定 ${item.options.length} 项`
                                                 : null,
                                         ]
                                           .filter(Boolean)
@@ -1288,7 +1288,7 @@ export function TemplateWorkbench({
                                 只在需要时展开详细配置。
                               </p>
                             </div>
-                            {selectedRequirementSlot ? (
+                            {selectedRequirementItem ? (
                               <div className="inline-panel">
                                 <div className="workbench-inline-header">
                                   <strong>要素属性</strong>
@@ -1300,11 +1300,11 @@ export function TemplateWorkbench({
                                         if (!section.outline) {
                                           return;
                                         }
-                                        section.outline.slots =
-                                          section.outline.slots.filter(
+                                        section.outline.items =
+                                          section.outline.items.filter(
                                             (item) =>
                                               item.uiKey !==
-                                              selectedRequirementSlot.uiKey,
+                                              selectedRequirementItem.uiKey,
                                           );
                                       })
                                     }
@@ -1312,16 +1312,16 @@ export function TemplateWorkbench({
                                     删除要素
                                   </button>
                                 </div>
-                                <RequirementSlotEditor
-                                  slot={selectedRequirementSlot}
+                                <RequirementItemEditor
+                                  item={selectedRequirementItem}
                                   parameters={value.parameters}
                                   onChange={(mutator) =>
                                     updateSelectedSection((section) => {
                                       const current =
-                                        section.outline?.slots.find(
+                                        section.outline?.items.find(
                                           (item) =>
                                             item.uiKey ===
-                                            selectedRequirementSlot.uiKey,
+                                            selectedRequirementItem.uiKey,
                                         );
                                       if (current) {
                                         mutator(current);
@@ -1367,7 +1367,7 @@ export function TemplateWorkbench({
                         {" "}
                         <p>
                           执行链路面向系统内部生成。这里可以继续使用 {`{param}`}
-                          、{`{$var}`} 与 {`{@slot_id}`} 引用诉求值。
+                          、{`{$var}`} 与 {`{@item_id}`} 引用诉求值。
                         </p>{" "}
                       </div>{" "}
                       {selectedSection.kind === "content" &&
@@ -2179,7 +2179,7 @@ export function TemplateWorkbench({
                             ? "当前章节尚未启用诉求。执行链路仍可独立维护。"
                             : null}{" "}
                           {selectedOutlineSummary?.status === "compile_error"
-                            ? "执行链路中存在无法解析的 {@slot_id} 引用。"
+                            ? "执行链路中存在无法解析的 {@item_id} 引用。"
                             : null}{" "}
                         </span>{" "}
                       </div>{" "}
@@ -2190,21 +2190,21 @@ export function TemplateWorkbench({
                           <ul className="validation-list">
                             {" "}
                             {selectedOutlineSummary.bindings.map((binding) => (
-                              <li key={binding.slotId}>
-                                {binding.slotId} ·{" "}
+                              <li key={binding.itemId}>
+                                {binding.itemId} ·{" "}
                                 {binding.targets.join(" / ")}
                               </li>
                             ))}{" "}
                           </ul>{" "}
                         </div>
                       ) : null}{" "}
-                      {selectedOutlineSummary?.invalidSlotIds.length ? (
+                      {selectedOutlineSummary?.invalidItemIds.length ? (
                         <div className="sync-panel__group">
                           {" "}
                           <strong>异常引用</strong>{" "}
                           <ul className="validation-list">
                             {" "}
-                            {selectedOutlineSummary.invalidSlotIds.map(
+                            {selectedOutlineSummary.invalidItemIds.map(
                               (item) => (
                                 <li key={item}>{item}</li>
                               ),
@@ -2212,15 +2212,15 @@ export function TemplateWorkbench({
                           </ul>{" "}
                         </div>
                       ) : null}{" "}
-                      {selectedSection.outline?.slots.length ? (
+                      {selectedSection.outline?.items.length ? (
                         <div className="sync-panel__group">
                           {" "}
                           <strong>当前诉求要素</strong>{" "}
                           <div className="chip-grid">
                             {" "}
-                            {selectedSection.outline.slots.map((slot) => (
-                              <span key={slot.uiKey} className="inline-badge">
-                                {slot.id || "未命名要素"}
+                            {selectedSection.outline.items.map((item) => (
+                              <span key={item.uiKey} className="inline-badge">
+                                {item.id || "未命名要素"}
                               </span>
                             ))}{" "}
                           </div>{" "}
@@ -2259,9 +2259,9 @@ export function TemplateWorkbench({
             <button
               type="button"
               role="tab"
-              aria-selected={previewTab === "blueprint"}
-              className={`preview-tab ${previewTab === "blueprint" ? "is-active" : ""}`}
-              onClick={() => setPreviewTab("blueprint")}
+              aria-selected={previewTab === "requirement"}
+              className={`preview-tab ${previewTab === "requirement" ? "is-active" : ""}`}
+              onClick={() => setPreviewTab("requirement")}
             >
               {" "}
               诉求预览{" "}
@@ -2287,15 +2287,15 @@ export function TemplateWorkbench({
               模板 JSON{" "}
             </button>{" "}
           </div>{" "}
-          {previewTab === "blueprint" ? (
+          {previewTab === "requirement" ? (
             <div
               className="preview-stack"
               role="tabpanel"
               aria-label="诉求预览"
             >
               {" "}
-              {blueprintPreview.sections.length ? (
-                blueprintPreview.sections.map((item, index) => (
+              {requirementPreview.sections.length ? (
+                requirementPreview.sections.map((item, index) => (
                   <article
                     key={`${item.title}-${index}`}
                     className="preview-section"
@@ -2491,17 +2491,17 @@ function FieldArrayEditor<T>({
     </div>
   );
 }
-function RequirementSlotEditor({
-  slot,
+function RequirementItemEditor({
+  item,
   parameters,
   onChange,
 }: {
-  slot: WorkbenchRequirementSlot;
+  item: WorkbenchRequirementItem;
   parameters: WorkbenchParameter[];
-  onChange: (mutator: (slot: WorkbenchRequirementSlot) => void) => void;
+  onChange: (mutator: (item: WorkbenchRequirementItem) => void) => void;
 }) {
-  const slotLabel = slot.id || slot.uiKey;
-  const optionsMode = getRequirementSlotOptionsMode(slot);
+  const itemLabel = item.id || item.uiKey;
+  const optionsMode = getRequirementItemOptionsMode(item);
   return (
     <div className="outline-block-editor">
       {" "}
@@ -2511,8 +2511,8 @@ function RequirementSlotEditor({
           {" "}
           <span className="field-label">要素 ID</span>{" "}
           <input
-            aria-label={`要素 ID ${slotLabel}`}
-            value={slot.id}
+            aria-label={`要素 ID ${itemLabel}`}
+            value={item.id}
             onChange={(event) =>
               onChange((current) => {
                 current.id = event.target.value;
@@ -2525,19 +2525,19 @@ function RequirementSlotEditor({
           {" "}
           <span className="field-label">要素类型</span>{" "}
           <select
-            aria-label={`要素类型 ${slotLabel}`}
-            value={slot.type}
+            aria-label={`要素类型 ${itemLabel}`}
+            value={item.type}
             onChange={(event) =>
               onChange((current) => {
-                applyRequirementSlotType(
+                applyRequirementItemType(
                   current,
-                  event.target.value as RequirementSlotType,
+                  event.target.value as RequirementItemType,
                 );
               })
             }
           >
             {" "}
-            {Object.entries(REQUIREMENT_SLOT_LABELS).map(([key, label]) => (
+            {Object.entries(REQUIREMENT_ITEM_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
               </option>
@@ -2548,8 +2548,8 @@ function RequirementSlotEditor({
           {" "}
           <span className="field-label">提示语</span>{" "}
           <input
-            aria-label={`提示语 ${slotLabel}`}
-            value={slot.hint}
+            aria-label={`提示语 ${itemLabel}`}
+            value={item.hint}
             onChange={(event) =>
               onChange((current) => {
                 current.hint = event.target.value;
@@ -2565,8 +2565,8 @@ function RequirementSlotEditor({
           {" "}
           <span className="field-label">默认值</span>{" "}
           <input
-            aria-label={`默认值 ${slotLabel}`}
-            value={slot.defaultValue}
+            aria-label={`默认值 ${itemLabel}`}
+            value={item.defaultValue}
             onChange={(event) =>
               onChange((current) => {
                 current.defaultValue = event.target.value;
@@ -2575,13 +2575,13 @@ function RequirementSlotEditor({
             placeholder="默认值"
           />{" "}
         </label>{" "}
-        {slot.type === "time_range" ? (
+        {item.type === "time_range" ? (
           <label className="field">
             {" "}
             <span className="field-label">时间控件</span>{" "}
             <select
-              aria-label={`时间控件 ${slotLabel}`}
-              value={normalizeTimeRangeWidget(slot.widget)}
+              aria-label={`时间控件 ${itemLabel}`}
+              value={normalizeTimeRangeWidget(item.widget)}
               onChange={(event) =>
                 onChange((current) => {
                   current.widget = event.target.value;
@@ -2597,15 +2597,15 @@ function RequirementSlotEditor({
             </select>{" "}
           </label>
         ) : null}{" "}
-        {slot.type === "param_ref" ? (
+        {item.type === "param_ref" ? (
           <>
             {" "}
             <label className="field">
               {" "}
               <span className="field-label">绑定参数</span>{" "}
               <select
-                aria-label={`绑定参数 ${slotLabel}`}
-                value={slot.paramId}
+                aria-label={`绑定参数 ${itemLabel}`}
+                value={item.paramId}
                 onChange={(event) =>
                   onChange((current) => {
                     current.paramId = event.target.value;
@@ -2626,18 +2626,18 @@ function RequirementSlotEditor({
             </p>{" "}
           </>
         ) : null}{" "}
-        {SELECTABLE_REQUIREMENT_SLOT_TYPES.has(slot.type) ? (
+        {SELECTABLE_REQUIREMENT_ITEM_TYPES.has(item.type) ? (
           <>
             {" "}
             <label className="field">
               {" "}
               <span className="field-label">选项来源</span>{" "}
               <select
-                aria-label={`选项来源 ${slotLabel}`}
+                aria-label={`选项来源 ${itemLabel}`}
                 value={optionsMode}
                 onChange={(event) =>
                   onChange((current) => {
-                    applyRequirementSlotOptionsMode(
+                    applyRequirementItemOptionsMode(
                       current,
                       event.target.value as "options" | "source",
                     );
@@ -2654,8 +2654,8 @@ function RequirementSlotEditor({
                 {" "}
                 <span className="field-label">固定选项</span>{" "}
                 <input
-                  aria-label={`固定选项 ${slotLabel}`}
-                  value={slot.options.join(", ")}
+                  aria-label={`固定选项 ${itemLabel}`}
+                  value={item.options.join(", ")}
                   onChange={(event) =>
                     onChange((current) => {
                       current.options = splitCsv(event.target.value);
@@ -2669,8 +2669,8 @@ function RequirementSlotEditor({
                 {" "}
                 <span className="field-label">动态来源</span>{" "}
                 <input
-                  aria-label={`动态来源 ${slotLabel}`}
-                  value={slot.source}
+                  aria-label={`动态来源 ${itemLabel}`}
+                  value={item.source}
                   onChange={(event) =>
                     onChange((current) => {
                       current.source = event.target.value;
@@ -2682,14 +2682,14 @@ function RequirementSlotEditor({
             )}{" "}
           </>
         ) : null}{" "}
-        {slot.type === "number" || slot.type === "threshold" ? (
+        {item.type === "number" || item.type === "threshold" ? (
           <label className="field">
             {" "}
             <span className="field-label">数值默认值</span>{" "}
             <input
-              aria-label={`数值默认值 ${slotLabel}`}
+              aria-label={`数值默认值 ${itemLabel}`}
               type="number"
-              value={slot.defaultValue}
+              value={item.defaultValue}
               onChange={(event) =>
                 onChange((current) => {
                   current.defaultValue = event.target.value;
@@ -2699,13 +2699,13 @@ function RequirementSlotEditor({
             />{" "}
           </label>
         ) : null}{" "}
-        {slot.type === "boolean" ? (
+        {item.type === "boolean" ? (
           <label className="field">
             {" "}
             <span className="field-label">布尔默认值</span>{" "}
             <select
-              aria-label={`布尔默认值 ${slotLabel}`}
-              value={normalizeBooleanValue(slot.defaultValue)}
+              aria-label={`布尔默认值 ${itemLabel}`}
+              value={normalizeBooleanValue(item.defaultValue)}
               onChange={(event) =>
                 onChange((current) => {
                   current.defaultValue = event.target.value;
@@ -2718,13 +2718,13 @@ function RequirementSlotEditor({
             </select>{" "}
           </label>
         ) : null}{" "}
-        {slot.type === "operator" ? (
+        {item.type === "operator" ? (
           <label className="field">
             {" "}
             <span className="field-label">运算符默认值</span>{" "}
             <select
-              aria-label={`运算符默认值 ${slotLabel}`}
-              value={normalizeOperatorValue(slot.defaultValue)}
+              aria-label={`运算符默认值 ${itemLabel}`}
+              value={normalizeOperatorValue(item.defaultValue)}
               onChange={(event) =>
                 onChange((current) => {
                   current.defaultValue = event.target.value;
@@ -2740,19 +2740,19 @@ function RequirementSlotEditor({
             </select>{" "}
           </label>
         ) : null}{" "}
-        {!SELECTABLE_REQUIREMENT_SLOT_TYPES.has(slot.type) &&
-        slot.type !== "param_ref" &&
-        slot.type !== "time_range" &&
-        slot.type !== "number" &&
-        slot.type !== "threshold" &&
-        slot.type !== "boolean" &&
-        slot.type !== "operator" ? (
+        {!SELECTABLE_REQUIREMENT_ITEM_TYPES.has(item.type) &&
+        item.type !== "param_ref" &&
+        item.type !== "time_range" &&
+        item.type !== "number" &&
+        item.type !== "threshold" &&
+        item.type !== "boolean" &&
+        item.type !== "operator" ? (
           <label className="field">
             {" "}
             <span className="field-label">控件形态</span>{" "}
             <input
-              aria-label={`控件形态 ${slotLabel}`}
-              value={slot.widget}
+              aria-label={`控件形态 ${itemLabel}`}
+              value={item.widget}
               onChange={(event) =>
                 onChange((current) => {
                   current.widget = event.target.value;
@@ -2762,13 +2762,13 @@ function RequirementSlotEditor({
             />{" "}
           </label>
         ) : null}{" "}
-        {slot.type === "free_text" ? (
+        {item.type === "free_text" ? (
           <label className="field field--checkbox">
             {" "}
             <input
-              aria-label={`允许多值 ${slotLabel}`}
+              aria-label={`允许多值 ${itemLabel}`}
               type="checkbox"
-              checked={slot.multi}
+              checked={item.multi}
               onChange={(event) =>
                 onChange((current) => {
                   current.multi = event.target.checked;
@@ -2807,16 +2807,16 @@ function createSection(): WorkbenchSection {
   };
 }
 function createRequirementOutline() {
-  return { requirement: "", slots: [createRequirementSlot([])] };
+  return { requirement: "", items: [createRequirementItem([])] };
 }
-function createRequirementSlot(
-  existing: WorkbenchRequirementSlot[],
-): WorkbenchRequirementSlot {
+function createRequirementItem(
+  existing: WorkbenchRequirementItem[],
+): WorkbenchRequirementItem {
   return {
-    uiKey: createUiKey("requirement-slot"),
+    uiKey: createUiKey("requirement-item"),
     id: suggestId(
       existing.map((item) => item.id),
-      "slot",
+      "item",
     ),
     type: "free_text",
     hint: "",
@@ -2828,56 +2828,56 @@ function createRequirementSlot(
     widget: "",
   };
 }
-function applyRequirementSlotType(
-  slot: WorkbenchRequirementSlot,
-  nextType: RequirementSlotType,
+function applyRequirementItemType(
+  item: WorkbenchRequirementItem,
+  nextType: RequirementItemType,
 ) {
-  slot.type = nextType;
-  slot.multi = false;
+  item.type = nextType;
+  item.multi = false;
   if (nextType === "param_ref") {
-    slot.options = [];
-    slot.source = "";
-    slot.widget = "";
+    item.options = [];
+    item.source = "";
+    item.widget = "";
     return;
   }
-  slot.paramId = "";
+  item.paramId = "";
   if (nextType === "time_range") {
-    slot.options = [];
-    slot.source = "";
-    slot.widget = normalizeTimeRangeWidget(slot.widget);
+    item.options = [];
+    item.source = "";
+    item.widget = normalizeTimeRangeWidget(item.widget);
     return;
   }
-  if (SELECTABLE_REQUIREMENT_SLOT_TYPES.has(nextType)) {
-    if (slot.source.trim()) {
-      slot.options = [];
-      slot.widget = "dynamic_source";
+  if (SELECTABLE_REQUIREMENT_ITEM_TYPES.has(nextType)) {
+    if (item.source.trim()) {
+      item.options = [];
+      item.widget = "dynamic_source";
     } else {
-      slot.source = "";
-      if (!slot.widget.trim() || slot.widget === "dynamic_source") {
-        slot.widget = "select";
+      item.source = "";
+      if (!item.widget.trim() || item.widget === "dynamic_source") {
+        item.widget = "select";
       }
     }
     return;
   }
 }
-function getRequirementSlotOptionsMode(
-  slot: WorkbenchRequirementSlot,
+function getRequirementItemOptionsMode(
+  item: WorkbenchRequirementItem,
 ): "options" | "source" {
-  return slot.widget === "dynamic_source" || slot.source.trim()
+  return item.widget === "dynamic_source" || item.source.trim()
     ? "source"
     : "options";
 }
-function applyRequirementSlotOptionsMode(
-  slot: WorkbenchRequirementSlot,
+function applyRequirementItemOptionsMode(
+  item: WorkbenchRequirementItem,
   mode: "options" | "source",
 ) {
   if (mode === "options") {
-    slot.source = "";
-    slot.widget = "select";
+    item.source = "";
+    item.widget = "select";
     return;
   }
-  slot.options = [];
-  slot.widget = "dynamic_source";
+  item.options = [];
+  item.widget = "dynamic_source";
 }
 function normalizeTimeRangeWidget(widget: string) {
   if (
@@ -2970,8 +2970,8 @@ function createLayout(type: LayoutType): WorkbenchLayout {
 }
 function assignSectionKeys(section: WorkbenchSection) {
   section.uiKey = createUiKey("section");
-  section.outline?.slots.forEach((slot) => {
-    slot.uiKey = createUiKey("requirement-slot");
+  section.outline?.items.forEach((item) => {
+    item.uiKey = createUiKey("requirement-item");
   });
   section.children.forEach(assignSectionKeys);
   section.content?.datasets.forEach((dataset) => {

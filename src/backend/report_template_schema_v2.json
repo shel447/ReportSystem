@@ -94,8 +94,8 @@
           "description": "章节说明"
         },
         "outline": {
-          "$ref": "#/$defs/OutlineBlueprint",
-          "description": "面向用户的大纲蓝图，包含 requirement 与 slots"
+          "$ref": "#/$defs/OutlineRequirement",
+          "description": "面向用户的诉求定义，包含单句 requirement 与结构化 items"
         },
         "foreach": {
           "$ref": "#/$defs/Foreach",
@@ -112,29 +112,29 @@
         }
       }
     },
-    "OutlineBlueprint": {
+    "OutlineRequirement": {
       "type": "object",
-      "required": ["requirement", "slots"],
+      "required": ["requirement", "items"],
       "additionalProperties": false,
       "properties": {
         "requirement": {
           "type": "string",
-          "description": "蓝图文稿，可包含 {@slot_id} 占位符"
+          "description": "诉求句子，可包含 {@item_id} 占位符"
         },
-        "slots": {
+        "items": {
           "type": "array",
-          "items": { "$ref": "#/$defs/OutlineBlock" }
+          "items": { "$ref": "#/$defs/RequirementItem" }
         }
       }
     },
-    "OutlineBlock": {
+    "RequirementItem": {
       "type": "object",
       "required": ["id", "type"],
       "additionalProperties": false,
       "properties": {
         "id": {
           "type": "string",
-          "description": "区块唯一标识，对应 {@id}"
+          "description": "诉求要素唯一标识，对应 {@item_id}"
         },
         "type": {
           "type": "string",

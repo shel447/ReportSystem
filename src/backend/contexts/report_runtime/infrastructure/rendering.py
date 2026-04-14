@@ -244,7 +244,7 @@ def _build_outline_node(
     requirement_instance = _build_requirement_instance(section.get("outline"), params, locals_ctx)
     outline_values = {
         str(item.get("id") or "").strip(): item.get("value")
-        for item in (requirement_instance or {}).get("slots", [])
+        for item in (requirement_instance or {}).get("items", [])
         if str(item.get("id") or "").strip()
     }
     execution_bindings = _collect_execution_bindings(section, outline_values)
@@ -1111,21 +1111,25 @@ def _build_requirement_instance(
 ) -> Dict[str, Any] | None:
     if not isinstance(outline, dict):
         return None
-    document = str(outline.get("document") or "")
-    blocks_input = _as_list(outline.get("slots"))
-    blocks: List[Dict[str, Any]] = []
+    requirement = str(outline.get("requirement") or outline.get("document") or "")
+    items_input = _as_list(outline.get("items"))
+    if not items_input:
+        items_input = _as_list(outline.get("slots"))
+    if not items_input:
+        items_input = _as_list(outline.get("blocks"))
+    items: List[Dict[str, Any]] = []
     outline_ctx: Dict[str, Any] = {}
-    for raw in blocks_input:
+    for raw in items_input:
         if not isinstance(raw, dict):
             continue
-        slot_id = str(raw.get("id") or "").strip()
-        if not slot_id:
+        item_id = str(raw.get("id") or "").strip()
+        if not item_id:
             continue
-        value = _resolve_outline_block_value(raw, params, locals_ctx, outline_ctx)
-        outline_ctx[slot_id] = value
-        blocks.append(
+        value = _resolve_outline_item_value(raw, params, locals_ctx, outline_ctx)
+        outline_ctx[item_id] = value
+        items.append(
             {
-                "id": slot_id,
+                "id": item_id,
                 "type": str(raw.get("type") or "").strip(),
                 "hint": str(raw.get("hint") or "").strip(),
                 "value": value,
@@ -1139,24 +1143,24 @@ def _build_requirement_instance(
 
     segments: List[Dict[str, Any]] = []
     cursor = 0
-    for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", document):
+    for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", requirement):
         if match.start() > cursor:
-            raw_text = document[cursor:match.start()]
+            raw_text = requirement[cursor:match.start()]
             rendered_text = _render_text(raw_text, params, locals_ctx, outline_ctx)
             if rendered_text:
                 segments.append({"kind": "text", "text": rendered_text})
-        slot_id = match.group(1)
+        item_id = match.group(1)
         segments.append(
             {
-                "kind": "slot",
-                "slot_id": slot_id,
-                "slot_type": next((item.get("type") for item in blocks if item.get("id") == slot_id), ""),
-                "value": outline_ctx.get(slot_id, ""),
+                "kind": "item",
+                "item_id": item_id,
+                "item_type": next((item.get("type") for item in items if item.get("id") == item_id), ""),
+                "value": outline_ctx.get(item_id, ""),
             }
         )
         cursor = match.end()
-    if cursor < len(document):
-        raw_text = document[cursor:]
+    if cursor < len(requirement):
+        raw_text = requirement[cursor:]
         rendered_text = _render_text(raw_text, params, locals_ctx, outline_ctx)
         if rendered_text:
             segments.append({"kind": "text", "text": rendered_text})
@@ -1166,37 +1170,37 @@ def _build_requirement_instance(
         for segment in segments
     ).strip()
     if not rendered_requirement:
-        rendered_requirement = _collapse_preview_text(_render_text(document, params, locals_ctx, outline_ctx))
+        rendered_requirement = _collapse_preview_text(_render_text(requirement, params, locals_ctx, outline_ctx))
     return {
-        "requirement_template": document,
+        "requirement": requirement,
         "rendered_requirement": rendered_requirement,
         "segments": segments,
-        "slots": blocks,
+        "items": items,
     }
 
 
-def _resolve_outline_block_value(
-    block: Dict[str, Any],
+def _resolve_outline_item_value(
+    item: Dict[str, Any],
     params: Dict[str, Any],
     locals_ctx: Dict[str, Any],
     outline_ctx: Dict[str, Any],
 ) -> str:
-    param_id = str(block.get("param_id") or "").strip()
+    param_id = str(item.get("param_id") or "").strip()
     if param_id:
         return _stringify(params.get(param_id))
-    default_value = str(block.get("default") or "").strip()
+    default_value = str(item.get("default") or "").strip()
     if default_value:
         return _collapse_preview_text(_render_text(default_value, params, locals_ctx, outline_ctx))
-    options = block.get("options")
+    options = item.get("options")
     if isinstance(options, list) and options:
         return _stringify(options[0])
-    hint = str(block.get("hint") or "").strip()
-    return hint or str(block.get("id") or "").strip()
+    hint = str(item.get("hint") or "").strip()
+    return hint or str(item.get("id") or "").strip()
 
 
 def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
-    available_slot_ids = {key for key in outline_ctx.keys() if key}
-    if not available_slot_ids:
+    available_item_ids = {key for key in outline_ctx.keys() if key}
+    if not available_item_ids:
         return []
 
     targets: Dict[str, List[str]] = {}
@@ -1204,12 +1208,12 @@ def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, 
     def collect(value: Any, target: str) -> None:
         text = str(value or "")
         for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", text):
-            slot_id = str(match.group(1) or "").strip()
-            if not slot_id or slot_id not in available_slot_ids:
+            item_id = str(match.group(1) or "").strip()
+            if not item_id or item_id not in available_item_ids:
                 continue
-            targets.setdefault(slot_id, [])
-            if target not in targets[slot_id]:
-                targets[slot_id].append(target)
+            targets.setdefault(item_id, [])
+            if target not in targets[item_id]:
+                targets[item_id].append(target)
 
     collect(section.get("title"), "title")
     collect(section.get("description"), "description")
@@ -1230,10 +1234,10 @@ def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, 
 
     return [
         {
-            "slot_id": slot_id,
+            "item_id": item_id,
             "targets": entries,
         }
-        for slot_id, entries in sorted(targets.items())
+        for item_id, entries in sorted(targets.items())
     ]
 
 

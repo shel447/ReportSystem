@@ -60,14 +60,14 @@ describe("OutlineTree", () => {
             ai_generated: false,
             children: [],
             requirement_instance: {
-              requirement_template: "分析 {@target_scene} 的巡检情况",
+              requirement: "分析 {@target_scene} 的巡检情况",
               rendered_requirement: "分析 总部 的巡检情况",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
+                { kind: "item", item_id: "target_scene", item_type: "param_ref", value: "总部" },
                 { kind: "text", text: " 的巡检情况" },
               ],
-              slots: [
+              items: [
                 { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
               ],
             },
@@ -93,14 +93,14 @@ describe("OutlineTree", () => {
             ...sampleOutline[0],
             children: [],
             requirement_instance: {
-              requirement_template: "分析 {@focus_metric} 的变化",
+              requirement: "分析 {@focus_metric} 的变化",
               rendered_requirement: "分析 温度 的变化",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "slot", slot_id: "focus_metric", slot_type: "indicator", value: "温度" },
+                { kind: "item", item_id: "focus_metric", item_type: "indicator", value: "温度" },
                 { kind: "text", text: " 的变化" },
               ],
-              slots: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
+              items: [{ id: "focus_metric", type: "indicator", hint: "指标", value: "温度" }],
             },
           },
         ]}
@@ -137,7 +137,7 @@ describe("OutlineTree", () => {
     expect(screen.queryByLabelText("编辑章节 node-1")).not.toBeInTheDocument();
   });
 
-  it("renders time_range slots with date range editors", () => {
+  it("renders time_range items with date range editors", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -152,14 +152,14 @@ describe("OutlineTree", () => {
             ai_generated: false,
             children: [],
             requirement_instance: {
-              requirement_template: "分析 {@period} 的变化",
+              requirement: "分析 {@period} 的变化",
               rendered_requirement: "分析 2026-03-01 至 2026-03-07 的变化",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "slot", slot_id: "period", slot_type: "time_range", value: "2026-03-01 至 2026-03-07" },
+                { kind: "item", item_id: "period", item_type: "time_range", value: "2026-03-01 至 2026-03-07" },
                 { kind: "text", text: " 的变化" },
               ],
-              slots: [
+              items: [
                 { id: "period", type: "time_range", hint: "时间范围", value: "2026-03-01 至 2026-03-07", widget: "date_range" },
               ],
             },
@@ -199,7 +199,7 @@ describe("OutlineTree", () => {
     expect(screen.queryByLabelText("编辑要素值 period")).not.toBeInTheDocument();
   });
 
-  it("renders enum-like slots with chip-aligned selects", () => {
+  it("renders enum-like items with chip-aligned selects", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -214,14 +214,14 @@ describe("OutlineTree", () => {
             ai_generated: false,
             children: [],
             requirement_instance: {
-              requirement_template: "分析 {@focus_metric} 的变化",
+              requirement: "分析 {@focus_metric} 的变化",
               rendered_requirement: "分析 温度 的变化",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "slot", slot_id: "focus_metric", slot_type: "indicator", value: "温度" },
+                { kind: "item", item_id: "focus_metric", item_type: "indicator", value: "温度" },
                 { kind: "text", text: " 的变化" },
               ],
-              slots: [
+              items: [
                 { id: "focus_metric", type: "indicator", hint: "指标", value: "温度", options: ["温度", "湿度"] },
               ],
             },
@@ -261,7 +261,7 @@ describe("OutlineTree", () => {
     expect(screen.getByText("的变化")).toBeInTheDocument();
   });
 
-  it("renders param_ref slots as editable chips with hover tooltip", () => {
+  it("renders param_ref items as editable chips with hover tooltip", () => {
     render(
       <OutlineTree
         mode="editable"
@@ -276,14 +276,14 @@ describe("OutlineTree", () => {
             ai_generated: false,
             children: [],
             requirement_instance: {
-              requirement_template: "分析 {@target_scene} 的巡检情况",
+              requirement: "分析 {@target_scene} 的巡检情况",
               rendered_requirement: "分析 总部 的巡检情况",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
+                { kind: "item", item_id: "target_scene", item_type: "param_ref", value: "总部" },
                 { kind: "text", text: " 的巡检情况" },
               ],
-              slots: [
+              items: [
                 { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
               ],
             },
@@ -337,14 +337,14 @@ describe("OutlineTree", () => {
             ai_generated: false,
             children: [],
             requirement_instance: {
-              requirement_template: "分析 {@target_scene} 的巡检情况",
+              requirement: "分析 {@target_scene} 的巡检情况",
               rendered_requirement: "分析 总部 的巡检情况",
               segments: [
                 { kind: "text", text: "分析 " },
-                { kind: "slot", slot_id: "target_scene", slot_type: "param_ref", value: "总部" },
+                { kind: "item", item_id: "target_scene", item_type: "param_ref", value: "总部" },
                 { kind: "text", text: " 的巡检情况" },
               ],
-              slots: [
+              items: [
                 { id: "target_scene", type: "param_ref", hint: "场景", value: "总部", param_id: "scene" },
               ],
             },
@@ -386,3 +386,5 @@ describe("OutlineTree", () => {
     );
   });
 });
+
+
