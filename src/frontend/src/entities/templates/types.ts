@@ -19,8 +19,16 @@ export type TemplateParameter = {
   input_type: "free_text" | "date" | "enum" | "dynamic";
   interaction_mode?: "form" | "chat";
   multi?: boolean;
-  options?: string[];
+  options?: string[] | Array<{ key: string; label: string }>;
   source?: string;
+  value_mode?: "label" | "key";
+  value_mapping?: {
+    query: {
+      by: "label" | "key";
+      map?: Record<string, string | string[]>;
+      on_unmapped?: "error";
+    };
+  };
 };
 
 export type TemplateForeach = {

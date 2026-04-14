@@ -226,7 +226,7 @@ export function TemplateWorkbench({
   }
   function updateParameter(
     field: keyof WorkbenchParameter,
-    nextValue: string | boolean | string[],
+    nextValue: unknown,
   ) {
     if (!selectedParameter) {
       return;
@@ -245,9 +245,15 @@ export function TemplateWorkbench({
         }
         if (current.inputType !== "enum") {
           current.options = [];
+          current.choices = [];
+          current.optionMode = "string";
         }
         if (current.inputType !== "dynamic") {
           current.source = "";
+        }
+        if (current.inputType !== "enum" && current.inputType !== "dynamic") {
+          current.valueMode = "label";
+          current.valueMapping = null;
         }
         return;
       }
@@ -267,8 +273,29 @@ export function TemplateWorkbench({
         current.options = nextValue as string[];
         return;
       }
+      if (field === "choices") {
+        current.choices = nextValue as Array<{ key: string; label: string }>;
+        return;
+      }
+      if (field === "optionMode") {
+        current.optionMode = nextValue as "string" | "key_label";
+        if (current.optionMode === "string") {
+          current.choices = [];
+        } else {
+          current.options = [];
+        }
+        return;
+      }
       if (field === "source") {
         current.source = String(nextValue);
+        return;
+      }
+      if (field === "valueMode") {
+        current.valueMode = nextValue as "label" | "key";
+        return;
+      }
+      if (field === "valueMapping") {
+        current.valueMapping = nextValue as WorkbenchParameter["valueMapping"];
         return;
       }
       if (field === "id") {
@@ -315,7 +342,11 @@ export function TemplateWorkbench({
       interactionMode: "form",
       multi: false,
       options: [],
+      choices: [],
+      optionMode: "string",
       source: "",
+      valueMode: "label",
+      valueMapping: null,
     };
     updateState((draft) => {
       draft.parameters.push(item);
@@ -762,38 +793,167 @@ export function TemplateWorkbench({
                   </label>{" "}
                   {(selectedParameter.inputType === "enum" ||
                     selectedParameter.inputType === "dynamic") && (
-                    <label className="field field--checkbox">
+                    <>
                       {" "}
-                      <span className="field-label">是否多值</span>{" "}
-                      <label className="choice-chip active">
+                      <label className="field field--checkbox">
                         {" "}
-                        <input
-                          type="checkbox"
-                          checked={selectedParameter.multi}
-                          onChange={(event) =>
-                            updateParameter("multi", event.target.checked)
-                          }
-                        />{" "}
-                        <span>允许多项</span>{" "}
+                        <span className="field-label">是否多值</span>{" "}
+                        <label className="choice-chip active">
+                          {" "}
+                          <input
+                            type="checkbox"
+                            checked={selectedParameter.multi}
+                            onChange={(event) =>
+                              updateParameter("multi", event.target.checked)
+                            }
+                          />{" "}
+                          <span>允许多项</span>{" "}
+                        </label>{" "}
                       </label>{" "}
-                    </label>
+                      <label className="field">
+                        {" "}
+                        <span className="field-label">值模式</span>{" "}
+                        <select
+                          value={selectedParameter.valueMode}
+                          onChange={(event) =>
+                            updateParameter(
+                              "valueMode",
+                              event.target.value as "label" | "key",
+                            )
+                          }
+                        >
+                          {" "}
+                          <option value="label">展示值</option>{" "}
+                          <option value="key">规范值</option>{" "}
+                        </select>{" "}
+                      </label>{" "}
+                    </>
                   )}{" "}
                   {selectedParameter.inputType === "enum" && (
-                    <label className="field field--full">
+                    <>
                       {" "}
-                      <span className="field-label">
-                        固定选项（逗号分隔）
-                      </span>{" "}
-                      <input
-                        value={selectedParameter.options.join(", ")}
-                        onChange={(event) =>
-                          updateParameter(
-                            "options",
-                            splitCsv(event.target.value),
-                          )
-                        }
-                      />{" "}
-                    </label>
+                      <label className="field">
+                        {" "}
+                        <span className="field-label">选项结构</span>{" "}
+                        <select
+                          value={selectedParameter.optionMode}
+                          onChange={(event) =>
+                            updateParameter(
+                              "optionMode",
+                              event.target.value as "string" | "key_label",
+                            )
+                          }
+                        >
+                          {" "}
+                          <option value="string">文本列表</option>{" "}
+                          <option value="key_label">键值对</option>{" "}
+                        </select>{" "}
+                      </label>{" "}
+                      {selectedParameter.optionMode === "key_label" ? (
+                        <label className="field field--full">
+                          {" "}
+                          <span className="field-label">
+                            固定选项（每行 key=label）
+                          </span>{" "}
+                          <textarea
+                            rows={4}
+                            value={formatChoiceRows(selectedParameter.choices)}
+                            onChange={(event) =>
+                              updateParameter(
+                                "choices",
+                                parseChoiceRows(event.target.value),
+                              )
+                            }
+                            placeholder={`east_1=华东一大区\neast_2=华东二大区`}
+                          />{" "}
+                        </label>
+                      ) : (
+                        <label className="field field--full">
+                          {" "}
+                          <span className="field-label">
+                            固定选项（逗号分隔）
+                          </span>{" "}
+                          <input
+                            value={selectedParameter.options.join(", ")}
+                            onChange={(event) =>
+                              updateParameter(
+                                "options",
+                                splitCsv(event.target.value),
+                              )
+                            }
+                          />{" "}
+                        </label>
+                      )}{" "}
+                    </>
+                  )}{" "}
+                  {(selectedParameter.inputType === "enum" ||
+                    selectedParameter.inputType === "dynamic") && (
+                    <>
+                      {" "}
+                      <label className="field">
+                        {" "}
+                        <span className="field-label">查询映射基准</span>{" "}
+                        <select
+                          value={selectedParameter.valueMapping?.query.by ?? "label"}
+                          onChange={(event) =>
+                            updateParameter("valueMapping", {
+                              query: {
+                                by: event.target.value as "label" | "key",
+                                map: { ...(selectedParameter.valueMapping?.query.map ?? {}) },
+                                onUnmapped:
+                                  selectedParameter.valueMapping?.query.onUnmapped ?? "error",
+                              },
+                            })
+                          }
+                        >
+                          {" "}
+                          <option value="label">按展示值</option>{" "}
+                          <option value="key">按规范值</option>{" "}
+                        </select>{" "}
+                      </label>{" "}
+                      <label className="field">
+                        {" "}
+                        <span className="field-label">未命中策略</span>{" "}
+                        <select
+                          value={selectedParameter.valueMapping?.query.onUnmapped ?? "error"}
+                          onChange={(event) =>
+                            updateParameter("valueMapping", {
+                              query: {
+                                by: selectedParameter.valueMapping?.query.by ?? "label",
+                                map: { ...(selectedParameter.valueMapping?.query.map ?? {}) },
+                                onUnmapped: event.target.value as "error",
+                              },
+                            })
+                          }
+                        >
+                          {" "}
+                          <option value="error">报错</option>{" "}
+                        </select>{" "}
+                      </label>{" "}
+                      <label className="field field--full">
+                        {" "}
+                        <span className="field-label">
+                          查询值映射（每行 来源=查询值，可用逗号分隔多值）
+                        </span>{" "}
+                        <textarea
+                          rows={4}
+                          value={formatQueryMappingRows(
+                            selectedParameter.valueMapping?.query.map ?? {},
+                          )}
+                          onChange={(event) =>
+                            updateParameter("valueMapping", {
+                              query: {
+                                by: selectedParameter.valueMapping?.query.by ?? "label",
+                                map: parseQueryMappingRows(event.target.value),
+                                onUnmapped:
+                                  selectedParameter.valueMapping?.query.onUnmapped ?? "error",
+                              },
+                            })
+                          }
+                          placeholder={`east_1=EAST-01\neast_2=EAST-02A,EAST-02B`}
+                        />{" "}
+                      </label>{" "}
+                    </>
                   )}{" "}
                   {selectedParameter.inputType === "dynamic" && (
                     <>
@@ -854,7 +1014,11 @@ export function TemplateWorkbench({
                                 ? dynamicOptionsMutation.data.items.map(
                                     (item) => (
                                       <span key={`${item.label}-${item.value}`}>
-                                        {item.label}（{item.value}）
+                                        {item.label}（规范值：{item.value}；查询值：
+                                        {Array.isArray(item.query)
+                                          ? item.query.join(", ")
+                                          : item.query}
+                                        ）
                                       </span>
                                     ),
                                   )
@@ -3139,6 +3303,46 @@ function splitCsv(value: string): string[] {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+function parseChoiceRows(value: string): Array<{ key: string; label: string }> {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [key, ...rest] = line.split("=");
+      return {
+        key: key?.trim() ?? "",
+        label: rest.join("=").trim(),
+      };
+    })
+    .filter((item) => item.key && item.label);
+}
+function formatChoiceRows(items: Array<{ key: string; label: string }>): string {
+  return items.map((item) => `${item.key}=${item.label}`).join("\n");
+}
+function parseQueryMappingRows(value: string): Record<string, string | string[]> {
+  return Object.fromEntries(
+    value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [source, ...rest] = line.split("=");
+        const rawTarget = rest.join("=").trim();
+        const targets = splitCsv(rawTarget);
+        return [
+          source.trim(),
+          targets.length <= 1 ? (targets[0] ?? rawTarget) : targets,
+        ] as const;
+      })
+      .filter(([source, target]) => source && (Array.isArray(target) ? target.length > 0 : Boolean(target))),
+  );
+}
+function formatQueryMappingRows(map: Record<string, string | string[]>): string {
+  return Object.entries(map)
+    .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(",") : value}`)
+    .join("\n");
 }
 function toggleInArray(items: string[], value: string, checked: boolean) {
   if (checked) {

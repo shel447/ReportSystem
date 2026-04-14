@@ -3,6 +3,7 @@ import { chatbiPath, postJson } from "../../shared/api/http";
 export type ParameterOptionItem = {
   label: string;
   value: string;
+  query: string | string[];
 };
 
 export type ParameterOptionsResolveResponse = {

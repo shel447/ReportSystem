@@ -39,6 +39,7 @@ def build_outline_tree_v2(
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     warnings: List[str] = []
     sections = _as_list(template.get("sections"))
+    parameter_definitions = _parameter_definition_lookup(template.get("parameters"))
     outline_tree: List[Dict[str, Any]] = []
     for index, item in enumerate(sections):
         outline_tree.extend(
@@ -47,6 +48,7 @@ def build_outline_tree_v2(
                 input_params,
                 warnings,
                 locals_ctx={},
+                parameter_definitions=parameter_definitions,
                 path_prefix=f"sec-{index}",
                 level=1,
             )
@@ -224,6 +226,7 @@ def _build_outline_node(
     warnings: List[str],
     locals_ctx: Dict[str, Any],
     *,
+    parameter_definitions: Dict[str, Dict[str, Any]],
     path_prefix: str,
     level: int,
 ) -> List[Dict[str, Any]]:
@@ -237,19 +240,21 @@ def _build_outline_node(
             params,
             warnings,
             locals_ctx,
+            parameter_definitions=parameter_definitions,
             path_prefix=path_prefix,
             level=level,
         )
 
-    requirement_instance = _build_requirement_instance(section.get("outline"), params, locals_ctx)
-    outline_values = {
-        str(item.get("id") or "").strip(): item.get("value")
-        for item in (requirement_instance or {}).get("items", [])
-        if str(item.get("id") or "").strip()
-    }
-    execution_bindings = _collect_execution_bindings(section, outline_values)
-    title = _render_text(str(section.get("title") or ""), params, locals_ctx, outline_values)
-    description = _render_text(str(section.get("description") or ""), params, locals_ctx, outline_values)
+    requirement_instance = _build_requirement_instance(
+        section.get("outline"),
+        params,
+        locals_ctx,
+        parameter_definitions=parameter_definitions,
+    )
+    outline_ctx = _outline_context_from_requirement_instance(requirement_instance)
+    execution_bindings = _collect_execution_bindings(section, outline_ctx)
+    title = _render_text(str(section.get("title") or ""), params, locals_ctx, outline_ctx)
+    description = _render_text(str(section.get("description") or ""), params, locals_ctx, outline_ctx)
     node_level = max(1, min(6, int(section.get("level") or level)))
     node = {
         "node_id": f"node-{path_prefix}",
@@ -277,6 +282,7 @@ def _build_outline_node(
                     params,
                     warnings,
                     locals_ctx,
+                    parameter_definitions=parameter_definitions,
                     path_prefix=f"{path_prefix}-{index}",
                     level=node_level + 1,
                 )
@@ -291,6 +297,8 @@ def _build_outline_node(
     content = section.get("content")
     if isinstance(content, dict):
         node["content"] = _normalize_content(content)
+        if outline_ctx:
+            node["resolved_content"] = _resolve_outline_content(node["content"], params, locals_ctx, outline_ctx)
         node["section_kind"] = "structured_leaf"
         node["node_kind"] = "structured_leaf"
         node["ai_generated"] = _content_uses_ai(node["content"])
@@ -305,7 +313,7 @@ def _build_outline_node(
         node.get("content"),
         params,
         locals_ctx,
-        outline_values,
+        outline_ctx,
         requirement_instance,
     )
     return [node]
@@ -317,6 +325,7 @@ def _expand_outline_foreach(
     warnings: List[str],
     locals_ctx: Dict[str, Any],
     *,
+    parameter_definitions: Dict[str, Dict[str, Any]],
     path_prefix: str,
     level: int,
 ) -> List[Dict[str, Any]]:
@@ -333,6 +342,7 @@ def _expand_outline_foreach(
             params,
             warnings,
             locals_ctx,
+            parameter_definitions=parameter_definitions,
             path_prefix=path_prefix,
             level=level,
         )
@@ -365,6 +375,7 @@ def _expand_outline_foreach(
                 params,
                 warnings,
                 child_locals,
+                parameter_definitions=parameter_definitions,
                 path_prefix=f"{path_prefix}-r{item_index}",
                 level=level,
             )
@@ -416,7 +427,19 @@ def _render_outline_tree_node(
         return rendered
 
     resolved_content = node.get("resolved_content") if isinstance(node.get("resolved_content"), dict) else None
-    effective_content = resolved_content if resolved_content is not None else node.get("content")
+    if resolved_content is not None:
+        effective_content = resolved_content
+    elif isinstance(node.get("content"), dict):
+        effective_content = _resolve_outline_content(
+            node["content"],
+            params,
+            _locals_from_dynamic_meta(dynamic_meta),
+            _outline_context_from_requirement_instance(
+                node.get("requirement_instance") if isinstance(node.get("requirement_instance"), dict) else None
+            ),
+        )
+    else:
+        effective_content = node.get("content")
     if node.get("section_kind") == "structured_leaf" and isinstance(effective_content, dict):
         locals_ctx = _locals_from_dynamic_meta(dynamic_meta)
         content, debug, data_status = _render_content(
@@ -996,15 +1019,18 @@ def _render_text(
 
     def replace_local(match: re.Match) -> str:
         key = match.group(1)
+        if key == "value" and key not in locals_ctx:
+            return match.group(0)
         value = locals_ctx.get(key)
         return _stringify(value)
 
     def replace_outline(match: re.Match) -> str:
         key = match.group(1)
-        value = (outline_ctx or {}).get(key)
+        channel = match.group(2) or "display"
+        value = _resolve_outline_channel(outline_ctx or {}, key, channel)
         return _stringify(value)
 
-    text = re.sub(r"\{@([a-zA-Z0-9_]+)\}", replace_outline, text)
+    text = re.sub(r"\{@([a-zA-Z0-9_]+)(?:\.(display|value|query))?\}", replace_outline, text)
     text = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, text)
     text = re.sub(r"\{\$([a-zA-Z0-9_]+)\}", replace_local, text)
     return text
@@ -1108,6 +1134,8 @@ def _build_requirement_instance(
     outline: Any,
     params: Dict[str, Any],
     locals_ctx: Dict[str, Any],
+    *,
+    parameter_definitions: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Any] | None:
     if not isinstance(outline, dict):
         return None
@@ -1125,37 +1153,46 @@ def _build_requirement_instance(
         item_id = str(raw.get("id") or "").strip()
         if not item_id:
             continue
-        value = _resolve_outline_item_value(raw, params, locals_ctx, outline_ctx)
-        outline_ctx[item_id] = value
+        channels = _resolve_outline_item_channels(
+            raw,
+            params,
+            locals_ctx,
+            outline_ctx,
+            parameter_definitions=parameter_definitions,
+        )
+        outline_ctx[item_id] = channels
         items.append(
             {
                 "id": item_id,
                 "type": str(raw.get("type") or "").strip(),
                 "hint": str(raw.get("hint") or "").strip(),
-                "value": value,
+                "display": _stringify(channels.get("display")),
+                "value": _stringify(channels.get("value")),
+                "query": copy.deepcopy(channels.get("query")),
                 "default": str(raw.get("default") or "").strip(),
                 "param_id": str(raw.get("param_id") or "").strip(),
                 "widget": str(raw.get("widget") or "").strip(),
                 "source": str(raw.get("source") or "").strip(),
-                "options": [str(item) for item in _as_list(raw.get("options")) if str(item or "").strip()],
+                "options": copy.deepcopy(raw.get("options") or []),
             }
         )
 
     segments: List[Dict[str, Any]] = []
     cursor = 0
-    for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", requirement):
+    for match in re.finditer(r"\{@([a-zA-Z0-9_]+)(?:\.(display|value|query))?\}", requirement):
         if match.start() > cursor:
             raw_text = requirement[cursor:match.start()]
             rendered_text = _render_text(raw_text, params, locals_ctx, outline_ctx)
             if rendered_text:
                 segments.append({"kind": "text", "text": rendered_text})
         item_id = match.group(1)
+        item_ctx = outline_ctx.get(item_id) if isinstance(outline_ctx.get(item_id), dict) else {}
         segments.append(
             {
                 "kind": "item",
                 "item_id": item_id,
                 "item_type": next((item.get("type") for item in items if item.get("id") == item_id), ""),
-                "value": outline_ctx.get(item_id, ""),
+                "value": _stringify(item_ctx.get("display")),
             }
         )
         cursor = match.end()
@@ -1185,17 +1222,44 @@ def _resolve_outline_item_value(
     locals_ctx: Dict[str, Any],
     outline_ctx: Dict[str, Any],
 ) -> str:
+    channels = _resolve_outline_item_channels(
+        item,
+        params,
+        locals_ctx,
+        outline_ctx,
+        parameter_definitions={},
+    )
+    return _stringify(channels.get("display"))
+
+
+def _resolve_outline_item_channels(
+    item: Dict[str, Any],
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+    outline_ctx: Dict[str, Any],
+    *,
+    parameter_definitions: Dict[str, Dict[str, Any]],
+) -> Dict[str, Any]:
     param_id = str(item.get("param_id") or "").strip()
     if param_id:
-        return _stringify(params.get(param_id))
+        parameter_definition = parameter_definitions.get(param_id) or {}
+        return _resolve_parameter_channels(params.get(param_id), parameter_definition)
     default_value = str(item.get("default") or "").strip()
     if default_value:
-        return _collapse_preview_text(_render_text(default_value, params, locals_ctx, outline_ctx))
+        rendered = _collapse_preview_text(_render_text(default_value, params, locals_ctx, outline_ctx))
+        return {"display": rendered, "value": rendered, "query": rendered}
     options = item.get("options")
     if isinstance(options, list) and options:
-        return _stringify(options[0])
+        first = options[0]
+        if isinstance(first, dict):
+            label = _stringify(first.get("label") or first.get("key"))
+            value = _stringify(first.get("key") or first.get("label"))
+            return {"display": label, "value": value, "query": value}
+        rendered = _stringify(first)
+        return {"display": rendered, "value": rendered, "query": rendered}
     hint = str(item.get("hint") or "").strip()
-    return hint or str(item.get("id") or "").strip()
+    rendered = hint or str(item.get("id") or "").strip()
+    return {"display": rendered, "value": rendered, "query": rendered}
 
 
 def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -1207,7 +1271,7 @@ def _collect_execution_bindings(section: Dict[str, Any], outline_ctx: Dict[str, 
 
     def collect(value: Any, target: str) -> None:
         text = str(value or "")
-        for match in re.finditer(r"\{@([a-zA-Z0-9_]+)\}", text):
+        for match in re.finditer(r"\{@([a-zA-Z0-9_]+)(?:\.(display|value|query))?\}", text):
             item_id = str(match.group(1) or "").strip()
             if not item_id or item_id not in available_item_ids:
                 continue
@@ -1253,6 +1317,112 @@ def _render_sql(sql: str, params: Dict[str, Any], locals_ctx: Dict[str, Any]) ->
     sql = re.sub(r"\{([a-zA-Z0-9_]+)\}", replace_param, sql)
     sql = re.sub(r"\{\$([a-zA-Z0-9_]+)\}", replace_local, sql)
     return sql
+
+
+def _parameter_definition_lookup(parameters: Any) -> Dict[str, Dict[str, Any]]:
+    lookup: Dict[str, Dict[str, Any]] = {}
+    for raw in _as_list(parameters):
+        if not isinstance(raw, dict):
+            continue
+        param_id = str(raw.get("id") or "").strip()
+        if param_id:
+            lookup[param_id] = copy.deepcopy(raw)
+    return lookup
+
+
+def _resolve_parameter_channels(raw_value: Any, definition: Dict[str, Any]) -> Dict[str, Any]:
+    display, value = _resolve_parameter_display_and_value(raw_value, definition)
+    query = _resolve_parameter_query(display, value, definition)
+    return {"display": display, "value": value, "query": query}
+
+
+def _resolve_parameter_display_and_value(raw_value: Any, definition: Dict[str, Any]) -> Tuple[str, str]:
+    options = definition.get("options") if isinstance(definition.get("options"), list) else []
+    value_mode = str(definition.get("value_mode") or "label").strip() or "label"
+    matched = _match_parameter_option(raw_value, options)
+    if matched:
+        display = matched["label"]
+        key = matched["key"]
+        value = display if value_mode == "label" else key
+        return display, value
+    rendered = _stringify(raw_value)
+    return rendered, rendered
+
+
+def _match_parameter_option(raw_value: Any, options: List[Any]) -> Optional[Dict[str, str]]:
+    candidate = _stringify(raw_value).strip()
+    if not candidate:
+        return None
+    for option in options:
+        if isinstance(option, dict):
+            key = _stringify(option.get("key")).strip()
+            label = _stringify(option.get("label") or key).strip()
+            if candidate in {key, label}:
+                return {"key": key or label, "label": label or key}
+        else:
+            value = _stringify(option).strip()
+            if candidate == value:
+                return {"key": value, "label": value}
+    return None
+
+
+def _resolve_parameter_query(display: str, value: str, definition: Dict[str, Any]) -> Any:
+    value_mapping = definition.get("value_mapping") if isinstance(definition.get("value_mapping"), dict) else {}
+    query_mapping = value_mapping.get("query") if isinstance(value_mapping.get("query"), dict) else {}
+    if not query_mapping:
+        return value
+    mapping_by = str(query_mapping.get("by") or "label").strip() or "label"
+    lookup_key = display if mapping_by == "label" else value
+    query_map = query_mapping.get("map") if isinstance(query_mapping.get("map"), dict) else {}
+    if lookup_key in query_map:
+        return copy.deepcopy(query_map[lookup_key])
+    return value
+
+
+def _outline_context_from_requirement_instance(requirement_instance: Dict[str, Any] | None) -> Dict[str, Dict[str, Any]]:
+    context: Dict[str, Dict[str, Any]] = {}
+    for item in (requirement_instance or {}).get("items", []):
+        if not isinstance(item, dict):
+            continue
+        item_id = str(item.get("id") or "").strip()
+        if not item_id:
+            continue
+        context[item_id] = {
+            "display": item.get("display"),
+            "value": item.get("value"),
+            "query": item.get("query"),
+        }
+    return context
+
+
+def _resolve_outline_channel(outline_ctx: Dict[str, Any], item_id: str, channel: str) -> Any:
+    value = outline_ctx.get(item_id)
+    if isinstance(value, dict):
+        resolved = value.get(channel)
+        if resolved is None and channel == "display":
+            return value.get("value")
+        return resolved
+    if channel == "display":
+        return value
+    return ""
+
+
+def _resolve_outline_content(
+    content: Dict[str, Any],
+    params: Dict[str, Any],
+    locals_ctx: Dict[str, Any],
+    outline_ctx: Dict[str, Any],
+) -> Dict[str, Any]:
+    def walk(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: walk(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [walk(item) for item in value]
+        if isinstance(value, str):
+            return _render_text(value, params, locals_ctx, outline_ctx)
+        return copy.deepcopy(value)
+
+    return walk(content)
 
 
 def _sql_literal(value: Any) -> str:

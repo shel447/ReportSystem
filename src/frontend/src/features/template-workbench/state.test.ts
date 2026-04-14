@@ -17,7 +17,44 @@ describe("template workbench state", () => {
       content_params: [],
       parameters: [
         { id: "date", label: "日期", input_type: "date", required: true },
-        { id: "devices", label: "设备列表", input_type: "dynamic", required: true, multi: true, source: "devices" },
+        {
+          id: "devices",
+          label: "设备列表",
+          input_type: "dynamic",
+          required: true,
+          multi: true,
+          source: "devices",
+          value_mode: "key",
+          value_mapping: {
+            query: {
+              by: "key",
+              map: {
+                d001: "D001",
+              },
+              on_unmapped: "error",
+            },
+          },
+        },
+        {
+          id: "region",
+          label: "区域",
+          input_type: "enum",
+          required: true,
+          options: [
+            { key: "east_1", label: "华东一大区" },
+            { key: "east_2", label: "华东二大区" },
+          ],
+          value_mode: "key",
+          value_mapping: {
+            query: {
+              by: "key",
+              map: {
+                east_1: "EAST-01",
+              },
+              on_unmapped: "error",
+            },
+          },
+        },
       ],
       outline: [],
       sections: [
@@ -43,9 +80,13 @@ describe("template workbench state", () => {
     const state = toWorkbenchState(template);
 
     expect(state.meta.name).toBe("设备巡检报告");
-    expect(state.parameters).toHaveLength(2);
+    expect(state.parameters).toHaveLength(3);
     expect(state.parameters[0].label).toBe("日期");
     expect(state.parameters[1].multi).toBe(true);
+    expect(state.parameters[1].valueMode).toBe("key");
+    expect(state.parameters[1].valueMapping.query.by).toBe("key");
+    expect(state.parameters[2].optionMode).toBe("key_label");
+    expect(state.parameters[2].choices[0]).toEqual({ key: "east_1", label: "华东一大区" });
     expect(state.sections).toHaveLength(1);
     expect(state.sections[0].outline?.requirement).toBe("分析 {@focus_metric} 在 {date} 的变化");
     expect(state.sections[0].outline?.items[0].id).toBe("focus_metric");
@@ -64,9 +105,41 @@ describe("template workbench state", () => {
       label: "日期",
       required: true,
       inputType: "date",
+      interactionMode: "form",
       multi: false,
       options: [],
+      choices: [],
+      optionMode: "string",
       source: "",
+      valueMode: "label",
+      valueMapping: null,
+    });
+    state.parameters.push({
+      uiKey: "param-2",
+      id: "region",
+      label: "区域",
+      required: true,
+      inputType: "enum",
+      interactionMode: "form",
+      multi: false,
+      options: [],
+      choices: [
+        { key: "east_1", label: "华东一大区" },
+        { key: "east_2", label: "华东二大区" },
+      ],
+      optionMode: "key_label",
+      source: "",
+      valueMode: "key",
+      valueMapping: {
+        query: {
+          by: "key",
+          map: {
+            east_1: "EAST-01",
+            east_2: ["EAST-02A", "EAST-02B"],
+          },
+          onUnmapped: "error",
+        },
+      },
     });
     state.previewSamples.date = "2026-03-19";
     state.sections.push({
@@ -110,6 +183,29 @@ describe("template workbench state", () => {
       label: "日期",
       required: true,
       input_type: "date",
+      interaction_mode: "form",
+    });
+    expect(payload.parameters[1]).toEqual({
+      id: "region",
+      label: "区域",
+      required: true,
+      input_type: "enum",
+      interaction_mode: "form",
+      options: [
+        { key: "east_1", label: "华东一大区" },
+        { key: "east_2", label: "华东二大区" },
+      ],
+      value_mode: "key",
+      value_mapping: {
+        query: {
+          by: "key",
+          map: {
+            east_1: "EAST-01",
+            east_2: ["EAST-02A", "EAST-02B"],
+          },
+          on_unmapped: "error",
+        },
+      },
     });
     expect(payload.sections[0]).toEqual({
       title: "概览 {date}",

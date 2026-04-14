@@ -34,6 +34,8 @@ def normalize_parameters(raw_params: List[Dict[str, Any]]) -> List[Dict[str, Any
                 "multi": bool(item.get("multi")),
                 "options": list(item.get("options") or []),
                 "source": str(item.get("source") or ""),
+                "value_mode": str(item.get("value_mode") or "label"),
+                "value_mapping": item.get("value_mapping") if isinstance(item.get("value_mapping"), dict) else None,
             }
         )
         if normalized[-1]["input_type"] == "dynamic" and not normalized[-1]["options"]:
@@ -141,7 +143,17 @@ def build_param_prompt(param: Dict[str, Any]) -> str:
 def _resolve_options(param: Dict[str, Any]) -> List[str]:
     input_type = param.get("input_type")
     if input_type == "enum":
-        return [str(item) for item in param.get("options") or [] if str(item).strip()]
+        resolved: List[str] = []
+        for item in param.get("options") or []:
+            if isinstance(item, dict):
+                label = str(item.get("label") or "").strip()
+                if label:
+                    resolved.append(label)
+                continue
+            text = str(item).strip()
+            if text:
+                resolved.append(text)
+        return resolved
     if input_type == "dynamic":
         return get_dynamic_options(param.get("source") or "")
     return []
@@ -158,7 +170,7 @@ def _normalize_param_value(
 
     input_type = param.get("input_type") or "free_text"
     multi = bool(param.get("multi"))
-    options = _resolve_options(param)
+    options = param.get("options") or []
 
     normalized = value
     if multi:
@@ -185,18 +197,32 @@ def _coerce_list(value: Any) -> List[str]:
     return [str(value)]
 
 
-def _match_options(value: Any, options: List[str]) -> List[str]:
+def _match_options(value: Any, options: List[Any]) -> List[str]:
     if isinstance(value, list):
         return [match for v in value for match in _match_options(v, options)]
     val = str(value or "").strip()
     if not val:
         return []
     for option in options:
-        if val == option:
-            return [option]
+        if isinstance(option, dict):
+            label = str(option.get("label") or "").strip()
+            key = str(option.get("key") or "").strip()
+            if val == label or val == key:
+                return [label or key]
+            continue
+        option_text = str(option).strip()
+        if val == option_text:
+            return [option_text]
     for option in options:
-        if val.lower() == option.lower():
-            return [option]
+        if isinstance(option, dict):
+            label = str(option.get("label") or "").strip()
+            key = str(option.get("key") or "").strip()
+            if val.lower() == label.lower() or val.lower() == key.lower():
+                return [label or key]
+            continue
+        option_text = str(option).strip()
+        if val.lower() == option_text.lower():
+            return [option_text]
     return []
 
 

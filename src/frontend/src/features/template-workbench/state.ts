@@ -52,7 +52,17 @@ export type WorkbenchParameter = {
   interactionMode: "form" | "chat";
   multi: boolean;
   options: string[];
+  choices: Array<{ key: string; label: string }>;
+  optionMode: "string" | "key_label";
   source: string;
+  valueMode: "label" | "key";
+  valueMapping: {
+    query: {
+      by: "label" | "key";
+      map: Record<string, string | string[]>;
+      onUnmapped: "error";
+    };
+  } | null;
 };
 
 export type WorkbenchSection = {
@@ -215,6 +225,21 @@ export function toTemplatePayload(state: TemplateWorkbenchState): TemplateUpsert
 }
 
 function normalizeParameter(value: TemplateParameter, uiKey: string): WorkbenchParameter {
+  const rawOptions = Array.isArray(value.options) ? value.options : [];
+  const hasObjectOptions = rawOptions.some(
+    (item) => Boolean(item) && typeof item === "object" && !Array.isArray(item),
+  );
+  const normalizedChoices = hasObjectOptions
+    ? rawOptions
+        .filter(
+          (item): item is { key: string; label: string } =>
+            Boolean(item) && typeof item === "object" && !Array.isArray(item),
+        )
+        .map((item) => ({
+          key: item.key ?? "",
+          label: item.label ?? "",
+        }))
+    : [];
   return {
     uiKey,
     id: value.id ?? "",
@@ -223,8 +248,20 @@ function normalizeParameter(value: TemplateParameter, uiKey: string): WorkbenchP
     inputType: value.input_type ?? "free_text",
     interactionMode: value.interaction_mode ?? "form",
     multi: Boolean(value.multi),
-    options: value.options ?? [],
+    options: hasObjectOptions ? [] : rawOptions.filter((item): item is string => typeof item === "string"),
+    choices: normalizedChoices,
+    optionMode: hasObjectOptions ? "key_label" : "string",
     source: value.source ?? "",
+    valueMode: value.value_mode ?? "label",
+    valueMapping: value.value_mapping
+      ? {
+          query: {
+            by: value.value_mapping.query.by ?? "label",
+            map: { ...(value.value_mapping.query.map ?? {}) },
+            onUnmapped: value.value_mapping.query.on_unmapped ?? "error",
+          },
+        }
+      : null,
   };
 }
 
@@ -236,11 +273,30 @@ function serializeParameter(value: WorkbenchParameter): TemplateParameter {
     input_type: value.inputType,
     interaction_mode: value.interactionMode,
   };
-  if (value.inputType === "enum" && value.options.length) {
-    payload.options = value.options.filter(Boolean);
+  const supportsMappings = value.inputType === "enum" || value.inputType === "dynamic";
+  if (value.inputType === "enum") {
+    if (value.optionMode === "key_label" && value.choices.length) {
+      payload.options = value.choices
+        .filter((item) => item.key.trim() && item.label.trim())
+        .map((item) => ({ key: item.key.trim(), label: item.label.trim() }));
+    } else if (value.options.length) {
+      payload.options = value.options.filter(Boolean);
+    }
   }
   if (value.inputType === "dynamic" && value.source.trim()) {
     payload.source = value.source.trim();
+  }
+  if (supportsMappings) {
+    payload.value_mode = value.valueMode;
+    if (value.valueMapping) {
+      payload.value_mapping = {
+        query: {
+          by: value.valueMapping.query.by,
+          map: { ...value.valueMapping.query.map },
+          on_unmapped: value.valueMapping.query.onUnmapped,
+        },
+      };
+    }
   }
   if (value.inputType !== "date" && value.multi) {
     payload.multi = true;

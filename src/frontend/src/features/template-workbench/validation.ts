@@ -13,7 +13,11 @@ export function validateWorkbench(state: TemplateWorkbenchState): string[] {
       return;
     }
     paramIds.set(id, (paramIds.get(id) ?? 0) + 1);
-    if (parameter.inputType === "enum" && !parameter.options.length) {
+    if (
+      parameter.inputType === "enum" &&
+      !parameter.options.length &&
+      !parameter.choices.length
+    ) {
       errors.push(`固定选项参数至少需要一个候选项：${parameter.label || id}`);
     }
     if (parameter.inputType === "dynamic" && !parameter.source.trim()) {
