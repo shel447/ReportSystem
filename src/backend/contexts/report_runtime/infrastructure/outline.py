@@ -212,7 +212,11 @@ def _outline_context_from_node(node: Dict[str, Any]) -> Dict[str, Any]:
         item_id = str(item.get("id") or "").strip()
         if not item_id:
             continue
-        context[item_id] = item.get("value")
+        context[item_id] = {
+            "display": item.get("display", item.get("value")),
+            "value": item.get("value", item.get("display")),
+            "query": copy.deepcopy(item.get("query", item.get("value", item.get("display")))),
+        }
     return context
 
 
@@ -238,10 +242,25 @@ def _merge_requirement_instance(override: Any, current: Any) -> Dict[str, Any] |
         item_id = str(raw_item.get("id") or "").strip()
         if not item_id:
             continue
-        merged_item = current_items.get(item_id, {})
+        previous_item = current_items.get(item_id, {})
+        merged_item = copy.deepcopy(previous_item)
         merged_item.update(copy.deepcopy(raw_item))
         merged_item["id"] = item_id
-        merged_item["value"] = str(merged_item.get("value") or "")
+        legacy_value = raw_item.get("value") if "value" in raw_item else None
+        previous_display = previous_item.get("display", previous_item.get("value"))
+        previous_query = previous_item.get("query", previous_item.get("value"))
+        if legacy_value is not None and (
+            "display" not in raw_item or raw_item.get("display") == previous_display
+        ):
+            merged_item["display"] = legacy_value
+        if legacy_value is not None and (
+            "query" not in raw_item or raw_item.get("query") == previous_query
+        ):
+            merged_item["query"] = legacy_value
+        merged_item["display"] = str(merged_item.get("display") or merged_item.get("value") or "")
+        merged_item["value"] = str(merged_item.get("value") or merged_item.get("display") or "")
+        if "query" not in merged_item or merged_item.get("query") is None:
+            merged_item["query"] = merged_item["value"]
         merged_items.append(merged_item)
 
     merged_item_lookup = {
@@ -270,7 +289,7 @@ def _merge_requirement_instance(override: Any, current: Any) -> Dict[str, Any] |
                 "kind": "item",
                 "item_id": item_id,
                 "item_type": str(raw_segment.get("item_type") or raw_segment.get("slot_type") or item.get("type") or ""),
-                "value": str(item.get("value") or raw_segment.get("value") or ""),
+                "value": str(item.get("display") or item.get("value") or raw_segment.get("value") or ""),
             }
         )
 
@@ -303,11 +322,22 @@ def _resolve_outline_placeholders(value: Any, outline_ctx: Dict[str, Any]) -> An
 def _replace_outline_tokens(text: str, outline_ctx: Dict[str, Any]) -> str:
     def replace(match):
         key = str(match.group(1) or "").strip()
-        return str(outline_ctx.get(key) or "")
+        channel = str(match.group(2) or "display").strip() or "display"
+        value = outline_ctx.get(key)
+        if isinstance(value, dict):
+            resolved = value.get(channel)
+            if resolved is None and channel == "display":
+                resolved = value.get("value")
+            if isinstance(resolved, list):
+                return ", ".join(str(item) for item in resolved)
+            return str(resolved or "")
+        if channel == "display":
+            return str(value or "")
+        return ""
 
     import re
 
-    return re.sub(r"\{@([a-zA-Z0-9_]+)\}", replace, text or "")
+    return re.sub(r"\{@([a-zA-Z0-9_]+)(?:\.(display|value|query))?\}", replace, text or "")
 
 
 def _walk_outline(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

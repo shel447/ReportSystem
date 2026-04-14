@@ -36,6 +36,59 @@
     }
   },
   "$defs": {
+    "ScalarValue": {
+      "anyOf": [
+        { "type": "string" },
+        { "type": "number" },
+        { "type": "boolean" }
+      ]
+    },
+    "ScalarOrScalarArray": {
+      "anyOf": [
+        { "$ref": "#/$defs/ScalarValue" },
+        {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ScalarValue" }
+        }
+      ]
+    },
+    "ParameterOptionChoice": {
+      "type": "object",
+      "required": ["key", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" }
+      }
+    },
+    "QueryValueMapping": {
+      "type": "object",
+      "required": ["by"],
+      "additionalProperties": false,
+      "properties": {
+        "by": {
+          "type": "string",
+          "enum": ["label", "key"]
+        },
+        "map": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/ScalarOrScalarArray" }
+        },
+        "on_unmapped": {
+          "type": "string",
+          "enum": ["error"],
+          "default": "error"
+        }
+      }
+    },
+    "ValueMapping": {
+      "type": "object",
+      "required": ["query"],
+      "additionalProperties": false,
+      "properties": {
+        "query": { "$ref": "#/$defs/QueryValueMapping" }
+      }
+    },
     "Parameter": {
       "type": "object",
       "required": ["id", "label", "required", "input_type"],
@@ -71,12 +124,26 @@
         },
         "options": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "anyOf": [
+              { "type": "string" },
+              { "$ref": "#/$defs/ParameterOptionChoice" }
+            ]
+          },
           "description": "枚举选项，仅 input_type=enum 时有效"
         },
         "source": {
           "type": "string",
           "description": "动态选项来源，仅 input_type=dynamic 时有效"
+        },
+        "value_mode": {
+          "type": "string",
+          "enum": ["label", "key"],
+          "description": "参数值模式，仅 input_type=enum/dynamic 时有效"
+        },
+        "value_mapping": {
+          "$ref": "#/$defs/ValueMapping",
+          "description": "参数 query 通道映射，仅 input_type=enum/dynamic 时有效"
         }
       }
     },

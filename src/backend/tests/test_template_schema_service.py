@@ -120,6 +120,89 @@ class TemplateSchemaServiceTests(unittest.TestCase):
 
         self.assertEqual(validated["parameters"][0]["interaction_mode"], "chat")
 
+    def test_validate_template_payload_accepts_parameter_value_mapping(self):
+        payload = {
+            "name": "设备健康报告",
+            "type": "设备健康评估",
+            "scene": "总部",
+            "parameters": [
+                {
+                    "id": "region",
+                    "label": "区域",
+                    "required": True,
+                    "input_type": "enum",
+                    "value_mode": "key",
+                    "options": [
+                        {"key": "east_1", "label": "华东一"},
+                        {"key": "east_2", "label": "华东二"},
+                    ],
+                    "value_mapping": {
+                        "query": {
+                            "by": "key",
+                            "map": {
+                                "east_1": "E1",
+                                "east_2": ["E2A", "E2B"],
+                            },
+                            "on_unmapped": "error",
+                        }
+                    },
+                }
+            ],
+            "sections": [
+                {
+                    "title": "概述",
+                    "content": {
+                        "datasets": [
+                            {
+                                "id": "ds_main",
+                                "source": {"kind": "sql", "query": "SELECT 1 AS value"},
+                            }
+                        ],
+                        "presentation": {"type": "value", "anchor": "{$value}"},
+                    },
+                }
+            ],
+        }
+
+        validated = validate_template_payload(payload)
+
+        self.assertEqual(validated["parameters"][0]["value_mode"], "key")
+        self.assertEqual(validated["parameters"][0]["options"][0]["key"], "east_1")
+        self.assertEqual(validated["parameters"][0]["value_mapping"]["query"]["map"]["east_2"], ["E2A", "E2B"])
+
+    def test_validate_template_payload_rejects_value_mapping_for_free_text_parameter(self):
+        payload = {
+            "name": "设备健康报告",
+            "type": "设备健康评估",
+            "scene": "总部",
+            "parameters": [
+                {
+                    "id": "region",
+                    "label": "区域",
+                    "required": True,
+                    "input_type": "free_text",
+                    "value_mode": "key",
+                }
+            ],
+            "sections": [
+                {
+                    "title": "概述",
+                    "content": {
+                        "datasets": [
+                            {
+                                "id": "ds_main",
+                                "source": {"kind": "sql", "query": "SELECT 1 AS value"},
+                            }
+                        ],
+                        "presentation": {"type": "value", "anchor": "{$value}"},
+                    },
+                }
+            ],
+        }
+
+        with self.assertRaises(ValueError):
+            validate_template_payload(payload)
+
     def test_validate_template_payload_accepts_section_description(self):
         payload = {
             "name": "设备健康报告",

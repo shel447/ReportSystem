@@ -330,8 +330,61 @@ class TemplateV2RendererTests(unittest.TestCase):
         self.assertEqual(sections[0]["content"], "指标 温度")
         self.assertEqual(sections[0]["debug"]["datasets"][0]["sample_rows"][0]["metric_name"], "温度")
 
+    def test_param_ref_inherits_display_value_and_query_channels(self):
+        template = {
+            "name": "测试模板",
+            "parameters": [
+                {
+                    "id": "region",
+                    "label": "区域",
+                    "required": True,
+                    "input_type": "enum",
+                    "value_mode": "key",
+                    "options": [
+                        {"key": "east_1", "label": "华东一大区"},
+                        {"key": "east_2", "label": "华东二大区"},
+                    ],
+                    "value_mapping": {
+                        "query": {
+                            "by": "key",
+                            "map": {
+                                "east_1": "EAST-01",
+                                "east_2": ["EAST-02A", "EAST-02B"],
+                            },
+                            "on_unmapped": "error",
+                        }
+                    },
+                }
+            ],
+            "sections": [
+                {
+                    "title": "区域分析",
+                    "outline": {
+                        "requirement": "分析 {@region_item} 的指标",
+                        "items": [
+                            {"id": "region_item", "type": "param_ref", "param_id": "region", "hint": "区域"}
+                        ],
+                    },
+                    "content": {
+                        "datasets": [
+                            {
+                                "id": "ds_main",
+                                "source": {"kind": "sql", "query": "SELECT '{@region_item.query}' AS region_code"},
+                            }
+                        ],
+                        "presentation": {"type": "text", "template": "展示 {@region_item.display} / {@region_item.value}"},
+                    },
+                }
+            ],
+        }
+
+        sections, warnings = generate_report_sections_v2(template, {"region": "华东一大区"})
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(sections[0]["content"], "展示 华东一大区 / east_1")
+        self.assertEqual(sections[0]["debug"]["datasets"][0]["sample_rows"][0]["region_code"], "EAST-01")
+
 
 if __name__ == "__main__":
     unittest.main()
-
 

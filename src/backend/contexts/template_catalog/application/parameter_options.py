@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from ....infrastructure.demo.dynamic_sources import get_dynamic_options
+from ....infrastructure.demo.dynamic_sources import get_dynamic_option_items
 from ....shared.kernel.errors import ValidationError
 
 DEFAULT_LIMIT = 10
@@ -42,16 +42,16 @@ class ParameterOptionService:
             raise ValidationError("request body too large")
 
         if source.startswith("api:/"):
-            raw_items = get_dynamic_options(source)
-            items = [{"label": item, "value": item} for item in raw_items[:resolved_limit]]
+            raw_items = get_dynamic_option_items(source)
+            items = [_normalize_option_item(item) for item in raw_items[:resolved_limit]]
             return {
-                "items": items,
+                "items": [item for item in items if item],
                 "meta": {
                     "source": source,
                     "limit": resolved_limit,
-                    "returned": len(items),
-                    "has_more": len(raw_items) > len(items),
-                    "truncated": len(raw_items) > len(items),
+                    "returned": len([item for item in items if item]),
+                    "has_more": len(raw_items) > len([item for item in items if item]),
+                    "truncated": len(raw_items) > len([item for item in items if item]),
                     "retryable": False,
                 },
             }
@@ -83,13 +83,10 @@ class ParameterOptionService:
                 return _empty_result(source, resolved_limit, retryable=False, error_code="PARAM_SOURCE_RESPONSE_INVALID")
             items: list[dict[str, Any]] = []
             for item in raw_items[:resolved_limit]:
-                if not isinstance(item, dict):
-                    continue
-                label = str(item.get("label") or "").strip()
-                value = item.get("value")
-                if not label or value is None:
-                    continue
-                items.append({"label": label[:64], "value": value})
+                normalized = _normalize_option_item(item)
+                if not normalized:
+                    return _empty_result(source, resolved_limit, retryable=False, error_code="PARAM_SOURCE_RESPONSE_INVALID")
+                items.append(normalized)
             return {
                 "items": items,
                 "meta": {
@@ -103,6 +100,33 @@ class ParameterOptionService:
             }
 
         raise ValidationError("unsupported dynamic parameter source")
+
+
+def _normalize_option_item(item: Any) -> dict[str, Any] | None:
+    if not isinstance(item, dict):
+        return None
+    label = str(item.get("label") or "").strip()
+    value = item.get("value")
+    query = item.get("query")
+    if not label or not _is_scalar(value) or not _is_scalar_or_scalar_list(query):
+        return None
+    return {
+        "label": label[:64],
+        "value": value,
+        "query": query,
+    }
+
+
+def _is_scalar(value: Any) -> bool:
+    return isinstance(value, (str, int, float, bool))
+
+
+def _is_scalar_or_scalar_list(value: Any) -> bool:
+    if _is_scalar(value):
+        return True
+    if isinstance(value, list):
+        return all(_is_scalar(item) for item in value)
+    return False
 
 
 def _empty_result(source: str, limit: int, *, retryable: bool, error_code: str) -> dict[str, Any]:
