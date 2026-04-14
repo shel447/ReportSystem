@@ -54,8 +54,8 @@ Field rules:
 ```json
 {
   "items": [
-    { "label": "华东一大区", "value": "EAST_1" },
-    { "label": "华东二大区", "value": "EAST_2" }
+    { "label": "华东一大区", "value": "EAST_1", "query": "EAST_1" },
+    { "label": "华东二大区", "value": "EAST_2", "query": ["E2A", "E2B"] }
   ],
   "meta": {
     "source": "api:/devices/list",
@@ -94,7 +94,7 @@ Field rules:
 ```json
 {
   "items": [
-    { "label": "华东一大区", "value": "EAST_1" }
+    { "label": "华东一大区", "value": "EAST_1", "query": "EAST_1" }
   ],
   "total": 1,
   "has_more": false
@@ -103,8 +103,9 @@ Field rules:
 
 Normalization rules:
 
-- Platform accepts only `items[].label/value`.
+- Platform accepts only `items[].label/value/query`.
 - `value` supports scalar only in v1 (`string | number | boolean`).
+- `query` supports scalar or scalar array in v1 (`scalar | scalar[]`).
 - Platform truncates to internal max limit.
 
 ## 5. Limits and Runtime Spec
@@ -116,6 +117,7 @@ Normalization rules:
 - Item field length:
   - `label <= 64`
   - `value <= 128` (after string conversion for validation)
+  - `query <= 128` for scalar; arrays should keep each element within the same limit
 - Upstream timeout: `3s`
 - Retry: none in v1
 
@@ -139,7 +141,7 @@ Suggested error codes:
 - Keep existing template field: `TemplateParameter.source`.
 - Keep existing UI action payload compatibility:
   - Existing: `param.options: string[]`
-  - Target: `param.choices: [{label,value}]`
+  - Target: `param.choices: [{label,value,query}]`
 - Transitional rule:
   - If `choices` exists, UI renders by `choices`.
   - Else fallback to `options`.

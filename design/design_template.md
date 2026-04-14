@@ -166,6 +166,8 @@ class TemplateParameter:
 
     options: Optional[List[Any]]  # 兼容 string 列表与 {key,label} 对象列表
     source: Optional[str]
+    value_mode: Optional[str]  # label | key (仅 enum/dynamic)
+    value_mapping: Optional[Dict[str, Any]]  # 仅 enum/dynamic，沿用诉求要素映射结构
 ```
 
 ### 3.1 参数设计原则
@@ -191,7 +193,34 @@ class TemplateParameter:
 - 当某个 `chat` 模式参数处于待收集状态时，用户的自然语言输入优先用于该参数提取
 - 若用户显式表达“切到智能问数/智能故障”，统一对话模块仍允许切换任务，但必须先经过确认卡片
 
-### 3.3 动态参数数据源接口
+### 3.3 参数映射 (value_mode / value_mapping)
+
+为保证“参数收集值 -> 诉求确认值 -> 执行查询值”语义一致，模板参数与诉求要素采用同构映射结构：
+
+- `value_mode`
+  - `label`：`value` 默认等于展示值
+  - `key`：`value` 优先取稳定 key
+- `value_mapping.query`
+  - 定义执行层使用的 `query` 值映射
+  - `on_unmapped` 默认 `error`
+
+约束范围：
+
+- 仅 `enum` / `dynamic` 参数支持该映射定义
+- `free_text` / `date` 不引入映射字段，保持原语义
+
+参数三通道语义固定为：
+
+- `display`：用户可见值
+- `value`：稳定语义值（规范值）
+- `query`：执行层消费值（必须与真实数据口径对应）
+
+未命中策略：
+
+- 当执行层需要 `query` 且映射未命中时，必须报错阻断
+- 不允许回退到 `value` 或 `display`
+
+### 3.4 动态参数数据源接口
 
 当 `input_type=dynamic` 时，模板参数通过 `source` 声明其候选值来源。
 
@@ -203,6 +232,8 @@ class TemplateParameter:
     ...
     input_type: str  # dynamic
     source: Optional[str]  # e.g. api:/devices/list
+    value_mode: Optional[str]  # label | key
+    value_mapping: Optional[Dict[str, Any]]  # query 通道映射
 ```
 
 约束：
@@ -245,8 +276,8 @@ class TemplateParameter:
 ```json
 {
   "items": [
-    { "label": "华东一大区", "value": "EAST_1" },
-    { "label": "华东二大区", "value": "EAST_2" }
+    { "label": "华东一大区", "value": "EAST_1", "query": "EAST_1" },
+    { "label": "华东二大区", "value": "EAST_2", "query": ["E2A", "E2B"] }
   ],
   "meta": {
     "source": "api:/devices/list",
@@ -260,7 +291,7 @@ class TemplateParameter:
 
 说明：
 
-- v1 统一采用 `label/value` 候选项结构
+- v1 统一采用 `label/value/query` 候选项结构
 - 现有历史 `options: string[]` 仅保留兼容显示入口
 - 若同时存在 `choices` 与 `options`，前端优先使用 `choices`
 
@@ -291,7 +322,7 @@ class TemplateParameter:
 ```json
 {
   "items": [
-    { "label": "华东一大区", "value": "EAST_1" }
+    { "label": "华东一大区", "value": "EAST_1", "query": "EAST_1" }
   ],
   "total": 1,
   "has_more": false
@@ -300,8 +331,9 @@ class TemplateParameter:
 
 平台归一化规则：
 
-- 平台只接受 `items[].label/value`
+- 平台只接受 `items[].label/value/query`
 - `value` 在 v1 只支持标量：`string | number | boolean`
+- `query` 在 v1 支持标量或标量数组：`scalar | scalar[]`
 - 平台按内部上限对返回结果做二次截断
 
 #### 规格限制
@@ -313,6 +345,7 @@ class TemplateParameter:
 - 单项长度建议：
   - `label <= 64`
   - `value <= 128`
+  - `query` 标量长度建议 `<= 128`
 - 外部调用超时：`3s`
 - v1 不自动重试
 
@@ -428,18 +461,21 @@ class OutlineBlock:
 - `document` 是用户在大纲确认中直接感知的章节诉求表达
 - `blocks[]` 是章节级诉求要素，不等同于模板全局参数
 - `param_ref` 用于把模板参数直接映射为章节诉求要素值
+- `param_ref` 绑定参数后，完整继承参数的 `display / value / query`
+- `param_ref` 不再单独定义映射规则，避免参数与诉求双源配置冲突
 - 诉求要素支持默认值、候选项、动态来源和控件语义
 - 诉求要素值区分 `display / value / query` 三类用途，不再假设“展示值等于执行值”
 - `options` 兼容两种候选项形态：`["总部", "省公司"]`（历史字符串模式）与 `[{"key":"hq","label":"总部"}]`（推荐 key/label 模式）
 
 ### 5.3 作用域规则
 
-- `{param_id}`：全模板可见
+- `{param_id}`：全模板可见，语义固定为参数 `display`（用户可见值）
 - `{$var}`：当前 `foreach` 节点及其子树可见
 - `{@block_id}`：兼容写法，等价于 `{@block_id.display}`
 - `{@block_id.display}`：诉求展示值（面向用户可读）
 - `{@block_id.value}`：诉求规范值（面向结构化表达，通常是稳定 key）
 - `{@block_id.query}`：执行查询值（由 `value_mapping.query` 计算得到）
+- 参数占位符不新增 `{param_id.query}` / `{param_id.value}`，执行值必须通过 `param_ref` 进入 `{@block_id.query}`
 - 不允许同一路径上的诉求要素 `id` 重名覆盖
 
 ### 5.4 值映射 (value_mapping)
@@ -602,14 +638,34 @@ sequenceDiagram
 - `enum` 至少有一个选项
 - `dynamic` 必须配置 `source`
 - `date` 不允许 `multi=true`
+- `enum/dynamic` 支持 `value_mode` 与 `value_mapping`；`free_text/date` 不允许声明参数映射字段
+- 参数 `value_mapping.query.on_unmapped` 默认 `error`
 - `{@block_id}` 必须能在当前章节或祖先章节解析
 - `param_ref` 必须绑定已有模板参数
+- `param_ref` 绑定后必须继承参数映射，不允许局部覆写 `query` 映射
 - `value_mapping.query.by=key` 时，区块候选项必须可产出稳定 key
 - `value_mapping.query.map` 的 value 仅允许标量或标量数组
 - `value_mapping.query.on_unmapped=error` 时，不允许回退到展示值继续执行
+- `input_type=dynamic` 的候选项响应必须包含合法 `query` 值（标量或标量数组）
 - `foreach` 禁止嵌套
 - `content` 与 `subsections` 互斥
 - `datasets.depends_on` 必须无环
+
+---
+
+## 10. Schema 同步项 (实施要求)
+
+以下同步项属于实施阶段必须落地的契约，避免文档与校验器漂移：
+
+- `src/backend/report_template_schema_v2.json`
+  - 在 `Parameter` 定义中新增 `value_mode`、`value_mapping`
+  - 约束 `value_mode/value_mapping` 仅对 `enum/dynamic` 生效
+- `template_catalog` 模板校验
+  - 校验 `param_ref` 的映射继承规则（禁止局部覆写）
+  - 校验动态参数候选项 `query` 类型
+- 动态参数接口适配层
+  - 统一接受并透传 `items[].query`
+  - 缺失或非法时返回 `PARAM_SOURCE_RESPONSE_INVALID`
 
 ---
 

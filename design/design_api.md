@@ -259,6 +259,8 @@ POST   /rest/chatbi/v1/parameter-options/resolve  # 解析动态参数候选值
 
 > `POST /rest/chatbi/v1/parameter-options/resolve` 用于解析模板中 `input_type=dynamic` 参数的候选值。前端只调用本接口，不直接访问外部数据源。
 >
+> 平台到外部数据源的候选项协议同样要求 `items[].label/value/query`，平台负责归一化校验与错误映射。
+>
 > 请求体固定包含：
 > - `param_id`
 > - `source`
@@ -270,8 +272,13 @@ POST   /rest/chatbi/v1/parameter-options/resolve  # 解析动态参数候选值
 > - `limit`
 >
 > 响应体固定返回：
-> - `items: [{label, value}]`
+> - `items: [{label, value, query}]`
 > - `meta`
+>
+> 字段约束：
+> - `value`：标量（`string | number | boolean`）
+> - `query`：标量或标量数组（`scalar | scalar[]`）
+> - 执行链路以 `query` 作为唯一执行值通道
 >
 > 规格约束：
 > - 默认 `limit = 10`
@@ -282,6 +289,13 @@ POST   /rest/chatbi/v1/parameter-options/resolve  # 解析动态参数候选值
 > - v1 不自动重试
 >
 > 动态参数取值失败时返回空 `items` 和可重试错误语义，不直接打断当前报告对话流程。
+>
+> 典型错误码：
+> - `PARAM_SOURCE_INVALID`
+> - `PARAM_SOURCE_TIMEOUT`
+> - `PARAM_SOURCE_UPSTREAM_ERROR`
+> - `PARAM_SOURCE_RESPONSE_INVALID`（缺少 `query` 或 `query` 类型非法）
+> - `PARAM_SOURCE_LIMIT_EXCEEDED`
 
 ---
 

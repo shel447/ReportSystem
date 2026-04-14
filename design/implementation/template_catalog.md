@@ -141,9 +141,13 @@ sequenceDiagram
 ### 业务规格
 
 - 模板的参数/章节/蓝图/执行链路双层结构
+- 参数映射与诉求要素映射同构（`value_mode + value_mapping`），仅 `enum/dynamic` 生效
+- `param_ref` 必须继承参数 `display/value/query`，不允许局部覆写 `query` 映射
 - 导出时不携带系统字段
 - 导入预解析不直接入库，必须回到模板工作台由用户确认保存
 - 模板更新后语义索引必须标记 stale
+- 动态参数候选项协议固定为 `items[].label/value/query`，缺失或类型非法按 `PARAM_SOURCE_RESPONSE_INVALID` 处理
+- `report_template_schema_v2.json` 与 `template_catalog` 校验器必须同步维护上述参数映射约束
 
 ### 可替换 adapter
 
