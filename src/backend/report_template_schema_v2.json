@@ -4,7 +4,7 @@
   "title": "ReportTemplate",
   "description": "智能报告系统模板定义 Schema v2.0",
   "type": "object",
-  "required": ["id", "type", "scene", "name", "parameters", "sections"],
+  "required": ["id", "category", "name", "description", "parameters", "sections"],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -12,17 +12,17 @@
       "description": "模板唯一标识符",
       "pattern": "^[a-z0-9_]+$"
     },
-    "type": {
+    "category": {
       "type": "string",
       "description": "报告类型，如：设备健康评估"
-    },
-    "scene": {
-      "type": "string",
-      "description": "场景细分，如：总部、分部"
     },
     "name": {
       "type": "string",
       "description": "模板展示名称"
+    },
+    "description": {
+      "type": "string",
+      "description": "模板说明"
     },
     "parameters": {
       "type": "array",

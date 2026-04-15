@@ -7,8 +7,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_normalize_legacy_single_source_content_to_dataset(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [],
             "sections": [
                 {
@@ -32,8 +32,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_sets_schema_version_and_keeps_v2_sections(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [
                 {"id": "device_id", "label": "设备编号", "required": True, "input_type": "free_text"}
             ],
@@ -61,8 +61,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_accepts_date_input_type(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [
                 {"id": "report_date", "label": "报告日期", "required": True, "input_type": "date"}
             ],
@@ -89,8 +89,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_accepts_parameter_interaction_mode(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [
                 {
                     "id": "report_date",
@@ -123,8 +123,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_accepts_parameter_value_mapping(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [
                 {
                     "id": "region",
@@ -173,8 +173,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_rejects_value_mapping_for_free_text_parameter(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [
                 {
                     "id": "region",
@@ -206,8 +206,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_accepts_section_description(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [],
             "sections": [
                 {
@@ -233,8 +233,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_accepts_presentation_dataset_id(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [],
             "sections": [
                 {
@@ -259,8 +259,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_accepts_section_outline_requirement(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [
                 {"id": "device_id", "label": "设备编号", "required": True, "input_type": "free_text"}
             ],
@@ -296,8 +296,8 @@ class TemplateSchemaServiceTests(unittest.TestCase):
     def test_validate_template_payload_rejects_invalid_v2_template(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板说明",
             "parameters": [],
             "sections": [
                 {
@@ -316,3 +316,4 @@ class TemplateSchemaServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

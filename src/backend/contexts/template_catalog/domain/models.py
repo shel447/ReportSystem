@@ -13,7 +13,6 @@ class ReportTemplate:
     report_type: str = "daily"
     scenario: str = ""
     template_type: str = ""
-    scene: str = ""
     match_keywords: List[str] = field(default_factory=list)
     content_params: List[Any] = field(default_factory=list)
     parameters: List[Any] = field(default_factory=list)

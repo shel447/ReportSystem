@@ -31,8 +31,7 @@ export type WorkbenchMetaState = {
   description: string;
   reportType: string;
   scenario: string;
-  type: string;
-  scene: string;
+  category: string;
   schemaVersion: string;
   matchKeywords: string[];
   outputFormats: string[];
@@ -162,8 +161,7 @@ export function createEmptyWorkbenchState(): TemplateWorkbenchState {
       description: "",
       reportType: "daily",
       scenario: "",
-      type: "",
-      scene: "",
+      category: "",
       schemaVersion: "v2.0",
       matchKeywords: [],
       outputFormats: ["md"],
@@ -187,8 +185,7 @@ export function toWorkbenchState(template: TemplateDetail | TemplateEditableDraf
     description: template.description ?? "",
     reportType: template.report_type ?? "daily",
     scenario: template.scenario ?? "",
-    type: template.type ?? "",
-    scene: template.scene ?? "",
+    category: template.category ?? "",
     schemaVersion: template.schema_version || "v2.0",
     matchKeywords: template.match_keywords ?? [],
     outputFormats: template.output_formats ?? ["md"],
@@ -212,8 +209,7 @@ export function toTemplatePayload(state: TemplateWorkbenchState): TemplateUpsert
     description: state.meta.description.trim(),
     report_type: state.meta.reportType.trim() || "daily",
     scenario: state.meta.scenario.trim(),
-    type: state.meta.type.trim(),
-    scene: state.meta.scene.trim(),
+    category: state.meta.category.trim(),
     match_keywords: state.meta.matchKeywords.filter(Boolean),
     content_params: [],
     parameters: state.parameters.map(serializeParameter),

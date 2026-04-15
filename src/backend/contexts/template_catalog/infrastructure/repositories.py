@@ -75,7 +75,6 @@ def _to_domain(row: ReportTemplateModel) -> ReportTemplate:
         report_type=getattr(row, "report_type", "") or "",
         scenario=getattr(row, "scenario", "") or "",
         template_type=getattr(row, "template_type", "") or "",
-        scene=getattr(row, "scene", "") or "",
         match_keywords=list(getattr(row, "match_keywords", []) or []),
         content_params=list(getattr(row, "content_params", []) or []),
         parameters=list(getattr(row, "parameters", []) or []),

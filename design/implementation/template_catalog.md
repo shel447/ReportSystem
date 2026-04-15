@@ -24,6 +24,7 @@
 
 - `ReportTemplate`
   - 模板主对象，承载名称、描述、参数、章节、诉求、执行链路等静态定义
+  - 对外模板契约使用 `category` 字段；持久化层仍映射到 `template_type` 列
 - `TemplateMatchResult`
   - 模板匹配结果，区分自动命中和候选列表两种输出模式
 - `OutlineRequirement`
@@ -154,5 +155,4 @@ sequenceDiagram
 - SQLAlchemy repository 可以替换为别的持久化实现
 - `schema.py` 当前采用 JSON-schema 风格校验，后续可替换为别的校验器
 - `indexing.py` 当前依赖 embedding 检索，后续可替换为向量库或其他模板召回策略，只要保留 `match()` 与索引状态协议
-
 

@@ -11,8 +11,7 @@ describe("template workbench state", () => {
       description: "巡检模板",
       report_type: "daily",
       scenario: "集团",
-      type: "巡检",
-      scene: "总部",
+      category: "巡检",
       match_keywords: ["巡检"],
       content_params: [],
       parameters: [
@@ -97,8 +96,7 @@ describe("template workbench state", () => {
   it("serializes workbench state to template payload without preview-only fields", () => {
     const state = createEmptyWorkbenchState();
     state.meta.name = "资产统计报告";
-    state.meta.type = "资产统计";
-    state.meta.scene = "省公司";
+    state.meta.category = "资产统计";
     state.parameters.push({
       uiKey: "param-1",
       id: "date",
@@ -177,7 +175,7 @@ describe("template workbench state", () => {
     const payload = toTemplatePayload(state);
 
     expect(payload.name).toBe("资产统计报告");
-    expect(payload.type).toBe("资产统计");
+    expect(payload.category).toBe("资产统计");
     expect(payload.parameters[0]).toEqual({
       id: "date",
       label: "日期",

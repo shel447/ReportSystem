@@ -32,9 +32,9 @@ def validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     candidate = {
         "id": str(normalized.get("id") or "report_template"),
-        "type": str(normalized.get("type") or normalized.get("template_type") or ""),
-        "scene": str(normalized.get("scene") or normalized.get("scenario") or ""),
+        "category": str(normalized.get("category") or normalized.get("type") or normalized.get("template_type") or ""),
         "name": str(normalized.get("name") or ""),
+        "description": str(normalized.get("description") or ""),
         "parameters": normalized.get("parameters") or [],
         "sections": normalized.get("sections") or [],
     }
@@ -52,8 +52,8 @@ def _is_v2_candidate(payload: Dict[str, Any]) -> bool:
         [
             payload.get("sections"),
             payload.get("parameters"),
+            payload.get("category"),
             payload.get("type"),
-            payload.get("scene"),
             str(payload.get("schema_version") or "").startswith("v2"),
         ]
     )

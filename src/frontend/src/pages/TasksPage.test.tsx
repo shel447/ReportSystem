@@ -41,8 +41,7 @@ describe("TasksPage", () => {
               description: "巡检模板",
               report_type: "daily",
               scenario: "集团",
-              type: "巡检",
-              scene: "总部",
+              category: "巡检",
             },
           ],
         };

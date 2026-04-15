@@ -70,8 +70,7 @@ class TemplateCatalogService:
             "description": template.description,
             "report_type": template.report_type,
             "scenario": template.scenario,
-            "type": template.template_type or "",
-            "scene": template.scene or "",
+            "category": template.template_type or "",
             "schema_version": template.schema_version or "",
             "parameter_count": len(template.parameters or []),
             "top_level_section_count": len(template.sections or []),
@@ -85,8 +84,7 @@ class TemplateCatalogService:
             "description": template.description,
             "report_type": template.report_type,
             "scenario": template.scenario,
-            "type": template.template_type or "",
-            "scene": template.scene or "",
+            "category": template.template_type or "",
             "match_keywords": self._normalize_keywords(template.match_keywords),
             "content_params": template.content_params,
             "parameters": template.parameters,
@@ -104,8 +102,7 @@ class TemplateCatalogService:
             "description": template.description,
             "report_type": template.report_type,
             "scenario": template.scenario,
-            "type": template.template_type or "",
-            "scene": template.scene or "",
+            "category": template.template_type or "",
             "match_keywords": self._normalize_keywords(template.match_keywords),
             "parameters": template.parameters or [],
             "sections": template.sections or [],
@@ -119,8 +116,7 @@ class TemplateCatalogService:
             "description": str(payload.get("description") or ""),
             "report_type": str(payload.get("report_type") or "daily"),
             "scenario": str(payload.get("scenario") or ""),
-            "type": str(payload.get("template_type") or payload.get("type") or ""),
-            "scene": str(payload.get("scene") or ""),
+            "category": str(payload.get("template_type") or payload.get("category") or ""),
             "match_keywords": self._normalize_keywords(payload.get("match_keywords")),
             "content_params": list(payload.get("content_params") or []),
             "parameters": list(payload.get("parameters") or []),
@@ -135,10 +131,11 @@ class TemplateCatalogService:
             cleaned = self.schema_gateway.validate(payload)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
+        if "category" in cleaned:
+            cleaned["template_type"] = cleaned.pop("category") or ""
         if "type" in cleaned:
             cleaned["template_type"] = cleaned.pop("type") or ""
-        if "scene" in cleaned:
-            cleaned["scene"] = cleaned.get("scene") or ""
+        cleaned.pop("scene", None)
         if "match_keywords" in cleaned:
             cleaned["match_keywords"] = self._normalize_keywords(cleaned.get("match_keywords"))
         return cleaned
@@ -163,8 +160,7 @@ class TemplateCatalogService:
                 "description": str(candidate.get("description") or ""),
                 "report_type": str(candidate.get("report_type") or "daily"),
                 "scenario": str(candidate.get("scenario") or ""),
-                "type": str(candidate.get("type") or ""),
-                "scene": str(candidate.get("scene") or ""),
+                "category": str(candidate.get("category") or candidate.get("type") or ""),
                 "match_keywords": list(candidate.get("match_keywords") or []),
                 "content_params": list(candidate.get("content_params") or []),
                 "parameters": list(candidate.get("parameters") or []),
@@ -198,7 +194,7 @@ class TemplateCatalogService:
 
     @staticmethod
     def _looks_like_external_report_template(payload: dict[str, Any]) -> bool:
-        required_fields = {"id", "type", "scene", "name", "parameters", "sections"}
+        required_fields = {"id", "name", "parameters", "sections"}
         return required_fields.issubset(payload.keys())
 
     def _detect_import_conflict(self, candidate_id: str | None, candidate_name: str) -> dict[str, Any]:

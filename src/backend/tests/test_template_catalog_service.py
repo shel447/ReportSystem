@@ -42,8 +42,7 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
             "description": "巡检模板",
             "report_type": "daily",
             "scenario": "集团",
-            "type": "巡检",
-            "scene": "总部",
+            "category": "巡检",
             "match_keywords": ["巡检"],
             "parameters": [{"id": "date", "label": "日期", "required": True, "input_type": "date"}],
             "sections": [{"title": "概览", "content": {"presentation": {"type": "text", "template": "模板内容"}}}],
@@ -65,8 +64,7 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
         payload = {
             "id": "device_health_report",
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
             "parameters": [{"id": "date", "label": "日期", "required": True, "input_type": "date"}],
             "sections": [{"title": "概览", "content": {"presentation": {"type": "text", "template": "内容"}}}],
         }
@@ -88,7 +86,6 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
             report_type="daily",
             scenario="",
             template_type="巡检",
-            scene="总部",
         )
         service = _build_service([existing])
 
@@ -98,8 +95,7 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
             "description": "",
             "report_type": "daily",
             "scenario": "",
-            "type": "巡检",
-            "scene": "总部",
+            "category": "巡检",
             "match_keywords": [],
             "parameters": [],
             "sections": [{"title": "概览", "content": {"presentation": {"type": "text", "template": "内容"}}}],
@@ -121,7 +117,6 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
             report_type="daily",
             scenario="",
             template_type="巡检",
-            scene="总部",
         )
         service = _build_service([existing])
 
@@ -130,8 +125,7 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
             "description": "",
             "report_type": "daily",
             "scenario": "",
-            "type": "巡检",
-            "scene": "总部",
+            "category": "巡检",
             "match_keywords": [],
             "parameters": [],
             "sections": [{"title": "概览", "content": {"presentation": {"type": "text", "template": "内容"}}}],
@@ -157,8 +151,7 @@ class TemplateCatalogImportPreviewTests(unittest.TestCase):
             "description": "",
             "report_type": "daily",
             "scenario": "",
-            "type": "巡检",
-            "scene": "总部",
+            "category": "巡检",
             "match_keywords": [],
             "parameters": [],
             "sections": [{"title": "概览", "content": {"presentation": {"type": "text", "template": "内容"}}}],

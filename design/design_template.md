@@ -102,8 +102,7 @@ class ReportTemplate:
     description: str
 
     report_type: str
-    template_type: str
-    scene: str
+    category: str
     schema_version: str
     content: Dict[str, Any]
 
@@ -118,7 +117,7 @@ class ReportTemplate:
 |------|------|
 | `id` | 模板主键 |
 | `name / description` | 模板名称与说明 |
-| `report_type / template_type / scene` | 用于模板过滤、排序、检索和基础业务分类 |
+| `report_type / category` | 用于模板过滤、排序、检索和基础业务分类 |
 | `schema_version` | `content` 的整体结构版本 |
 | `content` | 模板完整定义载荷，统一承载参数、章节树、匹配关键词、输出格式等详细结构 |
 
@@ -691,7 +690,6 @@ sequenceDiagram
 - [implementation/template_catalog.md](implementation/template_catalog.md)
 - [implementation/database_schema.md](implementation/database_schema.md)
 - [implementation/external_interfaces.md](implementation/external_interfaces.md)
-
 
 
 

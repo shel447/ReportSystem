@@ -103,7 +103,7 @@ export function TemplatesPage() {
                     </div>
                     <p>{template.description || "暂无模板描述"}</p>
                     <div className="template-card__meta">
-                      {[template.type, template.scene || template.scenario].filter(Boolean).map((item) => (
+                      {[template.category, template.scenario].filter(Boolean).map((item) => (
                         <span key={item}>{item}</span>
                       ))}
                     </div>

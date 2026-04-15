@@ -97,6 +97,11 @@ GET    /rest/chatbi/v1/templates/{id}/export  # 导出模板 JSON
 > - `outline.requirement + outline.items[]`：面向用户的章节诉求
 > - `content.datasets + presentation`：面向系统的执行链路
 >
+> 模板元字段契约固定为：
+> - `category`：模板分类（替代旧 `type`）
+> - `description`：模板描述
+> - 不再使用模板顶层 `scene` 字段（如需场景输入，按模板参数定义）
+>
 > 兼容字段 `content_params / outline` 仍可读取，但保存后统一按新版结构维护。
 >
 > `parameters[]` 额外支持：
@@ -447,5 +452,4 @@ POST   /rest/dev/system-settings/reindex     # 重建模板语义索引
 ### 9.6 定时任务时间语义专题
 
 当前 `time_param_name + report_time` 只能表达基础时间联动。关于“任务执行时间 / 报告时间 / 报告数据时间范围”的完整关系，已记录为后续专题，后续会独立引入 `time_slots`、`data_time_start`、`data_time_end` 设计。
-
 

@@ -24,7 +24,6 @@ class TemplatesRouterTests(unittest.TestCase):
             report_type="daily",
             scenario="集团",
             template_type="巡检",
-            scene="总部",
             created_at="2026-03-19T00:00:00",
             schema_version="v2.0",
             parameters=[{"id": "date"}, {"id": "devices"}],
@@ -48,8 +47,8 @@ class TemplatesRouterTests(unittest.TestCase):
     def test_clean_template_payload_validates_and_normalizes_v2_template(self):
         payload = {
             "name": "设备健康报告",
-            "type": "设备健康评估",
-            "scene": "总部",
+            "category": "设备健康评估",
+            "description": "模板描述",
             "parameters": [],
             "sections": [
                 {
@@ -76,7 +75,6 @@ class TemplatesRouterTests(unittest.TestCase):
             report_type="daily",
             scenario="集团",
             template_type="巡检",
-            scene="总部",
             match_keywords=["巡检", "设备"],
             content_params=[{"legacy": True}],
             parameters=[{"id": "date", "label": "日期", "required": True, "input_type": "date"}],
@@ -112,8 +110,8 @@ class TemplatesRouterTests(unittest.TestCase):
 
         payload = json.loads(response.body.decode("utf-8"))
         self.assertEqual(payload["name"], "设备巡检报告")
-        self.assertEqual(payload["type"], "巡检")
-        self.assertEqual(payload["scene"], "总部")
+        self.assertEqual(payload["category"], "巡检")
+        self.assertEqual(payload["description"], "巡检模板")
         self.assertEqual(payload["parameters"][0]["id"], "date")
         self.assertEqual(payload["sections"][0]["title"], "概览")
         self.assertNotIn("template_id", payload)

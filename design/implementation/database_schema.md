@@ -243,8 +243,8 @@ ON tbl_users(last_seen_at);
 | `name` | `TEXT` | 是 | 无 | 模板名称 |
 | `description` | `TEXT` | 否 | `''` | 模板说明 |
 | `report_type` | `TEXT` | 否 | `'daily'` | 报告业务类型 |
-| `template_type` | `TEXT` | 否 | `''` | 模板类别 |
-| `scene` | `TEXT` | 否 | `''` | 模板细分场景 |
+| `template_type` | `TEXT` | 否 | `''` | 模板分类（对外契约字段名为 `category`） |
+| `scene` | `TEXT` | 否 | `''` | 旧字段，已不在模板正式契约中使用 |
 | `schema_version` | `TEXT` | 否 | `''` | `content` 的整体结构版本 |
 | `created_at` | `DATETIME` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `updated_at` | `DATETIME` | 否 | `CURRENT_TIMESTAMP` | 更新时间 |

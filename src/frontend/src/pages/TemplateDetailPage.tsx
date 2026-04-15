@@ -152,8 +152,7 @@ export function TemplateDetailPage() {
           }
           summary={
             <SurfaceCard className="summary-strip">
-              <div className="summary-strip__item"><span>模板类型</span><strong>{editor.meta.type || "未设置"}</strong></div>
-              <div className="summary-strip__item"><span>场景</span><strong>{editor.meta.scene || editor.meta.scenario || "未设置"}</strong></div>
+              <div className="summary-strip__item"><span>模板分类</span><strong>{editor.meta.category || "未设置"}</strong></div>
               <div className="summary-strip__item"><span>参数数量</span><strong>{summary.parameterCount}</strong></div>
               <div className="summary-strip__item"><span>章节数量</span><strong>{summary.sectionCount}</strong></div>
             </SurfaceCard>
@@ -170,8 +169,7 @@ export function TemplateDetailPage() {
                 </div>
                 <div className="form-grid">
                   <label className="field"><span className="field-label">模板名称</span><input aria-label="模板名称" value={editor.meta.name} onChange={(event) => updateMeta("name", event.target.value)} /></label>
-                  <label className="field"><span className="field-label">模板类型</span><input value={editor.meta.type} onChange={(event) => updateMeta("type", event.target.value)} /></label>
-                  <label className="field"><span className="field-label">场景</span><input value={editor.meta.scene} onChange={(event) => updateMeta("scene", event.target.value)} /></label>
+                  <label className="field"><span className="field-label">模板分类</span><input value={editor.meta.category} onChange={(event) => updateMeta("category", event.target.value)} /></label>
                   <label className="field"><span className="field-label">报告类型</span><input value={editor.meta.reportType} onChange={(event) => updateMeta("reportType", event.target.value)} /></label>
                   <label className="field field--full"><span className="field-label">模板描述</span><textarea rows={3} value={editor.meta.description} onChange={(event) => updateMeta("description", event.target.value)} /></label>
                   <label className="field"><span className="field-label">使用场景说明</span><input value={editor.meta.scenario} onChange={(event) => updateMeta("scenario", event.target.value)} /></label>
