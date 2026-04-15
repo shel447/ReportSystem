@@ -1,0 +1,515 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "report-template-instance-v1",
+  "title": "ReportTemplateInstance",
+  "description": "模板实例（Template + Dynamic Runtime Data）Schema v1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "instance_template_id",
+    "schema_version",
+    "base_template",
+    "instance_meta",
+    "runtime_state",
+    "resolved_view",
+    "fragments"
+  ],
+  "properties": {
+    "instance_template_id": {
+      "type": "string",
+      "description": "模板实例唯一标识"
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "模板实例结构版本",
+      "default": "ti.v1.0"
+    },
+    "base_template": {
+      "allOf": [
+        {
+          "$ref": "./report_template_schema_v2.json"
+        }
+      ],
+      "description": "基础报告模板定义，作为实例继承来源"
+    },
+    "instance_meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "revision",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "collecting_parameters",
+            "ready_for_confirmation",
+            "confirmed",
+            "generating",
+            "completed",
+            "failed"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_updated_by": {
+          "type": "string",
+          "enum": [
+            "system",
+            "user"
+          ]
+        },
+        "conversation_id": {
+          "type": "string"
+        },
+        "chat_id": {
+          "type": "string"
+        }
+      }
+    },
+    "runtime_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameter_runtime",
+        "outline_runtime"
+      ],
+      "properties": {
+        "parameter_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "definitions",
+            "candidate_snapshots",
+            "selections",
+            "confirmation"
+          ],
+          "properties": {
+            "definitions": {
+              "type": "array",
+              "items": {
+                "$ref": "./report_template_schema_v2.json#/$defs/Parameter"
+              },
+              "description": "参数定义快照，来自模板"
+            },
+            "candidate_snapshots": {
+              "type": "array",
+              "description": "动态参数候选值抓取快照（外部数据源返回）",
+              "items": {
+                "$ref": "report-template-instance-v1#/$defs/ParameterCandidateSnapshot"
+              }
+            },
+            "selections": {
+              "type": "array",
+              "description": "参数当前选择快照（非事件历史）",
+              "items": {
+                "$ref": "report-template-instance-v1#/$defs/ParameterSelectionSnapshot"
+              }
+            },
+            "confirmation": {
+              "$ref": "report-template-instance-v1#/$defs/ParameterConfirmationState"
+            }
+          }
+        },
+        "outline_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current_outline_instance"
+          ],
+          "properties": {
+            "current_outline_instance": {
+              "type": "array",
+              "items": {
+                "$ref": "report-template-instance-v1#/$defs/OutlineNodeResolved"
+              }
+            }
+          }
+        }
+      }
+    },
+    "resolved_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameters",
+        "outline",
+        "sections"
+      ],
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "description": "参数解析后视图（当前生效值）",
+          "additionalProperties": {
+            "$ref": "report-template-instance-v1#/$defs/ResolvedTrioValue"
+          }
+        },
+        "outline": {
+          "type": "array",
+          "description": "实例级诉求树（当前生效）",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/OutlineNodeResolved"
+          }
+        },
+        "sections": {
+          "type": "array",
+          "description": "实例化后的章节视图",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/ResolvedSection"
+          }
+        }
+      }
+    },
+    "generated_content": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/GeneratedSection"
+          }
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/GeneratedDocument"
+          }
+        }
+      }
+    },
+    "fragments": {
+      "type": "object",
+      "description": "对话与详情编辑接口按需选取/组装的实例片段",
+      "additionalProperties": {
+        "$ref": "report-template-instance-v1#/$defs/InstanceFragment"
+      }
+    }
+  },
+  "$defs": {
+    "ScalarValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "ScalarOrScalarArray": {
+      "anyOf": [
+        {
+          "$ref": "report-template-instance-v1#/$defs/ScalarValue"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/ScalarValue"
+          }
+        }
+      ]
+    },
+    "ResolvedTrioValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display",
+        "value",
+        "query"
+      ],
+      "properties": {
+        "display": {
+          "$ref": "report-template-instance-v1#/$defs/ScalarOrScalarArray"
+        },
+        "value": {
+          "$ref": "report-template-instance-v1#/$defs/ScalarOrScalarArray"
+        },
+        "query": {
+          "$ref": "report-template-instance-v1#/$defs/ScalarOrScalarArray"
+        }
+      }
+    },
+    "ParameterCandidateItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "value",
+        "query"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "report-template-instance-v1#/$defs/ScalarValue"
+        },
+        "query": {
+          "$ref": "report-template-instance-v1#/$defs/ScalarOrScalarArray"
+        },
+        "selected": {
+          "type": "boolean"
+        }
+      }
+    },
+    "ParameterCandidateSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "param_id",
+        "source",
+        "fetched_at",
+        "items"
+      ],
+      "properties": {
+        "param_id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "fetched_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "query_context": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/ParameterCandidateItem"
+          }
+        }
+      }
+    },
+    "ParameterConfirmationState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missing_param_ids",
+        "confirmed"
+      ],
+      "properties": {
+        "missing_param_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "confirmed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "OutlineItemResolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type",
+        "resolved_value"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "hint": {
+          "type": "string"
+        },
+        "param_id": {
+          "type": "string"
+        },
+        "resolved_value": {
+          "$ref": "report-template-instance-v1#/$defs/ResolvedTrioValue"
+        },
+        "value_source": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "param_ref",
+            "default",
+            "dynamic_candidate"
+          ]
+        }
+      }
+    },
+    "OutlineNodeResolved": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "title",
+        "requirement",
+        "rendered_requirement",
+        "items"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "requirement": {
+          "type": "string"
+        },
+        "rendered_requirement": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/OutlineItemResolved"
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "report-template-instance-v1#/$defs/OutlineNodeResolved"
+          }
+        }
+      }
+    },
+    "ResolvedSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "section_template",
+        "outline_instance"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "section_template": {
+          "$ref": "./report_template_schema_v2.json#/$defs/Section"
+        },
+        "outline_instance": {
+          "$ref": "report-template-instance-v1#/$defs/OutlineNodeResolved"
+        }
+      }
+    },
+    "GeneratedSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "title",
+        "content"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "GeneratedDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "format",
+        "download_url"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "download_url": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "InstanceFragment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "payload",
+        "updated_at"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "片段在模板实例中的逻辑路径"
+        },
+        "payload": {
+          "description": "片段内容",
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ParameterSelectionSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "param_id",
+        "value"
+      ],
+      "properties": {
+        "param_id": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "report-template-instance-v1#/$defs/ResolvedTrioValue"
+        }
+      }
+    }
+  }
+}
