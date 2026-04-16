@@ -144,7 +144,7 @@ GET    /rest/chatbi/v1/templates/{id}/export  # 导出模板 JSON
 ```
 GET    /rest/chatbi/v1/chat                   # 列出对话历史会话摘要
 POST   /rest/chatbi/v1/chat                   # 发送对话消息
-POST   /rest/chatbi/v1/chat/forks             # 基于消息或内部生成基线 fork 新会话
+POST   /rest/chatbi/v1/chat/forks             # 基于消息 fork 新会话
 GET    /rest/chatbi/v1/chat/{session_id}      # 获取单个会话历史
 DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 ```
@@ -161,11 +161,18 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 > - `target_param_id`
 > - `outline_override`
 >
+> 同时已支持新契约请求字段：
+> - `conversationId / chatId / instruction / question`
+> - `reply`（`type + parameters`）
+> - `command.name`
+>
+> 若请求头 `Accept: text/event-stream`，当前会返回 SSE 骨架事件（`status + steps + delta + ask + answer`，单事件帧）。未声明该请求头时返回 JSON。
+>
 > 对话生成链路在“诉求确认”阶段只更新当前对话上下文；真正点击“确认生成”后，系统会在创建 `ReportInstance` 的同时生成一份内部 `generation_baseline` 快照。
 >
-> `POST /rest/chatbi/v1/chat/forks` 支持两类来源：
-> - `session_message`：基于某条历史消息 fork 新会话。消息锚点使用稳定 `message_id`，用户消息 fork 会同时把该消息内容回填到输入框。
-> - `template_instance`：内部使用的生成基线来源，用于从报告实例恢复到 `review_outline` 阶段。
+> `POST /rest/chatbi/v1/chat/forks` 仅支持 `session_message` 来源：基于某条历史消息 fork 新会话。消息锚点使用稳定 `message_id`，用户消息 fork 会同时把该消息内容回填到输入框。
+>
+> 从报告生成基线恢复会话统一使用 `POST /rest/chatbi/v1/instances/{id}/update-chat`，不再暴露模板实例资源端点或模板实例来源参数。
 >
 > 聊天消息和会话摘要额外返回：
 > - `message_id`
@@ -203,6 +210,7 @@ DELETE /rest/chatbi/v1/chat/{session_id}      # 删除对话会话
 ## 4. 报告实例管理
 
 ```
+GET    /rest/chatbi/v1/reports/{id}           # 报告聚合视图（template_instance + generated_content）
 POST   /rest/chatbi/v1/instances              # 生成报告实例
 GET    /rest/chatbi/v1/instances              # 列出报告实例 (新增)
 GET    /rest/chatbi/v1/instances/{id}         # 获取实例详情
@@ -214,6 +222,8 @@ PUT    /rest/chatbi/v1/instances/{id}         # 更新实例
 POST   /rest/chatbi/v1/instances/{id}/regenerate/{section_id}  # 重新生成某节
 POST   /rest/chatbi/v1/instances/{id}/finalize  # 确认实例，准备生成文档
 ```
+
+> `POST /rest/chatbi/v1/reports/{id}/edit-stream` 当前仍处于待实现专题，本轮未落地。
 
 > `GET /rest/chatbi/v1/instances`、`GET /rest/chatbi/v1/instances/{id}` 额外返回能力标识：
 > - `has_generation_baseline`
@@ -452,4 +462,3 @@ POST   /rest/dev/system-settings/reindex     # 重建模板语义索引
 ### 9.6 定时任务时间语义专题
 
 当前 `time_param_name + report_time` 只能表达基础时间联动。关于“任务执行时间 / 报告时间 / 报告数据时间范围”的完整关系，已记录为后续专题，后续会独立引入 `time_slots`、`data_time_start`、`data_time_end` 设计。
-

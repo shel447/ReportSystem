@@ -69,7 +69,6 @@ class TemplateCatalogService:
             "name": template.name,
             "description": template.description,
             "report_type": template.report_type,
-            "scenario": template.scenario,
             "category": template.template_type or "",
             "schema_version": template.schema_version or "",
             "parameter_count": len(template.parameters or []),
@@ -83,7 +82,6 @@ class TemplateCatalogService:
             "name": template.name,
             "description": template.description,
             "report_type": template.report_type,
-            "scenario": template.scenario,
             "category": template.template_type or "",
             "match_keywords": self._normalize_keywords(template.match_keywords),
             "content_params": template.content_params,
@@ -101,7 +99,6 @@ class TemplateCatalogService:
             "name": template.name,
             "description": template.description,
             "report_type": template.report_type,
-            "scenario": template.scenario,
             "category": template.template_type or "",
             "match_keywords": self._normalize_keywords(template.match_keywords),
             "parameters": template.parameters or [],
@@ -115,7 +112,6 @@ class TemplateCatalogService:
             "name": str(payload.get("name") or ""),
             "description": str(payload.get("description") or ""),
             "report_type": str(payload.get("report_type") or "daily"),
-            "scenario": str(payload.get("scenario") or ""),
             "category": str(payload.get("template_type") or payload.get("category") or ""),
             "match_keywords": self._normalize_keywords(payload.get("match_keywords")),
             "content_params": list(payload.get("content_params") or []),
@@ -136,6 +132,7 @@ class TemplateCatalogService:
         if "type" in cleaned:
             cleaned["template_type"] = cleaned.pop("type") or ""
         cleaned.pop("scene", None)
+        cleaned.pop("scenario", None)
         if "match_keywords" in cleaned:
             cleaned["match_keywords"] = self._normalize_keywords(cleaned.get("match_keywords"))
         return cleaned
@@ -159,7 +156,6 @@ class TemplateCatalogService:
                 "name": str(candidate.get("name") or ""),
                 "description": str(candidate.get("description") or ""),
                 "report_type": str(candidate.get("report_type") or "daily"),
-                "scenario": str(candidate.get("scenario") or ""),
                 "category": str(candidate.get("category") or candidate.get("type") or ""),
                 "match_keywords": list(candidate.get("match_keywords") or []),
                 "content_params": list(candidate.get("content_params") or []),
@@ -183,7 +179,6 @@ class TemplateCatalogService:
             for key in (
                 "template_id",
                 "report_type",
-                "scenario",
                 "match_keywords",
                 "output_formats",
                 "schema_version",

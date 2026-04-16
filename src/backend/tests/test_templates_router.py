@@ -22,7 +22,6 @@ class TemplatesRouterTests(unittest.TestCase):
             name="设备巡检报告",
             description="巡检模板",
             report_type="daily",
-            scenario="集团",
             template_type="巡检",
             created_at="2026-03-19T00:00:00",
             schema_version="v2.0",
@@ -43,6 +42,7 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertEqual(payload[0]["schema_version"], "v2.0")
         self.assertEqual(payload[0]["parameter_count"], 2)
         self.assertEqual(payload[0]["top_level_section_count"], 2)
+        self.assertNotIn("scenario", payload[0])
 
     def test_clean_template_payload_validates_and_normalizes_v2_template(self):
         payload = {
@@ -73,7 +73,6 @@ class TemplatesRouterTests(unittest.TestCase):
             name="设备巡检报告",
             description="巡检模板",
             report_type="daily",
-            scenario="集团",
             template_type="巡检",
             match_keywords=["巡检", "设备"],
             content_params=[{"legacy": True}],
@@ -114,6 +113,7 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertEqual(payload["description"], "巡检模板")
         self.assertEqual(payload["parameters"][0]["id"], "date")
         self.assertEqual(payload["sections"][0]["title"], "概览")
+        self.assertNotIn("scenario", payload)
         self.assertNotIn("template_id", payload)
         self.assertNotIn("created_at", payload)
         self.assertNotIn("version", payload)

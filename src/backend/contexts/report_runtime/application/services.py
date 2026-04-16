@@ -43,6 +43,14 @@ class ReportRuntimeService:
         template_instance = self.template_instance_repository.get_by_instance(instance_id)
         return self.serialize_instance(instance, template_instance)
 
+    def get_report_view(self, report_id: str, *, user_id: str = "default") -> dict[str, Any]:
+        instance = self._require_instance(report_id, user_id=user_id)
+        template_instance = self.template_instance_repository.get_by_instance(report_id)
+        if template_instance:
+            return self.serialize_report_view(instance, template_instance)
+        template = self.template_repository.get_by_id(instance.template_id)
+        return self.serialize_report_view(instance, None, template=template)
+
     def list_instances(self, *, template_id: str | None = None, user_id: str = "default") -> list[dict[str, Any]]:
         instances = self.instance_repository.list(template_id, user_id=user_id)
         template_instance_map = self.template_instance_repository.list_map_by_instances([item.instance_id for item in instances])
@@ -75,7 +83,7 @@ class ReportRuntimeService:
         self._require_instance(instance_id, user_id=user_id)
         template_instance = self.template_instance_repository.get_by_instance(instance_id)
         if not template_instance:
-            raise NotFoundError("Template instance not found")
+            raise NotFoundError("Report baseline not found")
         return build_generation_baseline_payload(template_instance)
 
     def regenerate_section(self, instance_id: str, section_index: int, *, user_id: str = "default") -> dict[str, Any]:
@@ -132,6 +140,68 @@ class ReportRuntimeService:
             "supports_fork_chat": supports_fork_chat,
         }
 
+    @staticmethod
+    def serialize_report_view(
+        instance: ReportInstance,
+        template_instance: TemplateInstance | None,
+        *,
+        template=None,
+    ) -> dict[str, Any]:
+        if template_instance:
+            base_template = template_instance.base_template
+            template_payload = {
+                "id": template_instance.template_instance_id,
+                "schema_version": template_instance.schema_version or "ti.v1.0",
+                "instance_meta": {
+                    "status": template_instance.status or "",
+                    "revision": max(1, int(template_instance.revision or 1)),
+                    "created_at": str(template_instance.created_at) if template_instance.created_at else None,
+                },
+                "base_template": {
+                    "id": template_instance.template_id,
+                    "name": template_instance.template_name,
+                    "category": (base_template.template_type if base_template else ""),
+                    "description": (base_template.description if base_template else ""),
+                },
+                "runtime_state": deepcopy(template_instance.runtime_state or {}),
+                "resolved_view": deepcopy(template_instance.resolved_view or {}),
+                "fragments": deepcopy(template_instance.fragments or {}),
+            }
+            generated_content = deepcopy(template_instance.generated_content or {})
+        else:
+            template_payload = {
+                "id": "",
+                "schema_version": "ti.v1.0",
+                "instance_meta": {
+                    "status": str(instance.status or ""),
+                    "revision": 1,
+                    "created_at": str(instance.created_at) if instance.created_at else None,
+                },
+                "base_template": {
+                    "id": str(instance.template_id or ""),
+                    "name": str(getattr(template, "name", "") or ""),
+                    "category": str(getattr(template, "template_type", "") or ""),
+                    "description": str(getattr(template, "description", "") or ""),
+                },
+                "runtime_state": {},
+                "resolved_view": {
+                    "parameters": deepcopy(instance.input_params or {}),
+                    "outline": deepcopy(instance.outline_content or []),
+                    "sections": deepcopy(instance.outline_content or []),
+                },
+                "fragments": {},
+            }
+            generated_content = {
+                "sections": deepcopy(instance.outline_content or []),
+                "documents": [],
+            }
+        return {
+            "reportId": instance.instance_id,
+            "status": instance.status,
+            "template_instance": template_payload,
+            "generated_content": generated_content,
+        }
+
     def _require_instance(self, instance_id: str, *, user_id: str = "default") -> ReportInstance:
         instance = self.instance_repository.get(instance_id, user_id=user_id)
         if not instance:
@@ -171,21 +241,18 @@ class ReportDocumentService:
 
 
 def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any]:
-    template_instance_payload = {
-        "instance_template_id": record.template_instance_id,
+    baseline_payload = {
         "schema_version": record.schema_version or "ti.v1.0",
-        "base_template": {
+        "status": record.status,
+        "revision": record.revision,
+        "created_at": str(record.created_at) if record.created_at else None,
+        "template_snapshot": {
             "id": record.template_id,
             "name": record.template_name or record.template_id,
             "category": (record.base_template.template_type if record.base_template else ""),
             "description": (record.base_template.description if record.base_template else ""),
             "parameters": deepcopy(record.base_template.parameters if record.base_template else []),
             "sections": deepcopy(record.base_template.sections if record.base_template else []),
-        },
-        "instance_meta": {
-            "status": record.status,
-            "revision": record.revision,
-            "created_at": str(record.created_at) if record.created_at else None,
         },
         "runtime_state": deepcopy(record.runtime_state or {}),
         "resolved_view": deepcopy(record.resolved_view or {}),
@@ -200,5 +267,5 @@ def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any
         "outline": deepcopy(record.outline_snapshot or []),
         "warnings": list(record.warnings or []),
         "created_at": str(record.created_at),
-        "template_instance": template_instance_payload,
+        "generation_baseline": baseline_payload,
     }

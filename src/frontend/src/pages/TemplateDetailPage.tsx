@@ -172,7 +172,6 @@ export function TemplateDetailPage() {
                   <label className="field"><span className="field-label">模板分类</span><input value={editor.meta.category} onChange={(event) => updateMeta("category", event.target.value)} /></label>
                   <label className="field"><span className="field-label">报告类型</span><input value={editor.meta.reportType} onChange={(event) => updateMeta("reportType", event.target.value)} /></label>
                   <label className="field field--full"><span className="field-label">模板描述</span><textarea rows={3} value={editor.meta.description} onChange={(event) => updateMeta("description", event.target.value)} /></label>
-                  <label className="field"><span className="field-label">使用场景说明</span><input value={editor.meta.scenario} onChange={(event) => updateMeta("scenario", event.target.value)} /></label>
                   <label className="field"><span className="field-label">Schema 版本</span><input value={editor.meta.schemaVersion} onChange={(event) => updateMeta("schemaVersion", event.target.value)} /></label>
                   <label className="field field--full"><span className="field-label">匹配关键词（逗号分隔）</span><input value={editor.meta.matchKeywords.join(", ")} onChange={(event) => updateMeta("matchKeywords", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
                 </div>

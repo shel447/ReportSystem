@@ -3,7 +3,6 @@ export type TemplateSummary = {
   name: string;
   description: string;
   report_type: string;
-  scenario: string;
   category?: string;
   schema_version?: string;
   parameter_count?: number;
@@ -136,7 +135,6 @@ export type TemplateEditableDraft = {
   name: string;
   description: string;
   report_type: string;
-  scenario: string;
   category?: string;
   match_keywords: string[];
   content_params: Record<string, unknown>[];
@@ -169,7 +167,6 @@ export type TemplateUpsertPayload = {
   name: string;
   description: string;
   report_type: string;
-  scenario: string;
   category: string;
   match_keywords: string[];
   content_params: Record<string, unknown>[];

@@ -21,7 +21,7 @@
 - `E:/code/codex_projects/ReportSystemV2/src/backend/contexts/report_runtime/infrastructure/documents.py`
 - `E:/code/codex_projects/ReportSystemV2/src/backend/routers/instances.py`
 - `E:/code/codex_projects/ReportSystemV2/src/backend/routers/documents.py`
-- `E:/code/codex_projects/ReportSystemV2/src/backend/routers/template_instances.py`
+- `E:/code/codex_projects/ReportSystemV2/src/backend/routers/reports.py`
 
 ## 3. 核心领域概念
 
@@ -48,7 +48,7 @@
 ### application
 
 - `ReportRuntimeService`
-  - 实例 CRUD、baseline 查询、章节重生成、finalize
+  - 实例 CRUD、baseline 查询、章节重生成、finalize、报告聚合视图（`template_instance + generated_content`）
 - `ReportDocumentService`
   - 文档创建、列表、下载、删除
 - `ReportInstanceCreationService`
@@ -77,7 +77,8 @@
 
 - `instances.py`：实例列表、详情、更新、baseline、更新会话、fork 来源
 - `documents.py`：文档创建、下载、删除
-- `template_instances.py`：模板实例只读列表接口（兼容 baseline 视图）
+- `reports.py`：聚合报告视图 `GET /rest/chatbi/v1/reports/{report_id}`
+- `template_instances` 不再作为公开路由；模板实例仅作为内部聚合状态承载报告生成基线
 
 ## 5. 核心实现链路
 
@@ -166,5 +167,3 @@ sequenceDiagram
 - 查询引擎可替换成其他 SQL / Ibis / 向量检索方案
 - 文档渲染器和文件存储可替换成对象存储、其他格式渲染器
 - 只要 `ReportRuntimeService`、`ReportDocumentService` 和 `ReportInstanceCreationService` 的行为契约不变，业务规格不需要改
-
-

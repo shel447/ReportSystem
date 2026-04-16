@@ -1,18 +1,30 @@
+原来你帮我设计的这版接口串烧，你觉得还有什么地方可以优化一下：
+
 # 对话制报告接口串联案例（最新口径）
 
-> 本文档用于串联“通过统一对话流式接口制作报告”的完整业务流程。  
+> 本文档用于串联“通过统一对话流式接口制作报告”的完整业务流程。
 > 口径以本次需求描述为准，允许与当前已实现接口存在差异，作为后续重构基线。
+>
+> 实现状态（2026-04-16）：
+> - `POST /rest/chatbi/v1/chat` 已支持新契约字段，并支持可选 SSE 骨架返回（`Accept: text/event-stream`）。
+> - `GET /rest/chatbi/v1/reports/{reportId}` 已落地。
+> - `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` 暂未实现（待后续专题）。
 
----
+------
 
 ## 1. 目标与边界
 
 - 对话入口统一使用一个流式接口，且全流程始终使用同一个 `/chat` 接口。
+
 - 通过 `instruction` 区分意图：
+
   - `generate_report`：智能报告
   - `smart_query`：智能问数
+  
 - 本文只展开 `generate_report` 主流程。
+
 - 报告详情返回“模板实例（Template Instance）+ 生成内容”。
+
 - 编辑模板实例中的 `outline` 诉求时，调用“编辑报告”流式接口（SSE）。
 
 ### 1.1 命名约定（本文件统一口径）
@@ -27,13 +39,13 @@
 
 本文件不再使用其它会话命名。
 
----
+------
 
 ## 2. 核心对象（目标契约）
 
 ### 2.1 ReportTemplate（模板）
 
-```json
+```
 {
   "id": "tpl_ops_daily_v1",
   "name": "运维日报模板",
@@ -48,9 +60,9 @@
 
 > 设计要求：模板实例是模板的扩展，不是平行孤立结构。
 
-```json
+```
 {
-  "instance_template_id": "ti_20260415_0001",
+  "id": "ti_20260415_0001",
   "schema_version": "ti.v1.0",
   "base_template": {
     "id": "tpl_ops_daily_v1",
@@ -90,33 +102,29 @@
 }
 ```
 
----
+------
 
 ## 3. 统一对话流式接口（SSE）
 
 ## 3.1 请求
 
-`POST /rest/chatbi/v1/chat`
-
-```json
+```
+POST /rest/chatbi/v1/chat
 {
   "conversationId": "conv_001",
   "chatId": "chat_001",
   "instruction": "generate_report",
-  "question": "帮我生成今天总部网络运行日报，重点看告警、可用性和工单闭环。",
-  "context": {
-    "locale": "zh-CN",
-    "timezone": "Asia/Shanghai"
-  }
+  "question": "帮我生成今天总部网络运行日报，重点看告警、可用性和工单闭环。"
 }
 ```
 
 ## 3.2 SSE 事件数据（统一骨架）
 
-```json
+```
 {
-  "requestId": "req_001",
-  "status": "running|waiting_user|completed|failed",
+  "conversationId": "conv_001",
+  "chatId": "chat_001",
+  "status": "running|waiting_user|finished|failed|aborted",
   "steps": [],
   "delta": [],
   "answer": null,
@@ -146,7 +154,7 @@
 
 step 增量示例：
 
-```json
+```
 {
   "stepId": "s3",
   "parentStepId": "s1",
@@ -171,7 +179,7 @@ step 增量示例：
 
 `delta` 项结构：
 
-```json
+```
 {
   "action": "init_report|add_catalog|add_section",
   "category": "string",
@@ -179,16 +187,16 @@ step 增量示例：
   "description": "string",
   "catalogs": [],
   "sections": [],
-  "parent_catelog": "string|null"
+  "parent_catalog": "string|null"
 }
 ```
 
 说明：
 
-- `parent_catelog` 为空表示挂到根 catalog。
-- `add_catalog` / `add_section` 通过 `parent_catelog` 指定父级。
+- `parent_catalog` 为空表示挂到根 catalog。
+- `add_catalog` / `add_section` 通过 `parent_catalog` 指定父级。
 
----
+------
 
 ## 4. 端到端案例（完整接口调用链）
 
@@ -196,13 +204,13 @@ step 增量示例：
 
 ### 4.0 外部接口如何影响模板实例（总览）
 
-| 外部接口 | 主要影响的模板实例字段 | 说明 |
-|---|---|---|
-| `POST /rest/chatbi/v1/chat`（首轮匹配） | `base_template`, `runtime_state.parameter_runtime.definitions`, `instance_meta.status`, `instance_meta.revision`, `fragments.*` | 选中模板并初始化实例草稿，输出追问片段 |
-| `POST /rest/chatbi/v1/chat`（补参与确认） | `runtime_state.parameter_runtime.candidate_snapshots`, `runtime_state.parameter_runtime.selections`, `runtime_state.parameter_runtime.confirmation`, `resolved_view.parameters`, `instance_meta.status/revision` | 服务端内部先获取外部候选值并写入实例，再以统一枚举参数形式返回给 UI |
-| `POST /rest/chatbi/v1/chat`（确认生成） | `resolved_view.outline`, `resolved_view.sections`, `runtime_state.outline_runtime.current_outline_instance`, `generated_content`, `instance_meta.status/revision` | 确认后完成诉求实例化，再生成内容 |
-| `GET /rest/chatbi/v1/reports/{reportId}` | 只读返回 `template_instance`（全量或片段）+ `generated_content` | 不改写实例，仅查询当前最新状态 |
-| `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` | `resolved_view.outline`, `resolved_view.sections`, `runtime_state.outline_runtime.current_outline_instance`, `generated_content.sections`, `fragments.report_edit_*`, `instance_meta.revision` | 编辑诉求后重算实例并重生成受影响章节 |
+| 外部接口                                              | 主要影响的模板实例字段                                       | 说明                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `POST /rest/chatbi/v1/chat`（首轮匹配）               | `base_template`, `runtime_state.parameter_runtime.definitions`, `instance_meta.status`, `instance_meta.revision`, `fragments.*` | 选中模板并初始化实例草稿，输出追问片段                       |
+| `POST /rest/chatbi/v1/chat`（补参与确认）             | `runtime_state.parameter_runtime.candidate_snapshots`, `runtime_state.parameter_runtime.selections`, `runtime_state.parameter_runtime.confirmation`, `resolved_view.parameters`, `instance_meta.status/revision` | 服务端内部先获取外部候选值并写入实例，再以统一枚举参数形式返回给 UI |
+| `POST /rest/chatbi/v1/chat`（确认生成）               | `resolved_view.outline`, `resolved_view.sections`, `runtime_state.outline_runtime.current_outline_instance`, `generated_content`, `instance_meta.status/revision` | 确认后完成诉求实例化，再生成内容                             |
+| `GET /rest/chatbi/v1/reports/{reportId}`              | 只读返回 `template_instance`（全量或片段）+ `generated_content` | 不改写实例，仅查询当前最新状态                               |
+| `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` | `resolved_view.outline`, `resolved_view.sections`, `runtime_state.outline_runtime.current_outline_instance`, `generated_content.sections`, `fragments.report_edit_*`, `instance_meta.revision` | 编辑诉求后重算实例并重生成受影响章节                         |
 
 ### 步骤 1：首轮自然语言输入，系统匹配模板并开始追问
 
@@ -214,7 +222,8 @@ step 增量示例：
 
 ```json
 {
-  "requestId": "req_001",
+  "conversationId": "conv_001",
+  "chatId": "chat_001",
   "status": "waiting_user",
   "steps": [
     { "stepId": "s1", "parentStepId": null, "name": "意图识别", "contentType": "text", "content": "识别为智能报告" },
@@ -225,13 +234,21 @@ step 增量示例：
   "ask": {
     "mode": "form",
     "title": "请填写参数",
-    "fields": [
+    "type": "fill_params",
+    "parameters": [
       { "id": "report_date", "label": "报告日期", "inputType": "date", "required": true },
-      { "id": "scope", "label": "范围", "inputType": "enum", "required": true, "options": ["总部", "华东", "华南"] }
-    ],
-    "binding": {
-      "target": "runtime_state.parameter_runtime.selections"
-    }
+      {
+        "id": "scope",
+        "label": "范围",
+        "inputType": "enum",
+        "required": true,
+        "options": [
+          { "label": "总部", "value": "HQ" },
+          { "label": "华东", "value": "EAST_CHINA" },
+          { "label": "华南", "value": "SOUTH_CHINA" }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -240,17 +257,17 @@ step 增量示例：
 
 第二轮请求（用户提交部分参数）：
 
-```json
+```
 {
   "conversationId": "conv_001",
   "chatId": "chat_002",
   "instruction": "generate_report",
   "question": "先用今天，总部范围。",
-  "askReply": {
-    "mode": "chat",
-    "values": {
+  "reply": {
+    "type": "fill_params",
+    "parameters": {
       "report_date": "2026-04-15",
-      "scope": "总部"
+      "scope": "HQ"
     }
   }
 }
@@ -270,20 +287,29 @@ step 增量示例：
 ```json
 {
   "status": "waiting_user",
-  "delta": [],
-  "answer": null,
   "ask": {
     "mode": "form",
-    "title": "参数确认",
-    "fields": [
-      { "id": "report_date", "label": "报告日期", "value": "2026-04-15" },
-      { "id": "scope", "label": "范围", "value": "总部" },
-      { "id": "focus_metrics", "label": "重点指标", "value": ["告警量", "可用性", "闭环率"] }
-    ],
-    "action": "confirm_params",
-    "binding": {
-      "target": "resolved_view.parameters"
-    }
+    "type": "confirm",
+    "parameters": [
+      {
+        "id": "report_date",
+        "label": "报告日期",
+        "inputType": "date",
+        "value": "2026-04-15"
+      },
+      {
+        "id": "scope",
+        "label": "范围",
+        "inputType": "enum",
+        "value": "hq",
+        "display": "总部",
+        "options": [
+          { "label": "总部", "value": "HQ" },
+          { "label": "华东", "value": "EAST_CHINA" },
+          { "label": "华南", "value": "SOUTH_CHINA" }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -296,34 +322,28 @@ step 增量示例：
 - `instance_meta.status=ready_for_confirmation`
 - `instance_meta.revision += 1`
 
-### 步骤 3：确认开始制作报告
-
 请求：
 
-```json
+```
 {
   "conversationId": "conv_001",
   "chatId": "chat_003",
   "instruction": "generate_report",
   "question": "确认开始生成",
+  "reply": {
+    "type": "final_confirm",
+    "parameters": {
+      "report_date": "2026-04-15",
+      "scope": "hq",
+      "focus_metrics": [
+        "alarm_count",
+        "availability",
+        "ticket_closure_rate"
+      ]
+    }
+  },
   "command": {
     "name": "confirm_generate_report"
-  },
-  "confirmed_parameters": {
-    "definitions": [
-      { "id": "report_date", "label": "报告日期", "inputType": "date", "required": true },
-      { "id": "scope", "label": "范围", "inputType": "enum", "required": true, "options": ["总部", "华东", "华南"] },
-      { "id": "focus_metrics", "label": "重点指标", "inputType": "enum", "required": true, "options": ["告警量", "可用性", "闭环率"] }
-    ],
-    "selected": {
-      "report_date": { "display": "2026-04-15", "value": "2026-04-15", "query": "2026-04-15" },
-      "scope": { "display": "总部", "value": "hq", "query": "HEADQUARTER" },
-      "focus_metrics": {
-        "display": ["告警量", "可用性", "闭环率"],
-        "value": ["alarm_count", "availability", "ticket_closure_rate"],
-        "query": ["ALARM_COUNT", "AVAILABILITY", "TICKET_CLOSURE_RATE"]
-      }
-    }
   }
 }
 ```
@@ -331,7 +351,7 @@ step 增量示例：
 SSE 过程：
 
 - `status=running`：生成中，持续输出步骤（数据准备、章节生成、汇总）。
-- `status=completed`：完成并返回实例标识。
+- `status=finished`：完成并返回实例标识。
 
 该阶段内部会先刷新模板实例，再生成成品：
 
@@ -343,14 +363,14 @@ SSE 过程：
   - `generated_content.sections`
   - `generated_content.documents`
 - 最终：
-  - `instance_meta.status=completed`
+  - `instance_meta.status=finished`
   - `instance_meta.revision += 1`
 
 完成片段示例：
 
 ```json
 {
-  "status": "completed",
+  "status": "finished",
   "steps": [
     { "stepId": "s11", "parentStepId": null, "name": "生成报告骨架", "contentType": "text", "content": "已初始化报告结构" }
   ],
@@ -362,7 +382,7 @@ SSE 过程：
       "description": "2026-04-15",
       "catalogs": [],
       "sections": [],
-      "parent_catelog": null
+      "parent_catalog": null
     },
     {
       "action": "add_catalog",
@@ -375,7 +395,7 @@ SSE 过程：
         }
       ],
       "sections": [],
-      "parent_catelog": null
+      "parent_catalog": null
     },
     {
       "action": "add_section",
@@ -388,7 +408,7 @@ SSE 过程：
           "section_id": "sec_alarm_overview"
         }
       ],
-      "parent_catelog": "cat_overview"
+      "parent_catalog": "cat_overview"
     }
   ],
   "answer": {
@@ -396,8 +416,7 @@ SSE 过程：
     "reportId": "rpt_20260415_001",
     "templateInstanceId": "ti_20260415_0001",
     "summary": "报告已生成，共 8 个章节。"
-  },
-  "ask": null
+  }
 }
 ```
 
@@ -412,9 +431,9 @@ SSE 过程：
   "reportId": "rpt_20260415_001",
   "status": "completed",
   "template_instance": {
-    "instance_template_id": "ti_20260415_0001",
+    "id": "ti_20260415_0001",
     "instance_meta": {
-      "status": "completed",
+      "status": "",
       "revision": 6
     },
     "base_template": {
@@ -475,7 +494,7 @@ SSE 完成片段：
 
 ```json
 {
-  "status": "completed",
+  "status": "finished",
   "delta": [
     {
       "action": "add_section",
@@ -488,7 +507,7 @@ SSE 完成片段：
           "section_id": "sec_alarm_overview"
         }
       ],
-      "parent_catelog": "cat_overview"
+      "parent_catalog": "cat_overview"
     }
   ],
   "answer": {
@@ -537,7 +556,6 @@ SSE 完成片段：
 ## 7. 验收要点（针对本流程）
 
 - 首轮自然语言输入后，能命中模板并触发按参数配置的 `ask.mode` 追问。
-- 首轮自然语言输入后，能命中模板并触发按参数配置的 `ask.mode` 追问。
 - 参数多轮补齐后，必须进入一次性“参数确认表单”。
 - 确认生成时，请求体能携带“参数定义 + 可选值 + 确认值”。
 - 任一时刻 `ask` 与 `answer` 互斥，不会同时出现。
@@ -561,23 +579,23 @@ SSE 完成片段：
   - `R` = Read（只读返回，不改写）
   - `-` = 无变化
 
-| 字段 | 步骤1 首轮对话匹配模板 | 步骤2 补参/追问（含服务端候选值获取） | 步骤3 确认生成 | 步骤4 查询详情 | 步骤5 编辑诉求 |
-|---|---|---|---|---|---|
-| `instance_template_id` | C | - | - | R | R |
-| `base_template` | C | - | - | R | R |
-| `instance_meta.status` | C（`collecting_parameters`） | U（`ready_for_confirmation/confirmed`） | U（`generating/completed`） | R | U |
-| `instance_meta.revision` | C | U | U | R | U |
-| `runtime_state.parameter_runtime.definitions` | C | - | - | R | R |
-| `runtime_state.parameter_runtime.candidate_snapshots` | - | U | - | R | R |
-| `runtime_state.parameter_runtime.selections` | - | U | - | R | U（如编辑涉及参数） |
-| `runtime_state.parameter_runtime.confirmation` | C（默认未确认） | U（确认完成） | - | R | U（如回退重选） |
-| `runtime_state.outline_runtime.current_outline_instance` | - | U（参数变化触发重算） | U（确认生成前重算） | R | U |
-| `resolved_view.parameters` | - | U | - | R | U（如参数变化） |
-| `resolved_view.outline` | - | U | U | R | U |
-| `resolved_view.sections` | - | U | U | R | U |
-| `generated_content.sections` | - | - | C/U | R | U（受影响章节） |
-| `generated_content.documents` | - | - | C/U | R | U（按策略重产） |
-| `fragments.*` | C/U | U | U | R（按需返回） | U |
+| 字段                                                     | 步骤1 首轮对话匹配模板       | 步骤2 补参/追问（含服务端候选值获取）   | 步骤3 确认生成             | 步骤4 查询详情 | 步骤5 编辑诉求      |
+| -------------------------------------------------------- | ---------------------------- | --------------------------------------- | -------------------------- | -------------- | ------------------- |
+| `id`                                                     | C                            | -                                       | -                          | R              | R                   |
+| `base_template`                                          | C                            | -                                       | -                          | R              | R                   |
+| `instance_meta.status`                                   | C（`collecting_parameters`） | U（`ready_for_confirmation/confirmed`） | U（`generating/finished`） | R              | U                   |
+| `instance_meta.revision`                                 | C                            | U                                       | U                          | R              | U                   |
+| `runtime_state.parameter_runtime.definitions`            | C                            | -                                       | -                          | R              | R                   |
+| `runtime_state.parameter_runtime.candidate_snapshots`    | -                            | U                                       | -                          | R              | R                   |
+| `runtime_state.parameter_runtime.selections`             | -                            | U                                       | -                          | R              | U（如编辑涉及参数） |
+| `runtime_state.parameter_runtime.confirmation`           | C（默认未确认）              | U（确认完成）                           | -                          | R              | U（如回退重选）     |
+| `runtime_state.outline_runtime.current_outline_instance` | -                            | U（参数变化触发重算）                   | U（确认生成前重算）        | R              | U                   |
+| `resolved_view.parameters`                               | -                            | U                                       | -                          | R              | U（如参数变化）     |
+| `resolved_view.outline`                                  | -                            | U                                       | U                          | R              | U                   |
+| `resolved_view.sections`                                 | -                            | U                                       | U                          | R              | U                   |
+| `generated_content.sections`                             | -                            | -                                       | C/U                        | R              | U（受影响章节）     |
+| `generated_content.documents`                            | -                            | -                                       | C/U                        | R              | U（按策略重产）     |
+| `fragments.*`                                            | C/U                          | U                                       | U                          | R（按需返回）  | U                   |
 
 ### 8.1 时序视图（按字段分组）
 
@@ -590,7 +608,7 @@ sequenceDiagram
     participant API5 as "reports/{id}/edit-stream"
     participant TI as "TemplateInstance"
 
-    API1->>TI: C instance_template_id/base_template
+    API1->>TI: C id/base_template
     API1->>TI: C instance_meta(status=collecting_parameters, revision=1)
     API1->>TI: C parameter_runtime.definitions
     API1->>TI: U fragments.ask_*
