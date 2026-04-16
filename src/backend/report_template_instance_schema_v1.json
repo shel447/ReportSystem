@@ -6,7 +6,7 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "instance_template_id",
+    "id",
     "schema_version",
     "base_template",
     "instance_meta",
@@ -15,7 +15,7 @@
     "fragments"
   ],
   "properties": {
-    "instance_template_id": {
+    "id": {
       "type": "string",
       "description": "模板实例唯一标识"
     },

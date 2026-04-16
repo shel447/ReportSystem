@@ -1,5 +1,5 @@
 {
-  "instance_template_id": "ti_20260415_0001",
+  "id": "ti_20260415_0001",
   "schema_version": "ti.v1.0",
   "base_template": {
     "id": "tpl_ops_daily_v1",
