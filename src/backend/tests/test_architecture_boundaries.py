@@ -11,7 +11,6 @@ TEMPLATE_CATALOG_REPOSITORY = ROOT / "contexts" / "template_catalog" / "infrastr
 CONVERSATION_GATEWAYS = ROOT / "contexts" / "conversation" / "infrastructure" / "gateways.py"
 SYSTEM_SETTINGS_ROUTER = ROUTERS_DIR / "system_settings.py"
 REPORT_RUNTIME_GATEWAYS = ROOT / "contexts" / "report_runtime" / "infrastructure" / "gateways.py"
-TEMPLATE_INSTANCES_ROUTER = ROUTERS_DIR / "template_instances.py"
 CONVERSATION_STATE = ROOT / "contexts" / "conversation" / "infrastructure" / "state.py"
 CONVERSATION_FLOW = ROOT / "contexts" / "conversation" / "infrastructure" / "flow.py"
 CONVERSATION_FORKS = ROOT / "contexts" / "conversation" / "infrastructure" / "forks.py"
@@ -226,7 +225,6 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         violations: list[str] = []
         for path in (
             REPORT_RUNTIME_GATEWAYS,
-            TEMPLATE_INSTANCES_ROUTER,
             CONVERSATION_STATE,
             CONVERSATION_FLOW,
             CONVERSATION_FORKS,

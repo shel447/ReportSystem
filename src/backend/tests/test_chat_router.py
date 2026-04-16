@@ -812,62 +812,14 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(forked_session.matched_template_id, "tpl-1")
         self.assertEqual(forked_session.fork_meta["source_message_id"], assistant_panel["message_id"])
 
-    def test_fork_from_template_instance_restores_outline_review(self):
-        template_instance = TemplateInstance(
-            template_instance_id="ti-outline",
-            template_id="tpl-1",
-            template_name="设备巡检报告",
-            template_version="1.0",
-            session_id="sess-1",
-            capture_stage="outline_saved",
-            input_params_snapshot={"scene": "总部", "devices": ["A001"]},
-            outline_snapshot=[
-                {
-                    "node_id": "node-1",
-                    "title": "总部概述",
-                    "description": "巡检范围",
-                    "level": 1,
-                    "display_text": "总部概述：巡检范围",
-                    "children": [],
-                }
-            ],
-            warnings=["参数缺失已跳过"],
-        )
-        self.db.add(template_instance)
-        self.db.commit()
-
-        payload = fork_session(
-            ChatForkRequest(source_kind="template_instance", template_instance_id="ti-outline"),
-            db=self.db,
-        )
-
-        self.assertEqual(payload["draft_message"], "")
-        self.assertEqual(payload["matched_template_id"], "tpl-1")
-        visible = [
-            item for item in payload["messages"]
-            if item.get("role") in {"user", "assistant"} and (item.get("meta") or {}).get("type") != "context_state"
-        ]
-        self.assertEqual(visible[-1]["action"]["type"], "review_outline")
-        self.assertEqual(visible[-1]["action"]["warnings"], ["参数缺失已跳过"])
-        self.assertEqual(payload["fork_meta"]["source_kind"], "template_instance")
-
-    def test_fork_from_outline_confirmed_template_instance_conflicts(self):
-        template_instance = TemplateInstance(
-            template_instance_id="ti-confirmed",
-            template_id="tpl-1",
-            template_name="设备巡检报告",
-            capture_stage="outline_confirmed",
-        )
-        self.db.add(template_instance)
-        self.db.commit()
-
+    def test_fork_rejects_template_instance_source_kind(self):
         with self.assertRaises(HTTPException) as ctx:
             fork_session(
-                ChatForkRequest(source_kind="template_instance", template_instance_id="ti-confirmed"),
+                ChatForkRequest(source_kind="template_instance"),
                 db=self.db,
             )
 
-        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(ctx.exception.status_code, 404)
 
     def test_send_message_asks_next_chat_mode_param_with_plain_text_reply(self):
         mixed_template = ReportTemplate(
@@ -1054,4 +1006,3 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

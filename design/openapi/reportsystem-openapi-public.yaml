@@ -1,0 +1,1694 @@
+openapi: 3.1.0
+info:
+  title: Smart Report System
+  version: 1.6.0
+paths:
+  /rest/chatbi/v1/templates:
+    get:
+      tags:
+      - templates
+      summary: List Templates
+      operationId: list_templates_rest_chatbi_v1_templates_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+    post:
+      tags:
+      - templates
+      summary: Create Template
+      operationId: create_template_rest_chatbi_v1_templates_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateCreate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/templates/{template_id}:
+    get:
+      tags:
+      - templates
+      summary: Get Template
+      operationId: get_template_rest_chatbi_v1_templates__template_id__get
+      parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Template Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - templates
+      summary: Update Template
+      operationId: update_template_rest_chatbi_v1_templates__template_id__put
+      parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Template Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - templates
+      summary: Delete Template
+      operationId: delete_template_rest_chatbi_v1_templates__template_id__delete
+      parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Template Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/templates/{template_id}/export:
+    get:
+      tags:
+      - templates
+      summary: Export Template Definition
+      operationId: export_template_definition_rest_chatbi_v1_templates__template_id__export_get
+      parameters:
+      - name: template_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Template Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/templates/import/preview:
+    post:
+      tags:
+      - templates
+      summary: Preview Import Template
+      operationId: preview_import_template_rest_chatbi_v1_templates_import_preview_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TemplateImportPreviewRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances:
+    post:
+      tags:
+      - instances
+      summary: Create Instance
+      operationId: create_instance_rest_chatbi_v1_instances_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstanceCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - instances
+      summary: List Instances
+      operationId: list_instances_rest_chatbi_v1_instances_get
+      parameters:
+      - name: template_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}/baseline:
+    get:
+      tags:
+      - instances
+      summary: Get Instance Baseline
+      operationId: get_instance_baseline_rest_chatbi_v1_instances__instance_id__baseline_get
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}/update-chat:
+    post:
+      tags:
+      - instances
+      summary: Update Instance Chat
+      operationId: update_instance_chat_rest_chatbi_v1_instances__instance_id__update_chat_post
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}/fork-sources:
+    get:
+      tags:
+      - instances
+      summary: List Instance Fork Sources
+      operationId: list_instance_fork_sources_rest_chatbi_v1_instances__instance_id__fork_sources_get
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}/fork-chat:
+    post:
+      tags:
+      - instances
+      summary: Fork Instance Chat
+      operationId: fork_instance_chat_rest_chatbi_v1_instances__instance_id__fork_chat_post
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Data
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}:
+    get:
+      tags:
+      - instances
+      summary: Get Instance
+      operationId: get_instance_rest_chatbi_v1_instances__instance_id__get
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - instances
+      summary: Update Instance
+      operationId: update_instance_rest_chatbi_v1_instances__instance_id__put
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InstanceUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - instances
+      summary: Delete Instance
+      operationId: delete_instance_rest_chatbi_v1_instances__instance_id__delete
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}/finalize:
+    post:
+      tags:
+      - instances
+      summary: Finalize Instance
+      operationId: finalize_instance_rest_chatbi_v1_instances__instance_id__finalize_post
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/instances/{instance_id}/regenerate/{section_index}:
+    post:
+      tags:
+      - instances
+      summary: Regenerate Section
+      operationId: regenerate_section_rest_chatbi_v1_instances__instance_id__regenerate__section_index__post
+      parameters:
+      - name: instance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Instance Id
+      - name: section_index
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Section Index
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/documents:
+    post:
+      tags:
+      - documents
+      summary: Create Document
+      operationId: create_document_rest_chatbi_v1_documents_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - documents
+      summary: List Documents
+      operationId: list_documents_rest_chatbi_v1_documents_get
+      parameters:
+      - name: instance_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Instance Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/documents/{document_id}:
+    get:
+      tags:
+      - documents
+      summary: Get Document
+      operationId: get_document_rest_chatbi_v1_documents__document_id__get
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Document Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - documents
+      summary: Delete Document
+      operationId: delete_document_rest_chatbi_v1_documents__document_id__delete
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Document Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/documents/{document_id}/download:
+    get:
+      tags:
+      - documents
+      summary: Download Document
+      operationId: download_document_rest_chatbi_v1_documents__document_id__download_get
+      parameters:
+      - name: document_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Document Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/scheduled-tasks:
+    post:
+      tags:
+      - scheduled-tasks
+      summary: Create Task
+      operationId: create_task_rest_chatbi_v1_scheduled_tasks_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - scheduled-tasks
+      summary: List Tasks
+      operationId: list_tasks_rest_chatbi_v1_scheduled_tasks_get
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/scheduled-tasks/{task_id}:
+    get:
+      tags:
+      - scheduled-tasks
+      summary: Get Task
+      operationId: get_task_rest_chatbi_v1_scheduled_tasks__task_id__get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - scheduled-tasks
+      summary: Update Task
+      operationId: update_task_rest_chatbi_v1_scheduled_tasks__task_id__put
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - scheduled-tasks
+      summary: Delete Task
+      operationId: delete_task_rest_chatbi_v1_scheduled_tasks__task_id__delete
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/scheduled-tasks/{task_id}/pause:
+    post:
+      tags:
+      - scheduled-tasks
+      summary: Pause Task
+      operationId: pause_task_rest_chatbi_v1_scheduled_tasks__task_id__pause_post
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/scheduled-tasks/{task_id}/resume:
+    post:
+      tags:
+      - scheduled-tasks
+      summary: Resume Task
+      operationId: resume_task_rest_chatbi_v1_scheduled_tasks__task_id__resume_post
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/scheduled-tasks/{task_id}/run-now:
+    post:
+      tags:
+      - scheduled-tasks
+      summary: Run Task Now
+      operationId: run_task_now_rest_chatbi_v1_scheduled_tasks__task_id__run_now_post
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/scheduled-tasks/{task_id}/executions:
+    get:
+      tags:
+      - scheduled-tasks
+      summary: List Executions
+      operationId: list_executions_rest_chatbi_v1_scheduled_tasks__task_id__executions_get
+      parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Task Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/chat:
+    get:
+      tags:
+      - chat
+      summary: List Sessions
+      operationId: list_sessions_rest_chatbi_v1_chat_get
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - chat
+      summary: Send Message
+      operationId: send_message_rest_chatbi_v1_chat_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessage'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/chat/{session_id}:
+    get:
+      tags:
+      - chat
+      summary: Get Session
+      operationId: get_session_rest_chatbi_v1_chat__session_id__get
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - chat
+      summary: Delete Session
+      operationId: delete_session_rest_chatbi_v1_chat__session_id__delete
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Session Id
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/chat/forks:
+    post:
+      tags:
+      - chat
+      summary: Fork Session
+      operationId: fork_session_rest_chatbi_v1_chat_forks_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatForkRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /rest/chatbi/v1/parameter-options/resolve:
+    post:
+      tags:
+      - parameter-options
+      summary: Resolve Parameter Options
+      operationId: resolve_parameter_options_rest_chatbi_v1_parameter_options_resolve_post
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-User-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ParameterOptionsResolveRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    ChatForkRequest:
+      properties:
+        source_kind:
+          type: string
+          title: Source Kind
+        source_session_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Session Id
+        source_message_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Message Id
+      type: object
+      required:
+      - source_kind
+      title: ChatForkRequest
+    ChatMessage:
+      properties:
+        message:
+          type: string
+          title: Message
+          default: ''
+        session_id:
+          type: string
+          title: Session Id
+          default: ''
+        preferred_capability:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preferred Capability
+        selected_template_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Selected Template Id
+        param_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Param Id
+        param_value:
+          anyOf:
+          - {}
+          - type: 'null'
+          title: Param Value
+        param_values:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Param Values
+        command:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Command
+        target_param_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Target Param Id
+        outline_override:
+          anyOf:
+          - items:
+              additionalProperties: true
+              type: object
+            type: array
+          - type: 'null'
+          title: Outline Override
+      type: object
+      title: ChatMessage
+    CompletionSettingsUpdate:
+      properties:
+        base_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Url
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        api_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Api Key
+        clear_api_key:
+          type: boolean
+          title: Clear Api Key
+          default: false
+        temperature:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Temperature
+        timeout_sec:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Timeout Sec
+      type: object
+      title: CompletionSettingsUpdate
+    DocumentCreate:
+      properties:
+        instance_id:
+          type: string
+          title: Instance Id
+        format:
+          type: string
+          title: Format
+          default: markdown
+      type: object
+      required:
+      - instance_id
+      title: DocumentCreate
+    EmbeddingSettingsUpdate:
+      properties:
+        base_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Url
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        api_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Api Key
+        clear_api_key:
+          type: boolean
+          title: Clear Api Key
+          default: false
+        timeout_sec:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Timeout Sec
+        use_completion_auth:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Use Completion Auth
+      type: object
+      title: EmbeddingSettingsUpdate
+    FeedbackCreate:
+      properties:
+        submitter:
+          type: string
+          title: Submitter
+        content:
+          type: string
+          title: Content
+        priority:
+          type: string
+          title: Priority
+          default: medium
+        images:
+          items:
+            type: string
+          type: array
+          title: Images
+          default: []
+      type: object
+      required:
+      - submitter
+      - content
+      title: FeedbackCreate
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InstanceCreate:
+      properties:
+        template_id:
+          type: string
+          title: Template Id
+        input_params:
+          additionalProperties: true
+          type: object
+          title: Input Params
+          default: {}
+        outline_override:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Outline Override
+      type: object
+      required:
+      - template_id
+      title: InstanceCreate
+    InstanceUpdate:
+      properties:
+        outline_content:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Outline Content
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+      type: object
+      title: InstanceUpdate
+    ParameterOptionsResolveRequest:
+      properties:
+        template_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Template Id
+        param_id:
+          type: string
+          title: Param Id
+        source:
+          type: string
+          title: Source
+        query:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Query
+        selected_params:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Selected Params
+        limit:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Limit
+      type: object
+      required:
+      - param_id
+      - source
+      title: ParameterOptionsResolveRequest
+    SettingsTestRequest:
+      properties:
+        target:
+          type: string
+          enum:
+          - completion
+          - embedding
+          - both
+          title: Target
+          default: both
+      type: object
+      title: SettingsTestRequest
+    SettingsUpdateRequest:
+      properties:
+        completion:
+          $ref: '#/components/schemas/CompletionSettingsUpdate'
+        embedding:
+          $ref: '#/components/schemas/EmbeddingSettingsUpdate'
+      type: object
+      required:
+      - completion
+      - embedding
+      title: SettingsUpdateRequest
+    TaskCreate:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+          default: ''
+        source_instance_id:
+          type: string
+          title: Source Instance Id
+          default: ''
+        template_id:
+          type: string
+          title: Template Id
+          default: ''
+        schedule_type:
+          type: string
+          title: Schedule Type
+          default: recurring
+        cron_expression:
+          type: string
+          title: Cron Expression
+          default: ''
+        auto_generate_doc:
+          type: boolean
+          title: Auto Generate Doc
+          default: true
+        time_param_name:
+          type: string
+          title: Time Param Name
+          default: date
+        time_format:
+          type: string
+          title: Time Format
+          default: '%Y-%m-%d'
+        use_schedule_time_as_report_time:
+          type: boolean
+          title: Use Schedule Time As Report Time
+          default: false
+        user_id:
+          type: string
+          title: User Id
+          default: default
+      type: object
+      required:
+      - name
+      title: TaskCreate
+    TaskUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        cron_expression:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cron Expression
+        enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Enabled
+        auto_generate_doc:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Auto Generate Doc
+        time_param_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Time Param Name
+        time_format:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Time Format
+        use_schedule_time_as_report_time:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Use Schedule Time As Report Time
+      type: object
+      title: TaskUpdate
+    TemplateCreate:
+      properties:
+        name:
+          type: string
+          title: Name
+        description:
+          type: string
+          title: Description
+          default: ''
+        report_type:
+          type: string
+          title: Report Type
+          default: daily
+        category:
+          type: string
+          title: Category
+          default: ''
+        scenario:
+          type: string
+          title: Scenario
+          default: ''
+        match_keywords:
+          items:
+            type: string
+          type: array
+          title: Match Keywords
+          default: []
+        content_params:
+          items: {}
+          type: array
+          title: Content Params
+          default: []
+        parameters:
+          items: {}
+          type: array
+          title: Parameters
+          default: []
+        outline:
+          items: {}
+          type: array
+          title: Outline
+          default: []
+        sections:
+          items: {}
+          type: array
+          title: Sections
+          default: []
+        schema_version:
+          type: string
+          title: Schema Version
+          default: ''
+        output_formats:
+          items:
+            type: string
+          type: array
+          title: Output Formats
+          default:
+          - pdf
+      type: object
+      required:
+      - name
+      title: TemplateCreate
+    TemplateImportPreviewRequest:
+      properties:
+        payload:
+          additionalProperties: true
+          type: object
+          title: Payload
+        filename:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Filename
+      type: object
+      required:
+      - payload
+      title: TemplateImportPreviewRequest
+    TemplateUpdate:
+      properties:
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        report_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Report Type
+        category:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+        scenario:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scenario
+        match_keywords:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Match Keywords
+        content_params:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Content Params
+        parameters:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Parameters
+        outline:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Outline
+        sections:
+          anyOf:
+          - items: {}
+            type: array
+          - type: 'null'
+          title: Sections
+        schema_version:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Schema Version
+        output_formats:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Output Formats
+      type: object
+      title: TemplateUpdate
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

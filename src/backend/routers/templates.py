@@ -22,7 +22,6 @@ class TemplateCreate(BaseModel):
     description: str = ""
     report_type: str = "daily"
     category: str = ""
-    scenario: str = ""
     match_keywords: List[str] = []
     content_params: List[Any] = []
     parameters: List[Any] = []
@@ -37,7 +36,6 @@ class TemplateUpdate(BaseModel):
     description: Optional[str] = None
     report_type: Optional[str] = None
     category: Optional[str] = None
-    scenario: Optional[str] = None
     match_keywords: Optional[List[str]] = None
     content_params: Optional[List[Any]] = None
     parameters: Optional[List[Any]] = None

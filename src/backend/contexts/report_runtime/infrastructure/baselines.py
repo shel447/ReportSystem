@@ -114,11 +114,12 @@ def get_generation_baseline(db: Session, instance_id: str) -> TemplateInstance |
 
 def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any]:
     content = deepcopy(record.content or {})
-    template_instance_payload = {
-        "instance_template_id": record.template_instance_id,
+    baseline_payload = {
         "schema_version": str(content.get("schema_version") or getattr(record, "schema_version", "") or "ti.v1.0"),
-        "base_template": deepcopy(content.get("base_template") or {}),
-        "instance_meta": deepcopy(content.get("instance_meta") or {}),
+        "status": str((content.get("instance_meta") or {}).get("status") or getattr(record, "status", "") or ""),
+        "revision": max(1, int(((content.get("instance_meta") or {}).get("revision")) or getattr(record, "revision", 1) or 1)),
+        "created_at": str(((content.get("instance_meta") or {}).get("created_at")) or record.created_at),
+        "template_snapshot": deepcopy(content.get("base_template") or {}),
         "runtime_state": deepcopy(content.get("runtime_state") or {}),
         "resolved_view": deepcopy(content.get("resolved_view") or {}),
         "generated_content": deepcopy(content.get("generated_content") or {}),
@@ -132,7 +133,7 @@ def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any
         "outline": deepcopy(record.outline_snapshot or []),
         "warnings": list(record.warnings or []),
         "created_at": str(record.created_at),
-        "template_instance": template_instance_payload,
+        "generation_baseline": baseline_payload,
     }
 
 

@@ -98,7 +98,10 @@ class ConversationService:
                 "messages": [],
             }
         if not session:
-            session = self.persistence.create_session(user_id=user_id)
+            session = self.persistence.create_session(
+                user_id=user_id,
+                session_id=getattr(data, "session_id", "") or None,
+            )
 
         messages = list(session.messages or [])
         should_append_user_message = bool(
@@ -354,14 +357,6 @@ class ConversationService:
                 source_message_id=data.source_message_id,
             )
 
-        if data.source_kind == "template_instance":
-            if not data.template_instance_id:
-                raise NotFoundError("Template instance not found")
-            record = self.persistence.get_template_instance(data.template_instance_id)
-            if not record:
-                raise NotFoundError("Template instance not found")
-            return self.fork_gateway.fork_session_from_template_instance(template_instance=record)
-
         raise ValidationError("Unsupported fork source")
 
     def delete_session(self, *, session_id: str, user_id: str) -> dict[str, Any]:
@@ -434,7 +429,6 @@ class ConversationService:
                 {
                     "template_id": template.template_id,
                     "name": template.name,
-                    "scene": template.scene or template.scenario,
                 },
                 confidence=1.0,
                 locked=True,
@@ -455,7 +449,6 @@ class ConversationService:
                     {
                         "template_id": template.template_id,
                         "name": template.name,
-                        "scene": template.scene or template.scenario,
                     },
                     confidence=matched["best"]["score"],
                     locked=True,
@@ -469,10 +462,9 @@ class ConversationService:
                         {
                             "template_id": item["template_id"],
                             "template_name": item["template_name"],
-                            "scenario": item.get("scenario", ""),
                             "description": item.get("description", ""),
                             "report_type": item.get("report_type", ""),
-                            "template_type": item.get("template_type", ""),
+                            "category": item.get("category", ""),
                             "score": item["score"],
                             "score_label": item["score_label"],
                             "match_reasons": item["match_reasons"],
@@ -630,7 +622,7 @@ class ConversationService:
                         source_message_id=None,
                     )
                     try:
-                        self.report_gateway.capture_template_instance_for_generation(
+                        template_instance_id = self.report_gateway.capture_template_instance_for_generation(
                             template=template,
                             session_id=session.session_id,
                             report_instance_id=created["instance_id"],
@@ -646,6 +638,8 @@ class ConversationService:
                     reply = "报告已生成，可以下载 Markdown 文档。"
                     action = {
                         "type": "download_document",
+                        "report_id": created["instance_id"],
+                        "template_instance_id": template_instance_id,
                         "document": self.report_gateway.serialize_document(document),
                     }
                     flow = state.get("flow") or {}

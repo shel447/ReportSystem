@@ -10,7 +10,6 @@ describe("template workbench state", () => {
       name: "设备巡检报告",
       description: "巡检模板",
       report_type: "daily",
-      scenario: "集团",
       category: "巡检",
       match_keywords: ["巡检"],
       content_params: [],

@@ -69,10 +69,9 @@ describe("ChatActionPanel", () => {
             {
               template_id: "tpl-1",
               template_name: "资产统计报告",
-              scenario: "资产运营",
+              category: "资产统计",
               description: "统计资产规模与分布",
               report_type: "special",
-              template_type: "资产统计",
               score_label: "高相关",
               match_reasons: ["关键词命中：资产统计"],
             },
@@ -507,5 +506,4 @@ describe("ChatActionPanel", () => {
     expect(onCommand).toHaveBeenCalledWith("cancel_task_switch");
   });
 });
-
 

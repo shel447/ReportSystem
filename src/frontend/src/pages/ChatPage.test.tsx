@@ -273,7 +273,7 @@ describe("ChatPage", () => {
       expect(screen.getByText("这是问数结果。")).toBeInTheDocument();
     });
 
-    expect(capturedBody?.preferred_capability).toBe("smart_query");
+    expect(capturedBody?.instruction).toBe("smart_query");
   });
 
   it("optimistically appends structured parameter submissions while pending", async () => {
@@ -295,7 +295,7 @@ describe("ChatPage", () => {
       }
       if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         const body = JSON.parse(String(init.body ?? "{}"));
-        if (body.message) {
+        if (!body.reply) {
           return Promise.resolve(createJsonResponse(firstChatResponse));
         }
         return Promise.resolve(createJsonResponse(secondChatResponse));
@@ -393,7 +393,7 @@ describe("ChatPage", () => {
       }
       if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         const body = JSON.parse(String(init.body ?? "{}"));
-        if (body.message) {
+        if (!body.command?.name) {
           return Promise.resolve(createJsonResponse(firstChatResponse));
         }
         return Promise.resolve(createJsonResponse(secondChatResponse));

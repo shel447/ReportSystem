@@ -65,8 +65,7 @@ def build_template_semantic_text(template: ReportTemplate) -> str:
     sections = [
         f"模板名称: {template.name}",
         f"模板描述: {template.description}",
-        f"模板类型: {_template_type(template)}",
-        f"场景: {_template_scene(template)}",
+        f"模板分类: {_template_type(template)}",
         f"报告类型: {template.report_type}",
         f"匹配关键词: {keyword_text}",
         "内容参数: " + "；".join(param_lines),
@@ -130,7 +129,6 @@ def get_index_status(db: Session) -> Dict[str, Any]:
             {
                 "template_id": template.template_id,
                 "template_name": template.name,
-                "scenario": _template_scene(template),
                 "status": status,
                 "updated_at": updated_at,
                 "error_message": error_message,
@@ -201,8 +199,7 @@ def match_templates(db: Session, message: str, gateway: OpenAICompatGateway) -> 
             {
                 "template_id": template.template_id,
                 "template_name": template.name or "未命名模板",
-                "scenario": _template_scene(template),
-                "template_type": _template_type(template),
+                "category": _template_type(template),
                 "description": template.description or "",
                 "report_type": template.report_type or "",
                 "score": round(total, 4),
@@ -266,12 +263,6 @@ def _rule_score(template: ReportTemplate, query_norm: str) -> Dict[str, Any]:
     if type_match:
         score += 0.09 if type_match[0] in {"full", "core"} else 0.06
         reasons.append((76, f"类型命中：{type_match[1]}"))
-
-    scene_text = _template_scene(template)
-    scene_match = _best_phrase_match(query_norm, [scene_text] if scene_text else [], allow_core_terms=True)
-    if scene_match:
-        score += 0.08 if scene_match[0] in {"full", "core"} else 0.05
-        reasons.append((74, f"场景命中：{scene_match[1]}"))
 
     param_match = _best_phrase_match(query_norm, _param_phrases(template))
     if param_match:
@@ -451,10 +442,6 @@ def _collect_dataset_phrases(node: Any) -> List[str]:
 
 def _template_type(template: ReportTemplate) -> str:
     return str(getattr(template, "template_type", None) or template.report_type or "").strip()
-
-
-def _template_scene(template: ReportTemplate) -> str:
-    return str(getattr(template, "scene", None) or template.scenario or "").strip()
 
 
 def _core_terms_present(query_norm: str, phrase_norm: str) -> bool:

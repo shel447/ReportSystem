@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -20,7 +20,6 @@ from ....infrastructure.persistence.models import ChatSession, ReportTemplate, T
 from ....contexts.report_runtime.infrastructure.outline import build_pending_outline_review, merge_outline_override
 
 FORK_SUFFIX_LENGTH = 6
-FORK_ASSISTANT_REPLY = "参数已确认，请检查报告大纲。"
 UPDATE_ASSISTANT_REPLY = "已恢复确认大纲，请继续修改。"
 
 
@@ -97,22 +96,6 @@ def fork_session_from_message(
     return payload
 
 
-def fork_session_from_template_instance(
-    db: Session,
-    *,
-    template_instance: TemplateInstance,
-) -> Dict[str, Any]:
-    return _build_outline_review_session_from_template_instance(
-        db,
-        template_instance=template_instance,
-        allowed_capture_stages={"outline_saved", "generation_baseline"},
-        reply_text=FORK_ASSISTANT_REPLY,
-        source_kind="template_instance",
-        source_preview=_template_instance_preview(template_instance),
-        source_report_instance_id=None,
-    )
-
-
 def update_session_from_template_instance(
     db: Session,
     *,
@@ -124,7 +107,7 @@ def update_session_from_template_instance(
         allowed_capture_stages={"outline_saved", "outline_confirmed", "generation_baseline"},
         reply_text=UPDATE_ASSISTANT_REPLY,
         source_kind="update_from_instance",
-        source_preview=_template_instance_preview(template_instance, for_update=True),
+        source_preview=_template_instance_preview(template_instance),
         source_report_instance_id=template_instance.report_instance_id or None,
     )
 
@@ -181,7 +164,6 @@ def _build_outline_review_session_from_template_instance(
 
     fork_meta = {
         "source_kind": source_kind,
-        "source_template_instance_id": template_instance.template_instance_id,
         "source_report_instance_id": source_report_instance_id,
         "source_title": template_instance.template_name or template.name or "确认大纲",
         "source_preview": source_preview,
@@ -211,13 +193,11 @@ def _refresh_message_ids(messages: List[Dict[str, Any]]) -> None:
         item["message_id"] = gen_id()
 
 
-def _template_instance_preview(template_instance: TemplateInstance, *, for_update: bool = False) -> str:
+def _template_instance_preview(template_instance: TemplateInstance) -> str:
     capture_stage = str(template_instance.capture_stage or "")
-    if for_update:
-        if capture_stage == "outline_confirmed":
-            return "确认大纲"
-        return "生成基线"
-    return "确认大纲" if capture_stage == "generation_baseline" else "已保存大纲"
+    if capture_stage == "outline_confirmed":
+        return "确认大纲"
+    return "生成基线"
 
 
 def _find_message_index(messages: List[Dict[str, Any]], message_id: str) -> int:

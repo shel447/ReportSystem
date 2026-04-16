@@ -1,10 +1,9 @@
 export type ChatCandidate = {
   template_id: string;
   template_name: string;
-  scenario?: string;
+  category?: string;
   description?: string;
   report_type?: string;
-  template_type?: string;
   score?: number;
   score_label?: string;
   match_reasons?: string[];
@@ -100,6 +99,8 @@ export type ShowTemplateCandidatesAction = {
 
 export type DownloadDocumentAction = {
   type: "download_document";
+  report_id?: string;
+  template_instance_id?: string;
   document: {
     document_id: string;
     file_name?: string;
@@ -123,12 +124,11 @@ export type ChatAction =
   | ConfirmTaskSwitchAction;
 
 export type ChatForkMeta = {
-  source_kind: "session_message" | "template_instance" | "update_from_instance";
+  source_kind: "session_message" | "update_from_instance";
   source_title: string;
   source_preview: string;
   source_session_id?: string;
   source_message_id?: string;
-  source_template_instance_id?: string;
   source_report_instance_id?: string;
 };
 
@@ -215,8 +215,7 @@ export type ChatRequest = {
 };
 
 export type ChatForkRequest = {
-  source_kind: "session_message" | "template_instance";
+  source_kind: "session_message";
   source_session_id?: string;
   source_message_id?: string;
-  template_instance_id?: string;
 };

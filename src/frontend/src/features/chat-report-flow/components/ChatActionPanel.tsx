@@ -116,7 +116,7 @@ function CandidatePanel({
       {selected ? (
         <div className="inline-panel">
           <strong>{selected.template_name}</strong>
-          <p>{[selected.template_type, selected.scenario, selected.description].filter(Boolean).join(" / ")}</p>
+          <p>{[selected.category, selected.description].filter(Boolean).join(" / ")}</p>
           <span className="inline-badge">{selected.score_label ?? "中相关"}</span>
           <div className="reason-list">
             {(selected.match_reasons ?? []).map((reason) => (
@@ -902,4 +902,3 @@ function createRow(level: number): OutlineDraftRow {
     node_kind: "freeform_leaf",
   };
 }
-

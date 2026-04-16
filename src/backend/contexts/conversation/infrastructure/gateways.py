@@ -31,7 +31,6 @@ from .flow import (
 from .forks import (
     build_visible_message_payload,
     fork_session_from_message,
-    fork_session_from_template_instance,
     update_session_from_template_instance,
 )
 from .responses import generate_chat_reply
@@ -49,7 +48,7 @@ from .state import (
     restore_state_from_history,
 )
 from ....contexts.report_runtime.infrastructure.documents import create_markdown_document, serialize_document
-from ....infrastructure.persistence.models import ChatSession, ReportInstance, ReportTemplate, TemplateInstance, gen_id
+from ....infrastructure.persistence.models import ChatSession, ReportInstance, ReportTemplate, gen_id
 from ....contexts.report_runtime.infrastructure.outline import (
     build_pending_outline_review,
     merge_outline_override,
@@ -92,8 +91,9 @@ class ConversationPersistenceGateway:
     def get_session(self, session_id: str, *, user_id: str):
         return self.db.query(ChatSession).filter(ChatSession.session_id == session_id, ChatSession.user_id == user_id).first()
 
-    def create_session(self, *, user_id: str):
-        session = ChatSession(session_id=gen_id(), user_id=user_id, messages=[])
+    def create_session(self, *, user_id: str, session_id: str | None = None):
+        requested_session_id = str(session_id or "").strip() or gen_id()
+        session = ChatSession(session_id=requested_session_id, user_id=user_id, messages=[])
         self.db.add(session)
         self.db.commit()
         self.db.refresh(session)
@@ -141,13 +141,6 @@ class ConversationPersistenceGateway:
 
     def get_template(self, template_id: str):
         return self.db.query(ReportTemplate).filter(ReportTemplate.template_id == template_id).first()
-
-    def get_template_instance(self, template_instance_id: str):
-        return (
-            self.db.query(TemplateInstance)
-            .filter(TemplateInstance.template_instance_id == template_instance_id)
-            .first()
-        )
 
     def get_template_instance_by_instance(self, instance_id: str):
         return get_generation_baseline(self.db, instance_id)
@@ -459,8 +452,8 @@ class ConversationReportGateway:
         outline_snapshot: list[dict[str, Any]],
         warnings: list[str] | None,
         created_by: str,
-    ) -> None:
-        capture_generation_baseline(
+    ) -> str:
+        record = capture_generation_baseline(
             self.db,
             template=template,
             session_id=session_id,
@@ -471,6 +464,7 @@ class ConversationReportGateway:
             created_by=created_by,
         )
         self.db.commit()
+        return str(getattr(record, "template_instance_id", "") or "")
 
     def capture_template_instance_state(
         self,
@@ -509,16 +503,6 @@ class ConversationForkGateway:
                 source_session=source_session,
                 source_message_id=source_message_id,
             )
-        except HTTPException as exc:
-            if exc.status_code == 404:
-                raise NotFoundError(str(exc.detail)) from exc
-            if exc.status_code == 409:
-                raise ConflictError(str(exc.detail)) from exc
-            raise ValidationError(str(exc.detail)) from exc
-
-    def fork_session_from_template_instance(self, *, template_instance) -> dict[str, Any]:
-        try:
-            return fork_session_from_template_instance(self.db, template_instance=template_instance)
         except HTTPException as exc:
             if exc.status_code == 404:
                 raise NotFoundError(str(exc.detail)) from exc
