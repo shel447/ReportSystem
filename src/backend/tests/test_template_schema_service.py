@@ -29,7 +29,7 @@ class TemplateSchemaServiceTests(unittest.TestCase):
         self.assertEqual(content["datasets"][0]["source"]["kind"], "sql")
         self.assertEqual(content["presentation"]["type"], "value")
 
-    def test_validate_template_payload_sets_schema_version_and_keeps_v2_sections(self):
+    def test_validate_template_payload_keeps_single_track_sections(self):
         payload = {
             "name": "设备健康报告",
             "category": "设备健康评估",
@@ -55,7 +55,6 @@ class TemplateSchemaServiceTests(unittest.TestCase):
 
         validated = validate_template_payload(payload)
 
-        self.assertEqual(validated["schema_version"], "v2.0")
         self.assertEqual(validated["sections"][0]["content"]["datasets"][0]["id"], "ds_main")
 
     def test_validate_template_payload_accepts_date_input_type(self):

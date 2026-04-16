@@ -24,16 +24,15 @@ class ChatContractApiTests(unittest.TestCase):
         self.db = testing_session_local()
         self.db.add(
             ReportTemplate(
-                template_id="tpl-1",
+                id="tpl-1",
                 name="设备巡检报告",
                 description="用于巡检分析",
-                template_type="inspection",
+                category="inspection",
                 parameters=[
                     {"id": "scene", "label": "场景", "required": True, "input_type": "enum", "options": ["总部"]},
                     {"id": "devices", "label": "设备", "required": True, "input_type": "dynamic", "multi": True, "source": "api:/devices/list"},
                 ],
                 sections=[{"title": "巡检概览", "content": {"presentation": {"type": "text", "template": "ok"}}}],
-                schema_version="v2.0",
             )
         )
         self.db.commit()
@@ -145,7 +144,7 @@ class ChatContractApiTests(unittest.TestCase):
              patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.serialize_document",
-                 return_value={"document_id": "doc-001", "download_url": "/rest/chatbi/v1/documents/doc-001/download"},
+                 return_value={"document_id": "doc-001", "download_url": "/rest/chatbi/v1/reports/rpt-001/documents/doc-001/download"},
              ):
             response = self.client.post(
                 "/rest/chatbi/v1/chat",
@@ -212,3 +211,5 @@ class ChatContractApiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

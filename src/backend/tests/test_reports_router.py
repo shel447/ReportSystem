@@ -1,4 +1,6 @@
 import unittest
+import tempfile
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -24,13 +26,12 @@ class ReportsRouterTests(unittest.TestCase):
 
         self.db.add(
             ReportTemplate(
-                template_id="tpl-1",
+                id="tpl-1",
                 name="运维日报模板",
                 description="模板描述",
-                template_type="ops_daily",
+                category="ops_daily",
                 parameters=[],
                 sections=[],
-                schema_version="v2.0",
             )
         )
         self.db.add(
@@ -73,7 +74,11 @@ class ReportsRouterTests(unittest.TestCase):
                     },
                     "generated_content": {
                         "sections": [{"node_id": "n1", "title": "总览", "content": "ok"}],
-                        "documents": [{"format": "md", "download_url": "/rest/chatbi/v1/documents/doc-1/download"}],
+                        "documents": [{
+                            "document_id": "doc-1",
+                            "format": "md",
+                            "download_url": "/rest/chatbi/v1/reports/rpt-1/documents/doc-1/download",
+                        }],
                     },
                     "fragments": {},
                 },
@@ -108,6 +113,34 @@ class ReportsRouterTests(unittest.TestCase):
     def test_get_report_view_not_found_returns_404(self):
         response = self.client.get("/rest/chatbi/v1/reports/rpt-missing", headers={"X-User-Id": "default"})
         self.assertEqual(response.status_code, 404)
+
+    def test_download_report_document_uses_report_scoped_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "report.md"
+            file_path.write_text("# report\n", encoding="utf-8")
+            from backend.infrastructure.persistence.models import ReportDocument
+
+            self.db.add(
+                ReportDocument(
+                    document_id="doc-1",
+                    instance_id="rpt-1",
+                    template_id="tpl-1",
+                    format="md",
+                    file_path=str(file_path),
+                    file_size=file_path.stat().st_size,
+                    status="ready",
+                    version=1,
+                )
+            )
+            self.db.commit()
+
+            response = self.client.get(
+                "/rest/chatbi/v1/reports/rpt-1/documents/doc-1/download",
+                headers={"X-User-Id": "default"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text.replace("\r\n", "\n"), "# report\n")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .infrastructure.persistence.database import SessionLocal, init_db
 from .infrastructure.persistence.models import User
-from .routers import chat, design, documents, feedback, instances, parameter_options, reports, system_settings, tasks, templates
+from .routers import chat, design, feedback, parameter_options, reports, system_settings, templates
 from .shared.kernel.http import resolve_user_id
 
 CHATBI_PREFIX = "/rest/chatbi/v1"
@@ -24,9 +24,6 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="Smart Report System", version="1.6.0")
 
     app.include_router(templates.router, prefix=CHATBI_PREFIX)
-    app.include_router(instances.router, prefix=CHATBI_PREFIX)
-    app.include_router(documents.router, prefix=CHATBI_PREFIX)
-    app.include_router(tasks.router, prefix=CHATBI_PREFIX)
     app.include_router(chat.router, prefix=CHATBI_PREFIX)
     app.include_router(parameter_options.router, prefix=CHATBI_PREFIX)
     app.include_router(reports.router, prefix=CHATBI_PREFIX)

@@ -34,8 +34,8 @@ class FrontendChatRenderTests(unittest.TestCase):
         chat_page_path = os.path.join(base, "frontend", "src", "pages", "ChatPage.tsx")
         template_catalog_path = os.path.join(base, "frontend", "src", "pages", "TemplatesPage.tsx")
         template_detail_path = os.path.join(base, "frontend", "src", "pages", "TemplateDetailPage.tsx")
-        instances_page_path = os.path.join(base, "frontend", "src", "pages", "InstancesPage.tsx")
-        instance_detail_path = os.path.join(base, "frontend", "src", "pages", "InstanceDetailPage.tsx")
+        report_center_path = os.path.join(base, "frontend", "src", "pages", "ReportCenterPage.tsx")
+        report_detail_path = os.path.join(base, "frontend", "src", "pages", "ReportDetailPage.tsx")
         navigation_path = os.path.join(base, "frontend", "src", "shared", "navigation.ts")
         workbench_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "TemplateWorkbench.tsx")
         workbench_css_path = os.path.join(base, "frontend", "src", "features", "template-workbench", "templateWorkbench.css")
@@ -47,10 +47,10 @@ class FrontendChatRenderTests(unittest.TestCase):
             template_catalog_content = f.read()
         with open(template_detail_path, "r", encoding="utf-8") as f:
             template_detail_content = f.read()
-        with open(instances_page_path, "r", encoding="utf-8") as f:
-            instances_page_content = f.read()
-        with open(instance_detail_path, "r", encoding="utf-8") as f:
-            instance_detail_content = f.read()
+        with open(report_center_path, "r", encoding="utf-8") as f:
+            report_center_content = f.read()
+        with open(report_detail_path, "r", encoding="utf-8") as f:
+            report_detail_content = f.read()
         with open(navigation_path, "r", encoding="utf-8") as f:
             navigation_content = f.read()
         with open(workbench_path, "r", encoding="utf-8") as f:
@@ -94,15 +94,10 @@ class FrontendChatRenderTests(unittest.TestCase):
         self.assertIn("/templates/new", template_catalog_content)
         self.assertNotIn("模板实例", navigation_content)
         self.assertNotIn("/template-instances", navigation_content)
-        self.assertIn("supports_update_chat", instances_page_content)
-        self.assertIn("supports_fork_chat", instances_page_content)
-        self.assertIn("fetchInstanceForkSources", instances_page_content)
-        self.assertIn("forkInstanceChat", instances_page_content)
-        self.assertIn("?intent=update", instances_page_content)
-        self.assertIn("查看确认诉求", instance_detail_content)
-        self.assertIn("fetchInstanceBaseline", instance_detail_content)
-        self.assertIn("更新预览：确认诉求 / 生成基线", instance_detail_content)
-        self.assertIn("schemaVersion", template_detail_content)
+        self.assertIn("报告实例不再作为独立公开资源暴露", report_center_content)
+        self.assertIn("report.template_instance", report_detail_content)
+        self.assertIn("generated_content", report_detail_content)
+        self.assertIn("模板分类", template_detail_content)
         self.assertIn("TemplateWorkbench", template_detail_content)
         self.assertIn("预览示例值", workbench_content)
         self.assertIn("数据准备", workbench_content)

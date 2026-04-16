@@ -133,9 +133,9 @@ def _build_outline_review_session_from_template_instance(
     template_payload = {
         "template_id": template.template_id,
         "name": template.name,
-        "scenario": template.scenario,
+        "category": template.category,
     }
-    template_params = normalize_parameters((template.parameters or []) if template.parameters else (template.content_params or []))
+    template_params = normalize_parameters(template.parameters or [])
     base_outline, build_warnings = build_pending_outline_review(
         _template_domain_from_model(template),
         deepcopy(template_instance.input_params_snapshot or {}),
@@ -248,18 +248,11 @@ def _template_domain_from_model(template: ReportTemplate):
     from ...template_catalog.domain.models import ReportTemplate as DomainReportTemplate
 
     return DomainReportTemplate(
-        template_id=template.template_id,
+        id=template.template_id,
+        category=template.category or "",
         name=template.name,
         description=template.description or "",
-        report_type=template.report_type or "",
-        scenario=template.scenario or "",
-        template_type=template.template_type or "",
-        match_keywords=template.match_keywords or [],
-        content_params=template.content_params or [],
         version=template.version or "1.0",
-        outline=template.outline or [],
         parameters=template.parameters or [],
         sections=template.sections or [],
-        schema_version=template.schema_version or "",
-        output_formats=template.output_formats or [],
     )

@@ -241,18 +241,17 @@ def _build_nl_request(
     lines = [
         f"模板名称：{template_context.get('name') or '未命名模板'}",
         f"模板描述：{template_context.get('description') or '未提供'}",
-        f"报告类型：{template_context.get('report_type') or '未提供'}",
-        f"场景：{template_context.get('scenario') or '未提供'}",
+        f"模板分类：{template_context.get('category') or '未提供'}",
         f"章节标题：{section.get('title') or '未命名章节'}",
         f"章节描述：{section.get('description') or '未提供'}",
         "用户输入参数(JSON)：",
         json.dumps(params or {}, ensure_ascii=False, indent=2, default=str),
     ]
-    if template_context.get("content_params"):
+    if template_context.get("parameters"):
         lines.extend(
             [
                 "模板参数定义(JSON)：",
-                json.dumps(template_context.get("content_params") or [], ensure_ascii=False, indent=2, default=str),
+                json.dumps(template_context.get("parameters") or [], ensure_ascii=False, indent=2, default=str),
             ]
         )
     if dynamic_meta:

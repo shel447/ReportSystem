@@ -41,28 +41,14 @@ class ReportInstanceCreationService:
             raise ValueError("Template not found")
 
         warnings: list[str] = []
-        if is_v2_template(template):
-            if outline_override:
-                outline_content, warnings = self.content_generator.generate_v2_from_outline(
-                    template,
-                    outline_override,
-                    input_params or {},
-                )
-            else:
-                outline_content, warnings = self.content_generator.generate_v2(template, input_params or {})
+        if outline_override:
+            outline_content, warnings = self.content_generator.generate_v2_from_outline(
+                template,
+                outline_override,
+                input_params or {},
+            )
         else:
-            if outline_override and any(isinstance(item, dict) and "children" in item for item in outline_override):
-                outline_content = self.content_generator.generate(
-                    template,
-                    _flatten_review_outline(outline_override),
-                    input_params or {},
-                )
-                warnings = []
-            else:
-                active_outline = outline_override if outline_override else template.outline
-                expansion = self.outline_expansion_service.expand(active_outline or [], input_params or {})
-                outline_content = self.content_generator.generate(template, expansion.nodes, input_params or {})
-                warnings = expansion.warnings
+            outline_content, warnings = self.content_generator.generate_v2(template, input_params or {})
 
         create_kwargs = {
             "template_id": template.template_id,
@@ -134,20 +120,3 @@ class ScheduledReportRunService:
             source_session_id=source_session_id,
             source_message_id=source_message_id,
         )
-
-
-def _flatten_review_outline(outline: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    flattened: list[dict[str, Any]] = []
-    for node in outline or []:
-        if not isinstance(node, dict):
-            continue
-        payload = {
-            "title": str(node.get("title") or "").strip(),
-            "description": str(node.get("description") or "").strip(),
-            "level": max(1, int(node.get("level") or 1)),
-        }
-        if isinstance(node.get("dynamic_meta"), dict):
-            payload["dynamic_meta"] = dict(node.get("dynamic_meta"))
-        flattened.append(payload)
-        flattened.extend(_flatten_review_outline(node.get("children") or []))
-    return flattened

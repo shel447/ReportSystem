@@ -114,8 +114,7 @@ def _render_section_content(
         [
             f"模板名称: {template_context.get('name') or '未命名模板'}",
             f"模板描述: {template_context.get('description') or '未提供'}",
-            f"场景: {template_context.get('scenario') or '未提供'}",
-            f"报告类型: {template_context.get('report_type') or '未提供'}",
+            f"模板分类: {template_context.get('category') or '未提供'}",
             f"章节标题: {title}",
             f"章节描述: {description}",
             f"标题层级: H{level}",
@@ -237,35 +236,29 @@ def _finalize_section(
 def _normalize_template_context(template: ReportTemplate | Dict[str, Any] | str) -> Dict[str, Any]:
     if isinstance(template, ReportTemplate):
         return {
-            "template_id": template.template_id,
+            "id": template.template_id,
             "name": template.name,
             "description": template.description,
-            "report_type": template.report_type,
-            "scenario": template.scenario,
-            "match_keywords": template.match_keywords,
-            "content_params": template.content_params,
-            "outline": template.outline,
+            "category": template.category,
+            "parameters": template.parameters,
+            "sections": template.sections,
         }
     if isinstance(template, dict):
         return {
-            "template_id": str(template.get("template_id") or ""),
+            "id": str(template.get("id") or template.get("template_id") or ""),
             "name": str(template.get("name") or "报告模板"),
             "description": str(template.get("description") or ""),
-            "report_type": str(template.get("report_type") or ""),
-            "scenario": str(template.get("scenario") or ""),
-            "match_keywords": list(template.get("match_keywords") or []),
-            "content_params": list(template.get("content_params") or []),
-            "outline": list(template.get("outline") or []),
+            "category": str(template.get("category") or ""),
+            "parameters": list(template.get("parameters") or []),
+            "sections": list(template.get("sections") or []),
         }
     return {
-        "template_id": "",
+        "id": "",
         "name": str(template or "报告模板"),
         "description": "",
-        "report_type": "",
-        "scenario": "",
-        "match_keywords": [],
-        "content_params": [],
-        "outline": [],
+        "category": "",
+        "parameters": [],
+        "sections": [],
     }
 
 
@@ -311,11 +304,10 @@ class OpenAIReportContentGenerator:
 
         config = build_completion_provider_config(self.db)
         template_context = {
-            "template_id": template.template_id,
+            "id": template.template_id,
             "name": template.name,
             "description": template.description,
-            "report_type": template.report_type,
-            "scenario": template.scene or template.scenario,
+            "category": template.category,
         }
 
         def nl2sql_runner(*, description: str, params: dict[str, Any], locals_ctx: dict[str, Any], **_kwargs):
@@ -364,11 +356,10 @@ class OpenAIReportContentGenerator:
 
         config = build_completion_provider_config(self.db)
         template_context = {
-            "template_id": template.template_id,
+            "id": template.template_id,
             "name": template.name,
             "description": template.description,
-            "report_type": template.report_type,
-            "scenario": template.scene or template.scenario,
+            "category": template.category,
         }
 
         def nl2sql_runner(*, description: str, params: dict[str, Any], locals_ctx: dict[str, Any], **_kwargs):

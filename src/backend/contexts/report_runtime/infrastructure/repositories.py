@@ -229,19 +229,12 @@ def _to_instance(row: ReportInstanceModel) -> ReportInstance:
 
 def _to_template(row: ReportTemplateModel) -> ReportTemplate:
     return ReportTemplate(
-        template_id=row.template_id,
+        id=row.template_id,
+        category=row.category or "",
         name=row.name,
         description=row.description or "",
-        report_type=row.report_type or "",
-        scenario=row.scenario or "",
-        template_type=row.template_type or "",
-        match_keywords=list(row.match_keywords or []),
-        content_params=list(row.content_params or []),
         parameters=list(row.parameters or []),
-        outline=list(row.outline or []),
         sections=list(row.sections or []),
-        schema_version=row.schema_version or "",
-        output_formats=list(row.output_formats or []),
         version=row.version or "1.0",
         created_at=row.created_at,
     )
@@ -252,19 +245,12 @@ def _to_template_instance(row: TemplateInstanceModel) -> TemplateInstanceEntity:
     template_row = row
     base_template_payload = content.get("base_template") if isinstance(content.get("base_template"), dict) else {}
     base_template = ReportTemplate(
-        template_id=str(base_template_payload.get("id") or row.template_id),
+        id=str(base_template_payload.get("id") or row.template_id),
+        category=str(base_template_payload.get("category") or ""),
         name=str(base_template_payload.get("name") or row.template_name or ""),
         description=str(base_template_payload.get("description") or ""),
-        report_type=str(base_template_payload.get("report_type") or "daily"),
-        scenario=str(base_template_payload.get("scenario") or ""),
-        template_type=str(base_template_payload.get("category") or base_template_payload.get("template_type") or ""),
-        match_keywords=list(base_template_payload.get("match_keywords") or []),
-        content_params=list(base_template_payload.get("content_params") or []),
         parameters=list(base_template_payload.get("parameters") or []),
-        outline=list(base_template_payload.get("outline") or []),
         sections=list(base_template_payload.get("sections") or []),
-        schema_version=str(base_template_payload.get("schema_version") or "v2.0"),
-        output_formats=list(base_template_payload.get("output_formats") or ["md"]),
         version=row.template_version or "1.0",
         created_at=getattr(template_row, "created_at", None),
     )

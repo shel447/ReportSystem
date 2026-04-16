@@ -16,9 +16,8 @@ _PLACEHOLDER_PATTERN = re.compile(r"\{\{\s*([a-zA-Z0-9_\.]+)\s*\}\}")
 
 
 def is_v2_template(template: Any) -> bool:
-    schema_version = getattr(template, "schema_version", None)
     sections = getattr(template, "sections", None)
-    return bool(schema_version == "v2" or sections)
+    return isinstance(sections, list)
 
 
 class OutlineExpansionService:

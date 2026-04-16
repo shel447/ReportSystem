@@ -33,7 +33,7 @@ def run_query_benchmark(
     for case in benchmark_cases:
         request = QueryRequest(
             nl_request=str(case.get("question") or "").strip(),
-            template_context={"name": "benchmark", "description": "", "report_type": "benchmark", "scenario": "benchmark"},
+            template_context={"name": "benchmark", "description": "", "category": "benchmark", "parameters": []},
             section={"title": str(case.get("category") or "benchmark"), "description": str(case.get("question") or "")},
             params={},
         )

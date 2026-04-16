@@ -160,7 +160,7 @@ class ReportRuntimeService:
                 "base_template": {
                     "id": template_instance.template_id,
                     "name": template_instance.template_name,
-                    "category": (base_template.template_type if base_template else ""),
+                    "category": (base_template.category if base_template else ""),
                     "description": (base_template.description if base_template else ""),
                 },
                 "runtime_state": deepcopy(template_instance.runtime_state or {}),
@@ -180,7 +180,7 @@ class ReportRuntimeService:
                 "base_template": {
                     "id": str(instance.template_id or ""),
                     "name": str(getattr(template, "name", "") or ""),
-                    "category": str(getattr(template, "template_type", "") or ""),
+                    "category": str(getattr(template, "category", "") or ""),
                     "description": str(getattr(template, "description", "") or ""),
                 },
                 "runtime_state": {},
@@ -249,7 +249,7 @@ def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any
         "template_snapshot": {
             "id": record.template_id,
             "name": record.template_name or record.template_id,
-            "category": (record.base_template.template_type if record.base_template else ""),
+            "category": (record.base_template.category if record.base_template else ""),
             "description": (record.base_template.description if record.base_template else ""),
             "parameters": deepcopy(record.base_template.parameters if record.base_template else []),
             "sections": deepcopy(record.base_template.sections if record.base_template else []),

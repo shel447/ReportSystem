@@ -21,10 +21,8 @@ class TemplatesRouterTests(unittest.TestCase):
             template_id="tpl-1",
             name="设备巡检报告",
             description="巡检模板",
-            report_type="daily",
-            template_type="巡检",
+            category="巡检",
             created_at="2026-03-19T00:00:00",
-            schema_version="v2.0",
             parameters=[{"id": "date"}, {"id": "devices"}],
             sections=[{"title": "概览"}, {"title": "详情"}],
         )
@@ -39,13 +37,15 @@ class TemplatesRouterTests(unittest.TestCase):
 
         payload = list_templates(db=FakeDb())
 
-        self.assertEqual(payload[0]["schema_version"], "v2.0")
+        self.assertEqual(payload[0]["category"], "巡检")
         self.assertEqual(payload[0]["parameter_count"], 2)
         self.assertEqual(payload[0]["top_level_section_count"], 2)
-        self.assertNotIn("scenario", payload[0])
+        self.assertNotIn("report_type", payload[0])
+        self.assertNotIn("schema_version", payload[0])
 
     def test_clean_template_payload_validates_and_normalizes_v2_template(self):
         payload = {
+            "id": "device_health_report",
             "name": "设备健康报告",
             "category": "设备健康评估",
             "description": "模板描述",
@@ -63,8 +63,8 @@ class TemplatesRouterTests(unittest.TestCase):
 
         cleaned = _clean_template_payload(payload)
 
-        self.assertEqual(cleaned["schema_version"], "v2.0")
-        self.assertEqual(cleaned["template_type"], "设备健康评估")
+        self.assertEqual(cleaned["id"], "device_health_report")
+        self.assertEqual(cleaned["category"], "设备健康评估")
         self.assertEqual(cleaned["sections"][0]["content"]["datasets"][0]["id"], "ds_main")
 
     def test_export_template_definition_returns_portable_json_attachment(self):
@@ -72,15 +72,9 @@ class TemplatesRouterTests(unittest.TestCase):
             template_id="tpl-1",
             name="设备巡检报告",
             description="巡检模板",
-            report_type="daily",
-            template_type="巡检",
-            match_keywords=["巡检", "设备"],
-            content_params=[{"legacy": True}],
+            category="巡检",
             parameters=[{"id": "date", "label": "日期", "required": True, "input_type": "date"}],
-            outline=[{"title": "旧大纲"}],
             sections=[{"title": "概览", "content": {"presentation": {"type": "text", "template": "周期 {date}"}}}],
-            schema_version="v2.0",
-            output_formats=["md"],
             created_at="2026-03-19T00:00:00",
             version="1.0",
         )
@@ -111,14 +105,13 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertEqual(payload["name"], "设备巡检报告")
         self.assertEqual(payload["category"], "巡检")
         self.assertEqual(payload["description"], "巡检模板")
+        self.assertEqual(payload["id"], "tpl-1")
         self.assertEqual(payload["parameters"][0]["id"], "date")
         self.assertEqual(payload["sections"][0]["title"], "概览")
-        self.assertNotIn("scenario", payload)
-        self.assertNotIn("template_id", payload)
         self.assertNotIn("created_at", payload)
         self.assertNotIn("version", payload)
-        self.assertNotIn("content_params", payload)
-        self.assertNotIn("outline", payload)
+        self.assertNotIn("report_type", payload)
+        self.assertNotIn("schema_version", payload)
 
     def test_preview_import_template_returns_service_payload(self):
         payload = {

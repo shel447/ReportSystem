@@ -6,13 +6,10 @@ import { createEmptyWorkbenchState, toTemplatePayload, toWorkbenchState } from "
 describe("template workbench state", () => {
   it("builds a structured workbench state from template detail", () => {
     const template: TemplateDetail = {
-      template_id: "tpl-1",
+      id: "tpl-1",
       name: "设备巡检报告",
       description: "巡检模板",
-      report_type: "daily",
       category: "巡检",
-      match_keywords: ["巡检"],
-      content_params: [],
       parameters: [
         { id: "date", label: "日期", input_type: "date", required: true },
         {
@@ -54,7 +51,6 @@ describe("template workbench state", () => {
           },
         },
       ],
-      outline: [],
       sections: [
         {
           title: "概览 {date}",
@@ -70,9 +66,6 @@ describe("template workbench state", () => {
           },
         },
       ],
-      schema_version: "v2.0",
-      output_formats: ["md"],
-      version: "1.0",
     };
 
     const state = toWorkbenchState(template);
@@ -173,6 +166,7 @@ describe("template workbench state", () => {
 
     const payload = toTemplatePayload(state);
 
+    expect(payload.id).toBe("report_template");
     expect(payload.name).toBe("资产统计报告");
     expect(payload.category).toBe("资产统计");
     expect(payload.parameters[0]).toEqual({
@@ -223,5 +217,11 @@ describe("template workbench state", () => {
       },
     });
     expect(payload).not.toHaveProperty("previewSamples");
+    expect(payload).not.toHaveProperty("report_type");
+    expect(payload).not.toHaveProperty("schema_version");
+    expect(payload).not.toHaveProperty("output_formats");
+    expect(payload).not.toHaveProperty("match_keywords");
+    expect(payload).not.toHaveProperty("content_params");
+    expect(payload).not.toHaveProperty("outline");
   });
 });

@@ -1,10 +1,8 @@
 export type TemplateSummary = {
-  template_id: string;
+  id: string;
   name: string;
   description: string;
-  report_type: string;
-  category?: string;
-  schema_version?: string;
+  category: string;
   parameter_count?: number;
   top_level_section_count?: number;
   created_at?: string;
@@ -120,30 +118,17 @@ export type TemplateSection = {
 };
 
 export type TemplateDetail = TemplateSummary & {
-  match_keywords: string[];
-  content_params: Record<string, unknown>[];
   parameters: TemplateParameter[];
-  outline: Record<string, unknown>[];
   sections: TemplateSection[];
-  schema_version: string;
-  output_formats: string[];
-  version?: string;
 };
 
 export type TemplateEditableDraft = {
-  template_id?: string;
+  id?: string;
   name: string;
   description: string;
-  report_type: string;
-  category?: string;
-  match_keywords: string[];
-  content_params: Record<string, unknown>[];
+  category: string;
   parameters: TemplateParameter[];
-  outline: Record<string, unknown>[];
   sections: TemplateSection[];
-  schema_version: string;
-  output_formats: string[];
-  version?: string;
   created_at?: string;
 };
 
@@ -164,15 +149,10 @@ export type TemplateImportPreview = {
 export type ImportSaveMode = "create_copy" | "overwrite";
 
 export type TemplateUpsertPayload = {
+  id: string;
   name: string;
   description: string;
-  report_type: string;
   category: string;
-  match_keywords: string[];
-  content_params: Record<string, unknown>[];
   parameters: TemplateParameter[];
-  outline: Record<string, unknown>[];
   sections: TemplateSection[];
-  schema_version: string;
-  output_formats: string[];
 };

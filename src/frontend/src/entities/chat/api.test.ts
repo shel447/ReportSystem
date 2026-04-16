@@ -56,7 +56,7 @@ describe("chat api contract adapter", () => {
           summary: "报告已生成",
           document: {
             document_id: "doc-1",
-            download_url: "/rest/chatbi/v1/documents/doc-1/download",
+            download_url: "/rest/chatbi/v1/reports/rpt-1/documents/doc-1/download",
           },
         },
       }),
@@ -139,7 +139,7 @@ describe("chat api contract adapter", () => {
           document: {
             document_id: "doc-9",
             file_name: "report.md",
-            download_url: "/rest/chatbi/v1/documents/doc-9/download",
+            download_url: "/rest/chatbi/v1/reports/rpt-9/documents/doc-9/download",
           },
         },
       }),

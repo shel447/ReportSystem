@@ -29,16 +29,7 @@ export type WorkbenchMetaState = {
   templateId?: string;
   name: string;
   description: string;
-  reportType: string;
   category: string;
-  schemaVersion: string;
-  matchKeywords: string[];
-  outputFormats: string[];
-  compatibility: {
-    contentParams: unknown[];
-    outline: unknown[];
-    migratedFromLegacy: boolean;
-  };
 };
 
 export type WorkbenchParameter = {
@@ -158,16 +149,7 @@ export function createEmptyWorkbenchState(): TemplateWorkbenchState {
     meta: {
       name: "",
       description: "",
-      reportType: "daily",
       category: "",
-      schemaVersion: "v2.0",
-      matchKeywords: [],
-      outputFormats: ["md"],
-      compatibility: {
-        contentParams: [],
-        outline: [],
-        migratedFromLegacy: false,
-      },
     },
     parameters: [],
     sections: [],
@@ -178,41 +160,24 @@ export function createEmptyWorkbenchState(): TemplateWorkbenchState {
 export function toWorkbenchState(template: TemplateDetail | TemplateEditableDraft): TemplateWorkbenchState {
   const state = createEmptyWorkbenchState();
   state.meta = {
-    templateId: template.template_id,
+    templateId: template.id,
     name: template.name,
     description: template.description ?? "",
-    reportType: template.report_type ?? "daily",
     category: template.category ?? "",
-    schemaVersion: template.schema_version || "v2.0",
-    matchKeywords: template.match_keywords ?? [],
-    outputFormats: template.output_formats ?? ["md"],
-    compatibility: {
-      contentParams: template.content_params ?? [],
-      outline: template.outline ?? [],
-      migratedFromLegacy:
-        !(template.sections?.length ?? 0) &&
-        Boolean((template.outline?.length ?? 0) || (template.content_params?.length ?? 0)),
-    },
   };
   state.parameters = (template.parameters ?? []).map((item, index) => normalizeParameter(item, `param-${index + 1}`));
-  const sections = (template.sections?.length ? template.sections : normalizeLegacyOutline(template.outline ?? [])) as TemplateSection[];
-  state.sections = sections.map((item, index) => normalizeSection(item, `section-${index + 1}`));
+  state.sections = (template.sections ?? []).map((item, index) => normalizeSection(item, `section-${index + 1}`));
   return state;
 }
 
 export function toTemplatePayload(state: TemplateWorkbenchState): TemplateUpsertPayload {
   return {
+    id: state.meta.templateId?.trim() || toTemplateId(state.meta.name),
     name: state.meta.name.trim(),
     description: state.meta.description.trim(),
-    report_type: state.meta.reportType.trim() || "daily",
     category: state.meta.category.trim(),
-    match_keywords: state.meta.matchKeywords.filter(Boolean),
-    content_params: [],
     parameters: state.parameters.map(serializeParameter),
-    outline: [],
     sections: state.sections.map(serializeSection),
-    schema_version: state.meta.schemaVersion.trim() || "v2.0",
-    output_formats: state.meta.outputFormats.filter(Boolean),
   };
 }
 
@@ -580,19 +545,11 @@ function serializeLayout(value: WorkbenchLayout): TemplateLayout {
   };
 }
 
-function normalizeLegacyOutline(items: unknown[]): TemplateSection[] {
-  return (items ?? []).filter(isRecord).map((item) => ({
-    title: typeof item.title === "string" ? item.title : "未命名章节",
-    description: typeof item.description === "string" ? item.description : "",
-    content: {
-      presentation: {
-        type: "text",
-        template: typeof item.description === "string" && item.description ? item.description : "章节内容占位",
-      },
-    },
-  }));
-}
-
-function isRecord(value: unknown): value is Record<string, any> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+function toTemplateId(name: string): string {
+  const normalized = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || "report_template";
 }

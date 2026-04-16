@@ -3,7 +3,6 @@ export type ChatCandidate = {
   template_name: string;
   category?: string;
   description?: string;
-  report_type?: string;
   score?: number;
   score_label?: string;
   match_reasons?: string[];

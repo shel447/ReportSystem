@@ -164,7 +164,7 @@ export function TemplateWorkbench({
   const dynamicOptionsMutation = useMutation({
     mutationFn: () =>
       resolveParameterOptions({
-        template_id: value.meta.templateId,
+        template_id: value.meta.templateId || undefined,
         param_id: selectedParameter?.id ?? "",
         source: selectedParameter?.source ?? "",
         query: dynamicQuery.trim() || undefined,
@@ -2523,9 +2523,7 @@ export function TemplateWorkbench({
             >
               {" "}
               <p>
-                {value.meta.compatibility.migratedFromLegacy
-                  ? "该模板来自旧版结构，保存后将按新版结构维护。"
-                  : "当前模板已按新版结构维护。"}
+                当前模板已按新版单轨结构维护。
               </p>{" "}
               {validationErrors.length ? (
                 <ul className="validation-list">

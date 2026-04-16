@@ -9,12 +9,7 @@ function createState(): TemplateWorkbenchState {
       templateId: "tpl-1",
       name: "设备巡检报告",
       description: "",
-      reportType: "daily",
       category: "巡检",
-      schemaVersion: "v2.0",
-      matchKeywords: [],
-      outputFormats: ["md"],
-      compatibility: { contentParams: [], outline: [], migratedFromLegacy: false },
     },
     parameters: [
       {

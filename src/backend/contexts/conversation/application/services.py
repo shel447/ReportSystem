@@ -185,7 +185,7 @@ class ConversationService:
                         template_id = state.get("report", {}).get("template_id")
                         template = self.persistence.get_template(template_id) if template_id else None
                         template_params = self.report_gateway.normalize_parameters(
-                            (template.parameters or []) if template and template.parameters else ((template.content_params or []) if template else [])
+                            (template.parameters or []) if template else []
                         )
                         reply, action = _resume_report_action(self.report_gateway, state, template_params)
                         state = self.capability_gateway.sync_report_task_state(state)
@@ -207,7 +207,7 @@ class ConversationService:
                         template_id = state.get("report", {}).get("template_id")
                         template = self.persistence.get_template(template_id) if template_id else None
                         template_params = self.report_gateway.normalize_parameters(
-                            (template.parameters or []) if template and template.parameters else ((template.content_params or []) if template else [])
+                            (template.parameters or []) if template else []
                         )
                         target_param = self.report_gateway.get_next_missing_param(state, template_params)
                         if target_param and str(target_param.get("interaction_mode") or "form") == "chat":
@@ -463,7 +463,6 @@ class ConversationService:
                             "template_id": item["template_id"],
                             "template_name": item["template_name"],
                             "description": item.get("description", ""),
-                            "report_type": item.get("report_type", ""),
                             "category": item.get("category", ""),
                             "score": item["score"],
                             "score_label": item["score_label"],
@@ -479,9 +478,7 @@ class ConversationService:
                 return reply, action
 
         if template_locked and template is not None:
-            template_params = self.report_gateway.normalize_parameters(
-                (template.parameters or []) if template.parameters else (template.content_params or [])
-            )
+            template_params = self.report_gateway.normalize_parameters(template.parameters or [])
             if data.command == "reset_params":
                 state = self.report_gateway.reset_slots(state)
                 report = state.get("report") or {}

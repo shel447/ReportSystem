@@ -30,7 +30,7 @@ def generate_chat_reply(
         user_lines.append("当前存在多个候选模板，请告诉用户系统尚未完全确定，并建议其从候选模板中选择：")
         for item in candidates:
             user_lines.append(
-                f"- {item.get('template_name')} | 分类: {item.get('category') or '未设置'} | 描述: {item.get('description') or '未设置'} | 报告类型: {item.get('report_type') or '未设置'} | 评分: {item.get('score')} | 原因: {', '.join(item.get('match_reasons') or [])}"
+                f"- {item.get('template_name')} | 分类: {item.get('category') or '未设置'} | 描述: {item.get('description') or '未设置'} | 评分: {item.get('score')} | 原因: {', '.join(item.get('match_reasons') or [])}"
             )
     user_lines.append("输出要求：简洁、专业、中文，不要编造未提供的数据。")
     response = gateway.chat_completion(

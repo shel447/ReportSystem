@@ -2,14 +2,7 @@
 
 ## 1. 模块定位
 
-`template_catalog` 负责报告模板定义的持久化、结构校验、语义索引状态维护，以及模板匹配输入准备。它是整个系统的模板主数据上下文。
-
-它回答三个问题：
-
-- 模板如何被创建、更新、导出和删除
-- 模板如何被导入预解析、归一化并在保存前进入编辑工作台
-- 模板载荷如何按 schema 校验和归一化
-- 模板如何参与语义匹配
+`template_catalog` 负责模板定义的唯一真相：创建、更新、导入预解析、导出、校验和语义匹配。
 
 ## 2. 代码落点
 
@@ -23,136 +16,52 @@
 ## 3. 核心领域概念
 
 - `ReportTemplate`
-  - 模板主对象，承载名称、描述、参数、章节、诉求、执行链路等静态定义
-  - 对外模板契约使用 `category` 字段；持久化层仍映射到 `template_type` 列
+  - 唯一模板结构：`id/category/name/description/parameters/sections`
 - `TemplateMatchResult`
-  - 模板匹配结果，区分自动命中和候选列表两种输出模式
-- `OutlineRequirement`
-  - 业务上属于模板章节定义的一部分；当前代码中仍以内嵌 JSON 结构存在于 `parameters / sections / outline` 中，而不是独立 dataclass
+  - 模板匹配结果
 
 ## 4. 分层职责
 
 ### domain
 
-- 用轻量 dataclass 表达 `ReportTemplate`
-- 不关心 SQLAlchemy、JSON schema 库、Embedding 接口
+表达模板领域模型，不依赖 ORM 和 Web 框架。
 
 ### application
 
-- `TemplateCatalogService` 负责模板 CRUD、导出、导入预解析、序列化、匹配调用装配
-- 把 schema 校验错误转成 `ValidationError`
-- 在模板变更后标记语义索引为 stale
+`TemplateCatalogService` 负责：
+
+- 模板 CRUD
+- 导入预解析
+- 导出
+- 匹配调用装配
 
 ### infrastructure
 
-- `SqlAlchemyTemplateCatalogRepository`
-  - 负责 `report_templates` ORM 与领域对象转换
-- `TemplateSchemaGateway`
-  - 调用 `schema.py` 做模板 payload 校验与清洗
-- `TemplateIndexGateway`
-  - 调用 `indexing.py` 处理模板语义索引状态和匹配逻辑
+- 仓储映射 `tbl_report_templates`
+- schema 校验与归一化
+- 语义索引和匹配
 
 ### router
 
-- `templates.py` 只负责 HTTP 层：请求解析、异常到 `HTTPException` 的映射、导出下载响应
+`templates.py` 只负责 HTTP 映射。
 
-## 5. 核心实现链路
+## 5. 关键实现约束
 
-### 5.1 模板创建 / 更新
+- 不再维护模板双轨定义
+- 不再接受旧模板顶层字段
+- `report_template_schema_v2.json` 是唯一模板 schema 基线
+- 模板导出、详情、导入预解析都只使用唯一结构
+- 模板匹配文本只基于：`name/description/category/parameters/sections`
 
-```mermaid
-sequenceDiagram
-    participant API as templates router
-    participant App as TemplateCatalogService
-    participant Schema as TemplateSchemaGateway
-    participant Repo as SqlAlchemyTemplateCatalogRepository
-    participant Index as TemplateIndexGateway
+## 6. 关联表
 
-    API->>App: create_template / update_template(payload)
-    App->>Schema: validate(payload)
-    Schema-->>App: cleaned payload
-    App->>Repo: create / update
-    Repo-->>App: ReportTemplate
-    App->>Index: mark_stale(template_id, reason)
-    App-->>API: serialized template detail
-```
+- [tbl_report_templates](database_schema.md#tbl_report_templates)
+- [tbl_template_semantic_indices](database_schema.md#tbl_template_semantic_indices)
 
-### 5.2 模板导入预解析
+## 7. 可替换组件
 
-```mermaid
-sequenceDiagram
-    participant UI as Templates page
-    participant API as templates router
-    participant App as TemplateCatalogService
-    participant Schema as TemplateSchemaGateway
-    participant Repo as SqlAlchemyTemplateCatalogRepository
+- SQLAlchemy 仓储
+- schema 校验器
+- embedding 匹配实现
 
-    UI->>API: POST /templates/import/preview(payload, filename)
-    API->>App: preview_import_template(payload, filename)
-    App->>App: detect source kind
-    App->>App: normalize import payload
-    App->>Schema: validate(normalized payload)
-    Schema-->>App: cleaned payload
-    App->>Repo: find conflicts by template_id / name
-    Repo-->>App: matched templates
-    App-->>API: normalized_template + warnings + conflict
-```
-
-### 5.3 模板匹配
-
-```mermaid
-sequenceDiagram
-    participant Conv as conversation
-    participant App as TemplateCatalogService
-    participant Match as TemplateIndexGateway
-    participant AI as Embedding gateway
-    participant DB as template_semantic_indices
-
-    Conv->>App: match_templates(message, gateway)
-    App->>Match: match(message, gateway)
-    Match->>AI: create_embedding(message)
-    Match->>DB: load template semantic indices
-    Match-->>App: TemplateMatchResult
-    App-->>Conv: auto_match / candidates
-```
-
-## 6. 依赖与被依赖关系
-
-### 对外依赖
-
-- `shared/kernel/errors.py`
-- `infrastructure.persistence.models` 对应的 SQLAlchemy ORM
-- `OpenAICompatGateway` 作为匹配阶段 embedding 向量来源
-
-### 被谁依赖
-
-- `conversation`：模板匹配、模板读取、参数定义读取
-- `report_runtime`：实例创建时读取模板定义
-- `system_settings`：重建模板语义索引
-
-## 7. 关联表引用
-
-本模块主要维护以下表：
-
-- [report_templates](database_schema.md#report_templates)
-- [template_semantic_indices](database_schema.md#template_semantic_indices)
-
-## 8. 可替换技术组件
-
-### 业务规格
-
-- 模板的参数/章节/诉求/执行链路双层结构
-- 参数映射与诉求要素映射同构（`value_mode + value_mapping`），仅 `enum/dynamic` 生效
-- `param_ref` 必须继承参数 `display/value/query`，不允许局部覆写 `query` 映射
-- 导出时不携带系统字段
-- 导入预解析不直接入库，必须回到模板工作台由用户确认保存
-- 模板更新后语义索引必须标记 stale
-- 动态参数候选项协议固定为 `items[].label/value/query`，缺失或类型非法按 `PARAM_SOURCE_RESPONSE_INVALID` 处理
-- `report_template_schema_v2.json` 与 `template_catalog` 校验器必须同步维护上述参数映射约束
-
-### 可替换 adapter
-
-- SQLAlchemy repository 可以替换为别的持久化实现
-- `schema.py` 当前采用 JSON-schema 风格校验，后续可替换为别的校验器
-- `indexing.py` 当前依赖 embedding 检索，后续可替换为向量库或其他模板召回策略，只要保留 `match()` 与索引状态协议
-
+这些 adapter 可替换，但不改变模板定义本身的业务结构。

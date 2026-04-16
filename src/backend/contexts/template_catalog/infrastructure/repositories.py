@@ -16,7 +16,9 @@ class SqlAlchemyTemplateCatalogRepository:
         self.db = db
 
     def create(self, payload: dict[str, Any]) -> ReportTemplate:
-        row = ReportTemplateModel(template_id=gen_id(), **payload)
+        data = dict(payload)
+        data["id"] = str(data.get("id") or gen_id())
+        row = ReportTemplateModel(**data)
         self.db.add(row)
         self.db.commit()
         self.db.refresh(row)
@@ -69,19 +71,12 @@ class TemplateIndexGateway:
 
 def _to_domain(row: ReportTemplateModel) -> ReportTemplate:
     return ReportTemplate(
-        template_id=row.template_id,
+        id=row.template_id,
+        category=getattr(row, "category", "") or "",
         name=row.name,
         description=getattr(row, "description", "") or "",
-        report_type=getattr(row, "report_type", "") or "",
-        scenario=getattr(row, "scenario", "") or "",
-        template_type=getattr(row, "template_type", "") or "",
-        match_keywords=list(getattr(row, "match_keywords", []) or []),
-        content_params=list(getattr(row, "content_params", []) or []),
         parameters=list(getattr(row, "parameters", []) or []),
-        outline=list(getattr(row, "outline", []) or []),
         sections=list(getattr(row, "sections", []) or []),
-        schema_version=getattr(row, "schema_version", "") or "",
-        output_formats=list(getattr(row, "output_formats", []) or []),
         version=getattr(row, "version", "1.0") or "1.0",
         created_at=getattr(row, "created_at", None),
     )

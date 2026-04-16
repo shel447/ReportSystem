@@ -61,18 +61,23 @@ def build_template_semantic_text(template: ReportTemplate) -> str:
 
     dataset_lines = _dataset_phrases(template)
 
-    keyword_text = "；".join(_string_list(template.match_keywords))
     sections = [
         f"模板名称: {template.name}",
         f"模板描述: {template.description}",
-        f"模板分类: {_template_type(template)}",
-        f"报告类型: {template.report_type}",
-        f"匹配关键词: {keyword_text}",
-        "内容参数: " + "；".join(param_lines),
-        "报告大纲: " + "；".join(outline_lines),
+        f"模板分类: {template.category}",
+        "参数定义: " + "；".join(param_lines),
+        "章节诉求: " + "；".join(outline_lines),
         "章节数据源: " + "；".join(dataset_lines),
     ]
     return "\n".join(line for line in sections if line.split(": ", 1)[-1].strip())
+
+
+def _effective_parameters(template: Any) -> list[Any]:
+    return _as_list(getattr(template, "parameters", []))
+
+
+def _effective_sections(template: Any) -> list[Any]:
+    return _as_list(getattr(template, "sections", []))
 
 
 def mark_template_index_stale(db: Session, template_id: str, reason: str = "模板已更新，请重建语义索引。") -> None:
@@ -199,9 +204,8 @@ def match_templates(db: Session, message: str, gateway: OpenAICompatGateway) -> 
             {
                 "template_id": template.template_id,
                 "template_name": template.name or "未命名模板",
-                "category": _template_type(template),
+                "category": template.category or "",
                 "description": template.description or "",
-                "report_type": template.report_type or "",
                 "score": round(total, 4),
                 "score_label": _score_label(total),
                 "semantic_score": round(semantic_score, 4),
@@ -239,27 +243,12 @@ def _rule_score(template: ReportTemplate, query_norm: str) -> Dict[str, Any]:
         score += 0.20
         reasons.append((88, f"模板名接近：{name}"))
 
-    keyword_match = _best_phrase_match(query_norm, _string_list(template.match_keywords), allow_core_terms=True)
-    if keyword_match:
-        if keyword_match[0] == "full":
-            score += 0.30
-            strong_direct = True
-            reasons.append((98, f"关键词命中：{keyword_match[1]}"))
-        elif keyword_match[0] == "core":
-            score += 0.24
-            strong_direct = True
-            reasons.append((92, f"关键词命中：{keyword_match[1]}"))
-        else:
-            score += 0.16
-            reasons.append((82, f"关键词接近：{keyword_match[1]}"))
-
     desc_match = _best_phrase_match(query_norm, [template.description] if template.description else [])
     if desc_match:
         score += 0.09 if desc_match[0] in {"full", "core"} else 0.06
         reasons.append((70, f"描述命中：{desc_match[1]}"))
 
-    template_type = _template_type(template)
-    type_match = _best_phrase_match(query_norm, [template_type] if template_type else [], allow_core_terms=True)
+    type_match = _best_phrase_match(query_norm, [template.category] if template.category else [], allow_core_terms=True)
     if type_match:
         score += 0.09 if type_match[0] in {"full", "core"} else 0.06
         reasons.append((76, f"类型命中：{type_match[1]}"))
@@ -272,17 +261,12 @@ def _rule_score(template: ReportTemplate, query_norm: str) -> Dict[str, Any]:
     outline_match = _best_phrase_match(query_norm, _outline_phrases(template), allow_core_terms=True)
     if outline_match:
         score += 0.07 if outline_match[0] in {"full", "core"} else 0.05
-        reasons.append((62, f"大纲命中：{outline_match[1]}"))
+        reasons.append((62, f"诉求命中：{outline_match[1]}"))
 
     dataset_match = _best_phrase_match(query_norm, _dataset_phrases(template), allow_core_terms=True)
     if dataset_match:
         score += 0.06 if dataset_match[0] in {"full", "core"} else 0.04
         reasons.append((58, f"数据源命中：{dataset_match[1]}"))
-
-    report_type_match = _best_phrase_match(query_norm, [template.report_type] if template.report_type else [])
-    if report_type_match:
-        score += 0.03
-        reasons.append((50, f"报告类型命中：{report_type_match[1]}"))
 
     return {
         "score": min(0.56, score),
@@ -356,7 +340,7 @@ def _score_label(score: float) -> str:
 
 def _param_phrases(template: ReportTemplate) -> List[str]:
     phrases: List[str] = []
-    for item in _as_list(_effective_parameters(template)):
+    for item in _as_list(template.parameters):
         if not isinstance(item, dict):
             continue
         for key in ("label", "name", "id", "description"):
@@ -368,7 +352,7 @@ def _param_phrases(template: ReportTemplate) -> List[str]:
 
 def _outline_phrases(template: ReportTemplate) -> List[str]:
     phrases: List[str] = []
-    for title, desc in _collect_section_lines(_effective_sections(template)):
+    for title, desc in _collect_section_lines(template.sections):
         if title:
             phrases.append(title)
         if desc:
@@ -378,23 +362,9 @@ def _outline_phrases(template: ReportTemplate) -> List[str]:
 
 def _dataset_phrases(template: ReportTemplate) -> List[str]:
     phrases: List[str] = []
-    for item in _effective_sections(template):
+    for item in template.sections:
         phrases.extend(_collect_dataset_phrases(item))
     return list(dict.fromkeys(phrase for phrase in phrases if phrase))
-
-
-def _effective_parameters(template: ReportTemplate) -> List[Any]:
-    params = list(getattr(template, "parameters", None) or [])
-    if params:
-        return params
-    return list(template.content_params or [])
-
-
-def _effective_sections(template: ReportTemplate) -> List[Any]:
-    sections = list(getattr(template, "sections", None) or [])
-    if sections:
-        return sections
-    return list(template.outline or [])
 
 
 def _collect_section_lines(nodes: List[Any]) -> List[Tuple[str, str]]:
@@ -438,10 +408,6 @@ def _collect_dataset_phrases(node: Any) -> List[str]:
         for child in children:
             phrases.extend(_collect_dataset_phrases(child))
     return phrases
-
-
-def _template_type(template: ReportTemplate) -> str:
-    return str(getattr(template, "template_type", None) or template.report_type or "").strip()
 
 
 def _core_terms_present(query_norm: str, phrase_norm: str) -> bool:
@@ -534,15 +500,6 @@ def _as_list(value: Any) -> List[Any]:
             return []
         return loaded if isinstance(loaded, list) else []
     return []
-
-
-def _string_list(values: Any) -> List[str]:
-    items: List[str] = []
-    for value in _as_list(values):
-        text = str(value or "").strip()
-        if text:
-            items.append(text)
-    return list(dict.fromkeys(items))
 
 
 def _cosine_similarity(left: List[float], right: List[float]) -> float:

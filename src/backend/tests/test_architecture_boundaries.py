@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ROUTERS_DIR = ROOT / "routers"
-TARGET_ROUTERS = {"chat.py", "instances.py", "tasks.py", "templates.py", "documents.py"}
+TARGET_ROUTERS = {"chat.py", "templates.py", "reports.py"}
 CONVERSATION_APPLICATION = ROOT / "contexts" / "conversation" / "application" / "services.py"
 DEPENDENCY_BUILDER = ROOT / "infrastructure" / "dependencies.py"
 TEMPLATE_CATALOG_REPOSITORY = ROOT / "contexts" / "template_catalog" / "infrastructure" / "repositories.py"

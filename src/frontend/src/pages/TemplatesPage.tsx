@@ -93,13 +93,13 @@ export function TemplatesPage() {
               <div className="template-catalog-grid">
                 {templatesQuery.data.map((template) => (
                   <Link
-                    key={template.template_id}
+                    key={template.id}
                     className="template-card"
-                    to={`/templates/${template.template_id}`}
+                    to={`/templates/${template.id}`}
                   >
                     <div className="template-card__header">
                       <strong>{template.name}</strong>
-                      <span className="status-chip status-chip--soft">{template.report_type}</span>
+                      <span className="status-chip status-chip--soft">{template.category || "未分类"}</span>
                     </div>
                     <p>{template.description || "暂无模板描述"}</p>
                     <div className="template-card__meta">
@@ -110,7 +110,7 @@ export function TemplatesPage() {
                     <div className="template-card__meta">
                       <span>{template.parameter_count ?? 0} 个参数</span>
                       <span>{template.top_level_section_count ?? 0} 个顶层章节</span>
-                      {template.schema_version ? <span>{template.schema_version}</span> : null}
+                      <span>{template.id}</span>
                     </div>
                   </Link>
                 ))}

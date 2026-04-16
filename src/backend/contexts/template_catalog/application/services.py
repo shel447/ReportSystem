@@ -65,12 +65,10 @@ class TemplateCatalogService:
 
     def serialize_summary(self, template: ReportTemplate) -> dict[str, Any]:
         return {
-            "template_id": template.template_id,
+            "id": template.id,
             "name": template.name,
             "description": template.description,
-            "report_type": template.report_type,
-            "category": template.template_type or "",
-            "schema_version": template.schema_version or "",
+            "category": template.category,
             "parameter_count": len(template.parameters or []),
             "top_level_section_count": len(template.sections or []),
             "created_at": str(template.created_at),
@@ -78,48 +76,33 @@ class TemplateCatalogService:
 
     def serialize_detail(self, template: ReportTemplate) -> dict[str, Any]:
         return {
-            "template_id": template.template_id,
+            "id": template.id,
             "name": template.name,
             "description": template.description,
-            "report_type": template.report_type,
-            "category": template.template_type or "",
-            "match_keywords": self._normalize_keywords(template.match_keywords),
-            "content_params": template.content_params,
+            "category": template.category,
             "parameters": template.parameters,
-            "outline": template.outline,
             "sections": template.sections,
-            "schema_version": template.schema_version or "",
-            "output_formats": template.output_formats,
             "created_at": str(template.created_at),
-            "version": template.version,
         }
 
     def _export_payload(self, template: ReportTemplate) -> dict[str, Any]:
         return {
+            "id": template.id,
             "name": template.name,
             "description": template.description,
-            "report_type": template.report_type,
-            "category": template.template_type or "",
-            "match_keywords": self._normalize_keywords(template.match_keywords),
+            "category": template.category,
             "parameters": template.parameters or [],
             "sections": template.sections or [],
-            "schema_version": template.schema_version or "",
-            "output_formats": template.output_formats or [],
         }
 
     def _serialize_import_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {
+            "id": str(payload.get("id") or ""),
             "name": str(payload.get("name") or ""),
             "description": str(payload.get("description") or ""),
-            "report_type": str(payload.get("report_type") or "daily"),
-            "category": str(payload.get("template_type") or payload.get("category") or ""),
-            "match_keywords": self._normalize_keywords(payload.get("match_keywords")),
-            "content_params": list(payload.get("content_params") or []),
+            "category": str(payload.get("category") or ""),
             "parameters": list(payload.get("parameters") or []),
-            "outline": list(payload.get("outline") or []),
             "sections": list(payload.get("sections") or []),
-            "schema_version": str(payload.get("schema_version") or "v2.0"),
-            "output_formats": list(payload.get("output_formats") or ["md"]),
         }
 
     def _clean_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -127,14 +110,7 @@ class TemplateCatalogService:
             cleaned = self.schema_gateway.validate(payload)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
-        if "category" in cleaned:
-            cleaned["template_type"] = cleaned.pop("category") or ""
-        if "type" in cleaned:
-            cleaned["template_type"] = cleaned.pop("type") or ""
-        cleaned.pop("scene", None)
-        cleaned.pop("scenario", None)
-        if "match_keywords" in cleaned:
-            cleaned["match_keywords"] = self._normalize_keywords(cleaned.get("match_keywords"))
+        cleaned["id"] = str(cleaned.get("id") or payload.get("id") or "").strip()
         return cleaned
 
     def _normalize_import_payload(
@@ -147,23 +123,18 @@ class TemplateCatalogService:
             raise ValidationError("不支持的模板结构。")
 
         if self._looks_like_system_export(candidate):
-            candidate_id = str(candidate.get("template_id") or "").strip() or None
+            candidate_id = str(candidate.get("id") or "").strip() or None
             return "system_export", candidate, candidate_id, []
 
         if self._looks_like_external_report_template(candidate):
             candidate_id = str(candidate.get("id") or "").strip() or None
             normalized = {
+                "id": candidate_id or "",
                 "name": str(candidate.get("name") or ""),
                 "description": str(candidate.get("description") or ""),
-                "report_type": str(candidate.get("report_type") or "daily"),
                 "category": str(candidate.get("category") or candidate.get("type") or ""),
-                "match_keywords": list(candidate.get("match_keywords") or []),
-                "content_params": list(candidate.get("content_params") or []),
                 "parameters": list(candidate.get("parameters") or []),
-                "outline": list(candidate.get("outline") or []),
                 "sections": list(candidate.get("sections") or []),
-                "schema_version": str(candidate.get("schema_version") or "v2.0"),
-                "output_formats": list(candidate.get("output_formats") or ["md"]),
             }
             warnings: list[str] = []
             if filename:
@@ -174,18 +145,8 @@ class TemplateCatalogService:
 
     @staticmethod
     def _looks_like_system_export(payload: dict[str, Any]) -> bool:
-        return any(
-            key in payload
-            for key in (
-                "template_id",
-                "report_type",
-                "match_keywords",
-                "output_formats",
-                "schema_version",
-                "content_params",
-                "outline",
-            )
-        )
+        required_fields = {"id", "name", "description", "category", "parameters", "sections"}
+        return required_fields.issubset(payload.keys())
 
     @staticmethod
     def _looks_like_external_report_template(payload: dict[str, Any]) -> bool:
@@ -212,7 +173,7 @@ class TemplateCatalogService:
             "status": status,
             "matched_templates": [
                 {
-                    "template_id": item.template_id,
+                    "template_id": item.id,
                     "name": item.name,
                 }
                 for item in matches

@@ -12,7 +12,10 @@ from ....infrastructure.persistence.models import ReportDocument, ReportInstance
 
 DOCUMENTS_DIR = os.path.join(os.path.dirname(__file__), "generated_documents")
 SUPPORTED_DOCUMENT_FORMATS = {"md": "md", "markdown": "md"}
-DOCUMENTS_API_PREFIX = "/rest/chatbi/v1/documents"
+
+
+def build_report_document_download_url(*, report_id: str, document_id: str) -> str:
+    return f"/rest/chatbi/v1/reports/{report_id}/documents/{document_id}/download"
 
 
 class DocumentGenerationError(Exception):
@@ -93,7 +96,10 @@ def serialize_document(document: ReportDocument) -> Dict[str, Any]:
         "file_size": document.file_size,
         "status": document.status,
         "version": document.version,
-        "download_url": f"{DOCUMENTS_API_PREFIX}/{document.document_id}/download",
+        "download_url": build_report_document_download_url(
+            report_id=document.instance_id,
+            document_id=document.document_id,
+        ),
         "created_at": str(document.created_at),
     }
 
@@ -201,7 +207,10 @@ def _append_document_to_template_instance(db: Session, instance_id: str, documen
         {
             "document_id": document.document_id,
             "format": document.format,
-            "download_url": f"{DOCUMENTS_API_PREFIX}/{document.document_id}/download",
+            "download_url": build_report_document_download_url(
+                report_id=instance_id,
+                document_id=document.document_id,
+            ),
             "generated_at": str(document.created_at),
         }
     )

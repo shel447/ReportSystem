@@ -59,7 +59,7 @@ export function TemplateDetailPage() {
       if (isCreateMode && importSaveMode === "overwrite" && importState?.targetTemplateId) {
         return updateTemplate(importState.targetTemplateId, payload);
       }
-      if (editor.meta.templateId) {
+      if (!isCreateMode && editor.meta.templateId) {
         return updateTemplate(editor.meta.templateId, payload);
       }
       return createTemplate(payload);
@@ -67,9 +67,9 @@ export function TemplateDetailPage() {
     onSuccess: async (saved) => {
       setSaveError("");
       await queryClient.invalidateQueries({ queryKey: ["templates"] });
-      await queryClient.invalidateQueries({ queryKey: ["template-detail", saved.template_id] });
+      await queryClient.invalidateQueries({ queryKey: ["template-detail", saved.id] });
       setEditor(toWorkbenchState(saved));
-      navigate(`/templates/${saved.template_id}`, { replace: true });
+      navigate(`/templates/${saved.id}`, { replace: true });
     },
     onError: (error) => {
       setSaveError(error instanceof Error ? error.message : "模板保存失败。");
@@ -130,7 +130,7 @@ export function TemplateDetailPage() {
             <PageIntroBar
               eyebrow="Template Detail"
               description={isCreateMode ? "新建模板" : editor.meta.name || "模板详情"}
-              badge={editor.meta.schemaVersion || "v2.0"}
+              badge={editor.meta.category || "未分类"}
               actions={
                 <>
                   <Link className="ghost-button button-link" to="/templates">
@@ -164,16 +164,14 @@ export function TemplateDetailPage() {
                   <div>
                     <p className="section-kicker">Basic Information</p>
                     <h3>基础信息</h3>
-                    <p className="muted-text">维护模板名称、用途和匹配信息。</p>
+                    <p className="muted-text">维护唯一模板定义：标识、名称、描述、分类。</p>
                   </div>
                 </div>
                 <div className="form-grid">
+                  <label className="field"><span className="field-label">模板标识</span><input aria-label="模板标识" value={editor.meta.templateId ?? ""} onChange={(event) => updateMeta("templateId", event.target.value)} /></label>
                   <label className="field"><span className="field-label">模板名称</span><input aria-label="模板名称" value={editor.meta.name} onChange={(event) => updateMeta("name", event.target.value)} /></label>
                   <label className="field"><span className="field-label">模板分类</span><input value={editor.meta.category} onChange={(event) => updateMeta("category", event.target.value)} /></label>
-                  <label className="field"><span className="field-label">报告类型</span><input value={editor.meta.reportType} onChange={(event) => updateMeta("reportType", event.target.value)} /></label>
                   <label className="field field--full"><span className="field-label">模板描述</span><textarea rows={3} value={editor.meta.description} onChange={(event) => updateMeta("description", event.target.value)} /></label>
-                  <label className="field"><span className="field-label">Schema 版本</span><input value={editor.meta.schemaVersion} onChange={(event) => updateMeta("schemaVersion", event.target.value)} /></label>
-                  <label className="field field--full"><span className="field-label">匹配关键词（逗号分隔）</span><input value={editor.meta.matchKeywords.join(", ")} onChange={(event) => updateMeta("matchKeywords", event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
                 </div>
               </SurfaceCard>
 

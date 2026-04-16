@@ -5,13 +5,13 @@ from backend.contexts.template_catalog.infrastructure import indexing as tis
 
 
 class TemplateIndexServiceTests(unittest.TestCase):
-    def test_effective_parameters_prefers_v2_parameters(self):
-        template = SimpleNamespace(parameters=[{"id": "p1"}], content_params=[{"name": "old"}])
+    def test_effective_parameters_reads_single_track_parameters(self):
+        template = SimpleNamespace(parameters=[{"id": "p1"}])
         result = tis._effective_parameters(template)
         self.assertEqual(result, [{"id": "p1"}])
 
     def test_collect_section_lines_reads_sections(self):
-        template = SimpleNamespace(sections=[{"title": "章节", "description": "说明"}], outline=[])
+        template = SimpleNamespace(sections=[{"title": "章节", "description": "说明"}])
         lines = tis._collect_section_lines(tis._effective_sections(template))
         self.assertEqual(lines, [("章节", "说明")])
 
@@ -19,13 +19,8 @@ class TemplateIndexServiceTests(unittest.TestCase):
         template = SimpleNamespace(
             name="巡检报告",
             description="设备巡检",
-            template_type="设备巡检",
-            report_type="special",
-            scene="总部",
-            scenario="",
-            match_keywords=["巡检"],
+            category="设备巡检",
             parameters=[],
-            content_params=[],
             sections=[
                 {
                     "title": "异常分析",
@@ -43,7 +38,6 @@ class TemplateIndexServiceTests(unittest.TestCase):
                     },
                 }
             ],
-            outline=[],
         )
         text = tis.build_template_semantic_text(template)
         self.assertIn("汇总近期设备告警", text)

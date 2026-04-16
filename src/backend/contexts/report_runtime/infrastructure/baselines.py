@@ -247,11 +247,9 @@ def _build_template_instance_content(
         "schema_version": "ti.v1.0",
         "base_template": {
             "id": template.template_id,
+            "category": template.category or "",
             "name": template.name or "",
-            "category": template.template_type or "",
             "description": template.description or "",
-            "report_type": template.report_type or "daily",
-            "scenario": template.scenario or "",
             "parameters": deepcopy(template.parameters or []),
             "sections": deepcopy(template.sections or []),
         },

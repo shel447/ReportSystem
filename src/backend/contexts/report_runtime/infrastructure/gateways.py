@@ -72,14 +72,12 @@ class RuntimeTemplateGateway:
         if not template:
             return None
         return {
-            "template_id": template.template_id,
+            "id": template.template_id,
             "name": template.name,
             "description": template.description or "",
-            "report_type": template.report_type or "",
-            "scenario": template.scenario or "",
-            "match_keywords": template.match_keywords or [],
-            "content_params": template.content_params or [],
-            "outline": template.outline or [],
+            "category": template.category or "",
+            "parameters": template.parameters or [],
+            "sections": template.sections or [],
         }
 
 

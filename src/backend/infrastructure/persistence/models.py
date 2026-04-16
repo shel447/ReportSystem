@@ -45,98 +45,15 @@ class ReportTemplate(Base):
     id = Column(String, primary_key=True, default=gen_id)
     template_id = synonym("id")
 
+    category = Column(String, nullable=False, default="")
     name = Column(String, nullable=False)
     description = Column(Text, default="")
-    report_type = Column(String, default="daily")
-    scenario = Column(String, default="")
-    template_type = Column(String, default="")
-    scene = Column(String, default="")
-    schema_version = Column(String, default="v2.0")
-    content = Column(JSON, default=dict)
+    parameters = Column(JSON, default=list)
+    sections = Column(JSON, default=list)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     created_by = Column(String, default="system")
     version = Column(String, default="1.0")
-
-    def __init__(self, **kwargs: Any) -> None:
-        content = _as_dict(kwargs.pop("content", {}))
-        for field in ("parameters", "sections", "match_keywords", "content_params", "outline", "output_formats"):
-            if field in kwargs:
-                content[field] = kwargs.pop(field)
-        super().__init__(**kwargs)
-        self.content = self._merged_content(content)
-
-    def _merged_content(self, content: dict[str, Any] | None = None) -> dict[str, Any]:
-        merged = _as_dict(getattr(self, "content", {}))
-        if content:
-            merged.update(content)
-        merged.setdefault("parameters", [])
-        merged.setdefault("sections", [])
-        merged.setdefault("match_keywords", [])
-        merged.setdefault("content_params", [])
-        merged.setdefault("outline", [])
-        merged.setdefault("output_formats", ["md"])
-        return merged
-
-    @property
-    def parameters(self) -> list[Any]:
-        return _as_list(self._merged_content().get("parameters"))
-
-    @parameters.setter
-    def parameters(self, value: list[Any]) -> None:
-        content = self._merged_content()
-        content["parameters"] = _as_list(value)
-        self.content = content
-
-    @property
-    def sections(self) -> list[Any]:
-        return _as_list(self._merged_content().get("sections"))
-
-    @sections.setter
-    def sections(self, value: list[Any]) -> None:
-        content = self._merged_content()
-        content["sections"] = _as_list(value)
-        self.content = content
-
-    @property
-    def match_keywords(self) -> list[Any]:
-        return _as_list(self._merged_content().get("match_keywords"))
-
-    @match_keywords.setter
-    def match_keywords(self, value: list[Any]) -> None:
-        content = self._merged_content()
-        content["match_keywords"] = _as_list(value)
-        self.content = content
-
-    @property
-    def content_params(self) -> list[Any]:
-        return _as_list(self._merged_content().get("content_params"))
-
-    @content_params.setter
-    def content_params(self, value: list[Any]) -> None:
-        content = self._merged_content()
-        content["content_params"] = _as_list(value)
-        self.content = content
-
-    @property
-    def outline(self) -> list[Any]:
-        return _as_list(self._merged_content().get("outline"))
-
-    @outline.setter
-    def outline(self, value: list[Any]) -> None:
-        content = self._merged_content()
-        content["outline"] = _as_list(value)
-        self.content = content
-
-    @property
-    def output_formats(self) -> list[Any]:
-        return _as_list(self._merged_content().get("output_formats"))
-
-    @output_formats.setter
-    def output_formats(self, value: list[Any]) -> None:
-        content = self._merged_content()
-        content["output_formats"] = _as_list(value)
-        self.content = content
 
 
 class ReportInstance(Base):

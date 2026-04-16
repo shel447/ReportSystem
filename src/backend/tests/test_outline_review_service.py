@@ -3,7 +3,6 @@ import unittest
 from backend.contexts.report_runtime.infrastructure.outline import (
     build_frontend_outline,
     build_pending_outline_review,
-    flatten_review_outline,
     merge_outline_override,
     resolve_outline_execution_baseline,
 )
@@ -13,11 +12,10 @@ from backend.contexts.template_catalog.domain.models import ReportTemplate
 class OutlineReviewServiceTests(unittest.TestCase):
     def test_build_pending_outline_review_expands_v2_placeholders_and_foreach(self):
         template = ReportTemplate(
-            template_id="tpl-1",
+            id="tpl-1",
             name="设备巡检报告",
             description="",
-            report_type="special",
-            scenario="总部",
+            category="special",
             version="1.0",
             sections=[
                 {
@@ -31,7 +29,6 @@ class OutlineReviewServiceTests(unittest.TestCase):
                     "content": {"presentation": {"type": "text", "template": "设备 {$device}"}},
                 },
             ],
-            schema_version="v2.0",
         )
 
         outline, warnings = build_pending_outline_review(
@@ -44,39 +41,12 @@ class OutlineReviewServiceTests(unittest.TestCase):
         self.assertEqual(outline[1]["dynamic_meta"]["item"], "D001")
         self.assertEqual(outline[1]["section_kind"], "structured_leaf")
 
-    def test_build_pending_outline_review_uses_legacy_expansion(self):
-        template = ReportTemplate(
-            template_id="tpl-2",
-            name="资产统计报告",
-            description="",
-            report_type="daily",
-            scenario="资产",
-            version="1.0",
-            outline=[
-                {
-                    "title_template": "资产清单 {{item}}",
-                    "description_template": "日期 {{date}}",
-                    "repeat": {"enabled": True, "source_param": "devices"},
-                }
-            ],
-        )
-
-        outline, warnings = build_pending_outline_review(
-            template,
-            {"date": "2026-03-19", "devices": ["A001", "A002"]},
-        )
-
-        self.assertEqual(warnings, [])
-        self.assertEqual([node["title"] for node in outline], ["资产清单 A001", "资产清单 A002"])
-        self.assertEqual(flatten_review_outline(outline)[0]["title"], "资产清单 A001")
-
     def test_build_pending_outline_review_marks_ai_generated_nodes_for_frontend(self):
         template = ReportTemplate(
-            template_id="tpl-3",
+            id="tpl-3",
             name="综合报告",
             description="",
-            report_type="special",
-            scenario="总部",
+            category="special",
             version="1.0",
             sections=[
                 {
@@ -113,7 +83,6 @@ class OutlineReviewServiceTests(unittest.TestCase):
                     ],
                 }
             ],
-            schema_version="v2.0",
         )
 
         outline, warnings = build_pending_outline_review(template, {})
@@ -133,11 +102,10 @@ class OutlineReviewServiceTests(unittest.TestCase):
 
     def test_build_pending_outline_review_derives_leaf_content_preview(self):
         template = ReportTemplate(
-            template_id="tpl-4",
+            id="tpl-4",
             name="巡检报告",
             description="",
-            report_type="special",
-            scenario="总部",
+            category="special",
             version="1.0",
             sections=[
                 {
@@ -157,7 +125,6 @@ class OutlineReviewServiceTests(unittest.TestCase):
                     "title": "自由章节",
                 },
             ],
-            schema_version="v2.0",
         )
 
         outline, warnings = build_pending_outline_review(template, {"scene": "总部"})
@@ -169,11 +136,10 @@ class OutlineReviewServiceTests(unittest.TestCase):
 
     def test_build_pending_outline_review_materializes_outline_blueprint_and_bindings(self):
         template = ReportTemplate(
-            template_id="tpl-5",
+            id="tpl-5",
             name="设备分析报告",
             description="",
-            report_type="special",
-            scenario="总部",
+            category="special",
             version="1.0",
             sections=[
                 {
@@ -196,7 +162,6 @@ class OutlineReviewServiceTests(unittest.TestCase):
                     },
                 }
             ],
-            schema_version="v2.0",
         )
 
         outline, warnings = build_pending_outline_review(template, {"date": "2026-03-19"})
@@ -369,3 +334,4 @@ class OutlineReviewServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

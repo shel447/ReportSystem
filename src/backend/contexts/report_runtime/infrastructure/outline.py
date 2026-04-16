@@ -13,11 +13,7 @@ def build_pending_outline_review(
     template: ReportTemplate,
     input_params: Dict[str, Any],
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
-    if is_v2_template(template):
-        return build_outline_tree_v2({"name": template.name, "sections": template.sections or []}, input_params or {})
-
-    expansion = OutlineExpansionService().expand(template.outline or [], input_params or {})
-    return _treeify_legacy_outline(expansion.nodes), expansion.warnings
+    return build_outline_tree_v2({"name": template.name, "sections": template.sections or []}, input_params or {})
 
 
 def build_frontend_outline(outline: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

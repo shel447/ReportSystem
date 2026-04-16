@@ -41,12 +41,10 @@ describe("TemplatesPage", () => {
           ok: true,
           json: async () => [
             {
-              template_id: "tpl-1",
+              id: "tpl-1",
               name: "设备巡检报告",
               description: "巡检模板",
-              report_type: "daily",
               category: "巡检",
-              schema_version: "v2.0",
               parameter_count: 3,
               top_level_section_count: 4,
             },
@@ -65,7 +63,6 @@ describe("TemplatesPage", () => {
     );
     expect(screen.getByText("3 个参数")).toBeInTheDocument();
     expect(screen.getByText("4 个顶层章节")).toBeInTheDocument();
-    expect(screen.getByText("v2.0")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "新建模板" })).toHaveAttribute("href", "/templates/new");
     expect(screen.queryByLabelText("模板名称")).not.toBeInTheDocument();
   });
@@ -84,17 +81,12 @@ describe("TemplatesPage", () => {
           ok: true,
           json: async () => ({
             normalized_template: {
+              id: "imported_template",
               name: "导入模板",
               description: "",
-              report_type: "daily",
               category: "巡检",
-              match_keywords: [],
-              content_params: [],
               parameters: [],
-              outline: [],
               sections: [],
-              schema_version: "v2.0",
-              output_formats: ["md"],
             },
             source_kind: "system_export",
             warnings: [],
@@ -152,17 +144,12 @@ describe("TemplatesPage", () => {
           ok: true,
           json: async () => ({
             normalized_template: {
+              id: "imported_template",
               name: "导入模板",
               description: "",
-              report_type: "daily",
               category: "巡检",
-              match_keywords: [],
-              content_params: [],
               parameters: [],
-              outline: [],
               sections: [],
-              schema_version: "v2.0",
-              output_formats: ["md"],
             },
             source_kind: "system_export",
             warnings: [],

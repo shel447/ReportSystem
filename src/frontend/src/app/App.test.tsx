@@ -30,16 +30,16 @@ describe("App shell", () => {
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /对话助手/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /报告模板/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /报告实例/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /报告中心/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "对话助手", level: 1 })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { name: "对话助手" })).toHaveLength(1);
   });
 
-  it("removes template instances from navigation", () => {
+  it("keeps navigation scoped to chat templates and reports", () => {
     const view = renderApp("/chat");
     const navItems = Array.from(view.container.querySelectorAll(".nav-item")).map((item) => item.textContent?.trim() ?? "");
 
-    expect(navItems).toEqual(["CH对话助手", "TP报告模板", "IN报告实例", "DOC报告文档", "TSK定时任务"]);
+    expect(navItems).toEqual(["CH对话助手", "TP报告模板", "RP报告中心"]);
   });
 
   it("resolves template detail routes without redirecting to chat", () => {
@@ -56,27 +56,23 @@ describe("App shell", () => {
     expect(screen.queryByRole("heading", { name: "对话助手", level: 1 })).not.toBeInTheDocument();
   });
 
-  it("resolves instance detail routes without redirecting to chat", () => {
-    renderApp("/instances/inst-001");
+  it("resolves report detail routes without redirecting to chat", () => {
+    renderApp("/reports/rpt-001");
 
-    expect(screen.getByRole("heading", { name: "报告实例", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "报告中心", level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "对话助手", level: 1 })).not.toBeInTheDocument();
   });
 
-  it("redirects legacy template-instances route to report instances", () => {
-    renderApp("/template-instances");
+  it("redirects unknown routes back to chat", () => {
+    renderApp("/instances/inst-001");
 
-    expect(screen.getByRole("heading", { name: "报告实例", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "对话助手", level: 1 })).toBeInTheDocument();
   });
 
   it("keeps secondary pages on a single route heading", () => {
-    const documentsView = renderApp("/documents");
-    expect(screen.getAllByRole("heading", { name: "报告文档" })).toHaveLength(1);
-    documentsView.unmount();
-
-    const tasksView = renderApp("/tasks");
-    expect(screen.getAllByRole("heading", { name: "定时任务" })).toHaveLength(1);
-    tasksView.unmount();
+    const reportsView = renderApp("/reports/rpt-001");
+    expect(screen.getAllByRole("heading", { name: "报告中心" })).toHaveLength(1);
+    reportsView.unmount();
 
     renderApp("/settings");
     expect(screen.getAllByRole("heading", { name: "系统设置" })).toHaveLength(1);

@@ -20,10 +20,9 @@ class ChatRouterTests(unittest.TestCase):
         Base.metadata.create_all(bind=engine)
         self.db = TestingSessionLocal()
         self.template = ReportTemplate(
-            template_id="tpl-1",
+            id="tpl-1",
             name="设备巡检报告",
-            template_type="设备健康评估",
-            scene="总部",
+            category="设备健康评估",
             parameters=[
                 {"id": "scene", "label": "场景", "required": True, "input_type": "enum", "options": ["总部"]},
                 {
@@ -48,7 +47,6 @@ class ChatRouterTests(unittest.TestCase):
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 },
             ],
-            schema_version="v2.0",
         )
         self.db.add(self.template)
         self.db.commit()
@@ -125,13 +123,13 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(self.db.query(TemplateInstance).count(), 1)
 
         fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
-        fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", template_id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
+        fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.contexts.conversation.infrastructure.gateways.build_instance_application_service", return_value=fake_app_service), \
              patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.serialize_document",
-                 return_value={"document_id": "doc-1", "download_url": "/rest/chatbi/v1/documents/doc-1/download"},
+                 return_value={"document_id": "doc-1", "download_url": "/rest/chatbi/v1/reports/inst-1/documents/doc-1/download"},
              ):
             third = send_message(
                 ChatMessage(
@@ -161,10 +159,9 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_confirm_outline_generation_resolves_outline_blocks_into_execution_baseline(self):
         outline_template = ReportTemplate(
-            template_id="tpl-outline",
+            id="tpl-outline",
             name="蓝图设备巡检报告",
-            template_type="设备健康评估",
-            scene="总部",
+            category="设备健康评估",
             parameters=[
                 {"id": "scene", "label": "场景", "required": True, "input_type": "enum", "options": ["总部"]},
             ],
@@ -173,7 +170,7 @@ class ChatRouterTests(unittest.TestCase):
                     "title": "分析章节",
                     "description": "查看章节内容",
                     "outline": {
-                        "document": "分析 {@target_scene} 的巡检情况",
+                        "requirement": "分析 {@target_scene} 的巡检情况",
                         "items": [
                             {
                                 "id": "target_scene",
@@ -198,7 +195,6 @@ class ChatRouterTests(unittest.TestCase):
                     },
                 }
             ],
-            schema_version="v2.0",
         )
         self.db.add(outline_template)
         self.db.commit()
@@ -234,7 +230,7 @@ class ChatRouterTests(unittest.TestCase):
         fake_doc = SimpleNamespace(
             document_id="doc-outline",
             instance_id="inst-outline",
-            template_id="tpl-outline",
+            id="tpl-outline",
             format="md",
             file_path="outline.md",
             file_size=10,
@@ -247,7 +243,7 @@ class ChatRouterTests(unittest.TestCase):
              patch("backend.contexts.conversation.infrastructure.gateways.create_markdown_document", return_value=fake_doc), \
              patch(
                  "backend.contexts.conversation.infrastructure.gateways.serialize_document",
-                 return_value={"document_id": "doc-outline", "download_url": "/rest/chatbi/v1/documents/doc-outline/download"},
+                 return_value={"document_id": "doc-outline", "download_url": "/rest/chatbi/v1/reports/inst-outline/documents/doc-outline/download"},
              ):
             edited_outline = second["action"]["outline"]
             edited_outline[0]["requirement_instance"]["rendered_requirement"] = "分析 湿度 的巡检情况"
@@ -823,10 +819,9 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_asks_next_chat_mode_param_with_plain_text_reply(self):
         mixed_template = ReportTemplate(
-            template_id="tpl-mixed",
+            id="tpl-mixed",
             name="混合追问模板",
-            template_type="设备健康评估",
-            scene="总部",
+            category="设备健康评估",
             parameters=[
                 {
                     "id": "scene",
@@ -850,7 +845,6 @@ class ChatRouterTests(unittest.TestCase):
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 }
             ],
-            schema_version="v2.0",
         )
         self.db.add(mixed_template)
         self.db.commit()
@@ -875,10 +869,9 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_uses_chat_mode_answer_as_report_param_instead_of_switching(self):
         mixed_template = ReportTemplate(
-            template_id="tpl-mixed-continue",
+            id="tpl-mixed-continue",
             name="混合追问继续模板",
-            template_type="设备健康评估",
-            scene="总部",
+            category="设备健康评估",
             parameters=[
                 {
                     "id": "scene",
@@ -902,7 +895,6 @@ class ChatRouterTests(unittest.TestCase):
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 }
             ],
-            schema_version="v2.0",
         )
         self.db.add(mixed_template)
         self.db.commit()
@@ -938,10 +930,9 @@ class ChatRouterTests(unittest.TestCase):
 
     def test_send_message_still_confirms_switch_when_chat_mode_pending_and_user_explicitly_switches(self):
         mixed_template = ReportTemplate(
-            template_id="tpl-mixed-switch",
+            id="tpl-mixed-switch",
             name="混合追问切换模板",
-            template_type="设备健康评估",
-            scene="总部",
+            category="设备健康评估",
             parameters=[
                 {
                     "id": "scene",
@@ -965,7 +956,6 @@ class ChatRouterTests(unittest.TestCase):
                     "content": {"presentation": {"type": "text", "template": "ok"}},
                 }
             ],
-            schema_version="v2.0",
         )
         self.db.add(mixed_template)
         self.db.commit()
@@ -1006,3 +996,6 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+

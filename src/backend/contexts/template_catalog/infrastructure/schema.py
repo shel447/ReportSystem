@@ -8,7 +8,6 @@ from typing import Any, Dict
 from jsonschema import Draft7Validator
 
 
-SCHEMA_VERSION = "v2.0"
 _SCHEMA_PATH = Path(__file__).resolve().parents[3] / "report_template_schema_v2.json"
 _SCHEMA = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
 _VALIDATOR = Draft7Validator(_SCHEMA)
@@ -27,12 +26,9 @@ def normalize_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     normalized = normalize_template_payload(payload)
-    if not _is_v2_candidate(normalized):
-        return normalized
-
     candidate = {
         "id": str(normalized.get("id") or "report_template"),
-        "category": str(normalized.get("category") or normalized.get("type") or normalized.get("template_type") or ""),
+        "category": str(normalized.get("category") or ""),
         "name": str(normalized.get("name") or ""),
         "description": str(normalized.get("description") or ""),
         "parameters": normalized.get("parameters") or [],
@@ -43,20 +39,7 @@ def validate_template_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError(_format_validation_error(errors[0]))
 
     _validate_parameter_semantics(normalized.get("parameters") or [])
-    normalized["schema_version"] = str(normalized.get("schema_version") or SCHEMA_VERSION)
-    return normalized
-
-
-def _is_v2_candidate(payload: Dict[str, Any]) -> bool:
-    return any(
-        [
-            payload.get("sections"),
-            payload.get("parameters"),
-            payload.get("category"),
-            payload.get("type"),
-            str(payload.get("schema_version") or "").startswith("v2"),
-        ]
-    )
+    return candidate
 
 
 def _normalize_section(section: Any) -> Any:

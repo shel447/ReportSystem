@@ -18,31 +18,21 @@ router = APIRouter(prefix="/templates", tags=["templates"])
 
 
 class TemplateCreate(BaseModel):
+    id: str
     name: str
     description: str = ""
-    report_type: str = "daily"
     category: str = ""
-    match_keywords: List[str] = []
-    content_params: List[Any] = []
     parameters: List[Any] = []
-    outline: List[Any] = []
     sections: List[Any] = []
-    schema_version: str = ""
-    output_formats: List[str] = ["pdf"]
 
 
 class TemplateUpdate(BaseModel):
+    id: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
-    report_type: Optional[str] = None
     category: Optional[str] = None
-    match_keywords: Optional[List[str]] = None
-    content_params: Optional[List[Any]] = None
     parameters: Optional[List[Any]] = None
-    outline: Optional[List[Any]] = None
     sections: Optional[List[Any]] = None
-    schema_version: Optional[str] = None
-    output_formats: Optional[List[str]] = None
 
 
 class TemplateImportPreviewRequest(BaseModel):

@@ -55,6 +55,23 @@ class FrontendServingTests(unittest.TestCase):
             self.assertEqual(legacy_response.status_code, 404)
             self.assertNotIn("spa-entry", legacy_response.text)
 
+    def test_removed_public_resource_paths_return_404(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            index_path = os.path.join(temp_dir, "index.html")
+            with open(index_path, "w", encoding="utf-8") as f:
+                f.write("<html><body>spa-entry</body></html>")
+
+            client = TestClient(create_app(frontend_dir=temp_dir))
+
+            for path in (
+                "/rest/chatbi/v1/instances",
+                "/rest/chatbi/v1/scheduled-tasks",
+                "/rest/chatbi/v1/documents",
+            ):
+                response = client.get(path, headers={"X-User-Id": "default"})
+                self.assertEqual(response.status_code, 404, path)
+                self.assertNotIn("spa-entry", response.text)
+
     def test_chatbi_request_creates_user_mirror_record(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             index_path = os.path.join(temp_dir, "index.html")
