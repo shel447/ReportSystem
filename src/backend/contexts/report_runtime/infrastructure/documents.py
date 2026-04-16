@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from sqlalchemy.orm import Session
 
-from ....infrastructure.persistence.models import ReportDocument, ReportInstance, ReportTemplate, gen_id
+from ....infrastructure.persistence.models import ReportDocument, ReportInstance, ReportTemplate, TemplateInstance, gen_id
 
 DOCUMENTS_DIR = os.path.join(os.path.dirname(__file__), "generated_documents")
 SUPPORTED_DOCUMENT_FORMATS = {"md": "md", "markdown": "md"}
@@ -53,6 +53,7 @@ def create_markdown_document(db: Session, instance_id: str) -> ReportDocument:
     db.add(document)
     db.commit()
     db.refresh(document)
+    _append_document_to_template_instance(db, instance.instance_id, document)
     return document
 
 
@@ -182,3 +183,35 @@ def _strip_duplicate_heading(content: str, title: str) -> str:
         if heading == title:
             return "\n".join(lines[1:]).strip()
     return content
+
+
+def _append_document_to_template_instance(db: Session, instance_id: str, document: ReportDocument) -> None:
+    record = (
+        db.query(TemplateInstance)
+        .filter(TemplateInstance.report_instance_id == instance_id)
+        .order_by(TemplateInstance.created_at.desc(), TemplateInstance.template_instance_id.desc())
+        .first()
+    )
+    if not record:
+        return
+    content = dict(record.content or {})
+    generated = dict(content.get("generated_content") or {})
+    docs = list(generated.get("documents") or [])
+    docs.append(
+        {
+            "document_id": document.document_id,
+            "format": document.format,
+            "download_url": f"{DOCUMENTS_API_PREFIX}/{document.document_id}/download",
+            "generated_at": str(document.created_at),
+        }
+    )
+    generated["documents"] = docs
+    generated.setdefault("sections", [])
+    content["generated_content"] = generated
+    instance_meta = dict(content.get("instance_meta") or {})
+    instance_meta["revision"] = max(1, int(instance_meta.get("revision") or 1) + 1)
+    instance_meta["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    content["instance_meta"] = instance_meta
+    record.content = content
+    db.add(record)
+    db.commit()

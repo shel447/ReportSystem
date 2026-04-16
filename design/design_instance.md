@@ -8,15 +8,15 @@
 
 ## 1. 内部模板实例 (TemplateInstance)
 
-`TemplateInstance` 仍然存在，但它已经从用户侧模块退回为**内部生成基线快照**。它不再作为独立页面或独立术语暴露给用户，而是作为 `ReportInstance` 的生成前基线被内部保存，用于支持：
+`TemplateInstance` 仍然存在，但它已经从用户侧模块退回为**内部核心运行模型**。它不再作为独立页面或独立术语暴露给用户，而是贯穿 `ReportInstance` 的制作流程被持续维护，用于支持：
 
 - 从报告实例重新打开一轮“更新”对话
 - 查看该实例生成时所确认的大纲与参数
 - 基于来源会话节点继续 `Fork` 对话分支
 
-> 代码层当前统一使用 `GenerationBaseline` 指代这一内部概念；只有基础设施持久化层仍直接感知 `template_instances` 表。
+> 代码层统一使用 `TemplateInstance` 命名；底层持久化仍落在 `template_instances`（`tbl_template_instances`）表。
 
-在当前版本中，这份内部快照同时保存两类信息：
+在当前版本中，这份内部模型同时保存两类信息：
 
 - **实例级诉求树**
   - 用户确认后的章节句式、诉求要素值和结构
@@ -32,7 +32,7 @@ class TemplateInstance:
     template_id: str
     report_instance_id: str
     session_id: str
-    capture_stage: str  # generation_baseline
+    capture_stage: str  # outline_saved / outline_confirmed / generation_baseline(兼容值)
     schema_version: str
     content: Dict[str, Any]
     created_at: datetime
@@ -41,18 +41,18 @@ class TemplateInstance:
 
 ### 1.2 生命周期说明
 
-- `prepare_outline_review`：仅进入大纲确认，不落模板实例
-- `edit_outline`：只更新当前对话上下文中的待确认大纲
-- `confirm_outline_generation`：生成报告实例时，同时创建其唯一的 `generation_baseline` 快照
+- `prepare_outline_review`：进入大纲确认，并创建/更新当前会话对应的模板实例
+- `edit_outline`：更新待确认大纲时，同步更新同一份模板实例
+- `confirm_outline_generation`：生成报告实例时，将当前模板实例绑定到 `report_instance_id` 并升级为可执行完成态
   - 先保留用户确认后的实例级诉求树
   - 再把诉求值解析进执行链路，形成实例级执行基线
 - `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改（用户侧先在实例详情预览确认大纲，再显式进入对话）
 
-> `TemplateInstance` 现在不再是追加式历史记录。对每个新 `ReportInstance`，系统只保留一份对应的内部生成基线。
+> `TemplateInstance` 不是追加式历史记录。对每个新 `ReportInstance`，系统维护一份对应的模板实例聚合，并在生成与重生成链路持续更新其运行态。
 
-### 1.3 基线快照内容
+### 1.3 模板实例内容
 
-`TemplateInstance` 作为内部快照对象，更适合整体存储。其详细内容统一进入 `content`，由 `schema_version` 定义整体结构。
+`TemplateInstance` 作为内部聚合对象，详细内容统一进入 `content`，由 `schema_version` 定义整体结构。
 
 推荐 `content` 至少包含：
 

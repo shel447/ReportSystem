@@ -2,9 +2,9 @@
 
 ## 1. 模块定位
 
-`report_runtime` 负责报告实例生命周期、实例级大纲确认、生成基线、章节生成、实例更新、文档导出。它是系统里最核心的“执行上下文”。
+`report_runtime` 负责报告实例生命周期、实例级大纲确认、模板实例维护、章节生成、实例更新、文档导出。它是系统里最核心的“执行上下文”。
 
-当前代码里，用户可见的“报告实例”和内部的“生成基线”由同一上下文统一管理。
+当前代码里，`TemplateInstance` 已作为核心领域模型，贯穿“参数收集 -> 诉求确认 -> 生成 -> 更新”全流程，并持续更新同一份实例状态。
 
 ## 2. 代码落点
 
@@ -27,8 +27,9 @@
 
 - `ReportInstance`
   - 用户可感知的报告实例，保存输入参数、章节结果、状态、`report_time`
-- `GenerationBaseline`
-  - 代码层对内部 `TemplateInstance` 的业务命名，保存已确认参数和大纲快照
+- `TemplateInstance`
+  - 报告制作过程中的核心聚合对象，组合 `base_template` 与实例运行态（`runtime_state / resolved_view / generated_content / fragments`）
+  - 对外仍兼容 `generation baseline` 查询语义
 - `ExecutionBaseline`
   - 当前未独立 dataclass 化，仍以内嵌 JSON 形式进入 `outline_snapshot` 和实例内容，但业务上已经存在
 - `OutlineReviewTree`
@@ -38,7 +39,7 @@
 
 ### domain
 
-- `ReportInstance`、`GenerationBaseline` 作为轻量领域模型
+- `ReportInstance`、`TemplateInstance` 作为核心领域模型
 - `OutlineExpansionService`
   - 负责旧 `outline` 结构的参数替换、repeat 展开和 warning 产出
 - `is_v2_template()`
@@ -68,7 +69,7 @@
 - `generation.py`
   - OpenAI 内容生成器、章节生成、v2 诉求驱动生成
 - `baselines.py`
-  - 生成基线的捕获和读取
+  - 模板实例的捕获、持续更新和兼容查询序列化
 - `documents.py`
   - Markdown 文档落盘、版本号递增、下载路径解析
 
@@ -76,7 +77,7 @@
 
 - `instances.py`：实例列表、详情、更新、baseline、更新会话、fork 来源
 - `documents.py`：文档创建、下载、删除
-- `template_instances.py`：兼容性的 baseline 只读接口
+- `template_instances.py`：模板实例只读列表接口（兼容 baseline 视图）
 
 ## 5. 核心实现链路
 
@@ -108,7 +109,7 @@ sequenceDiagram
 2. 用户在对话中修改大纲
 3. `merge_outline_override()` 合并用户改动
 4. `resolve_outline_execution_baseline()` 把大纲节点解析为实例级执行基线
-5. 创建实例后，`capture_generation_baseline()` 将其固化到 `template_instances`
+5. 创建实例后，`capture_generation_baseline()` 不再“删旧建新”，而是更新同一模板实例记录并绑定 `report_instance_id`
 
 ### 5.3 章节重生成
 
@@ -156,7 +157,7 @@ sequenceDiagram
 ### 业务规格
 
 - 模板双层模型：诉求确认在前，执行链路解析在后
-- `GenerationBaseline` 作为内部生成基线快照
+- `TemplateInstance` 作为模板扩展聚合（组合 `base_template` + 运行时状态），并在全流程持续维护
 - 章节重生成和文档导出生命周期
 
 ### 可替换 adapter
@@ -165,6 +166,5 @@ sequenceDiagram
 - 查询引擎可替换成其他 SQL / Ibis / 向量检索方案
 - 文档渲染器和文件存储可替换成对象存储、其他格式渲染器
 - 只要 `ReportRuntimeService`、`ReportDocumentService` 和 `ReportInstanceCreationService` 的行为契约不变，业务规格不需要改
-
 
 

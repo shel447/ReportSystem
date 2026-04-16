@@ -113,7 +113,7 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(second["action"]["type"], "review_outline")
         self.assertEqual(second["action"]["outline"][0]["title"], "总部概述")
         self.assertEqual(second["action"]["outline"][1]["title"], "设备 A001")
-        self.assertEqual(self.db.query(TemplateInstance).count(), 0)
+        self.assertEqual(self.db.query(TemplateInstance).count(), 1)
 
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}):
             saved = send_message(
@@ -122,7 +122,7 @@ class ChatRouterTests(unittest.TestCase):
             )
 
         self.assertEqual(saved["action"]["type"], "review_outline")
-        self.assertEqual(self.db.query(TemplateInstance).count(), 0)
+        self.assertEqual(self.db.query(TemplateInstance).count(), 1)
 
         fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
         fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", template_id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
@@ -1054,5 +1054,4 @@ class ChatRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 

@@ -150,7 +150,7 @@ def _build_outline_review_session_from_template_instance(
     template_payload = {
         "template_id": template.template_id,
         "name": template.name,
-        "scene": template.scene or template.scenario,
+        "scenario": template.scenario,
     }
     template_params = normalize_parameters((template.parameters or []) if template.parameters else (template.content_params or []))
     base_outline, build_warnings = build_pending_outline_review(
@@ -274,7 +274,6 @@ def _template_domain_from_model(template: ReportTemplate):
         report_type=template.report_type or "",
         scenario=template.scenario or "",
         template_type=template.template_type or "",
-        scene=template.scene or "",
         match_keywords=template.match_keywords or [],
         content_params=template.content_params or [],
         version=template.version or "1.0",

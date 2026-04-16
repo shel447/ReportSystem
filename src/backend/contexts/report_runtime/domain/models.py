@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, List
 
+from ...template_catalog.domain.models import ReportTemplate
+
 
 @dataclass(slots=True)
 class ReportInstance:
@@ -22,14 +24,23 @@ class ReportInstance:
 
 
 @dataclass(slots=True)
-class GenerationBaseline:
+class TemplateInstance:
     template_instance_id: str
     template_id: str
     template_name: str
     session_id: str
     capture_stage: str
+    base_template: ReportTemplate | None = None
+    schema_version: str = "ti.v1.0"
+    status: str = "draft"
+    revision: int = 1
     input_params_snapshot: dict[str, Any] = field(default_factory=dict)
     outline_snapshot: list[dict[str, Any]] = field(default_factory=list)
+    resolved_view: dict[str, Any] = field(default_factory=dict)
+    runtime_state: dict[str, Any] = field(default_factory=dict)
+    generated_content: dict[str, Any] = field(default_factory=dict)
+    fragments: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     report_instance_id: str | None = None
     created_at: datetime | None = None
+

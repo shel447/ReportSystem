@@ -370,16 +370,16 @@ class ConversationService:
         return {"message": "deleted"}
 
     def update_session_from_instance(self, *, instance_id: str, user_id: str = "default") -> dict[str, Any]:
-        baseline = self.persistence.get_generation_baseline(instance_id)
-        if not baseline:
-            raise NotFoundError("Generation baseline not found")
+        template_instance = self.persistence.get_template_instance_by_instance(instance_id)
+        if not template_instance:
+            raise NotFoundError("Template instance not found")
         report_instance = self.persistence.get_report_instance(instance_id, user_id=user_id)
         preferred_session_id = str(getattr(report_instance, "source_session_id", "") or "").strip() if report_instance else ""
         if preferred_session_id:
             source_session = self.persistence.get_session(preferred_session_id, user_id=user_id)
             if not source_session:
                 raise NotFoundError("Source session not found")
-        return self.fork_gateway.update_session_from_generation_baseline(template_instance=baseline)
+        return self.fork_gateway.update_session_from_template_instance(template_instance=template_instance)
 
     def list_instance_fork_sources(self, *, instance_id: str, user_id: str = "default") -> list[dict[str, Any]]:
         session_id = self._resolve_instance_source_session_id(instance_id=instance_id, user_id=user_id)
@@ -564,6 +564,16 @@ class ConversationService:
                     report["pending_outline_review"] = outline_review
                     report["outline_review_warnings"] = outline_warnings
                     state["report"] = report
+                    self.report_gateway.capture_template_instance_state(
+                        template=template,
+                        session_id=session.session_id,
+                        capture_stage="outline_confirmed",
+                        input_params_snapshot=merged,
+                        outline_snapshot=outline_review,
+                        warnings=outline_warnings,
+                        report_instance_id=None,
+                        created_by=session.user_id or "system",
+                    )
                     reply = "参数已确认，请检查报告诉求。"
                     action = self.report_gateway.build_review_outline_action(state, template_params)
                     flow = state.get("flow") or {}
@@ -577,6 +587,16 @@ class ConversationService:
                 pending_outline = report.get("pending_outline_review") or []
                 report["pending_outline_review"] = self.report_gateway.merge_outline_override(pending_outline, data.outline_override or [])
                 state["report"] = report
+                self.report_gateway.capture_template_instance_state(
+                    template=template,
+                    session_id=session.session_id,
+                    capture_stage="outline_confirmed",
+                    input_params_snapshot=merged,
+                    outline_snapshot=report.get("pending_outline_review") or [],
+                    warnings=report.get("outline_review_warnings") or [],
+                    report_instance_id=None,
+                    created_by=session.user_id or "system",
+                )
                 reply = "报告诉求已更新，请继续确认。"
                 action = self.report_gateway.build_review_outline_action(state, template_params)
                 flow = state.get("flow") or {}
@@ -610,7 +630,7 @@ class ConversationService:
                         source_message_id=None,
                     )
                     try:
-                        self.report_gateway.capture_generation_baseline(
+                        self.report_gateway.capture_template_instance_for_generation(
                             template=template,
                             session_id=session.session_id,
                             report_instance_id=created["instance_id"],
@@ -680,10 +700,10 @@ class ConversationService:
         preferred = str(getattr(report_instance, "source_session_id", "") or "").strip()
         if preferred:
             return preferred
-        baseline = self.persistence.get_generation_baseline(instance_id)
-        if not baseline:
-            raise NotFoundError("Generation baseline not found")
-        return str(getattr(baseline, "session_id", "") or "").strip()
+        template_instance = self.persistence.get_template_instance_by_instance(instance_id)
+        if not template_instance:
+            raise NotFoundError("Template instance not found")
+        return str(getattr(template_instance, "session_id", "") or "").strip()
 
     @staticmethod
     def _clone_chat_message(source, **overrides):

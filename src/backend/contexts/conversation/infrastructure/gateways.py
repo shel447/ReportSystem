@@ -65,7 +65,11 @@ from .parameters import (
 )
 from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 from ....infrastructure.settings.system_settings import get_settings_payload
-from ....contexts.report_runtime.infrastructure.baselines import capture_generation_baseline, get_generation_baseline
+from ....contexts.report_runtime.infrastructure.baselines import (
+    capture_generation_baseline,
+    capture_template_instance,
+    get_generation_baseline,
+)
 from ....contexts.template_catalog.infrastructure.indexing import TemplateIndexUnavailableError, match_templates
 from ..application.errors import ConversationReplyError
 
@@ -145,7 +149,7 @@ class ConversationPersistenceGateway:
             .first()
         )
 
-    def get_generation_baseline(self, instance_id: str):
+    def get_template_instance_by_instance(self, instance_id: str):
         return get_generation_baseline(self.db, instance_id)
 
     def get_report_instance(self, instance_id: str, *, user_id: str):
@@ -445,7 +449,7 @@ class ConversationReportGateway:
     def serialize_document(self, document) -> dict[str, Any]:
         return serialize_document(document)
 
-    def capture_generation_baseline(
+    def capture_template_instance_for_generation(
         self,
         *,
         template,
@@ -464,6 +468,31 @@ class ConversationReportGateway:
             input_params_snapshot=input_params_snapshot,
             outline_snapshot=outline_snapshot,
             warnings=warnings,
+            created_by=created_by,
+        )
+        self.db.commit()
+
+    def capture_template_instance_state(
+        self,
+        *,
+        template,
+        session_id: str,
+        capture_stage: str,
+        input_params_snapshot: dict[str, Any],
+        outline_snapshot: list[dict[str, Any]],
+        warnings: list[str] | None,
+        report_instance_id: str | None,
+        created_by: str,
+    ) -> None:
+        capture_template_instance(
+            self.db,
+            template=template,
+            session_id=session_id,
+            capture_stage=capture_stage,
+            input_params_snapshot=input_params_snapshot,
+            outline_snapshot=outline_snapshot,
+            warnings=warnings,
+            report_instance_id=report_instance_id,
             created_by=created_by,
         )
         self.db.commit()
@@ -497,7 +526,7 @@ class ConversationForkGateway:
                 raise ConflictError(str(exc.detail)) from exc
             raise ValidationError(str(exc.detail)) from exc
 
-    def update_session_from_generation_baseline(self, *, template_instance) -> dict[str, Any]:
+    def update_session_from_template_instance(self, *, template_instance) -> dict[str, Any]:
         try:
             return update_session_from_template_instance(self.db, template_instance=template_instance)
         except HTTPException as exc:

@@ -8,9 +8,9 @@ from ..application.services import ReportDocumentService, ReportRuntimeService
 from ..application.creation import ReportInstanceCreationService, ScheduledReportRunService
 from .repositories import (
     SqlAlchemyDocumentRepository,
-    SqlAlchemyGenerationBaselineRepository,
     SqlAlchemyReportInstanceRepository,
     SqlAlchemyRuntimeTemplateRepository,
+    SqlAlchemyTemplateInstanceRepository,
 )
 from ....shared.kernel.errors import UpstreamError, ValidationError
 from ....infrastructure.ai.openai_compat import AIConfigurationError, AIRequestError, OpenAICompatGateway
@@ -201,7 +201,7 @@ def build_report_runtime_service(db: Session) -> ReportRuntimeService:
     return ReportRuntimeService(
         instance_creator=InstanceCreationGateway(db),
         instance_repository=SqlAlchemyReportInstanceRepository(db),
-        generation_baseline_repository=SqlAlchemyGenerationBaselineRepository(db),
+        template_instance_repository=SqlAlchemyTemplateInstanceRepository(db),
         template_repository=RuntimeTemplateGateway(db),
         legacy_runtime=LegacySectionRuntimeGateway(db),
     )

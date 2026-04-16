@@ -63,7 +63,7 @@
 在本系统中的体现：
 
 - 文档不直接保存用户归属，而通过 `instance_id -> report_instance.user_id` 间接判断
-- 模板实例不把用户侧可见信息扩散为新的业务主对象
+- 模板实例作为报告制作过程中的核心运行态聚合对象，按实例上下文持续维护
 
 ### 4NF（补充）
 
@@ -150,8 +150,8 @@ erDiagram
   - 基于哪个模板生成
   - 若来自对话，则来自哪个会话、哪条消息
 - 报告实例的详细内容统一进入 `content`
-- `tbl_template_instances` 是报告生成时保留下来的内部生成基线快照
-- 模板实例的详细快照统一进入 `content`
+- `tbl_template_instances` 是报告制作过程的模板实例聚合（Template + Runtime）
+- 模板实例详细结构统一进入 `content`，并在流程内持续更新
 - `tbl_report_documents` 是报告实例导出的文档记录
 
 5. 调度
@@ -166,7 +166,7 @@ erDiagram
 - 会话承载对话过程，消息承载对话内容
 - 报告实例是用户产物之一，可以来源于会话中的某次消息触发，也可以来源于定时任务执行
 - 模板定义“报告该怎么生成”，报告实例定义“某次实际生成的结果”
-- 生成基线快照是报告实例的内部恢复依据，不是独立业务产物
+- 模板实例既是恢复依据，也是报告制作过程中的核心运行状态载体
 - 文档是报告实例的导出物，不是独立于报告存在的业务对象
 - 定时任务以报告实例或模板为输入，执行后继续产生新的报告实例，从而形成“实例 -> 调度 -> 新实例”的链路
 
@@ -175,7 +175,7 @@ erDiagram
 - 不把报告实例反向挂到会话上
 - 不把消息内嵌成会话的一个 JSON 大字段
 - 不把文档当成独立归属对象
-- 不把生成基线快照当成用户侧主对象
+- 模板实例不替代报告实例；两者分别承载“运行态过程”与“用户产物”
 - 对模板、实例、基线三类整体对象，优先使用 `schema_version + content` 管理整体结构
 
 ## 4. 表清单
@@ -185,7 +185,7 @@ erDiagram
 | `tbl_users` | `users` | `identity mirror` | 用户镜像主表 |
 | `tbl_report_templates` | `report_templates` | `template_catalog` | 模板主数据 |
 | `tbl_report_instances` | `report_instances` | `report_runtime` | 用户可见的报告实例 |
-| `tbl_template_instances` | `template_instances` | `report_runtime` | 内部生成基线快照 |
+| `tbl_template_instances` | `template_instances` | `report_runtime` | 模板实例运行态聚合 |
 | `tbl_report_documents` | `report_documents` | `report_runtime` | 文档元数据 |
 | `tbl_scheduled_tasks` | `scheduled_tasks` | `scheduling` | 定时任务定义 |
 | `tbl_scheduled_task_executions` | `scheduled_task_executions` | `scheduling` | 定时任务执行记录 |
@@ -342,28 +342,28 @@ ON tbl_report_instances(updated_at);
 
 ### 5.4 `tbl_template_instances`
 
-用途：保存内部生成基线快照。
+用途：保存模板实例运行态聚合（模板扩展对象），并在报告制作过程中持续更新。
 
 关联策略说明：
 
 - `tbl_template_instances.report_instance_id -> tbl_report_instances.id`
 - 外键放在 `template_instances` 一侧，而不是 `report_instances` 一侧
-- 原因是 `TemplateInstance` 属于内部依附对象，`ReportInstance` 属于用户主对象
-- 这样可以避免把内部快照 ID 暴露为实例主表字段
+- 原因是 `TemplateInstance` 是运行态聚合，`ReportInstance` 是用户产物
+- 这样可以避免把运行态对象 ID 暴露为实例主表字段
 
 当前实现表名：`template_instances`
 
 | 字段名 | 类型 | 非空 | 默认值 | 说明 |
 |------|------|------|------|------|
-| `id` | `TEXT` | 是 | UUID | 基线快照主键 |
+| `id` | `TEXT` | 是 | UUID | 模板实例主键 |
 | `template_id` | `TEXT` | 是 | 无 | 来源模板 ID |
-| `report_instance_id` | `TEXT` | 否 | `NULL` | 关联实例 ID，设计上要求同一实例最多一份内部生成基线 |
-| `session_id` | `TEXT` | 否 | `''` | 来源会话 ID，仅用于 baseline 恢复与历史兼容回退 |
-| `capture_stage` | `TEXT` | 否 | `'outline_saved'` | 捕获阶段 |
+| `report_instance_id` | `TEXT` | 否 | `NULL` | 关联实例 ID，单实例最多一份模板实例记录 |
+| `session_id` | `TEXT` | 否 | `''` | 来源会话 ID，用于对话恢复和持续更新锚点 |
+| `capture_stage` | `TEXT` | 否 | `'outline_saved'` | 当前运行阶段 |
 | `schema_version` | `TEXT` | 否 | `''` | `content` 的整体结构版本 |
 | `created_at` | `DATETIME` | 否 | `CURRENT_TIMESTAMP` | 创建时间 |
 | `created_by` | `TEXT` | 否 | `'system'` | 创建人 |
-| `content` | `JSON` | 否 | `{}` | 基线完整快照，统一承载 `input_params_snapshot / outline_snapshot / warnings` 等详细结构 |
+| `content` | `JSON` | 否 | `{}` | 模板实例完整结构，承载 `base_template / instance_meta / runtime_state / resolved_view / generated_content / fragments`（并兼容 `input_params_snapshot / outline_snapshot / warnings`） |
 
 ```sql
 CREATE TABLE IF NOT EXISTS tbl_template_instances (

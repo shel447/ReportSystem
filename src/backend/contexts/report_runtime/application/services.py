@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, Optional
 
-from ..domain.models import GenerationBaseline, ReportInstance
+from ..domain.models import ReportInstance, TemplateInstance
 from ....shared.kernel.errors import NotFoundError, ValidationError
 
 
@@ -13,13 +13,13 @@ class ReportRuntimeService:
         *,
         instance_creator,
         instance_repository,
-        generation_baseline_repository,
+        template_instance_repository,
         template_repository,
         legacy_runtime,
     ) -> None:
         self.instance_creator = instance_creator
         self.instance_repository = instance_repository
-        self.generation_baseline_repository = generation_baseline_repository
+        self.template_instance_repository = template_instance_repository
         self.template_repository = template_repository
         self.legacy_runtime = legacy_runtime
 
@@ -40,25 +40,25 @@ class ReportRuntimeService:
 
     def get_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
         instance = self._require_instance(instance_id, user_id=user_id)
-        baseline = self.generation_baseline_repository.get_by_instance(instance_id)
-        return self.serialize_instance(instance, baseline)
+        template_instance = self.template_instance_repository.get_by_instance(instance_id)
+        return self.serialize_instance(instance, template_instance)
 
     def list_instances(self, *, template_id: str | None = None, user_id: str = "default") -> list[dict[str, Any]]:
         instances = self.instance_repository.list(template_id, user_id=user_id)
-        baseline_map = self.generation_baseline_repository.list_map_by_instances([item.instance_id for item in instances])
-        return [self.serialize_instance(item, baseline_map.get(item.instance_id)) for item in instances]
+        template_instance_map = self.template_instance_repository.list_map_by_instances([item.instance_id for item in instances])
+        return [self.serialize_instance(item, template_instance_map.get(item.instance_id)) for item in instances]
 
     def update_instance(self, instance_id: str, updates: dict[str, Any], *, user_id: str = "default") -> dict[str, Any]:
         try:
             instance = self.instance_repository.update_fields(instance_id, updates, user_id=user_id)
         except LookupError as exc:
             raise NotFoundError("Instance not found") from exc
-        baseline = self.generation_baseline_repository.get_by_instance(instance_id)
-        return self.serialize_instance(instance, baseline)
+        template_instance = self.template_instance_repository.get_by_instance(instance_id)
+        return self.serialize_instance(instance, template_instance)
 
     def delete_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
         try:
-            self.generation_baseline_repository.delete_by_instance(instance_id)
+            self.template_instance_repository.delete_by_instance(instance_id)
             self.instance_repository.delete(instance_id, user_id=user_id)
         except LookupError as exc:
             raise NotFoundError("Instance not found") from exc
@@ -73,10 +73,10 @@ class ReportRuntimeService:
 
     def get_generation_baseline(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
         self._require_instance(instance_id, user_id=user_id)
-        baseline = self.generation_baseline_repository.get_by_instance(instance_id)
-        if not baseline:
-            raise NotFoundError("Generation baseline not found")
-        return build_generation_baseline_payload(baseline)
+        template_instance = self.template_instance_repository.get_by_instance(instance_id)
+        if not template_instance:
+            raise NotFoundError("Template instance not found")
+        return build_generation_baseline_payload(template_instance)
 
     def regenerate_section(self, instance_id: str, section_index: int, *, user_id: str = "default") -> dict[str, Any]:
         instance = self._require_instance(instance_id, user_id=user_id)
@@ -101,13 +101,19 @@ class ReportRuntimeService:
             {**current, **regenerated, "regenerated": True},
             user_id=user_id,
         )
-        baseline = self.generation_baseline_repository.get_by_instance(instance_id)
-        return self.serialize_instance(updated, baseline)
+        self.template_instance_repository.save_runtime_updates(
+            report_instance_id=instance_id,
+            outline_snapshot=updated.outline_content or [],
+            generated_sections=updated.outline_content or [],
+            status="completed",
+        )
+        template_instance = self.template_instance_repository.get_by_instance(instance_id)
+        return self.serialize_instance(updated, template_instance)
 
     @staticmethod
-    def serialize_instance(instance: ReportInstance, baseline: GenerationBaseline | None) -> dict[str, Any]:
-        has_generation_baseline = baseline is not None
-        supports_fork_chat = bool(has_generation_baseline and getattr(baseline, "session_id", ""))
+    def serialize_instance(instance: ReportInstance, template_instance: TemplateInstance | None) -> dict[str, Any]:
+        has_generation_baseline = template_instance is not None
+        supports_fork_chat = bool(has_generation_baseline and getattr(template_instance, "session_id", ""))
         return {
             "instance_id": instance.instance_id,
             "template_id": instance.template_id,
@@ -164,7 +170,28 @@ class ReportDocumentService:
         return {"message": "deleted"}
 
 
-def build_generation_baseline_payload(record: GenerationBaseline) -> Dict[str, Any]:
+def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any]:
+    template_instance_payload = {
+        "instance_template_id": record.template_instance_id,
+        "schema_version": record.schema_version or "ti.v1.0",
+        "base_template": {
+            "id": record.template_id,
+            "name": record.template_name or record.template_id,
+            "category": (record.base_template.template_type if record.base_template else ""),
+            "description": (record.base_template.description if record.base_template else ""),
+            "parameters": deepcopy(record.base_template.parameters if record.base_template else []),
+            "sections": deepcopy(record.base_template.sections if record.base_template else []),
+        },
+        "instance_meta": {
+            "status": record.status,
+            "revision": record.revision,
+            "created_at": str(record.created_at) if record.created_at else None,
+        },
+        "runtime_state": deepcopy(record.runtime_state or {}),
+        "resolved_view": deepcopy(record.resolved_view or {}),
+        "generated_content": deepcopy(record.generated_content or {}),
+        "fragments": deepcopy(record.fragments or {}),
+    }
     return {
         "instance_id": record.report_instance_id,
         "template_id": record.template_id,
@@ -173,4 +200,5 @@ def build_generation_baseline_payload(record: GenerationBaseline) -> Dict[str, A
         "outline": deepcopy(record.outline_snapshot or []),
         "warnings": list(record.warnings or []),
         "created_at": str(record.created_at),
+        "template_instance": template_instance_payload,
     }

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..domain.models import GenerationBaseline, ReportInstance
+from ..domain.models import ReportInstance, TemplateInstance as TemplateInstanceEntity
 from ...template_catalog.domain.models import ReportTemplate
-from ....infrastructure.persistence.models import ReportDocument, ReportInstance as ReportInstanceModel, ReportTemplate as ReportTemplateModel, TemplateInstance, gen_id
+from ....infrastructure.persistence.models import ReportDocument, ReportInstance as ReportInstanceModel, ReportTemplate as ReportTemplateModel, TemplateInstance as TemplateInstanceModel, gen_id
 
 
 class SqlAlchemyRuntimeTemplateRepository:
@@ -112,40 +113,80 @@ class SqlAlchemyReportInstanceRepository:
         return deepcopy(row.input_params or {}) if row else None
 
 
-class SqlAlchemyGenerationBaselineRepository:
+class SqlAlchemyTemplateInstanceRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def get_by_instance(self, instance_id: str) -> GenerationBaseline | None:
+    def get_by_instance(self, instance_id: str) -> TemplateInstanceEntity | None:
         row = (
-            self.db.query(TemplateInstance)
-            .filter(TemplateInstance.report_instance_id == instance_id)
-            .order_by(TemplateInstance.created_at.desc(), TemplateInstance.template_instance_id.desc())
+            self.db.query(TemplateInstanceModel)
+            .filter(TemplateInstanceModel.report_instance_id == instance_id)
+            .order_by(TemplateInstanceModel.created_at.desc(), TemplateInstanceModel.template_instance_id.desc())
             .first()
         )
-        return _to_baseline(row) if row else None
+        return _to_template_instance(row) if row else None
 
-    def list_map_by_instances(self, instance_ids: list[str]) -> dict[str, GenerationBaseline]:
+    def list_map_by_instances(self, instance_ids: list[str]) -> dict[str, TemplateInstanceEntity]:
         if not instance_ids:
             return {}
         rows = (
-            self.db.query(TemplateInstance)
-            .filter(TemplateInstance.report_instance_id.in_(instance_ids))
-            .order_by(TemplateInstance.created_at.desc(), TemplateInstance.template_instance_id.desc())
+            self.db.query(TemplateInstanceModel)
+            .filter(TemplateInstanceModel.report_instance_id.in_(instance_ids))
+            .order_by(TemplateInstanceModel.created_at.desc(), TemplateInstanceModel.template_instance_id.desc())
             .all()
         )
-        mapping: dict[str, GenerationBaseline] = {}
+        mapping: dict[str, TemplateInstanceEntity] = {}
         for row in rows:
             if row.report_instance_id in mapping:
                 continue
-            mapping[row.report_instance_id] = _to_baseline(row)
+            mapping[row.report_instance_id] = _to_template_instance(row)
         return mapping
 
     def delete_by_instance(self, instance_id: str) -> None:
-        rows = self.db.query(TemplateInstance).filter(TemplateInstance.report_instance_id == instance_id).all()
+        rows = self.db.query(TemplateInstanceModel).filter(TemplateInstanceModel.report_instance_id == instance_id).all()
         for row in rows:
             self.db.delete(row)
         self.db.commit()
+
+    def save_runtime_updates(
+        self,
+        *,
+        report_instance_id: str,
+        outline_snapshot: list[dict[str, Any]] | None = None,
+        generated_sections: list[dict[str, Any]] | None = None,
+        generated_document: dict[str, Any] | None = None,
+        status: str | None = None,
+    ) -> TemplateInstanceEntity | None:
+        row = (
+            self.db.query(TemplateInstanceModel)
+            .filter(TemplateInstanceModel.report_instance_id == report_instance_id)
+            .order_by(TemplateInstanceModel.created_at.desc(), TemplateInstanceModel.template_instance_id.desc())
+            .first()
+        )
+        if not row:
+            return None
+        content = deepcopy(row.content or {})
+        legacy_outline = list(outline_snapshot) if outline_snapshot is not None else list(row.outline_snapshot or [])
+        content["outline_snapshot"] = legacy_outline
+        content.setdefault("runtime_state", {}).setdefault("outline_runtime", {})["current_outline_instance"] = deepcopy(legacy_outline)
+        content.setdefault("resolved_view", {})["outline"] = deepcopy(legacy_outline)
+        if generated_sections is not None:
+            content.setdefault("generated_content", {})["sections"] = deepcopy(generated_sections)
+        if generated_document is not None:
+            docs = list(content.setdefault("generated_content", {}).get("documents") or [])
+            docs.append(deepcopy(generated_document))
+            content["generated_content"]["documents"] = docs
+        instance_meta = content.setdefault("instance_meta", {})
+        instance_meta["revision"] = max(1, int(instance_meta.get("revision") or 1) + 1)
+        if status:
+            instance_meta["status"] = status
+        instance_meta["updated_at"] = datetime.now(UTC).isoformat()
+        row.content = content
+        if status:
+            row.capture_stage = _status_to_capture_stage(status)
+        self.db.commit()
+        self.db.refresh(row)
+        return _to_template_instance(row)
 
 
 class SqlAlchemyDocumentRepository:
@@ -194,7 +235,6 @@ def _to_template(row: ReportTemplateModel) -> ReportTemplate:
         report_type=row.report_type or "",
         scenario=row.scenario or "",
         template_type=row.template_type or "",
-        scene=row.scene or "",
         match_keywords=list(row.match_keywords or []),
         content_params=list(row.content_params or []),
         parameters=list(row.parameters or []),
@@ -207,16 +247,67 @@ def _to_template(row: ReportTemplateModel) -> ReportTemplate:
     )
 
 
-def _to_baseline(row: TemplateInstance) -> GenerationBaseline:
-    return GenerationBaseline(
+def _to_template_instance(row: TemplateInstanceModel) -> TemplateInstanceEntity:
+    content = deepcopy(row.content or {})
+    template_row = row
+    base_template_payload = content.get("base_template") if isinstance(content.get("base_template"), dict) else {}
+    base_template = ReportTemplate(
+        template_id=str(base_template_payload.get("id") or row.template_id),
+        name=str(base_template_payload.get("name") or row.template_name or ""),
+        description=str(base_template_payload.get("description") or ""),
+        report_type=str(base_template_payload.get("report_type") or "daily"),
+        scenario=str(base_template_payload.get("scenario") or ""),
+        template_type=str(base_template_payload.get("category") or base_template_payload.get("template_type") or ""),
+        match_keywords=list(base_template_payload.get("match_keywords") or []),
+        content_params=list(base_template_payload.get("content_params") or []),
+        parameters=list(base_template_payload.get("parameters") or []),
+        outline=list(base_template_payload.get("outline") or []),
+        sections=list(base_template_payload.get("sections") or []),
+        schema_version=str(base_template_payload.get("schema_version") or "v2.0"),
+        output_formats=list(base_template_payload.get("output_formats") or ["md"]),
+        version=row.template_version or "1.0",
+        created_at=getattr(template_row, "created_at", None),
+    )
+    instance_meta = content.get("instance_meta") if isinstance(content.get("instance_meta"), dict) else {}
+    runtime_state = content.get("runtime_state") if isinstance(content.get("runtime_state"), dict) else {}
+    resolved_view = content.get("resolved_view") if isinstance(content.get("resolved_view"), dict) else {}
+    generated_content = content.get("generated_content") if isinstance(content.get("generated_content"), dict) else {}
+    fragments = content.get("fragments") if isinstance(content.get("fragments"), dict) else {}
+    return TemplateInstanceEntity(
         template_instance_id=row.template_instance_id,
         template_id=row.template_id,
         template_name=row.template_name or row.template_id,
         session_id=row.session_id or "",
         capture_stage=row.capture_stage or "",
+        base_template=base_template,
+        schema_version=str(content.get("schema_version") or row.schema_version or "ti.v1.0"),
+        status=str(instance_meta.get("status") or _capture_stage_to_status(row.capture_stage)),
+        revision=max(1, int(instance_meta.get("revision") or 1)),
         input_params_snapshot=deepcopy(row.input_params_snapshot or {}),
         outline_snapshot=deepcopy(row.outline_snapshot or []),
+        resolved_view=deepcopy(resolved_view),
+        runtime_state=deepcopy(runtime_state),
+        generated_content=deepcopy(generated_content),
+        fragments=deepcopy(fragments),
         warnings=list(row.warnings or []),
         report_instance_id=row.report_instance_id,
         created_at=row.created_at,
     )
+
+
+def _status_to_capture_stage(status: str) -> str:
+    normalized = str(status or "").strip()
+    if normalized in {"completed", "generating"}:
+        return "generation_baseline"
+    if normalized in {"ready_for_confirmation", "confirmed"}:
+        return "outline_confirmed"
+    return "outline_saved"
+
+
+def _capture_stage_to_status(stage: str | None) -> str:
+    normalized = str(stage or "").strip()
+    if normalized == "generation_baseline":
+        return "completed"
+    if normalized == "outline_confirmed":
+        return "ready_for_confirmation"
+    return "draft"

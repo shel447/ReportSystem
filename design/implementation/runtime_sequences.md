@@ -134,7 +134,7 @@ sequenceDiagram
     Conv->>Persist: get_generation_baseline(instance_id)
     Persist->>Baseline: query by report_instance_id (fallback only)
     Baseline-->>Conv: generation baseline
-    Conv->>Fork: update_session_from_generation_baseline(template_instance)
+    Conv->>Fork: update_session_from_template_instance(template_instance)
     Fork->>Fork: build new chat session payload
     Fork->>Fork: inject single visible assistant review_outline message
     Fork->>Fork: append hidden context_state snapshot

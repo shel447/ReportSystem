@@ -66,7 +66,7 @@ graph LR
     style EMB fill:#f3e5f5,stroke:#7b1fa2
 ```
 
-> **说明**：报告实例的**创建**不直接暴露为独立 API——它在对话交互流程或定时任务执行流程中自动产生。系统内部仍保留 `TemplateInstance` 作为生成基线快照，但它已内化为报告实例的一部分，不再作为用户可单独感知的模块出现。
+> **说明**：报告实例的**创建**不直接暴露为独立 API——它在对话交互流程或定时任务执行流程中自动产生。系统内部仍保留 `TemplateInstance` 作为核心运行模型（模板定义 + 运行态聚合），并在报告制作全程持续维护；它已内化为报告实例的一部分，不再作为用户可单独感知的模块出现。
 
 ---
 
@@ -164,7 +164,7 @@ sequenceDiagram
     User->>Chat: 确认生成
     Chat->>Instance: 创建报告实例
     Instance->>Instance: 解析诉求要素值 -> 生成执行基线
-    Instance->>Instance: 创建内部生成基线快照
+    Instance->>Instance: 创建并持续更新内部 TemplateInstance
     Instance->>Data: 采集数据 (根据 data_requirements)
     Data-->>Instance: 返回原始数据
     Instance->>LLM: 调用 LLM 生成内容 (逐节)
@@ -248,7 +248,7 @@ sequenceDiagram
 | **报告模板** | 用户预先定义的报告模板。包括模板类型、场景、结构化参数、章节树，以及章节诉求/执行链路双层定义 | 静态的、可复用的元数据定义；同一章节节点同时承载用户诉求与系统执行链路 |
 | **对话会话** | 用户与系统之间的历史对话容器。内部持久化消息流、上下文状态、来源信息与关联实例 | 进入 `/chat` 时默认空态；首条真实消息才创建会话；支持历史恢复、消息级 fork 与实例更新恢复 |
 | **活动任务** | 对话会话中当前唯一活跃的任务上下文，包括能力类型、阶段、进度状态与上下文载荷 | v1 采用单活任务模型，不支持任务栈；报告生成、智能问数、智能故障三类能力共用统一路由 |
-| **内部模板实例** | 系统内部保存的确认大纲/生成基线快照。包含模板、已确认参数、实例级诉求树以及解析后的执行基线 | 非用户感知对象；每个新报告实例对应唯一一份内部快照，用于“更新”与“Fork”能力 |
+| **内部模板实例** | 系统内部维护的运行态聚合。包含模板继承信息、已确认参数、实例级诉求树、解析视图与生成产物 | 非用户感知对象；每个新报告实例对应唯一一份内部模板实例，用于“更新”与“Fork”能力 |
 | **报告实例** | 在报告模板的基础上，填充报告内容参数后，使用大语言模型技术栈生成报告实例 | 中间态，可编辑、可预览、支持局部重新生成；内部绑定一份生成基线 |
 | **报告时间** | 用于表达业务口径上的报告所属时间 | 与 `created_at` 分离；典型由定时任务把计划执行时间映射进实例 `report_time` |
 | **报告文档** | 报告实例的物理载体，文档类型可以是 Word、PDF | 最终态，只读、可下载、可分享 |
@@ -431,7 +431,7 @@ src/backend/
 - `conversation` 的能力路由与问数/故障能力 helper 已迁入 context-local infrastructure，根级 `chat_capability_service.py` 已清理
 - `template_catalog` 上下文的模板 schema 校验与语义索引逻辑已迁入 context-local infrastructure，`system_settings` 和 `conversation` 不再直接引用根级 `template_*_service`
 - `src/backend` 根目录不再保留 `application/`、`domain/` 双轨目录，也不再承载技术源码；技术入口统一收敛为 `contexts/*`、`infrastructure/*`、`shared/kernel`、`routers/*`
-- `TemplateInstance` 在代码层统一按 `GenerationBaseline` 语义使用；底层仍复用 `template_instances` 表
+- `TemplateInstance` 作为核心领域模型贯穿“参数收集 -> 诉求确认 -> 生成 -> 更新”；底层仍复用 `template_instances` 表
 
 ### 4.3 报告生成流程
 
@@ -496,7 +496,6 @@ graph TD
 | v1.5 | 2026-03-31 | Antigravity | 统一对话模块扩展到报告生成/智能问数/智能故障；模板参数支持 `interaction_mode=form|chat`；定时任务新增双时间模型与“从已有实例创建”语义 |
 | v1.6 | 2026-03-31 | Antigravity | 新增 DFX 接口治理专题文档，统一异常响应、错误码、分页/排序、限流、容量上限与数据保留策略，并记录定时任务时间语义重构为后续专题 |
 | v1.7 | 2026-04-01 | Codex | 新增 `design/implementation/` 后端实现文档组，补齐 4 个 bounded context、共享基础设施、数据库表定义总览，以及外部接口与用法说明 |
-
 
 
 
