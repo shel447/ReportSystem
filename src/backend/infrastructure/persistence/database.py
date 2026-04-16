@@ -2,6 +2,7 @@ import json
 import os
 import sqlite3
 import uuid
+from datetime import datetime, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -71,6 +72,7 @@ def migrate_legacy_database_to_target_schema(db_path: str) -> None:
         _migrate_instances(conn, tables)
         _migrate_template_instances(conn, tables)
         _migrate_sessions_and_messages(conn, tables)
+        _normalize_chat_timestamp_columns(conn, tables)
         _migrate_documents(conn, tables)
         _migrate_tasks(conn, tables)
         _migrate_task_executions(conn, tables)
@@ -120,6 +122,36 @@ def _to_json(value: object) -> str:
 
 def _gen_id() -> str:
     return str(uuid.uuid4())
+
+
+def _next_unique_message_id(candidate: object, used_ids: set[str]) -> str:
+    message_id = str(candidate or _gen_id())
+    if message_id not in used_ids:
+        used_ids.add(message_id)
+        return message_id
+    while True:
+        message_id = _gen_id()
+        if message_id not in used_ids:
+            used_ids.add(message_id)
+            return message_id
+
+
+def _normalize_datetime_text(value: object, *, default: str | None = None) -> str | None:
+    if value in (None, ""):
+        return default
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip()
+        if text.endswith("Z"):
+            text = f"{text[:-1]}+00:00"
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            return str(value)
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt.isoformat(sep=" ", timespec="seconds")
 
 
 def _normalize_requirement_payload(value: object) -> object:
@@ -318,6 +350,7 @@ def _migrate_template_instances(conn: sqlite3.Connection, tables: set[str]) -> N
 def _migrate_sessions_and_messages(conn: sqlite3.Connection, tables: set[str]) -> None:
     if "chat_sessions" not in tables or not _table_empty(conn, "tbl_chat_sessions"):
         return
+    used_message_ids = {str(row["id"]) for row in conn.execute("SELECT id FROM tbl_chat_messages").fetchall()}
     rows = conn.execute("SELECT * FROM chat_sessions").fetchall()
     for row in rows:
         user_id = str(row["user_id"] or "default")
@@ -334,8 +367,8 @@ def _migrate_sessions_and_messages(conn: sqlite3.Connection, tables: set[str]) -
                 _row_value(row, "matched_template_id"),
                 row["fork_meta"] or "{}",
                 row["status"] or "active",
-                row["created_at"],
-                row["updated_at"] or row["created_at"],
+                _normalize_datetime_text(row["created_at"]),
+                _normalize_datetime_text(row["updated_at"], default=_normalize_datetime_text(row["created_at"])),
             ),
         )
         messages = _load_json(row["messages"], default=[])
@@ -348,7 +381,7 @@ def _migrate_sessions_and_messages(conn: sqlite3.Connection, tables: set[str]) -
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    str(payload.get("message_id") or _gen_id()),
+                    _next_unique_message_id(payload.get("message_id"), used_message_ids),
                     row["session_id"],
                     user_id,
                     str(payload.get("role") or "assistant"),
@@ -360,9 +393,32 @@ def _migrate_sessions_and_messages(conn: sqlite3.Connection, tables: set[str]) -
                     ),
                     _to_json(_load_json(payload.get("meta"), default={})),
                     seq_no,
-                    payload.get("created_at") or row["created_at"],
+                    _normalize_datetime_text(payload.get("created_at"), default=_normalize_datetime_text(row["created_at"])),
                 ),
             )
+
+
+def _normalize_chat_timestamp_columns(conn: sqlite3.Connection, tables: set[str]) -> None:
+    if "tbl_chat_sessions" in tables:
+        session_rows = conn.execute("SELECT id, created_at, updated_at FROM tbl_chat_sessions").fetchall()
+        for row in session_rows:
+            created_at = _normalize_datetime_text(row["created_at"])
+            updated_at = _normalize_datetime_text(row["updated_at"], default=created_at)
+            if created_at != row["created_at"] or updated_at != row["updated_at"]:
+                conn.execute(
+                    "UPDATE tbl_chat_sessions SET created_at = ?, updated_at = ? WHERE id = ?",
+                    (created_at, updated_at, row["id"]),
+                )
+
+    if "tbl_chat_messages" in tables:
+        message_rows = conn.execute("SELECT id, created_at FROM tbl_chat_messages").fetchall()
+        for row in message_rows:
+            normalized = _normalize_datetime_text(row["created_at"])
+            if normalized != row["created_at"]:
+                conn.execute(
+                    "UPDATE tbl_chat_messages SET created_at = ? WHERE id = ?",
+                    (normalized, row["id"]),
+                )
 
 
 def _migrate_documents(conn: sqlite3.Connection, tables: set[str]) -> None:
