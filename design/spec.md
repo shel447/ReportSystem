@@ -1,14 +1,14 @@
-**版本**: v0.6  
-**最后更新**: 2026-04-17  
-**状态**: 已归档 (同步当前公开实现)
+**版本**: v0.7
+**最后更新**: 2026-04-17
+**状态**: 目标态规格基线
 
 ---
 
 ## 目录
 
 1. [产品概述](#1-产品概述)
-2. [当前已实现规格](#2-当前已实现规格)
-3. [当前约束与行为边界](#3-当前约束与行为边界)
+2. [目标态规格](#2-目标态规格)
+3. [约束与行为边界](#3-约束与行为边界)
 4. [DFX 规格基线](#4-dfx-规格基线)
 5. [待支持特性清单](#5-待支持特性清单)
 6. [修订历史](#6-修订历史)
@@ -19,11 +19,11 @@
 
 ### 1.1 产品定位
 
-智能报告系统当前是一个以**报告生成**为主能力的统一智能助手，同时集成：
+智能报告系统是一个以**报告生成**为主能力的统一智能助手，同时集成：
 
 - 智能问数
 - 智能故障
-- Markdown 报告文档下载
+- 报告文档生成与下载
 
 ### 1.2 核心价值
 
@@ -31,13 +31,14 @@
 |---------|------|
 | 统一入口 | 同一对话入口承接报告、问数、故障三类能力 |
 | 结构化确认 | 参数收集、诉求确认、确认生成保证链路可追踪 |
-| 双层模板 | 模板同时维护用户诉求与系统执行链路 |
-| 聚合视图 | 通过 `reports` 聚合输出内部模板实例与生成内容 |
-| 用户隔离 | 业务接口统一使用 `X-User-Id` 做会话与报告隔离 |
+| 模板主轴清晰 | 模板与模板实例保留 `catalogs -> sections` 目录/章节语义 |
+| 正式报告模型 | 报告实例主体为持久化 `Report DSL` |
+| 文档闭环 | 同一份 Report DSL 驱动 Markdown / Word / PPT / PDF |
+| 用户隔离 | 业务接口统一使用 `X-User-Id` 做数据隔离 |
 
 ---
 
-## 2. 当前已实现规格
+## 2. 目标态规格
 
 ### 2.1 系统设置
 
@@ -50,13 +51,13 @@
 
 - 创建、编辑、删除、克隆、导出单模板 JSON
 - 模板主结构采用：
-  - 顶层：`id / category / name / description / parameters / sections`
+  - 顶层：`id / category / name / description / parameters / catalogs`
   - 章节诉求：`outline.requirement + outline.items[]`
   - 执行链路：`content.datasets + presentation`
 - 参数支持：
   - `free_text / date / enum / dynamic`
   - `interaction_mode = form | chat`
-  - `value_mapping.query`（`display / value / query` 通道映射）
+  - `value_mapping.query`
 - 模板导入预解析支持：
   - 来源识别
   - 归一化
@@ -66,7 +67,7 @@
 ### 2.3 统一对话模块
 
 - `/chat` 默认空态，不自动恢复最近会话，也不预创建会话
-- 首条真实用户消息发送后才创建会话，并以该消息生成标题
+- 首条真实用户消息发送后才创建 `conversation`
 - 支持三类一级能力：
   - `report_generation`
   - `smart_query`
@@ -85,7 +86,7 @@
 - 模板匹配
 - 参数收集
 - 诉求确认
-- 确认生成报告
+- 流式生成报告
 
 参数收集支持混合模式：
 
@@ -95,25 +96,33 @@
 
 诉求确认支持：
 
-- 实例级诉求树展示
+- 实例级目录/章节树展示
 - 参数片段 inline 编辑
-- 非参数文本编辑后节点退化为普通句子
+- 非参数文本编辑后节点可能导致骨架破坏
 - `foreach` 展开
 - 结构化诉求值注入执行链路
 
-### 2.5 报告聚合视图 (Reports)
+### 2.5 报告与文档
 
 公开接口：
 
 - `GET /rest/chatbi/v1/reports/{reportId}`
+- `POST /rest/chatbi/v1/reports/{reportId}/document-generations`
 - `GET /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download`
 
-`GET /reports/{reportId}` 返回聚合结果：
+`GET /reports/{reportId}` 目标态返回：
 
 - `reportId`
 - `status`
-- `template_instance`（内部模板实例快照）
-- `generated_content`（生成内容与文档列表）
+- `report`
+- `templateInstance`
+- `documents`
+
+说明：
+
+- `report` 是正式 `Report DSL`
+- `templateInstance` 用于支持报告诉求二次编辑和重新生成
+- 文档生成接口不把类型写入 URL，而在请求体中声明 `formats`
 
 ### 2.6 动态参数辅助接口
 
@@ -138,11 +147,11 @@
 
 ---
 
-## 3. 当前约束与行为边界
+## 3. 约束与行为边界
 
 ### 3.1 公开业务资源边界
 
-`/rest/chatbi/v1/*` 当前公开业务面只保留：
+`/rest/chatbi/v1/*` 目标态公开业务面只保留：
 
 - `templates`
 - `chat`
@@ -161,7 +170,7 @@
 - 诉求确认统一发生在确认生成之前
 - 模板实例 (`TemplateInstance`) 作为内部核心聚合持续维护，不提供独立公开资源
 - 文档下载仅支持 report-scoped 路径
-- 当前只输出 Markdown，不输出 PDF
+- PDF 首版通过 Word/PPT 派生转换生成
 
 ### 3.3 统一对话模块
 
@@ -172,12 +181,16 @@
 
 ### 3.4 对话契约兼容
 
-`POST /chat` 兼容两类请求契约：
+`POST /chat` 目标态对齐 ChatBI 契约：
 
-- 旧契约：`message / session_id / command...`
-- 新契约：`conversationId / chatId / instruction / question / reply / command.name`
+- `conversationId`
+- `chatId`
+- `instruction`
+- `question`
+- `reply`
+- `command.name`
 
-当 `Accept: text/event-stream` 时，当前返回 SSE 骨架事件（单次 `message` 事件）。
+当 `Accept: text/event-stream` 时，报告生成阶段以 ChatBI 事件模型流式返回 `REPORT`。
 
 ---
 
@@ -227,11 +240,9 @@
 - 模板章节总节点数：`<= 200`
 - 单章节诉求要素数：`<= 20`
 - 单章节 datasets 数：`<= 10`
-- 实例 `input_params` JSON：`<= 128 KB`
-- 实例章节数：`<= 300`
-- 单章节内容：`<= 64 KB`
+- 实例参数快照 JSON：`<= 128 KB`
 - 单实例总 JSON：`<= 5 MB`
-- Markdown 文档文件：`<= 5 MB`
+- 单文档文件：`<= 20 MB`
 - 动态参数请求体：`<= 32 KB`
 - 动态参数单次 `limit`：`<= 50`
 
@@ -251,14 +262,12 @@
 | TG-002 | 会话分支树可视化 | 图形化展示 fork 关系与来源 | Medium | 未实现 |
 | TM-001 | 模板版本管理 | 支持模板版本回滚与比较 | Medium | 未实现 |
 | TM-002 | 模板导入落库策略可视化 | 在导入预解析后提供覆盖/副本策略指引 | Low | 未实现 |
-| RP-001 | 报告编辑流式接口 | `reports` 维度的章节编辑/重生成流式能力 | Medium | 未实现 |
+| RP-001 | 报告章节级再生成 | 对报告或模板实例局部 section 重新生成 | Medium | 设计中 |
 | RP-002 | 报告差异对比 | 对比两个报告版本或两个分支差异 | Medium | 未实现 |
-| SQ-001 | 智能问数结果卡片化 | 问数结果以结构化卡片展示而不只是纯文本 | Medium | 未实现 |
-| FD-001 | 故障证据查询接入 | 故障诊断接入真实告警/工单证据链 | Medium | 未实现 |
+| DOC-001 | Java Office 导出器接入 | Word / PPT 导出闭环 | High | 设计中 |
+| DOC-002 | PDF 派生转换 | Word / PPT 转 PDF | High | 设计中 |
 | DFX-001 | 统一异常中间件 | 运行时统一错误响应、错误码和 request_id 注入 | Medium | 未实现 |
 | DFX-002 | 运行时接口限流 | 落地接口族分级限流器 | Medium | 未实现 |
-| DFX-003 | 列表接口统一分页 | 所有列表接口统一分页、排序、过滤规范 | Medium | 未实现 |
-| DOC-001 | PDF 导出 | 生成 PDF 文档 | Low | 未实现 |
 
 ---
 
@@ -266,9 +275,4 @@
 
 | 版本 | 日期 | 作者 | 变更说明 |
 |------|------|------|----------|
-| v0.1 | 2026-02-28 | - | 初始版本，记录基础功能与待支持特性 |
-| v0.2 | 2026-02-28 | - | 补充定时任务与实例模块待支持特性 |
-| v0.3 | 2026-03-04 | Antigravity | 同步沉浸式对话 UI 与表格化管理等前端实现 |
-| v0.4 | 2026-03-31 | Antigravity | 同步统一对话模块、模板双层模型、实例更新/Fork、定时任务双时间模型与参数追问模式 |
-| v0.5 | 2026-03-31 | Antigravity | 新增 DFX 接口治理规格基线：统一错误响应、限流、容量上限、长期保留策略，并将定时任务时间语义重构记录为后续专题 |
-| v0.6 | 2026-04-17 | Codex | 全面按当前公开实现刷新：公开业务面收敛为 templates/chat/reports/parameter-options，移除实例/文档/定时任务公开模块表述，补齐 chat 双契约兼容与 SSE 骨架说明，统一报告聚合视图口径 |
+| v0.7 | 2026-04-17 | Codex | 将规格从当前实现基线刷新为目标态规格，统一到 ChatBI 对齐、Report DSL 主体、模板 `catalogs -> sections`、以及文档生成闭环 |

@@ -4,7 +4,7 @@
 
 ### 1.1 身份头
 
-除 `/rest/dev/*` 外，业务接口统一要求：
+业务接口统一要求：
 
 ```http
 X-User-Id: <external-user-id>
@@ -20,6 +20,12 @@ X-User-Id: <external-user-id>
 - `chat`
 - `reports`
 - `parameter-options/resolve`
+
+目标态报告接口对齐与扩展说明，见：
+
+- [报告 DSL 与文档闭环设计](design_report_dsl_export.md)
+- [ChatBI 报告扩展设计](chatbi/chatbi_report_extension.md)
+- [ChatBI 报告流式对齐设计](chatbi/chatbi_report_stream_alignment.md)
 
 说明：
 
@@ -49,7 +55,7 @@ GET    /rest/chatbi/v1/templates/{id}/export
   "name": "运维日报模板",
   "description": "面向运维中心的日报模板",
   "parameters": [],
-  "sections": []
+  "catalogs": []
 }
 ```
 
@@ -80,8 +86,8 @@ GET    /rest/chatbi/v1/templates/{id}/export
 GET    /rest/chatbi/v1/chat
 POST   /rest/chatbi/v1/chat
 POST   /rest/chatbi/v1/chat/forks
-GET    /rest/chatbi/v1/chat/{session_id}
-DELETE /rest/chatbi/v1/chat/{session_id}
+GET    /rest/chatbi/v1/chat/{conversationId}
+DELETE /rest/chatbi/v1/chat/{conversationId}
 ```
 
 职责：
@@ -92,23 +98,42 @@ DELETE /rest/chatbi/v1/chat/{session_id}
 - 确认生成
 - 会话历史与 fork
 
-`POST /rest/chatbi/v1/chat` 同时支持新契约字段：
+`POST /rest/chatbi/v1/chat` 目标态严格对齐 ChatBI 契约字段：
 
 - `conversationId`
 - `chatId`
 - `instruction`
-- `question`
 - `reply`
-- `command.name`
+- `question`
+- `attachments`
+- `histories`
 
-若请求头 `Accept: text/event-stream`，返回 SSE 骨架事件。
+若请求头 `Accept: text/event-stream`，目标态返回 ChatBI 风格流式事件：
 
-对话过程中，系统持续维护内部 `TemplateInstance`，并通过 `ask / answer / delta / steps` 返回片段；不会暴露独立模板实例资源。
+- `status`
+- `step_delta`
+- `ask`
+- `answer`
+- `error`
+- `done`
+
+对话过程中，系统持续维护内部 `TemplateInstance`，并通过 `ask / answer / steps` 返回片段；不会暴露独立模板实例资源。
+
+当报告参数确认完成后：
+
+- 非流式：一次性返回 `answerType=REPORT`
+- 流式：流式返回正在生成中的 `REPORT`
+
+目标态细节见：
+
+- [ChatBI 报告扩展设计](chatbi/chatbi_report_extension.md)
+- [ChatBI 报告流式对齐设计](chatbi/chatbi_report_stream_alignment.md)
 
 ## 4. 报告
 
 ```text
 GET /rest/chatbi/v1/reports/{reportId}
+POST /rest/chatbi/v1/reports/{reportId}/document-generations
 GET /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download
 ```
 
@@ -118,16 +143,25 @@ GET /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download
 {
   "reportId": "rpt_001",
   "status": "completed",
-  "template_instance": {},
-  "generated_content": {}
+  "answerType": "REPORT",
+  "answer": {
+    "reportId": "rpt_001",
+    "status": "completed",
+    "report": {},
+    "templateInstance": {},
+    "documents": []
+  }
 }
 ```
 
 约束：
 
-- `template_instance` 为完整内部模板实例快照
+- `answer.report` 为正式 `ReportDsl`
+- `answer.templateInstance` 为模板实例快照，用于二次诉求编辑与重新生成
 - 文档下载为报告从属能力，只允许 report-scoped 路径
-- `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` 仍在待实现专题，本轮未开放
+- 文档生成格式放在请求体，不放在 URL 中
+- `GET /reports/{reportId}.answer` 的结构必须等于 `/chat` 中 `REPORT.answer.answer`
+- 详细契约见 [ChatBI 报告扩展设计](chatbi/chatbi_report_extension.md)
 
 ## 5. 动态参数辅助接口
 
@@ -151,18 +185,6 @@ POST /rest/chatbi/v1/parameter-options/resolve
 }
 ```
 
-## 6. 开发接口
+## 6. 说明
 
-统一前缀：
-
-```text
-/rest/dev/*
-```
-
-当前保留：
-
-- 系统设置
-- 设计文档查看/下载
-- 反馈
-
-这些接口不受 `X-User-Id` 业务隔离约束。
+本篇只覆盖业务公开接口，不再展开开发辅助接口。
