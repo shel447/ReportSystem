@@ -242,8 +242,7 @@
 #### 典型调用场景
 
 - 对话确认生成后的自动 Markdown 创建
-- 文档列表和下载
-- 定时任务 `auto_generate_doc`
+- 报告聚合视图中的文档下载
 
 #### 使用方式
 
@@ -275,4 +274,3 @@
 - Completion/Embedding 都采用同步 `httpx.Client`，没有 async client、streaming 和统一重试
 - SQLite/Ibis 链路仍是单机样例型实现
 - 文档存储仍是本地文件系统，不适合直接外推为生产对象存储方案
-

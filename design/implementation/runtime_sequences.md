@@ -2,13 +2,13 @@
 
 ## 1. 说明
 
-本篇集中放当前后端最关键的运行时序图，帮助在阅读代码时先建立调用链全貌，再进入各 bounded context 的实现细节。
+本篇集中放当前后端公开主链路的关键时序图，帮助在阅读代码时快速建立调用链全貌。
 
-当前先覆盖三条主链路：
+当前覆盖三条主链路：
 
 - 对话确认生成
-- 定时任务 run-now
-- 报告实例 update-chat
+- 报告聚合读取与文档下载
+- 基于模板实例来源的会话恢复
 
 ---
 
@@ -25,7 +25,7 @@ sequenceDiagram
     participant State as ConversationStateGateway
     participant Report as ConversationReportGateway
     participant Runtime as ReportInstanceCreationService
-    participant Baseline as capture_generation_baseline
+    participant Baseline as capture_template_instance
     participant Doc as create_markdown_document
 
     UI->>API: POST /rest/chatbi/v1/chat(command=confirm_outline_generation)
@@ -37,14 +37,8 @@ sequenceDiagram
     Conv->>Report: resolve source_session_id + source_message_id
     Conv->>Report: create_instance(template_id, user_id, input_params, outline_override, source_session_id, source_message_id)
     Report->>Runtime: create_instance(...)
-    Runtime->>Runtime: load template
-    alt v2 template
-        Runtime->>Runtime: generate_v2_from_outline / generate_v2
-    else legacy template
-        Runtime->>Runtime: expand outline / generate sections
-    end
     Runtime-->>Report: created instance payload
-    Conv->>Report: capture_generation_baseline(...)
+    Conv->>Report: capture_template_instance(...)
     Report->>Baseline: write template_instances snapshot
     Conv->>Report: create_markdown_document(instance_id)
     Report->>Doc: render markdown + persist report_documents
@@ -57,101 +51,71 @@ sequenceDiagram
 
 关键点：
 
-- 对话模块不直接写 `report_instances` 或 `report_documents` 表，而是通过 `ConversationReportGateway` 进入 `report_runtime`
-- 生成前的诉求编辑结果先被解析成实例级执行基线，再创建实例
-- 生成成功后会同时固化 `template_instances` 内部快照和 Markdown 文档
-- 报告实例在创建时直接写入 `user_id + source_session_id + source_message_id`
-- `source_message_id` 固定记录生成前最后一条可见用户消息
+- 对话模块不直接写 `report_instances` 或 `report_documents`，统一经 `ConversationReportGateway` 转入 `report_runtime`
+- 诉求编辑结果先解析成执行基线，再创建实例
+- 生成成功后会同步固化内部模板实例与 Markdown 文档
 
 ---
 
-## 3. 定时任务 run-now
+## 3. 报告聚合读取与文档下载
 
-适用场景：用户在定时任务页手动点击“立即执行”。
+适用场景：前端在报告页查看聚合结果，并下载指定文档。
 
 ```mermaid
 sequenceDiagram
-    participant UI as Tasks UI
-    participant API as /rest/chatbi/v1/scheduled-tasks/{id}/run-now
-    participant App as SchedulingService
-    participant TaskRepo as ScheduledTaskRepository
-    participant Runtime as ScheduledInstanceCreationGateway
-    participant ReportApp as ScheduledReportRunService
+    participant UI as Report UI
+    participant API as /rest/chatbi/v1/reports
+    participant Runtime as ReportRuntimeService
     participant Doc as ReportDocumentService
-    participant ExecRepo as TaskExecutionRepository
 
-    UI->>API: POST run-now
-    API->>App: run_task_now(task_id)
-    App->>TaskRepo: get(task)
-    App->>App: compute actual_run_time / scheduled_time
-    App->>App: build override params from time_param_name/time_format
-    App->>Runtime: create_instance_from_schedule(template_id, source_instance_id, override_params, report_time)
-    Runtime->>ReportApp: create_instance_from_schedule(...)
-    ReportApp->>ReportApp: merge source instance params + override params
-    ReportApp->>ReportApp: create_instance(...)
-    ReportApp-->>Runtime: created instance payload
-    alt instance created successfully
-        App->>ExecRepo: record_success(task_id, instance_id, input_params_used, started_at)
-        App->>TaskRepo: record_success(task_id, actual_run_time)
-        opt auto_generate_doc = true
-            App->>Doc: create_document(instance_id, markdown)
-            Doc-->>App: document_id
-        end
-        App-->>API: executed + instance_id + optional document_id
-    else instance creation failed
-        App->>ExecRepo: record_failure(task_id, input_params_used, error_message, started_at)
-        App->>TaskRepo: record_failure(task_id, actual_run_time)
-        App-->>API: propagate error
-    end
+    UI->>API: GET /rest/chatbi/v1/reports/{reportId}
+    API->>Runtime: get_report_view(reportId, user_id)
+    Runtime-->>API: reportId + template_instance + generated_content
+    API-->>UI: report payload
+
+    UI->>API: GET /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download
+    API->>Runtime: get_report_view(reportId, user_id)
+    API->>Doc: resolve_download(documentId)
+    Doc-->>API: file metadata + absolute_path
+    API-->>UI: markdown file stream
 ```
 
 关键点：
 
-- `scheduling` 自己不生成报告内容，只负责任务规则、时间映射和执行记录
-- `scheduled_time` 当前在 `run-now` 场景下等于 `actual_run_time`
-- `report_time` 是否写入实例，取决于 `use_schedule_time_as_report_time`
+- 报告读取统一走 `reports` 聚合接口，不再暴露 `instances` 公开接口
+- 文档下载路径必须带 `reportId + documentId`，不再走独立 `/documents/*`
 
 ---
 
-## 4. 报告实例 update-chat
+## 4. 基于模板实例来源的会话恢复
 
-适用场景：用户在报告实例页点击“更新”，希望基于确认诉求恢复到对话助手继续修改。
+适用场景：用户希望从某份历史生成基线继续对话修改。
 
 ```mermaid
 sequenceDiagram
-    participant UI as Instance Detail UI
-    participant API as /rest/chatbi/v1/instances/{id}/update-chat
+    participant UI as Chat UI
+    participant API as /rest/chatbi/v1/chat/forks
     participant Conv as ConversationService
-    participant Persist as ConversationPersistenceGateway
     participant Fork as ConversationForkGateway
-    participant Baseline as template_instances
-    participant SessionRepo as chat_sessions
+    participant Persist as ConversationPersistenceGateway
 
-    UI->>API: POST update-chat
-    API->>Conv: update_session_from_instance(instance_id)
-    Conv->>Persist: get report_instance(instance_id)
-    Conv->>Persist: resolve source_session_id from instance
-    Conv->>Persist: get_generation_baseline(instance_id)
-    Persist->>Baseline: query by report_instance_id (fallback only)
-    Baseline-->>Conv: generation baseline
-    Conv->>Fork: update_session_from_template_instance(template_instance)
+    UI->>API: POST /rest/chatbi/v1/chat/forks(source_kind=template_instance)
+    API->>Conv: fork_session(data)
+    Conv->>Fork: fork_from_template_instance(...)
+    Fork->>Persist: load template_instance snapshot
     Fork->>Fork: build new chat session payload
-    Fork->>Fork: inject single visible assistant review_outline message
+    Fork->>Fork: inject visible assistant review_outline message
     Fork->>Fork: append hidden context_state snapshot
-    Fork->>SessionRepo: persist new chat session
-    SessionRepo-->>Fork: new session_id + messages
-    Fork-->>Conv: chat session detail payload
-    Conv-->>API: prefetched session payload
-    API-->>UI: session detail
-    UI->>UI: navigate to /chat?session_id=... with prefetchedSession
+    Fork->>Persist: save new session + chat_messages
+    Persist-->>Conv: session detail payload
+    Conv-->>API: fork result
+    API-->>UI: new session_id + messages
 ```
 
 关键点：
 
-- `update-chat` 不回放原始整段对话，只恢复一个可继续编辑的诉求确认节点
-- 恢复依据是 `template_instances` 中的内部生成基线，而不是当前实例正文反推
-- 前端拿到的是完整 `ChatSessionDetail`，这样跳转 `/chat` 后可以立即渲染，不必再等待二次拉取
-- 新数据优先使用 `report_instances.source_session_id` 确定来源会话；`template_instances.session_id` 只作为历史兼容回退
+- 当前公开恢复入口统一走 `POST /chat/forks`
+- 恢复会话不回放完整历史，只注入可继续编辑的诉求确认节点与隐藏上下文快照
 
 ---
 
@@ -161,6 +125,5 @@ sequenceDiagram
 
 - [conversation.md](conversation.md)
 - [report_runtime.md](report_runtime.md)
-- [scheduling.md](scheduling.md)
 - [database_schema.md](database_schema.md)
 - [external_interfaces.md](external_interfaces.md)

@@ -256,7 +256,7 @@ template_matching
 
 ### 6.3 报告实例更新
 
-报告实例页的“更新”本质上是基于内部生成基线重开对话：
+报告页中的“继续修改”本质上是基于内部生成基线重开对话：
 
 - 用户先在报告聚合视图预览“确认诉求 / 生成基线”
 - 再通过对话入口发起基于 `template_instance` 的 fork，会创建新会话
@@ -281,7 +281,7 @@ template_matching
 说明：
 
 - 当前公开实现中，报告更新/分支复用统一通过 `POST /rest/chatbi/v1/chat/forks` 完成
-- 不再公开 `instances` 路径下的 update-chat/fork-chat 接口
+- 不再公开 `instances` 路径下的历史更新/分支接口
 
 统一用户身份约束：
 

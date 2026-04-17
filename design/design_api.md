@@ -19,6 +19,7 @@ X-User-Id: <external-user-id>
 - `templates`
 - `chat`
 - `reports`
+- `parameter-options/resolve`
 
 说明：
 

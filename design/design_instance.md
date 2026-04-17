@@ -46,7 +46,7 @@ class TemplateInstance:
 - `confirm_outline_generation`：生成报告实例时，将当前模板实例绑定到 `report_instance_id` 并升级为可执行完成态
   - 先保留用户确认后的实例级诉求树
   - 再把诉求值解析进执行链路，形成实例级执行基线
-- `ReportInstance -> update-chat`：基于内部生成基线恢复到 `outline_review` 阶段继续修改（用户侧先在实例详情预览确认大纲，再显式进入对话）
+- `ReportInstance -> 更新会话`：基于内部生成基线恢复到 `outline_review` 阶段继续修改（用户侧先在实例详情预览确认大纲，再显式进入对话）
 
 > `TemplateInstance` 不是追加式历史记录。对每个新 `ReportInstance`，系统维护一份对应的模板实例聚合，并在生成与重生成链路持续更新其运行态。
 
@@ -300,7 +300,7 @@ class TraceInfo:
 - 会话本身不再保存单个 `instance_id`
 - 报告是否来自会话，应由实例自身字段回答
 
-### 4.3 与 update-chat / fork 的关系
+### 4.3 与更新会话 / fork 的关系
 
 实例恢复与分支统一采用以下优先级：
 

@@ -21,13 +21,13 @@
 - 前端：静态页面，由后端统一提供
 - 主业务库：`src/backend/report_system.db`
 - 电信样例分析库：`src/backend/telecom_demo.db`
-- 文档输出目录：`src/backend/generated_documents/`
+- 文档输出目录：`src/backend/contexts/report_runtime/infrastructure/generated_documents/`
 
 关键入口文件：
 
 - 后端入口：[main.py](E:/code/codex_projects/ReportSystemV2/src/backend/main.py)
 - 依赖清单：[requirements.txt](E:/code/codex_projects/ReportSystemV2/src/backend/requirements.txt)
-- 数据库初始化：[database.py](E:/code/codex_projects/ReportSystemV2/src/backend/database.py)
+- 数据库初始化：[database.py](E:/code/codex_projects/ReportSystemV2/src/backend/infrastructure/persistence/database.py)
 
 ## 3. 环境要求
 
@@ -60,7 +60,7 @@ ReportSystemV2/
 │  │  ├─ main.py                   FastAPI 入口
 │  │  ├─ report_system.db          主业务库（自动生成）
 │  │  ├─ telecom_demo.db           电信样例库（自动生成）
-│  │  ├─ generated_documents/      Markdown 导出目录
+│  │  ├─ contexts/report_runtime/infrastructure/generated_documents/  Markdown 导出目录
 │  │  └─ requirements.txt          Python 依赖
 │  └─ frontend/
 │     ├─ index.html                前端页面
@@ -145,9 +145,9 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:8300/openapi.json'
 服务启动时会自动执行以下动作：
 
 1. 初始化主业务库 `report_system.db`
-2. 自动补齐兼容字段，例如模板表中的 `match_keywords`
+2. 自动完成数据库模型建表与兼容迁移（`checkfirst`）
 3. 初始化电信样例库 `telecom_demo.db`
-4. 供前端页面统一访问 `/` 和 `/static/*`
+4. 供前端页面统一访问 `/`（并按需挂载 `/assets/*`）
 
 说明：
 
@@ -166,9 +166,7 @@ http://127.0.0.1:8300
 
 - 对话助手
 - 报告模板
-- 报告实例
-- 文档管理
-- 定时任务
+- 报告聚合视图（reports）
 - 系统设置
 - 提意见
 
@@ -205,21 +203,21 @@ http://127.0.0.1:8300
 
 导出方式：
 
-- 在“文档管理”页面生成 Markdown
-- 在报告实例详情中直接点击“生成 Markdown”
-- 定时任务在启用 `auto_generate_doc` 时会自动生成 Markdown
+- 在对话中确认生成后自动产出 Markdown 文档记录
+- 通过报告聚合视图中的文档下载链接下载
+- 下载路径统一为：`/rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download`
 
 文档输出位置：
 
 ```text
-src/backend/generated_documents/
+src/backend/contexts/report_runtime/infrastructure/generated_documents/
 ```
 
 说明：
 
 - 当前只支持 Markdown
 - PDF 暂未启用
-- `generated_documents/` 已被 `.gitignore` 忽略，不应纳入版本管理
+- `contexts/report_runtime/infrastructure/generated_documents/` 已被 `.gitignore` 忽略，不应纳入版本管理
 
 ## 11. 远程访问部署
 
@@ -415,7 +413,7 @@ A：
 1. 系统设置已保存
 2. 测试连接通过
 3. 模板索引已重建
-4. 模板本身配置了合理的 `match_keywords`
+4. 模板内容具备可匹配的语义信息（名称、描述、参数与章节诉求）
 
 ### Q10：为什么远程端口放行命令执行失败？
 
@@ -455,8 +453,8 @@ A：
 - 系统设置可保存
 - 系统设置测试连接可用
 - 模板索引可重建
-- 可成功创建报告实例
-- 可成功导出 Markdown
+- 可成功完成对话生成并返回报告聚合数据
+- 可成功下载 Markdown 文档
 
 ## 15. 结论
 

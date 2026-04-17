@@ -146,16 +146,16 @@
 | `DOCUMENT_GENERATION_FAILED` | `upstream_error` | 文档生成失败 |
 | `DOCUMENT_DELETE_FAILED` | `internal_error` | 文档删除失败 |
 
-#### 3.2.6 定时任务
+#### 3.2.6 定时任务（非公开专题）
 
 | 错误码 | 类别 | 说明 |
 |--------|------|------|
-| `TASK_NOT_FOUND` | `not_found` | 任务不存在 |
-| `TASK_SOURCE_INSTANCE_NOT_FOUND` | `not_found` | 源报告实例不存在 |
-| `TASK_USER_QUOTA_EXCEEDED` | `quota_exceeded` | 用户任务数超过上限 |
-| `TASK_GLOBAL_QUOTA_EXCEEDED` | `quota_exceeded` | 全局任务数超过上限 |
-| `TASK_SCHEDULE_INVALID` | `validation_error` | cron 或调度配置非法 |
-| `TASK_RUN_FAILED` | `upstream_error` | 立即执行失败 |
+| `TASK_NOT_FOUND` | `not_found` | 历史调度资源不存在（仅专题保留） |
+| `TASK_SOURCE_INSTANCE_NOT_FOUND` | `not_found` | 历史调度来源实例不存在（仅专题保留） |
+| `TASK_USER_QUOTA_EXCEEDED` | `quota_exceeded` | 历史调度用户配额超过上限（仅专题保留） |
+| `TASK_GLOBAL_QUOTA_EXCEEDED` | `quota_exceeded` | 历史调度全局配额超过上限（仅专题保留） |
+| `TASK_SCHEDULE_INVALID` | `validation_error` | 历史调度配置非法（仅专题保留） |
+| `TASK_RUN_FAILED` | `upstream_error` | 历史调度执行失败（仅专题保留） |
 
 #### 3.2.7 系统设置
 
@@ -192,7 +192,7 @@
 |--------|------|------|
 | 读接口 | 列表、详情、设计文档读取 | `120 req/min/user` |
 | 普通写接口 | 创建、更新、删除、暂停、恢复、clone | `30 req/min/user` |
-| 重计算接口 | 聊天生成、实例创建、章节重生成、`run-now`、文档生成、系统设置测试/重建索引 | `10 req/min/user` |
+| 重计算接口 | 聊天生成、报告聚合生成链路、文档生成、系统设置测试/重建索引 | `10 req/min/user` |
 | 下载接口 | 文档下载等二进制输出 | `30 req/min/user` |
 
 > 说明：这是接口规格设计，不代表当前版本已经有运行时限流器。
@@ -233,8 +233,7 @@
 - 报告实例：默认长期保留
 - 报告文档：默认长期保留
 - 对话会话历史：默认长期保留
-- 定时任务：默认长期保留
-- 任务执行记录：默认长期保留
+- 非公开调度专题数据：按历史兼容策略保留（不属于当前公开业务面）
 
 ### 5.2 有界存储策略
 
@@ -292,11 +291,11 @@
 
 ---
 
-## 7. 待定专题：定时任务中的时间语义重构
+## 7. 待定专题：调度时间语义重构（非公开）
 
-### 7.1 当前现状
+### 7.1 专题背景
 
-当前定时任务只有基础联动能力：
+历史调度设计曾使用基础联动能力：
 
 - `time_param_name`
 - `time_format`
@@ -310,9 +309,9 @@
 
 三者之间的关系。
 
-### 7.2 当前问题
+### 7.2 专题问题
 
-当前创建任务时，用户很难直接理解：
+若后续恢复调度能力，仍需明确：
 
 - 哪个时间是“任务什么时候跑”
 - 哪个时间是“这份报告代表哪一天/哪个时点”
@@ -347,5 +346,4 @@
 - 限流器实现
 - 自动清理任务实现
 - 定时任务时间语义重构实现
-
 
