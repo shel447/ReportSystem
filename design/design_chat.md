@@ -258,8 +258,8 @@ template_matching
 
 报告实例页的“更新”本质上是基于内部生成基线重开对话：
 
-- 用户先在实例详情预览“确认大纲 / 生成基线”
-- 点击“继续到对话助手修改”后，系统创建新会话
+- 用户先在报告聚合视图预览“确认诉求 / 生成基线”
+- 再通过对话入口发起基于 `template_instance` 的 fork，会创建新会话
 - 新会话只注入一个可见的 `review_outline` 节点
 - 前后历史消息不回放
 - 新会话的消息同样写入消息流水表，而不是写入会话 JSON 字段
@@ -277,8 +277,11 @@ template_matching
 - `GET /rest/chatbi/v1/chat/{session_id}`
 - `DELETE /rest/chatbi/v1/chat/{session_id}`
 - `POST /rest/chatbi/v1/chat/forks`
-- `POST /rest/chatbi/v1/instances/{id}/update-chat`
-- `POST /rest/chatbi/v1/instances/{id}/fork-chat`
+
+说明：
+
+- 当前公开实现中，报告更新/分支复用统一通过 `POST /rest/chatbi/v1/chat/forks` 完成
+- 不再公开 `instances` 路径下的 update-chat/fork-chat 接口
 
 统一用户身份约束：
 

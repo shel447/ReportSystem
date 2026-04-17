@@ -236,37 +236,26 @@ class TraceInfo:
 
 ---
 
-## 3. 报告实例的双时间模型
+## 3. 报告时间语义
 
-报告实例当前同时保留：
+报告实例支持业务时间字段：
 
-- `created_at`
-  - 真实创建/执行时间
-  - 用于审计、排序和系统日志
 - `report_time`
-  - 业务口径上的报告时间
-  - 当前主要由定时任务在执行时写入
+  - 业务口径上的报告时间（可为空）
+- `report_time_source`
+  - 报告时间来源标识（可为空）
 
 ### 3.1 设计原则
 
-- 不伪造 `created_at`
-- 不让 `report_time` 覆盖审计时间
-- 前端优先展示 `report_time` 为“报告时间”，同时保留 `created_at` 为“创建时间”
-- `report_time_source` 当前固定使用 `scheduled_execution`
+- `report_time` 是业务语义时间，不替代系统审计时间 `created_at`
+- 前端展示应区分“报告时间”和“创建时间”
+- `report_time_source` 仅用于解释来源，不参与权限或生命周期判断
 
-### 3.2 对调度链路的影响
+### 3.2 当前公开实现边界
 
-定时任务执行时会统一计算：
-
-- `actual_run_time`
-- `scheduled_time`
-
-若任务配置了：
-
-- `time_param_name`
-  - 则把 `scheduled_time` 格式化后写入实例输入参数
-- `use_schedule_time_as_report_time = true`
-  - 则把 `scheduled_time` 写入实例 `report_time`
+- 当前公开业务面不包含定时任务模块
+- `report_time` 仍作为兼容字段保留在实例模型中
+- 具体来源策略由生成链路写入，不在本模块文档扩展调度语义
 
 ---
 
@@ -342,11 +331,6 @@ classDiagram
         +status: str
         +created_at: datetime
         +created_by: str
-        +schedule_type: str
-        +cron_expression: str
-        +timezone: str
-        +enabled: bool
-        +auto_generate_doc: bool
     }
     
     class ReportInstance {

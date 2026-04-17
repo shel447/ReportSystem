@@ -1,6 +1,6 @@
-**版本**: v0.5  
-**最后更新**: 2026-03-31  
-**状态**: 已归档 (同步代码实现)
+**版本**: v0.6  
+**最后更新**: 2026-04-17  
+**状态**: 已归档 (同步当前公开实现)
 
 ---
 
@@ -23,18 +23,17 @@
 
 - 智能问数
 - 智能故障
-- 定时任务自动生成
-- Markdown 文档导出
+- Markdown 报告文档下载
 
 ### 1.2 核心价值
 
 | 价值维度 | 说明 |
 |---------|------|
-| 统一入口 | 同一对话入口承接报告、问数、故障三类任务 |
-| 结构化确认 | 参数确认、大纲确认、生成基线三段式保证生成链路可追踪 |
+| 统一入口 | 同一对话入口承接报告、问数、故障三类能力 |
+| 结构化确认 | 参数收集、诉求确认、确认生成保证链路可追踪 |
 | 双层模板 | 模板同时维护用户诉求与系统执行链路 |
-| 任务复用 | 报告实例可更新、可 fork，会话可恢复与分支 |
-| 调度自动化 | 可从既有实例创建定时任务，并映射业务报告时间 |
+| 聚合视图 | 通过 `reports` 聚合输出内部模板实例与生成内容 |
+| 用户隔离 | 业务接口统一使用 `X-User-Id` 做会话与报告隔离 |
 
 ---
 
@@ -45,23 +44,24 @@
 - 支持 Completion / Embedding 全局配置
 - 支持连接测试
 - 支持模板语义索引重建
-- 未配置系统设置时，对话生成与真实调用链路会明确报错，不再回退 mock
+- 未配置系统设置时，对话生成与真实调用链路会明确报错，不回退 mock
 
 ### 2.2 报告模板
 
 - 创建、编辑、删除、克隆、导出单模板 JSON
-- 模板主结构采用 `parameters / sections`
+- 模板主结构采用：
+  - 顶层：`id / category / name / description / parameters / sections`
+  - 章节诉求：`outline.requirement + outline.items[]`
+  - 执行链路：`content.datasets + presentation`
 - 参数支持：
   - `free_text / date / enum / dynamic`
   - `interaction_mode = form | chat`
-- 章节支持双层模型：
-  - `outline.requirement + outline.items[]`
-  - `content.datasets + presentation`
-- 模板工作台支持：
-  - 参数工作台
-  - 章节树
-  - 诉求 / 执行链路 / 同步状态页签
-  - 诉求预览 / 执行预览 / 模板 JSON
+  - `value_mapping.query`（`display / value / query` 通道映射）
+- 模板导入预解析支持：
+  - 来源识别
+  - 归一化
+  - 校验
+  - 冲突检测
 
 ### 2.3 统一对话模块
 
@@ -78,24 +78,22 @@
   - 新建会话
   - 切换会话
   - 删除会话
-  - 折叠会话栏
+  - 消息级 fork
 
 ### 2.4 报告生成对话
 
 - 模板匹配
 - 参数收集
-- 参数确认
-- 大纲确认
-- 生成报告实例
-- 生成 Markdown 文档
+- 诉求确认
+- 确认生成报告
 
-参数收集当前支持混合模式：
+参数收集支持混合模式：
 
 - `form` 参数：返回 `ask_param`
 - `chat` 参数：返回自然语言追问文本
 - 同一模板内按参数顺序混排
 
-大纲确认当前支持：
+诉求确认支持：
 
 - 实例级诉求树展示
 - 参数片段 inline 编辑
@@ -103,43 +101,33 @@
 - `foreach` 展开
 - 结构化诉求值注入执行链路
 
-### 2.5 报告实例
+### 2.5 报告聚合视图 (Reports)
 
-- 列表、详情、删除
-- 章节重生成
-- 查看确认大纲 / 生成基线
-- 从实例发起“更新”会话
-- 从实例来源消息发起 “Fork” 会话
-- 实例当前额外支持：
-  - `report_time`
-  - `report_time_source`
-  - `has_generation_baseline`
-  - `supports_update_chat`
-  - `supports_fork_chat`
+公开接口：
 
-### 2.6 报告文档
+- `GET /rest/chatbi/v1/reports/{reportId}`
+- `GET /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download`
 
-- 生成 Markdown 文档
-- 下载 Markdown 文档
-- 文档记录列表
-- 文档与实例关联查看
+`GET /reports/{reportId}` 返回聚合结果：
 
-### 2.7 定时任务
+- `reportId`
+- `status`
+- `template_instance`（内部模板实例快照）
+- `generated_content`（生成内容与文档列表）
 
-- 定时任务列表、创建、更新、删除、暂停、恢复、立即执行
-- 当前创建入口固定为“从已有报告实例创建”
-- 支持：
-  - `schedule_type`
-  - `cron_expression`
-  - `auto_generate_doc`
-  - `time_param_name`
-  - `time_format`
-  - `use_schedule_time_as_report_time`
-- 执行时采用双时间模型：
-  - `created_at` 保留真实执行时间
-  - `report_time` 表达业务报告时间
+### 2.6 动态参数辅助接口
 
-### 2.8 智能问数与智能故障
+公开接口：
+
+- `POST /rest/chatbi/v1/parameter-options/resolve`
+
+当前支持：
+
+- 参数来源 `api:/...`（本地动态源）
+- 参数来源 `http(s)://...`（外部动态源）
+- 候选项统一输出：`items[].label / value / query`
+
+### 2.7 智能问数与智能故障
 
 - 智能问数：
   - 统一由对话模块路由进入
@@ -152,25 +140,44 @@
 
 ## 3. 当前约束与行为边界
 
-### 3.1 报告生成
+### 3.1 公开业务资源边界
+
+`/rest/chatbi/v1/*` 当前公开业务面只保留：
+
+- `templates`
+- `chat`
+- `reports`
+- `parameter-options/resolve`
+
+当前不公开：
+
+- `/instances/*`
+- `/scheduled-tasks/*`
+- `/documents/*`
+
+### 3.2 报告生成
 
 - 所有 `required` 参数都必须显式确认
-- 大纲确认统一发生在实例生成之前
+- 诉求确认统一发生在确认生成之前
+- 模板实例 (`TemplateInstance`) 作为内部核心聚合持续维护，不提供独立公开资源
+- 文档下载仅支持 report-scoped 路径
 - 当前只输出 Markdown，不输出 PDF
-- 旧模板结构仍可兼容读取，但保存后统一按 `v2.0` 结构维护
 
-### 3.2 统一对话模块
+### 3.3 统一对话模块
 
 - v1 不支持任务栈
-- 问数后不会自动回到之前的报告任务
+- 问数后不会自动回到之前报告任务
 - 当 `chat` 模式参数待收集时，普通自然语言优先作为参数答案
 - 只有显式切换意图才允许中断当前报告流程
 
-### 3.3 定时任务
+### 3.4 对话契约兼容
 
-- 当前不支持脱离源报告实例直接创建
-- `run-now` 场景下 `scheduled_time = actual_run_time`
-- 失败不自动重试
+`POST /chat` 兼容两类请求契约：
+
+- 旧契约：`message / session_id / command...`
+- 新契约：`conversationId / chatId / instruction / question / reply / command.name`
+
+当 `Accept: text/event-stream` 时，当前返回 SSE 骨架事件（单次 `message` 事件）。
 
 ---
 
@@ -225,21 +232,14 @@
 - 单章节内容：`<= 64 KB`
 - 单实例总 JSON：`<= 5 MB`
 - Markdown 文档文件：`<= 5 MB`
+- 动态参数请求体：`<= 32 KB`
+- 动态参数单次 `limit`：`<= 50`
 
 ### 4.5 数据保留策略
 
-- 模板、实例、文档、会话历史、定时任务、任务执行记录默认长期保留
+- 模板、报告、文档、会话历史默认长期保留
 - 首版不自动做业务数据老化清理
 - 通过调试信息摘要化、样本行限制、预览截断控制存储膨胀
-
-### 4.6 定时任务时间联动专题
-
-- 当前系统只具备 `time_param_name + report_time` 的基础联动
-- “任务执行时间 / 报告时间 / 报告数据时间范围”的完整模型尚未实现
-- 后续专题方向：
-  - 模板声明 `time_slots`
-  - 定时任务绑定时间槽位
-  - 增加 `data_time_start / data_time_end`
 
 ---
 
@@ -250,16 +250,14 @@
 | TG-001 | 任务栈与挂起恢复 | 报告中途切问数/故障后可恢复原任务 | Medium | 未实现 |
 | TG-002 | 会话分支树可视化 | 图形化展示 fork 关系与来源 | Medium | 未实现 |
 | TM-001 | 模板版本管理 | 支持模板版本回滚与比较 | Medium | 未实现 |
-| TM-002 | 模板导入 | 支持导入单模板 JSON | Low | 未实现 |
-| RI-001 | 实例版本控制 | 同一实例的版本链路管理 | Low | 未实现 |
-| RI-002 | 报告差异对比 | 对比两个实例或两个分支的章节差异 | Medium | 未实现 |
+| TM-002 | 模板导入落库策略可视化 | 在导入预解析后提供覆盖/副本策略指引 | Low | 未实现 |
+| RP-001 | 报告编辑流式接口 | `reports` 维度的章节编辑/重生成流式能力 | Medium | 未实现 |
+| RP-002 | 报告差异对比 | 对比两个报告版本或两个分支差异 | Medium | 未实现 |
 | SQ-001 | 智能问数结果卡片化 | 问数结果以结构化卡片展示而不只是纯文本 | Medium | 未实现 |
 | FD-001 | 故障证据查询接入 | 故障诊断接入真实告警/工单证据链 | Medium | 未实现 |
-| ST-001 | 调度失败自动重试 | 定时任务失败后按策略重试 | Medium | 未实现 |
 | DFX-001 | 统一异常中间件 | 运行时统一错误响应、错误码和 request_id 注入 | Medium | 未实现 |
 | DFX-002 | 运行时接口限流 | 落地接口族分级限流器 | Medium | 未实现 |
 | DFX-003 | 列表接口统一分页 | 所有列表接口统一分页、排序、过滤规范 | Medium | 未实现 |
-| DFX-004 | 定时任务时间槽位 | 用 `time_slots` 重构执行时间、报告时间、数据时间范围关系 | Medium | 未实现 |
 | DOC-001 | PDF 导出 | 生成 PDF 文档 | Low | 未实现 |
 
 ---
@@ -273,7 +271,4 @@
 | v0.3 | 2026-03-04 | Antigravity | 同步沉浸式对话 UI 与表格化管理等前端实现 |
 | v0.4 | 2026-03-31 | Antigravity | 同步统一对话模块、模板双层模型、实例更新/Fork、定时任务双时间模型与参数追问模式 |
 | v0.5 | 2026-03-31 | Antigravity | 新增 DFX 接口治理规格基线：统一错误响应、限流、容量上限、长期保留策略，并将定时任务时间语义重构记录为后续专题 |
-
-
-
-
+| v0.6 | 2026-04-17 | Codex | 全面按当前公开实现刷新：公开业务面收敛为 templates/chat/reports/parameter-options，移除实例/文档/定时任务公开模块表述，补齐 chat 双契约兼容与 SSE 骨架说明，统一报告聚合视图口径 |
