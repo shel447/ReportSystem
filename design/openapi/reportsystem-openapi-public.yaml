@@ -1,818 +1,703 @@
 openapi: 3.1.0
 info:
-  title: Smart Report System
-  version: 1.6.0
+  title: ReportSystem ChatBI Public API
+  version: 2026-04-17
+  description: |
+    目标态业务公开接口定义。接口外层协议严格对齐 ChatBI，
+    报告系统仅在 REPORT 结果体和 reports 资源族上做兼容式扩展。
+servers:
+  - url: /rest/chatbi/v1
+security:
+  - XUserIdHeader: []
+tags:
+  - name: templates
+  - name: chat
+  - name: reports
+  - name: parameter-options
 paths:
-  /rest/chatbi/v1/chat:
+  /templates:
     get:
-      tags:
-      - chat
-      summary: List Sessions
-      operationId: list_sessions_rest_chatbi_v1_chat_get
-      parameters:
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
+      tags: [templates]
+      summary: List templates
+      operationId: listTemplates
       responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReportTemplate"
+                  total:
+                    type: integer
+                required: [items, total]
     post:
-      tags:
-      - chat
-      summary: Send Message
-      operationId: send_message_rest_chatbi_v1_chat_post
-      parameters:
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
+      tags: [templates]
+      summary: Create template
+      operationId: createTemplate
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ChatMessage'
+              $ref: "#/components/schemas/ReportTemplate"
       responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/chat/forks:
-    post:
-      tags:
-      - chat
-      summary: Fork Session
-      operationId: fork_session_rest_chatbi_v1_chat_forks_post
-      parameters:
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatForkRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/chat/{session_id}:
+                $ref: "#/components/schemas/ReportTemplate"
+
+  /templates/{id}:
     get:
-      tags:
-      - chat
-      summary: Get Session
-      operationId: get_session_rest_chatbi_v1_chat__session_id__get
+      tags: [templates]
+      summary: Get template
+      operationId: getTemplate
       parameters:
-      - name: session_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Session Id
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
+        - $ref: "#/components/parameters/TemplateId"
       responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    delete:
-      tags:
-      - chat
-      summary: Delete Session
-      operationId: delete_session_rest_chatbi_v1_chat__session_id__delete
-      parameters:
-      - name: session_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Session Id
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/parameter-options/resolve:
-    post:
-      tags:
-      - parameter-options
-      summary: Resolve Parameter Options
-      operationId: resolve_parameter_options_rest_chatbi_v1_parameter_options_resolve_post
-      parameters:
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ParameterOptionsResolveRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/reports/{report_id}:
-    get:
-      tags:
-      - reports
-      summary: Get Report View
-      operationId: get_report_view_rest_chatbi_v1_reports__report_id__get
-      parameters:
-      - name: report_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Report Id
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/reports/{report_id}/documents/{document_id}/download:
-    get:
-      tags:
-      - reports
-      summary: Download Report Document
-      operationId: download_report_document_rest_chatbi_v1_reports__report_id__documents__document_id__download_get
-      parameters:
-      - name: report_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Report Id
-      - name: document_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Document Id
-      - name: X-User-Id
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-User-Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/templates:
-    get:
-      tags:
-      - templates
-      summary: List Templates
-      operationId: list_templates_rest_chatbi_v1_templates_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-    post:
-      tags:
-      - templates
-      summary: Create Template
-      operationId: create_template_rest_chatbi_v1_templates_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TemplateCreate'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/templates/import/preview:
-    post:
-      tags:
-      - templates
-      summary: Preview Import Template
-      operationId: preview_import_template_rest_chatbi_v1_templates_import_preview_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TemplateImportPreviewRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/templates/{template_id}:
-    get:
-      tags:
-      - templates
-      summary: Get Template
-      operationId: get_template_rest_chatbi_v1_templates__template_id__get
-      parameters:
-      - name: template_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Template Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: "#/components/schemas/ReportTemplate"
     put:
-      tags:
-      - templates
-      summary: Update Template
-      operationId: update_template_rest_chatbi_v1_templates__template_id__put
+      tags: [templates]
+      summary: Update template
+      operationId: updateTemplate
       parameters:
-      - name: template_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Template Id
+        - $ref: "#/components/parameters/TemplateId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TemplateUpdate'
+              $ref: "#/components/schemas/ReportTemplate"
       responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: "#/components/schemas/ReportTemplate"
     delete:
-      tags:
-      - templates
-      summary: Delete Template
-      operationId: delete_template_rest_chatbi_v1_templates__template_id__delete
+      tags: [templates]
+      summary: Delete template
+      operationId: deleteTemplate
       parameters:
-      - name: template_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Template Id
+        - $ref: "#/components/parameters/TemplateId"
       responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
+        "204":
+          description: Deleted
+
+  /templates/import/preview:
+    post:
+      tags: [templates]
+      summary: Preview template import
+      operationId: previewTemplateImport
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  oneOf:
+                    - type: string
+                    - type: object
+              required: [content]
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /rest/chatbi/v1/templates/{template_id}/export:
+                type: object
+                properties:
+                  normalizedTemplate:
+                    $ref: "#/components/schemas/ReportTemplate"
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                required: [normalizedTemplate, warnings]
+
+  /templates/{id}/export:
     get:
-      tags:
-      - templates
-      summary: Export Template Definition
-      operationId: export_template_definition_rest_chatbi_v1_templates__template_id__export_get
+      tags: [templates]
+      summary: Export template
+      operationId: exportTemplate
       parameters:
-      - name: template_id
-        in: path
-        required: true
-        schema:
-          type: string
-          title: Template Id
+        - $ref: "#/components/parameters/TemplateId"
       responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-        '422':
-          description: Validation Error
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: "#/components/schemas/ReportTemplate"
+
+  /chat:
+    get:
+      tags: [chat]
+      summary: List conversations
+      operationId: listConversations
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConversationSummary"
+                  total:
+                    type: integer
+                required: [items, total]
+    post:
+      tags: [chat]
+      summary: Send chat turn
+      operationId: sendChatTurn
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Non-streaming ChatBI response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "206":
+          description: Streaming ChatBI response
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/ChatStreamEvent"
+
+  /chat/forks:
+    post:
+      tags: [chat]
+      summary: Fork conversation or reopen from template instance
+      operationId: forkConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForkRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetail"
+
+  /chat/{conversationId}:
+    get:
+      tags: [chat]
+      summary: Get conversation
+      operationId: getConversation
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetail"
+    delete:
+      tags: [chat]
+      summary: Delete conversation
+      operationId: deleteConversation
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "204":
+          description: Deleted
+
+  /reports/{reportId}:
+    get:
+      tags: [reports]
+      summary: Get report view
+      operationId: getReport
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportViewResponse"
+
+  /reports/{reportId}/document-generations:
+    post:
+      tags: [reports]
+      summary: Generate report documents
+      operationId: generateReportDocuments
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentGenerationRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentGenerationResponse"
+
+  /reports/{reportId}/documents/{documentId}/download:
+    get:
+      tags: [reports]
+      summary: Download report document
+      operationId: downloadReportDocument
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+        - $ref: "#/components/parameters/DocumentId"
+      responses:
+        "200":
+          description: File stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /parameter-options/resolve:
+    post:
+      tags: [parameter-options]
+      summary: Resolve dynamic parameter options
+      operationId: resolveParameterOptions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParameterOptionsResolveRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParameterOptionsResolveResponse"
+
 components:
+  securitySchemes:
+    XUserIdHeader:
+      type: apiKey
+      in: header
+      name: X-User-Id
+  parameters:
+    TemplateId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        type: string
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema:
+        type: string
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      schema:
+        type: string
   schemas:
-    ChatCommandPayload:
+    ReportTemplate:
+      type: object
       properties:
+        id:
+          type: string
+        category:
+          type: string
         name:
           type: string
-          title: Name
-          default: ''
-      type: object
-      title: ChatCommandPayload
-    ChatForkRequest:
-      properties:
-        source_kind:
+        description:
           type: string
-          title: Source Kind
-        source_session_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Source Session Id
-        source_message_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Source Message Id
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateParameter"
+        catalogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateCatalog"
+      required: [id, category, name, description, parameters, catalogs]
+    TemplateParameter:
       type: object
-      required:
-      - source_kind
-      title: ChatForkRequest
-    ChatMessage:
       properties:
-        message:
+        id:
           type: string
-          title: Message
-          default: ''
-        session_id:
+        name:
           type: string
-          title: Session Id
-          default: ''
-        preferred_capability:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Preferred Capability
-        selected_template_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Selected Template Id
-        param_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Param Id
-        param_value:
-          anyOf:
-          - {}
-          - type: 'null'
-          title: Param Value
-        param_values:
-          anyOf:
-          - items:
-              type: string
-            type: array
-          - type: 'null'
-          title: Param Values
-        command:
-          anyOf:
-          - type: string
-          - $ref: '#/components/schemas/ChatCommandPayload'
-          - type: 'null'
-          title: Command
-        target_param_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Target Param Id
-        outline_override:
-          anyOf:
-          - items:
-              additionalProperties: true
-              type: object
-            type: array
-          - type: 'null'
-          title: Outline Override
-        parameter_updates:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Parameter Updates
-        conversationId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Conversationid
-        chatId:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Chatid
-        instruction:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Instruction
-        question:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Question
-        reply:
-          anyOf:
-          - $ref: '#/components/schemas/ChatReplyPayload'
-          - type: 'null'
-      type: object
-      title: ChatMessage
-    ChatReplyPayload:
-      properties:
         type:
           type: string
-          title: Type
-          default: ''
-        parameters:
-          additionalProperties: true
-          type: object
-          title: Parameters
-          default: {}
-      type: object
-      title: ChatReplyPayload
-    CompletionSettingsUpdate:
-      properties:
-        base_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Base Url
-        model:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Model
-        api_key:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Api Key
-        clear_api_key:
-          type: boolean
-          title: Clear Api Key
-          default: false
-        temperature:
-          anyOf:
-          - type: number
-          - type: 'null'
-          title: Temperature
-        timeout_sec:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Timeout Sec
-      type: object
-      title: CompletionSettingsUpdate
-    EmbeddingSettingsUpdate:
-      properties:
-        base_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Base Url
-        model:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Model
-        api_key:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Api Key
-        clear_api_key:
-          type: boolean
-          title: Clear Api Key
-          default: false
-        timeout_sec:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Timeout Sec
-        use_completion_auth:
-          anyOf:
-          - type: boolean
-          - type: 'null'
-          title: Use Completion Auth
-      type: object
-      title: EmbeddingSettingsUpdate
-    FeedbackCreate:
-      properties:
-        submitter:
+        interaction_mode:
           type: string
-          title: Submitter
+          enum: [form, chat]
+        required:
+          type: boolean
+      required: [id, name, type, interaction_mode, required]
+    TemplateCatalog:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateSection"
+      required: [id, name, sections]
+    TemplateSection:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        outline:
+          type: object
+        content:
+          type: object
+      required: [id, title]
+    ConversationSummary:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required: [conversationId, title, updatedAt]
+    ConversationDetail:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        title:
+          type: string
+        chats:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+      required: [conversationId, title, chats]
+    ChatMessage:
+      type: object
+      properties:
+        chatId:
+          type: string
+        role:
+          type: string
         content:
           type: string
-          title: Content
-        priority:
+        action:
+          type: object
+        meta:
+          type: object
+      required: [chatId, role, content]
+    ChatRequest:
+      type: object
+      properties:
+        conversationId:
           type: string
-          title: Priority
-          default: medium
-        images:
+        chatId:
+          type: string
+        instruction:
+          type: string
+        question:
+          type: string
+        reply:
+          type: object
+        command:
+          type: object
+        histories:
+          type: array
+          items:
+            type: object
+      required: [question]
+    ChatResponse:
+      type: object
+      properties:
+        conversationId:
+          type: string
+        chatId:
+          type: string
+        answerType:
+          type: string
+        answer:
+          oneOf:
+            - $ref: "#/components/schemas/ReportAnswerEnvelope"
+            - type: object
+      required: [conversationId, chatId, answerType, answer]
+    ChatStreamEvent:
+      type: object
+      properties:
+        eventType:
+          type: string
+          enum: [status, step_delta, ask, answer, error, done]
+        data:
+          type: object
+      required: [eventType, data]
+    ForkRequest:
+      type: object
+      properties:
+        sourceKind:
+          type: string
+          enum: [chat, template_instance]
+        sourceConversationId:
+          type: string
+        sourceChatId:
+          type: string
+        templateInstanceId:
+          type: string
+      required: [sourceKind]
+    ReportViewResponse:
+      type: object
+      properties:
+        reportId:
+          type: string
+        status:
+          type: string
+        answerType:
+          type: string
+          const: REPORT
+        answer:
+          $ref: "#/components/schemas/ReportAnswerEnvelope"
+      required: [reportId, status, answerType, answer]
+    ReportAnswerEnvelope:
+      type: object
+      properties:
+        reportId:
+          type: string
+        status:
+          type: string
+        report:
+          $ref: "#/components/schemas/ReportDsl"
+        templateInstance:
+          $ref: "#/components/schemas/TemplateInstance"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportDocument"
+        generationProgress:
+          type: object
+      required: [reportId, status, report, templateInstance, documents]
+    TemplateInstance:
+      type: object
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        templateId:
+          type: string
+        catalogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateCatalogInstance"
+        bindingStatus:
+          type: object
+      required: [id, conversationId, templateId, catalogs]
+    TemplateCatalogInstance:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/TemplateSectionInstance"
+      required: [id, name, sections]
+    TemplateSectionInstance:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        requirementInstance:
+          type: object
+        skeletonStatus:
+          type: string
+      required: [id, title]
+    ReportDsl:
+      type: object
+      properties:
+        basicInfo:
+          type: object
+        cover:
+          type: object
+        signaturePage:
+          type: object
+        catalogs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportCatalog"
+        summary:
+          type: object
+        reportMeta:
+          type: object
+        layout:
+          type: object
+      required: [basicInfo, catalogs, summary, reportMeta, layout]
+    ReportCatalog:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportSection"
+      required: [id, name, sections]
+    ReportSection:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        components:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportComponent"
+      required: [id, title, components]
+    ReportComponent:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        data:
+          type: object
+        meta:
+          type: object
+      required: [id, type]
+    ReportDocument:
+      type: object
+      properties:
+        documentId:
+          type: string
+        format:
+          type: string
+          enum: [markdown, word, ppt, pdf]
+        status:
+          type: string
+        downloadUrl:
+          type: string
+      required: [documentId, format, status]
+    DocumentGenerationRequest:
+      type: object
+      properties:
+        formats:
+          type: array
           items:
             type: string
-          type: array
-          title: Images
-          default: []
-      type: object
-      required:
-      - submitter
-      - content
-      title: FeedbackCreate
-    HTTPValidationError:
-      properties:
-        detail:
-          items:
-            $ref: '#/components/schemas/ValidationError'
-          type: array
-          title: Detail
-      type: object
-      title: HTTPValidationError
-    ParameterOptionsResolveRequest:
-      properties:
-        template_id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Template Id
-        param_id:
+            enum: [word, ppt, pdf]
+        pdfSource:
           type: string
-          title: Param Id
+          enum: [word, ppt]
+        theme:
+          type: string
+        strictValidation:
+          type: boolean
+        regenerateIfExists:
+          type: boolean
+      required: [formats]
+    DocumentGenerationResponse:
+      type: object
+      properties:
+        reportId:
+          type: string
+        jobs:
+          type: array
+          items:
+            type: object
+            properties:
+              jobId:
+                type: string
+              format:
+                type: string
+              status:
+                type: string
+              dependsOn:
+                type: string
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportDocument"
+      required: [reportId, jobs, documents]
+    ParameterOptionsResolveRequest:
+      type: object
+      properties:
         source:
           type: string
-          title: Source
-        query:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Query
-        selected_params:
-          anyOf:
-          - additionalProperties: true
-            type: object
-          - type: 'null'
-          title: Selected Params
-        limit:
-          anyOf:
-          - type: integer
-          - type: 'null'
-          title: Limit
-      type: object
-      required:
-      - param_id
-      - source
-      title: ParameterOptionsResolveRequest
-    SettingsTestRequest:
-      properties:
-        target:
+        method:
           type: string
-          enum:
-          - completion
-          - embedding
-          - both
-          title: Target
-          default: both
-      type: object
-      title: SettingsTestRequest
-    SettingsUpdateRequest:
-      properties:
-        completion:
-          $ref: '#/components/schemas/CompletionSettingsUpdate'
-        embedding:
-          $ref: '#/components/schemas/EmbeddingSettingsUpdate'
-      type: object
-      required:
-      - completion
-      - embedding
-      title: SettingsUpdateRequest
-    TemplateCreate:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        description:
-          type: string
-          title: Description
-          default: ''
-        category:
-          type: string
-          title: Category
-          default: ''
-        parameters:
-          items: {}
-          type: array
-          title: Parameters
-          default: []
-        sections:
-          items: {}
-          type: array
-          title: Sections
-          default: []
-      type: object
-      required:
-      - id
-      - name
-      title: TemplateCreate
-    TemplateImportPreviewRequest:
-      properties:
-        payload:
-          additionalProperties: true
+          enum: [POST]
+        request:
           type: object
-          title: Payload
-        filename:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Filename
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+      required: [source, method, request]
+    ParameterOptionsResolveResponse:
       type: object
-      required:
-      - payload
-      title: TemplateImportPreviewRequest
-    TemplateUpdate:
       properties:
-        id:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Id
-        name:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Name
-        description:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Description
-        category:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Category
-        parameters:
-          anyOf:
-          - items: {}
-            type: array
-          - type: 'null'
-          title: Parameters
-        sections:
-          anyOf:
-          - items: {}
-            type: array
-          - type: 'null'
-          title: Sections
-      type: object
-      title: TemplateUpdate
-    ValidationError:
-      properties:
-        loc:
-          items:
-            anyOf:
-            - type: string
-            - type: integer
+        items:
           type: array
-          title: Location
-        msg:
-          type: string
-          title: Message
-        type:
-          type: string
-          title: Error Type
-      type: object
-      required:
-      - loc
-      - msg
-      - type
-      title: ValidationError
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              value:
+                type: string
+              query:
+                type: string
+            required: [label, value, query]
+        meta:
+          type: object
+      required: [items, meta]

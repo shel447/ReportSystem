@@ -2,17 +2,17 @@
 
 ## 1. 说明
 
-本篇集中放当前后端公开主链路的关键时序图，帮助在阅读代码时快速建立调用链全貌。
+本篇集中放目标态关键时序图，帮助在阅读代码和设计文档时快速建立调用链全貌。
 
 当前覆盖三条主链路：
 
-- 对话确认生成
+- 对话确认生成并流式返回报告
 - 报告聚合读取与文档下载
 - 基于模板实例来源的会话恢复
 
 ---
 
-## 2. 对话确认生成
+## 2. 对话确认生成并流式返回报告
 
 适用场景：用户在统一对话中完成模板匹配、参数补充和诉求确认后，点击“确认生成”。
 
@@ -24,36 +24,29 @@ sequenceDiagram
     participant Persist as ConversationPersistenceGateway
     participant State as ConversationStateGateway
     participant Report as ConversationReportGateway
-    participant Runtime as ReportInstanceCreationService
-    participant Baseline as capture_template_instance
-    participant Doc as create_markdown_document
+    participant Runtime as Report Runtime Application
+    participant LLM as LLM
 
     UI->>API: POST /rest/chatbi/v1/chat(command=confirm_outline_generation)
     API->>Conv: send_message(data)
-    Conv->>Persist: get_session(session_id)
-    Conv->>State: restore_state_from_history(messages)
-    Conv->>Report: merge_outline_override(pending_outline, outline_override)
-    Conv->>Report: resolve_outline_execution_baseline(outline)
-    Conv->>Report: resolve source_session_id + source_message_id
-    Conv->>Report: create_instance(template_id, user_id, input_params, outline_override, source_session_id, source_message_id)
-    Report->>Runtime: create_instance(...)
-    Runtime-->>Report: created instance payload
-    Conv->>Report: capture_template_instance(...)
-    Report->>Baseline: write template_instances snapshot
-    Conv->>Report: create_markdown_document(instance_id)
-    Report->>Doc: render markdown + persist report_documents
-    Conv->>State: persist_state_to_history(...)
-    Conv->>Persist: save messages into chat_messages
-    Conv->>Persist: save session container only
-    Conv-->>API: reply + download_document action
-    API-->>UI: assistant message + document metadata
+    Conv->>Persist: get_conversation(conversationId)
+    Conv->>State: restore_state_from_history(chats)
+    Conv->>Report: merge_outline_override(templateInstance, outlineOverride)
+    Conv->>Report: build_template_instance(...)
+    Conv->>Runtime: build_report_dsl(templateInstance)
+    Runtime->>LLM: generate sections/components
+    Runtime-->>Conv: REPORT stream deltas
+    Conv->>Runtime: freeze_report_instance(...)
+    Conv->>Persist: save chats + hidden context_state
+    Conv-->>API: SSE events(status/step_delta/answer/done)
+    API-->>UI: 流式 REPORT
 ```
 
 关键点：
 
-- 对话模块不直接写 `report_instances` 或 `report_documents`，统一经 `ConversationReportGateway` 转入 `report_runtime`
-- 诉求编辑结果先解析成执行基线，再创建实例
-- 生成成功后会同步固化内部模板实例与 Markdown 文档
+- `/chat` 在确认生成后按 ChatBI 事件模型流式返回 `REPORT`
+- `REPORT` 中同时携带 `report + templateInstance + documents`
+- 报告实例冻结晚于首个流式报告骨架返回
 
 ---
 
@@ -70,26 +63,55 @@ sequenceDiagram
 
     UI->>API: GET /rest/chatbi/v1/reports/{reportId}
     API->>Runtime: get_report_view(reportId, user_id)
-    Runtime-->>API: reportId + template_instance + generated_content
+    Runtime-->>API: report + templateInstance + documents
     API-->>UI: report payload
 
     UI->>API: GET /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download
-    API->>Runtime: get_report_view(reportId, user_id)
+    API->>Runtime: assert_report_belongs_to_user(reportId, user_id)
     API->>Doc: resolve_download(documentId)
     Doc-->>API: file metadata + absolute_path
-    API-->>UI: markdown file stream
+    API-->>UI: file stream
 ```
 
 关键点：
 
-- 报告读取统一走 `reports` 聚合接口，不再暴露 `instances` 公开接口
-- 文档下载路径必须带 `reportId + documentId`，不再走独立 `/documents/*`
+- 报告读取统一走 `reports` 聚合接口
+- 文档下载路径必须带 `reportId + documentId`
+- 详情接口返回正式报告和模板实例，用于支持再次编辑诉求
 
 ---
 
-## 4. 基于模板实例来源的会话恢复
+## 4. 文档生成
 
-适用场景：用户希望从某份历史生成基线继续对话修改。
+适用场景：用户在报告详情页请求生成 Word / PPT / PDF。
+
+```mermaid
+sequenceDiagram
+    participant UI as Report UI
+    participant API as /rest/chatbi/v1/reports/{reportId}/document-generations
+    participant App as ExportReportService
+    participant Repo as ReportInstanceRepository
+    participant Java as JavaOfficeExporterGateway
+    participant PDF as PdfConversionService
+    participant Doc as ReportDocumentService
+
+    UI->>API: POST document-generations(formats=[word,ppt,pdf])
+    API->>App: request_generation(reportId, formats, options)
+    App->>Repo: load report instance with content.dsl
+    App->>Java: export word/ppt from report_dsl
+    Java-->>App: artifacts
+    App->>PDF: derive pdf if requested
+    PDF-->>App: pdf artifact
+    App->>Doc: register documents
+    App-->>API: jobs + documents
+    API-->>UI: generation result
+```
+
+---
+
+## 5. 基于模板实例来源的会话恢复
+
+适用场景：用户希望从某份历史报告的模板实例继续编辑诉求。
 
 ```mermaid
 sequenceDiagram
@@ -103,23 +125,18 @@ sequenceDiagram
     API->>Conv: fork_session(data)
     Conv->>Fork: fork_from_template_instance(...)
     Fork->>Persist: load template_instance snapshot
-    Fork->>Fork: build new chat session payload
-    Fork->>Fork: inject visible assistant review_outline message
+    Fork->>Fork: build new conversation payload
+    Fork->>Fork: inject visible review_outline message
     Fork->>Fork: append hidden context_state snapshot
-    Fork->>Persist: save new session + chat_messages
-    Persist-->>Conv: session detail payload
+    Fork->>Persist: save new conversation + chats
+    Persist-->>Conv: conversation detail payload
     Conv-->>API: fork result
-    API-->>UI: new session_id + messages
+    API-->>UI: new conversationId + chats
 ```
-
-关键点：
-
-- 当前公开恢复入口统一走 `POST /chat/forks`
-- 恢复会话不回放完整历史，只注入可继续编辑的诉求确认节点与隐藏上下文快照
 
 ---
 
-## 5. 阅读建议
+## 6. 阅读建议
 
 建议和以下文档配合阅读：
 

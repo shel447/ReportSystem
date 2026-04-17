@@ -2,7 +2,7 @@
 
 ## 1. 模块定位
 
-`conversation` 负责统一对话入口下的会话生命周期、消息历史、单活任务路由、报告任务推进，以及会话 fork / 基线恢复。
+`conversation` 负责统一对话入口下的会话生命周期、消息历史、单活任务路由、报告任务推进，以及会话 fork / 更新恢复。
 
 它是用户交互的编排上下文，不直接拥有模板或报告实例主数据，但会调用 `template_catalog` 和 `report_runtime`。
 
@@ -24,55 +24,55 @@
 
 目标模型下，对话领域的核心概念收敛为“会话容器 + 消息流水 + 隐藏 context_state 消息”三部分：
 
-- `ChatSession`
+- `Conversation`
   - 持久化容器，保存标题、所属用户、fork 来源信息和状态
-- `ChatMessage`
+- `Chat`
   - 独立消息流水，保存可见消息和隐藏 `context_state`
 - `ActiveTask`
   - 当前唯一活动任务，能力值固定为 `report_generation | smart_query | fault_diagnosis`
 - `PendingSwitch`
   - 当用户中途切任务时的待确认状态
 - `ReportConversationState`
-  - 报告任务在对话中的推进状态：模板匹配、参数收集、诉求确认、生成完成
+  - 报告任务在对话中的推进状态：模板匹配、参数收集、诉求确认、流式生成
 
 ## 4. 分层职责
 
 ### domain
 
-- 当前 `conversation/domain` 目录仍较轻，真正规则主要体现在 application + context-local infrastructure helper 中
-- 业务语义已经固定为单活任务和显式任务切换，但尚未抽成完整 domain model
+- 对话领域对象统一使用 `Conversation / Chat` 语义
+- 单活任务和显式任务切换是不可下沉的领域约束
 
 ### application
 
-- `ConversationService` 是对话上下文唯一公开应用服务
+- `ConversationService` 是对话上下文的应用入口
 - 它编排：
   - 会话加载/创建
   - 历史消息与上下文恢复
   - 能力识别与显式切换确认
   - 报告任务推进
   - smart query / fault diagnosis 转发
-  - fork / 基线来源恢复
+  - fork / 更新恢复
 
 ### infrastructure
 
 - `ConversationPersistenceGateway`
-  - 与 `chat_sessions`、`chat_messages`、模板记录、生成基线、实例记录交互
+  - 与 `tbl_chat_sessions`、`tbl_chat_messages`、模板记录、实例记录交互
 - `ConversationStateGateway`
   - 负责 `ContextState` 的恢复、压缩、持久化
 - `ConversationCapabilityGateway`
   - 负责能力识别、问数、故障诊断、通用对话回复
 - `ConversationReportGateway`
-  - 负责报告流相关 helper：模板匹配、参数抽取、缺失参数、确认诉求、实例创建、基线捕获
+  - 负责模板匹配、参数抽取、诉求确认、模板实例构建、报告 DSL 冻结触发
 - `ConversationForkGateway`
-  - 负责消息级 fork 和从生成基线恢复更新会话
+  - 负责消息级 fork 和从模板实例恢复更新会话
 
 ### router
 
-- `chat.py` 只暴露：
+- `chat.py` 暴露：
   - `GET /rest/chatbi/v1/chat`
   - `POST /rest/chatbi/v1/chat`
-  - `GET /rest/chatbi/v1/chat/{session_id}`
-  - `DELETE /rest/chatbi/v1/chat/{session_id}`
+  - `GET /rest/chatbi/v1/chat/{conversationId}`
+  - `DELETE /rest/chatbi/v1/chat/{conversationId}`
   - `POST /rest/chatbi/v1/chat/forks`
 
 ## 5. 核心实现链路
@@ -89,58 +89,54 @@ sequenceDiagram
     participant Report as ConversationReportGateway
 
     API->>App: send_message(data)
-    App->>Persist: get/create session
-    App->>Persist: load chat_messages by session_id
-    App->>State: restore_state_from_history(messages)
+    App->>Persist: get/create conversation
+    App->>Persist: load chats by conversation_id
+    App->>State: restore_state_from_history(chats)
     App->>Cap: detect_capability(...)
     alt report_generation
-        App->>Report: match/extract/ask/review/create
+        App->>Report: match/extract/ask/review/generate
     else smart_query / fault_diagnosis
         App->>Cap: handle_xxx_turn(...)
     end
     App->>State: persist_state_to_history(...)
-    App->>Persist: append chat_messages + save_session(session)
-    App-->>API: reply + action + messages
+    App->>Persist: append chats + save_conversation(conversation)
+    App-->>API: reply + action + chats
 ```
 
-### 5.2 报告任务在对话中的推进
+### 5.2 报告任务推进
 
 固定按下面规则推进：
 
 1. 匹配模板
 2. 按参数顺序收集参数
-3. `interaction_mode=form` 返回结构化面板
-4. `interaction_mode=chat` 返回自然语言追问
-5. 参数完备后生成待确认诉求
-6. 用户编辑诉求并确认生成
-7. 调用 `report_runtime` 创建实例和 Markdown 文档
+3. 构建 `TemplateInstance`
+4. 用户确认诉求
+5. 触发 `BuildReportDslService`
+6. 进入流式 `REPORT` 生成
+7. 完成后冻结 `ReportInstance`
 
-### 5.3 fork / 基线恢复
+### 5.3 fork / 更新恢复
 
-- 消息级 fork：从 `chat_messages` 中按 `message_id` 构造新会话分支
-- 基于模板实例来源恢复：优先使用 `report_instances.source_session_id`，并在需要时回退 `template_instances.session_id` 与内部生成基线
+- 消息级 fork：从 `tbl_chat_messages` 中按 `chat_id` 构造新会话分支
+- 基于模板实例恢复：优先使用 `ReportInstance.source_conversation_id`，并在需要时回退 `TemplateInstance.conversation_id`
 
 ## 6. 依赖与被依赖关系
 
 ### 对外依赖
 
 - `template_catalog`：模板匹配与模板读取
-- `report_runtime`：确认诉求、实例创建、文档生成、生成基线恢复
+- `report_runtime`：模板实例构建、Report DSL 冻结、文档生成
 - `infrastructure.ai.openai_compat`：自然语言对话、参数抽取、问数、故障诊断
 - `infrastructure.settings.system_settings`：Provider 配置读取
 
 ### 被谁依赖
 
 - `chat` router
-- 报告聚合视图相关流程在需要恢复会话时，通过 `chat/forks(source_kind=template_instance)` 进入该上下文
+- 报告详情页在需要恢复更新会话时，通过 `chat/forks` 进入该上下文
 
 ## 7. 关联表引用
 
-本模块主要维护：
-
-- [database_schema.md](database_schema.md)
-
-并读取：
+本模块主要维护并读取：
 
 - [database_schema.md](database_schema.md)
 
@@ -151,12 +147,11 @@ sequenceDiagram
 - 单活任务模型
 - 显式能力切换确认
 - `interaction_mode=form|chat` 混排收参
-- 诉求确认后的实例创建和更新会话语义
+- 诉求确认后的流式报告生成
 
 ### 可替换 adapter
 
 - 对话回复生成器可替换
 - 参数抽取器可替换
-- fork / state persistence helper 可替换成其他存储/序列化方案
+- fork / state persistence helper 可替换
 - 只要 `ConversationService` 的入参与出参行为保持不变，HTTP API 和业务规格不受影响
-

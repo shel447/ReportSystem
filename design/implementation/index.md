@@ -49,9 +49,10 @@ flowchart LR
 2. [模板目录模块实现](template_catalog.md)
 3. [统一对话模块实现](conversation.md)
 4. [报告运行时模块实现](report_runtime.md)
-5. [核心运行时序图](runtime_sequences.md)
-6. [共享基础设施与 supporting 模块](infrastructure_and_supporting.md)
-7. [外部接口与用法](external_interfaces.md)
+5. [报告 DSL 导出实现](report_dsl_export.md)
+6. [核心运行时序图](runtime_sequences.md)
+7. [共享基础设施与 supporting 模块](infrastructure_and_supporting.md)
+8. [外部接口与用法](external_interfaces.md)
 
 ## 4. 文档索引
 
@@ -60,6 +61,7 @@ flowchart LR
 | [template_catalog.md](template_catalog.md) | 模板目录模块实现、schema 校验、语义索引与模板匹配 |
 | [conversation.md](conversation.md) | 会话、能力路由、报告任务推进、fork/基线恢复的实现 |
 | [report_runtime.md](report_runtime.md) | 报告实例、确认大纲、生成基线、章节生成、文档导出 |
+| [report_dsl_export.md](report_dsl_export.md) | `ReportDsl`、文档生成、Java 导出器适配与 PDF 派生链路 |
 | [runtime_sequences.md](runtime_sequences.md) | 对话确认生成、报告聚合读取、会话恢复的关键时序图 |
 | [infrastructure_and_supporting.md](infrastructure_and_supporting.md) | 持久化、AI、查询、settings、demo、routers、依赖装配 |
 | [database_schema.md](database_schema.md) | 当前全部业务表定义、字段语义与典型读写链路 |
@@ -72,4 +74,3 @@ flowchart LR
 - `src/backend/infrastructure/reporting/` 当前不承载生产逻辑，不在本组文档中作为主链路模块说明。
 - 运行产物目录（例如 `report_system.db`、`contexts/report_runtime/infrastructure/generated_documents/`）不作为 bounded context 说明主体，只在相关技术边界章节提及。
 - `scheduling` 相关实现当前未挂载公开路由，归为历史专题，不纳入公开主链路说明。
-
