@@ -122,7 +122,22 @@ class ChatRouterTests(unittest.TestCase):
         self.assertEqual(saved["action"]["type"], "review_outline")
         self.assertEqual(self.db.query(TemplateInstance).count(), 1)
 
-        fake_app_service = SimpleNamespace(create_instance=lambda **_kwargs: {"instance_id": "inst-1"})
+        fake_app_service = SimpleNamespace(
+            create_instance=lambda **_kwargs: {
+                "instance_id": "inst-1",
+                "outline_content": [
+                    {
+                        "title": "总部总览",
+                        "description": "巡检范围",
+                        "content": "ok",
+                        "status": "generated",
+                        "data_status": "success",
+                        "debug": {},
+                        "level": 1,
+                    }
+                ],
+            }
+        )
         fake_doc = SimpleNamespace(document_id="doc-1", instance_id="inst-1", id="tpl-1", format="md", file_path="x.md", file_size=10, status="ready", version=1, created_at="now")
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.contexts.conversation.infrastructure.gateways.build_instance_application_service", return_value=fake_app_service), \
@@ -155,6 +170,7 @@ class ChatRouterTests(unittest.TestCase):
         self.assertIsNotNone(confirmed_record)
         self.assertEqual(confirmed_record.report_instance_id, "inst-1")
         self.assertEqual(confirmed_record.capture_stage, "generation_baseline")
+        self.assertEqual(len((confirmed_record.content or {}).get("generated_content", {}).get("sections", [])), 1)
         self.assertEqual(len(self.db.query(TemplateInstance).all()), 1)
 
     def test_confirm_outline_generation_resolves_outline_blocks_into_execution_baseline(self):

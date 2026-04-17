@@ -450,6 +450,7 @@ class ConversationReportGateway:
         report_instance_id: str,
         input_params_snapshot: dict[str, Any],
         outline_snapshot: list[dict[str, Any]],
+        generated_sections: list[dict[str, Any]] | None,
         warnings: list[str] | None,
         created_by: str,
     ) -> str:
@@ -460,6 +461,7 @@ class ConversationReportGateway:
             report_instance_id=report_instance_id,
             input_params_snapshot=input_params_snapshot,
             outline_snapshot=outline_snapshot,
+            generated_sections=generated_sections,
             warnings=warnings,
             created_by=created_by,
         )

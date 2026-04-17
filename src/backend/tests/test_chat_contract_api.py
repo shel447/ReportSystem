@@ -90,6 +90,67 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertEqual(payload["ask"]["type"], "confirm")
         self.assertEqual(payload["ask"]["parameters"][0]["id"], "scene")
 
+    def test_post_chat_reply_parameters_advance_form_collection(self):
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.contexts.conversation.infrastructure.gateways.match_templates",
+                 return_value={
+                     "auto_match": True,
+                     "best": {"template_id": "tpl-1", "score": 0.95},
+                     "candidates": [],
+                 },
+             ), \
+             patch(
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
+                 return_value={},
+             ):
+            first = self.client.post(
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default"},
+                json={
+                    "conversationId": "conv-form-001",
+                    "chatId": "chat-001",
+                    "instruction": "generate_report",
+                    "question": "帮我生成设备巡检报告",
+                },
+            )
+
+        self.assertEqual(first.status_code, 200)
+        first_payload = first.json()
+        self.assertEqual(first_payload["ask"]["mode"], "form")
+        self.assertEqual(first_payload["ask"]["parameters"][0]["id"], "scene")
+
+        with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
+             patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \
+             patch(
+                 "backend.contexts.conversation.infrastructure.gateways.extract_params_from_message",
+                 return_value={},
+             ):
+            second = self.client.post(
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default"},
+                json={
+                    "conversationId": "conv-form-001",
+                    "chatId": "chat-002",
+                    "instruction": "generate_report",
+                    "question": "",
+                    "reply": {
+                        "type": "fill_params",
+                        "parameters": {
+                            "scene": "总部",
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(second.status_code, 200)
+        second_payload = second.json()
+        self.assertEqual(second_payload["status"], "waiting_user")
+        self.assertEqual(second_payload["ask"]["mode"], "form")
+        self.assertEqual(second_payload["ask"]["type"], "fill_params")
+        self.assertEqual(second_payload["ask"]["parameters"][0]["id"], "devices")
+
     def test_post_chat_final_confirm_returns_finished_report_answer(self):
         with patch("backend.contexts.conversation.infrastructure.gateways.get_settings_payload", return_value={"is_ready": True}), \
              patch("backend.contexts.conversation.infrastructure.parameters.get_dynamic_options", return_value=["A001", "A002"]), \

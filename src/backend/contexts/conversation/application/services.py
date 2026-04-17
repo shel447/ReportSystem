@@ -501,6 +501,9 @@ class ConversationService:
                 else:
                     updates = {data.param_id: data.param_value}
                 source = "user"
+            elif getattr(data, "parameter_updates", None):
+                updates = dict(getattr(data, "parameter_updates") or {})
+                source = "user"
             elif user_message and not data.command:
                 updates = self.report_gateway.extract_params_from_message(
                     template_params=template_params,
@@ -625,6 +628,7 @@ class ConversationService:
                             report_instance_id=created["instance_id"],
                             input_params_snapshot=merged,
                             outline_snapshot=resolved_outline,
+                            generated_sections=created.get("outline_content") or [],
                             warnings=report.get("outline_review_warnings") or [],
                             created_by=session.user_id or "system",
                         )

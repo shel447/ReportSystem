@@ -18,6 +18,7 @@ def capture_template_instance(
     capture_stage: str,
     input_params_snapshot: Dict[str, Any],
     outline_snapshot: List[Dict[str, Any]],
+    generated_sections: List[Dict[str, Any]] | None = None,
     warnings: List[str] | None = None,
     report_instance_id: str | None = None,
     created_by: str = "system",
@@ -43,6 +44,7 @@ def capture_template_instance(
             session_id=existing.session_id or session_id,
             input_params_snapshot=input_params_snapshot,
             outline_snapshot=outline_nodes,
+            generated_sections=generated_sections,
             warnings=warnings,
             report_instance_id=existing.report_instance_id,
             capture_stage=capture_stage,
@@ -67,6 +69,7 @@ def capture_template_instance(
             session_id=session_id,
             input_params_snapshot=input_params_snapshot,
             outline_snapshot=outline_nodes,
+            generated_sections=generated_sections,
             warnings=warnings,
             report_instance_id=report_instance_id,
             capture_stage=capture_stage,
@@ -87,6 +90,7 @@ def capture_generation_baseline(
     report_instance_id: str,
     input_params_snapshot: Dict[str, Any],
     outline_snapshot: List[Dict[str, Any]],
+    generated_sections: List[Dict[str, Any]] | None = None,
     warnings: List[str] | None = None,
     created_by: str = "system",
 ) -> TemplateInstance:
@@ -97,6 +101,7 @@ def capture_generation_baseline(
         capture_stage="generation_baseline",
         input_params_snapshot=input_params_snapshot,
         outline_snapshot=outline_snapshot,
+        generated_sections=generated_sections,
         warnings=warnings,
         report_instance_id=report_instance_id,
         created_by=created_by,
@@ -231,6 +236,7 @@ def _build_template_instance_content(
     session_id: str,
     input_params_snapshot: Dict[str, Any],
     outline_snapshot: List[Dict[str, Any]],
+    generated_sections: List[Dict[str, Any]] | None,
     warnings: List[str] | None,
     report_instance_id: str | None,
     capture_stage: str,
@@ -243,6 +249,9 @@ def _build_template_instance_content(
     old_generated = old.get("generated_content") if isinstance(old.get("generated_content"), dict) else {}
     old_fragments = old.get("fragments") if isinstance(old.get("fragments"), dict) else {}
     parameters = deepcopy(input_params_snapshot or {})
+    effective_generated_sections = deepcopy(
+        generated_sections if generated_sections is not None else old_generated.get("sections", [])
+    )
     return {
         "schema_version": "ti.v1.0",
         "base_template": {
@@ -282,10 +291,10 @@ def _build_template_instance_content(
         "resolved_view": {
             "parameters": {key: _to_resolved_trio(value) for key, value in (parameters or {}).items()},
             "outline": deepcopy(outline_snapshot),
-            "sections": deepcopy((old.get("resolved_view") or {}).get("sections", [])),
+            "sections": deepcopy(effective_generated_sections),
         },
         "generated_content": {
-            "sections": deepcopy(old_generated.get("sections", [])),
+            "sections": deepcopy(effective_generated_sections),
             "documents": deepcopy(old_generated.get("documents", [])),
         },
         "fragments": deepcopy(old_fragments),
