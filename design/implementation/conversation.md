@@ -2,7 +2,7 @@
 
 ## 1. 模块定位
 
-`conversation` 负责统一对话入口下的会话生命周期、消息历史、单活任务路由、报告任务推进，以及会话 fork / 报告实例 update-chat 恢复。
+`conversation` 负责统一对话入口下的会话生命周期、消息历史、单活任务路由、报告任务推进，以及会话 fork / 基线恢复。
 
 它是用户交互的编排上下文，不直接拥有模板或报告实例主数据，但会调用 `template_catalog` 和 `report_runtime`。
 
@@ -51,7 +51,7 @@
   - 能力识别与显式切换确认
   - 报告任务推进
   - smart query / fault diagnosis 转发
-  - fork / update-chat / 来源恢复
+  - fork / 基线来源恢复
 
 ### infrastructure
 
@@ -115,10 +115,10 @@ sequenceDiagram
 6. 用户编辑诉求并确认生成
 7. 调用 `report_runtime` 创建实例和 Markdown 文档
 
-### 5.3 fork / update-chat
+### 5.3 fork / 基线恢复
 
 - 消息级 fork：从 `chat_messages` 中按 `message_id` 构造新会话分支
-- 报告实例 update-chat：优先使用 `report_instances.source_session_id`，并在需要时回退 `template_instances.session_id` 与内部生成基线
+- 基于模板实例来源恢复：优先使用 `report_instances.source_session_id`，并在需要时回退 `template_instances.session_id` 与内部生成基线
 
 ## 6. 依赖与被依赖关系
 
@@ -132,7 +132,7 @@ sequenceDiagram
 ### 被谁依赖
 
 - `chat` router
-- `instances` router 的 update/fork 会话创建逻辑通过该上下文恢复会话
+- 报告聚合视图相关流程在需要恢复会话时，通过 `chat/forks(source_kind=template_instance)` 进入该上下文
 
 ## 7. 关联表引用
 
