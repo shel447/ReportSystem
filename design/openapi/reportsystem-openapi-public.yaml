@@ -550,7 +550,7 @@ components:
           oneOf:
             - { type: string }
             - { $ref: '#/components/schemas/ReportAnswer' }
-            - { $ref: '#/components/schemas/ReportTemplate' }
+            - { $ref: '#/components/schemas/ReportTemplateExtractionResult' }
       required: [answerType, answer]
     ReportAnswer:
       type: object
@@ -571,6 +571,18 @@ components:
             totalSections: { type: integer }
             completedSections: { type: integer }
       required: [reportId, status, report, templateInstance, documents]
+    ReportTemplateExtractionResult:
+      type: object
+      properties:
+        normalizedTemplate:
+          $ref: '#/components/schemas/ReportTemplate'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/WarningItem'
+        persisted:
+          type: boolean
+      required: [normalizedTemplate, warnings, persisted]
     ReportInstanceResource:
       type: object
       properties:
