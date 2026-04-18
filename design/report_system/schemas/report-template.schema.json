@@ -212,6 +212,12 @@
         }
       ]
     },
+    "ScopedParameterDefinitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ParameterDefinition"
+      }
+    },
     "OutlineDefinition": {
       "type": "object",
       "additionalProperties": false,
@@ -444,9 +450,12 @@
         "description": {
           "type": "string"
         },
-        "order": {
-          "type": "integer",
-          "minimum": 1
+        "parameters": {
+          "$ref": "#/$defs/ScopedParameterDefinitions"
+        },
+        "titleTemplate": {
+          "type": "string",
+          "description": "章节动态标题模板。使用 {$parameterId} 引用当前层级及其父层级可见参数的 display 值。"
         },
         "foreach": {
           "$ref": "#/$defs/ForeachDefinition"
@@ -464,8 +473,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "name",
-        "sections"
+        "name"
       ],
       "properties": {
         "id": {
@@ -478,9 +486,21 @@
         "description": {
           "type": "string"
         },
-        "order": {
-          "type": "integer",
-          "minimum": 1
+        "parameters": {
+          "$ref": "#/$defs/ScopedParameterDefinitions"
+        },
+        "nameTemplate": {
+          "type": "string",
+          "description": "目录动态标题模板。使用 {$parameterId} 引用当前层级及其父层级可见参数的 display 值。"
+        },
+        "foreach": {
+          "$ref": "#/$defs/ForeachDefinition"
+        },
+        "subCatalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CatalogDefinition"
+          }
         },
         "sections": {
           "type": "array",
@@ -488,7 +508,19 @@
             "$ref": "#/$defs/SectionDefinition"
           }
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "sections"
+          ]
+        },
+        {
+          "required": [
+            "subCatalogs"
+          ]
+        }
+      ]
     }
   }
 }

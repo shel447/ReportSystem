@@ -41,52 +41,16 @@
       "openSource": {
         "url": "https://example.internal/api/network/scopes/options"
       }
-    },
-    {
-      "id": "metric_set",
-      "label": "指标集",
-      "description": "选择报告关注的指标集。",
-      "inputType": "enum",
-      "required": true,
-      "multi": false,
-      "interactionMode": "form",
-      "valueMode": "value",
-      "options": [
-        {
-          "display": "可用性",
-          "value": "availability",
-          "query": "availability"
-        },
-        {
-          "display": "时延",
-          "value": "latency",
-          "query": "latency"
-        },
-        {
-          "display": "综合",
-          "value": "all",
-          "query": "all"
-        }
-      ],
-      "defaultValue": [
-        {
-          "display": "综合",
-          "value": "all",
-          "query": "all"
-        }
-      ]
     }
   ],
   "catalogs": [
     {
       "id": "catalog_overview",
       "name": "运行概览",
-      "order": 1,
       "sections": [
         {
           "id": "section_overview",
           "title": "总体态势",
-          "order": 1,
           "outline": {
             "requirement": "分析{@scope_item}在{@report_date_item}的总体运行态势，并总结关键结论。",
             "items": [
@@ -140,63 +104,135 @@
       ]
     },
     {
-      "id": "catalog_detail",
-      "name": "明细分析",
-      "order": 2,
-      "sections": [
+      "id": "catalog_scope_analysis",
+      "name": "对象分析",
+      "nameTemplate": "{$scope}专题分析",
+      "foreach": {
+        "parameterId": "scope",
+        "as": "scope_item"
+      },
+      "parameters": [
         {
-          "id": "section_alarm_detail",
-          "title": "异常明细",
-          "order": 1,
-          "outline": {
-            "requirement": "列出{@scope_item}在{@report_date_item}期间的主要异常及处理建议。",
-            "items": [
-              {
-                "id": "scope_item",
-                "label": "分析对象",
-                "kind": "search_target",
-                "required": true,
-                "multi": true,
-                "sourceParameterId": "scope",
-                "widget": "multi_select"
-              },
-              {
-                "id": "report_date_item",
-                "label": "报告日期",
-                "kind": "time_range",
-                "required": true,
-                "sourceParameterId": "report_date",
-                "widget": "date"
-              }
-            ]
-          },
-          "content": {
-            "datasets": [
-              {
-                "id": "dataset_alarm_detail",
-                "name": "异常明细数据集",
-                "sourceType": "api",
-                "sourceRef": "api.network.alarm_detail"
-              }
-            ],
-            "presentation": {
-              "kind": "mixed",
-              "blocks": [
-                {
-                  "id": "block_alarm_table",
-                  "type": "table",
-                  "title": "异常列表",
-                  "datasetId": "dataset_alarm_detail"
-                },
-                {
-                  "id": "block_alarm_markdown",
-                  "type": "markdown",
-                  "title": "处置建议",
-                  "datasetId": "dataset_alarm_detail"
-                }
-              ]
+          "id": "detail_granularity",
+          "label": "分析粒度",
+          "description": "该目录下章节共享的分析粒度。",
+          "inputType": "enum",
+          "required": true,
+          "multi": false,
+          "interactionMode": "form",
+          "valueMode": "value",
+          "options": [
+            {
+              "display": "小时",
+              "value": "hour",
+              "query": "hour"
+            },
+            {
+              "display": "天",
+              "value": "day",
+              "query": "day"
             }
-          }
+          ],
+          "defaultValue": [
+            {
+              "display": "天",
+              "value": "day",
+              "query": "day"
+            }
+          ]
+        }
+      ],
+      "subCatalogs": [
+        {
+          "id": "catalog_scope_availability",
+          "name": "可用性分析",
+          "nameTemplate": "{$scope}可用性分析",
+          "sections": [
+            {
+              "id": "section_scope_trend",
+              "title": "可用性趋势",
+              "titleTemplate": "{$scope}可用性{$detail_granularity}趋势",
+              "parameters": [
+                {
+                  "id": "trend_window",
+                  "label": "趋势窗口",
+                  "description": "仅用于该章节的趋势窗口。",
+                  "inputType": "enum",
+                  "required": true,
+                  "multi": false,
+                  "interactionMode": "form",
+                  "valueMode": "value",
+                  "options": [
+                    {
+                      "display": "最近7天",
+                      "value": "7d",
+                      "query": "7d"
+                    },
+                    {
+                      "display": "最近30天",
+                      "value": "30d",
+                      "query": "30d"
+                    }
+                  ],
+                  "defaultValue": [
+                    {
+                      "display": "最近7天",
+                      "value": "7d",
+                      "query": "7d"
+                    }
+                  ]
+                }
+              ],
+              "outline": {
+                "requirement": "分析{@scope_item}在{@report_date_item}的可用性{$detail_granularity}趋势，并结合{$trend_window}给出结论。",
+                "items": [
+                  {
+                    "id": "scope_item",
+                    "label": "分析对象",
+                    "kind": "search_target",
+                    "required": true,
+                    "sourceParameterId": "scope",
+                    "widget": "select"
+                  },
+                  {
+                    "id": "report_date_item",
+                    "label": "报告日期",
+                    "kind": "time_range",
+                    "required": true,
+                    "sourceParameterId": "report_date",
+                    "widget": "date"
+                  }
+                ]
+              },
+              "content": {
+                "datasets": [
+                  {
+                    "id": "dataset_scope_trend",
+                    "name": "对象趋势数据集",
+                    "sourceType": "sql",
+                    "sourceRef": "sql.network.scope_trend"
+                  }
+                ],
+                "presentation": {
+                  "kind": "mixed",
+                  "blocks": [
+                    {
+                      "id": "block_scope_trend_chart",
+                      "type": "chart",
+                      "title": "趋势图",
+                      "datasetId": "dataset_scope_trend"
+                    },
+                    {
+                      "id": "block_scope_trend_text",
+                      "type": "paragraph",
+                      "title": "趋势结论",
+                      "datasetId": "dataset_scope_trend"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
         }
       ]
     }
