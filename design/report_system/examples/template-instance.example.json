@@ -255,6 +255,9 @@
     {
       "targetType": "parameter",
       "targetId": "scope",
+      "catalogPath": [
+        "catalog_scope_analysis"
+      ],
       "changeKind": "slot_value_update",
       "payload": {
         "newValue": [

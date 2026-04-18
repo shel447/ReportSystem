@@ -70,6 +70,7 @@
 - `templateSkeletonStatus` 同时包含系统内部三态和 UI 二态
 - `requirementInstance.items[].resolvedValues` 也统一保留三元组数组，不提前把多值拼成 SQL 字符串
 - 模板实例允许保留物化后的顺序字段，用于 `foreach` 展开后的稳定排序与后续冻结
+- 多层目录下，`deltaViews` 可补充 `catalogPath/sectionPath`，用于审计、回放和前后端稳态定位，不替代 `targetId`
 
 模板实例顶层示例：
 
@@ -100,7 +101,7 @@
 
 - `Report DSL` 直接收编仓库中的正式 DSL Schema，不再手写第二套相似定义
 - 其结构必须严格等于 [src/backend/report.schema.json](E:/code/codex_projects/ReportSystemV2/src/backend/report.schema.json)
-- `catalogs -> sections -> components` 是正式主体
+- `catalogs -> (subCatalogs)* -> sections -> components` 是正式主体
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 
@@ -201,3 +202,4 @@
 4. 模板层保留 `outline.requirement + outline.items`；运行态实例化后才形成 `requirementInstance`。
 5. 多值参数与多值诉求项在运行态统一保留三元组数组；展示层默认用 `、` 拼接 `display`，执行层默认由 `executionBindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。
 6. 参数作用域采用“节点定义、向下继承可见”：章节可见自身参数，目录可见自身及祖先参数，模板根参数全局可见。
+7. `section.id` 在单份模板内必须全局唯一；`catalog.id` 也建议全局唯一。`reportMeta`、流式进度和 `deltaViews` 都依赖这一点维持稳定定位。

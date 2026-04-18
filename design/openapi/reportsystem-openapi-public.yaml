@@ -370,7 +370,13 @@ components:
     ErrorResponse:
       type: object
       properties:
-        code: { type: string }
+        code:
+          type: string
+          description: |
+            典型模板相关错误码包括：
+            TEMPLATE_SCHEMA_INVALID、TEMPLATE_DUPLICATE_PARAMETER_ID、
+            TEMPLATE_DUPLICATE_SECTION_ID、TEMPLATE_EMPTY_CATALOG、
+            TEMPLATE_ID_CONFLICT、TEMPLATE_PATH_ID_MISMATCH。
         message: { type: string }
         details:
           type: array
@@ -570,6 +576,12 @@ components:
           properties:
             totalSections: { type: integer }
             completedSections: { type: integer }
+            totalCatalogs: { type: integer }
+            completedCatalogs: { type: integer }
+            currentCatalogPath:
+              type: array
+              items: { type: string }
+            currentSectionId: { type: string }
       required: [reportId, status, report, templateInstance, documents]
     ReportTemplateExtractionResult:
       type: object
