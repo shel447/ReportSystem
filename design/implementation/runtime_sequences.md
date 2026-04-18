@@ -36,4 +36,9 @@ sequenceDiagram
     App->>EXP: export word/ppt
     App->>PDF: derive pdf
     App-->>UI: jobs + documents
+
+说明：
+
+- `jobs` 用于表示本次生成请求的执行状态
+- `documents` 用于回传当前已经可下载的文档产物，包括复用旧产物的场景
 ```

@@ -694,6 +694,19 @@
       },
       "ChatRequest": {
         "type": "object",
+        "description": "统一对话请求包络。\n`question` 与 `reply` 至少应出现一个。\n`attachments` 仅在 `extract_report_template` 且需要上传原始材料时必填。\n`histories` 仅在基于历史对话生成报告时必填。\n",
+        "anyOf": [
+          {
+            "required": [
+              "question"
+            ]
+          },
+          {
+            "required": [
+              "reply"
+            ]
+          }
+        ],
         "properties": {
           "conversationId": {
             "type": "string"
@@ -761,8 +774,6 @@
           "conversationId",
           "chatId",
           "instruction",
-          "attachments",
-          "histories",
           "requestId",
           "apiVersion"
         ]
@@ -946,8 +957,8 @@
           "mode": {
             "type": "string",
             "enum": [
-              "plaintext",
-              "form"
+              "form",
+              "natural_language"
             ]
           },
           "type": {
@@ -969,7 +980,7 @@
               "type": "object",
               "properties": {
                 "parameter": {
-                  "$ref": "#/components/schemas/TemplateParameterRef"
+                  "$ref": "#/components/schemas/AskParameterDefinition"
                 },
                 "currentValue": {
                   "type": "array",
@@ -996,7 +1007,7 @@
           "text"
         ]
       },
-      "TemplateParameterRef": {
+      "AskParameterDefinition": {
         "type": "object",
         "properties": {
           "id": {
@@ -1005,18 +1016,61 @@
           "label": {
             "type": "string"
           },
-          "inputType": {
+          "description": {
             "type": "string"
+          },
+          "inputType": {
+            "type": "string",
+            "enum": [
+              "free_text",
+              "date",
+              "enum",
+              "dynamic"
+            ]
           },
           "required": {
             "type": "boolean"
+          },
+          "multi": {
+            "type": "boolean"
+          },
+          "interactionMode": {
+            "type": "string",
+            "enum": [
+              "form",
+              "natural_language"
+            ]
+          },
+          "valueMode": {
+            "type": "string",
+            "enum": [
+              "display",
+              "value",
+              "query"
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrioValue"
+            }
+          },
+          "defaultValue": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrioValue"
+            }
+          },
+          "openSource": {
+            "$ref": "../report_system/schemas/report-template.schema.json#/$defs/OpenSource"
           }
         },
         "required": [
           "id",
           "label",
           "inputType",
-          "required"
+          "required",
+          "interactionMode"
         ]
       },
       "AnswerEnvelope": {
@@ -1204,11 +1258,18 @@
             "items": {
               "$ref": "#/components/schemas/ExportJob"
             }
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentArtifact"
+            }
           }
         },
         "required": [
           "reportId",
-          "jobs"
+          "jobs",
+          "documents"
         ]
       },
       "ExportJob": {

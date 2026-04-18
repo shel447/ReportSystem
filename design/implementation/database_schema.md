@@ -24,6 +24,6 @@
 
 ## 3. 关键关系
 
-- `tbl_template_instances.report_instance_id` 唯一指向 `tbl_report_instances.id`
+- `tbl_report_instances.template_instance_id` 指向 `tbl_template_instances.id`，且不加唯一约束
 - `tbl_report_instances.source_conversation_id/source_chat_id` 表达来源锚点
 - `tbl_report_documents` 与 `tbl_export_jobs` 依附 `tbl_report_instances`

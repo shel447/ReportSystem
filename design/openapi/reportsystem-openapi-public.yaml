@@ -374,6 +374,14 @@ components:
       required: [chatId, conversationId, role, content]
     ChatRequest:
       type: object
+      description: |
+        统一对话请求包络。
+        `question` 与 `reply` 至少应出现一个。
+        `attachments` 仅在 `extract_report_template` 且需要上传原始材料时必填。
+        `histories` 仅在基于历史对话生成报告时必填。
+      anyOf:
+        - required: [question]
+        - required: [reply]
       properties:
         conversationId: { type: string }
         chatId: { type: string }
@@ -398,7 +406,7 @@ components:
             $ref: '#/components/schemas/ChatMessage'
         requestId: { type: string }
         apiVersion: { type: string }
-      required: [conversationId, chatId, instruction, attachments, histories, requestId, apiVersion]
+      required: [conversationId, chatId, instruction, requestId, apiVersion]
     Reply:
       type: object
       properties:
@@ -462,7 +470,7 @@ components:
     Ask:
       type: object
       properties:
-        mode: { type: string, enum: [plaintext, form] }
+        mode: { type: string, enum: [form, natural_language] }
         type: { type: string, enum: [fill_params, confirm_params] }
         title: { type: string }
         text: { type: string }
@@ -472,7 +480,7 @@ components:
             type: object
             properties:
               parameter:
-                $ref: '#/components/schemas/TemplateParameterRef'
+                $ref: '#/components/schemas/AskParameterDefinition'
               currentValue:
                 type: array
                 items:
@@ -483,14 +491,28 @@ components:
             templateInstance:
               $ref: '#/components/schemas/TemplateInstance'
       required: [mode, type, title, text]
-    TemplateParameterRef:
+    AskParameterDefinition:
       type: object
       properties:
         id: { type: string }
         label: { type: string }
-        inputType: { type: string }
+        description: { type: string }
+        inputType: { type: string, enum: [free_text, date, enum, dynamic] }
         required: { type: boolean }
-      required: [id, label, inputType, required]
+        multi: { type: boolean }
+        interactionMode: { type: string, enum: [form, natural_language] }
+        valueMode: { type: string, enum: [display, value, query] }
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrioValue'
+        defaultValue:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrioValue'
+        openSource:
+          $ref: ../report_system/schemas/report-template.schema.json#/$defs/OpenSource
+      required: [id, label, inputType, required, interactionMode]
     AnswerEnvelope:
       type: object
       properties:
@@ -563,7 +585,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ExportJob'
-      required: [reportId, jobs]
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentArtifact'
+      required: [reportId, jobs, documents]
     ExportJob:
       type: object
       properties:

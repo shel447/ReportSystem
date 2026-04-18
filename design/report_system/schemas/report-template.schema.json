@@ -190,7 +190,8 @@
           },
           "then": {
             "required": [
-              "options"
+              "options",
+              "valueMode"
             ]
           }
         },
@@ -204,21 +205,22 @@
           },
           "then": {
             "required": [
-              "openSource"
+              "openSource",
+              "valueMode"
             ]
           }
         }
       ]
     },
-    "RequirementDefinition": {
+    "OutlineDefinition": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "text",
+        "requirement",
         "items"
       ],
       "properties": {
-        "text": {
+        "requirement": {
           "type": "string"
         },
         "items": {
@@ -428,7 +430,7 @@
       "required": [
         "id",
         "title",
-        "requirement",
+        "outline",
         "content"
       ],
       "properties": {
@@ -449,8 +451,8 @@
         "foreach": {
           "$ref": "#/$defs/ForeachDefinition"
         },
-        "requirement": {
-          "$ref": "#/$defs/RequirementDefinition"
+        "outline": {
+          "$ref": "#/$defs/OutlineDefinition"
         },
         "content": {
           "$ref": "#/$defs/SectionContentDefinition"

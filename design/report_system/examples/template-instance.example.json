@@ -20,6 +20,11 @@
         "display": "总部网络",
         "value": "hq-network",
         "query": "scope_id = 'hq-network'"
+      },
+      {
+        "display": "分支网络",
+        "value": "branch-network",
+        "query": "scope_id = 'branch-network'"
       }
     ],
     "metric_set": [
@@ -41,7 +46,7 @@
           "title": "总体态势",
           "order": 1,
           "requirementInstance": {
-            "text": "分析总部网络在 2026-04-18 的总体运行态势，并总结关键结论。",
+            "text": "分析总部网络、分支网络在 2026-04-18 的总体运行态势，并总结关键结论。",
             "items": [
               {
                 "id": "scope_item",
@@ -52,6 +57,11 @@
                     "display": "总部网络",
                     "value": "hq-network",
                     "query": "scope_id = 'hq-network'"
+                  },
+                  {
+                    "display": "分支网络",
+                    "value": "branch-network",
+                    "query": "scope_id = 'branch-network'"
                   }
                 ],
                 "bindingSource": "parameter",
@@ -79,7 +89,8 @@
               "bindingType": "dataset_parameter",
               "sourceType": "sql",
               "targetRef": "dataset_daily_summary.scope",
-              "resolvedQuery": "scope_id = 'hq-network'"
+              "multiValueQueryMode": "in",
+              "resolvedQuery": "scope_id IN ('hq-network', 'branch-network')"
             }
           ],
           "skeletonStatus": "reusable",

@@ -23,6 +23,7 @@
 1. Schema 是正式约束，示例只是参考。
 2. 开发、测试、导入导出、文档生成都必须围绕这些 Schema 工作。
 3. 若 `/src/backend` 中的历史 Schema 与本目录冲突，以本目录为准；后续代码实现再回收旧定义。
+4. `Report DSL` 必须严格遵循 [src/backend/report.schema.json](E:/code/codex_projects/ReportSystemV2/src/backend/report.schema.json)；本目录中的 `report-dsl.schema.json` 只是该契约的镜像副本，供设计文档、校验脚本和开发联调直接引用。
 
 ## 2. ReportTemplate
 
@@ -33,6 +34,8 @@
 - `parameters`、`catalogs` 是模板对象根属性，不再放进 `content`
 - 模板是静态资产，不带运行态 `status`
 - 参数动态候选项来源统一用 `openSource.url` 描述，不再把方法、请求体、响应体格式散落在模板中
+- `enum` / `dynamic` 参数必须显式声明 `valueMode`，避免执行层无法判断三元组主值通道
+- `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
 
 模板顶层示例：
 
@@ -55,9 +58,11 @@
 关键要求：
 
 - 主体保持 `catalogs -> sections`
-- `parameterValues` 统一采用“三元组数组”表示，兼容单值和多值参数
+- `parameterValues` 统一采用“三元组数组”表示，兼容单值和多值参数；这里保存的是“已生效值”
+- 若用户未显式赋值，则先取参数或诉求项的 `defaultValue` 后再写入 `parameterValues`
 - `deltaViews` 只是局部编辑视图，不是持久化真相
 - `templateSkeletonStatus` 同时包含系统内部三态和 UI 二态
+- `requirementInstance.items[].resolvedValues` 也统一保留三元组数组，不提前把多值拼成 SQL 字符串
 
 模板实例顶层示例：
 
@@ -87,8 +92,10 @@
 关键要求：
 
 - `Report DSL` 直接收编仓库中的正式 DSL Schema，不再手写第二套相似定义
+- 其结构必须严格等于 [src/backend/report.schema.json](E:/code/codex_projects/ReportSystemV2/src/backend/report.schema.json)
 - `catalogs -> sections -> components` 是正式主体
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
+- `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 
 报告 DSL 顶层示例：
 
@@ -147,6 +154,7 @@
 - 值是三元组数组
 - 统一采用 `POST`
 - 单次返回上限、超时、鉴权等运行约束由系统统一治理，不再写入模板
+- 当参数支持多值时，请求中继续传三元组数组；不要提前拼接成逗号串或 SQL 片段
 
 ### 5.3 外部响应体规范
 
@@ -174,3 +182,5 @@
 1. 业务正式模型以本目录的 JSON Schema 为准。
 2. API 契约和持久化结构要投影这些模型，不得反向定义第二套对象。
 3. 模板定义中的动态候选项数据源协议已经标准化，模板里不再声明方法和报文结构。
+4. 模板层保留 `outline.requirement + outline.items`；运行态实例化后才形成 `requirementInstance`。
+5. 多值参数与多值诉求项在运行态统一保留三元组数组；展示层默认用 `、` 拼接 `display`，执行层默认由 `executionBindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。

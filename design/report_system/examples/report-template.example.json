@@ -47,6 +47,7 @@
       "inputType": "enum",
       "required": true,
       "interactionMode": "form",
+      "valueMode": "value",
       "options": [
         {
           "display": "可用性",
@@ -83,8 +84,8 @@
           "id": "section_overview",
           "title": "总体态势",
           "order": 1,
-          "requirement": {
-            "text": "分析{@scope_item}在{@report_date_item}的总体运行态势，并总结关键结论。",
+          "outline": {
+            "requirement": "分析{@scope_item}在{@report_date_item}的总体运行态势，并总结关键结论。",
             "items": [
               {
                 "id": "scope_item",
@@ -144,8 +145,8 @@
           "id": "section_alarm_detail",
           "title": "异常明细",
           "order": 1,
-          "requirement": {
-            "text": "列出{@scope_item}在{@report_date_item}期间的主要异常及处理建议。",
+          "outline": {
+            "requirement": "列出{@scope_item}在{@report_date_item}期间的主要异常及处理建议。",
             "items": [
               {
                 "id": "scope_item",
