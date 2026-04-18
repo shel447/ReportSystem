@@ -1,10 +1,10 @@
 openapi: 3.1.0
 info:
-  title: ReportSystem ChatBI Public API
-  version: 2026-04-17
+  title: ReportSystem Public API
+  version: '2026-04-18'
   description: |
-    目标态业务公开接口定义。接口外层协议严格对齐 ChatBI，
-    报告系统仅在 REPORT 结果体和 reports 资源族上做兼容式扩展。
+    报告主系统公开接口。模板、模板实例和报告 DSL 的正式模型定义
+    统一收敛到 design/report_system/schemas 下的 JSON Schema 文件。
 servers:
   - url: /rest/chatbi/v1
 security:
@@ -18,10 +18,10 @@ paths:
   /templates:
     get:
       tags: [templates]
-      summary: List templates
+      summary: List template summaries
       operationId: listTemplates
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -31,7 +31,7 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: "#/components/schemas/ReportTemplate"
+                      $ref: '#/components/schemas/TemplateSummary'
                   total:
                     type: integer
                 required: [items, total]
@@ -44,56 +44,56 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ReportTemplate"
+              $ref: '#/components/schemas/ReportTemplate'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReportTemplate"
+                $ref: '#/components/schemas/ReportTemplate'
 
   /templates/{id}:
     get:
       tags: [templates]
-      summary: Get template
+      summary: Get template detail
       operationId: getTemplate
       parameters:
-        - $ref: "#/components/parameters/TemplateId"
+        - $ref: '#/components/parameters/TemplateId'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReportTemplate"
+                $ref: '#/components/schemas/ReportTemplate'
     put:
       tags: [templates]
       summary: Update template
       operationId: updateTemplate
       parameters:
-        - $ref: "#/components/parameters/TemplateId"
+        - $ref: '#/components/parameters/TemplateId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ReportTemplate"
+              $ref: '#/components/schemas/ReportTemplate'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReportTemplate"
+                $ref: '#/components/schemas/ReportTemplate'
     delete:
       tags: [templates]
       summary: Delete template
       operationId: deleteTemplate
       parameters:
-        - $ref: "#/components/parameters/TemplateId"
+        - $ref: '#/components/parameters/TemplateId'
       responses:
-        "204":
+        '204':
           description: Deleted
 
   /templates/import/preview:
@@ -114,7 +114,7 @@ paths:
                     - type: object
               required: [content]
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -122,7 +122,7 @@ paths:
                 type: object
                 properties:
                   normalizedTemplate:
-                    $ref: "#/components/schemas/ReportTemplate"
+                    $ref: '#/components/schemas/ReportTemplate'
                   warnings:
                     type: array
                     items:
@@ -135,14 +135,14 @@ paths:
       summary: Export template
       operationId: exportTemplate
       parameters:
-        - $ref: "#/components/parameters/TemplateId"
+        - $ref: '#/components/parameters/TemplateId'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReportTemplate"
+                $ref: '#/components/schemas/ReportTemplate'
 
   /chat:
     get:
@@ -150,7 +150,7 @@ paths:
       summary: List conversations
       operationId: listConversations
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
@@ -160,7 +160,7 @@ paths:
                   items:
                     type: array
                     items:
-                      $ref: "#/components/schemas/ConversationSummary"
+                      $ref: '#/components/schemas/ConversationSummary'
                   total:
                     type: integer
                 required: [items, total]
@@ -173,20 +173,20 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ChatRequest"
+              $ref: '#/components/schemas/ChatRequest'
       responses:
-        "200":
-          description: Non-streaming ChatBI response
+        '200':
+          description: Chat snapshot response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ChatResponse"
-        "206":
-          description: Streaming ChatBI response
+                $ref: '#/components/schemas/ChatResponse'
+        '206':
+          description: Streaming chat events
           content:
             text/event-stream:
               schema:
-                $ref: "#/components/schemas/ChatStreamEvent"
+                $ref: '#/components/schemas/ChatStreamEvent'
 
   /chat/forks:
     post:
@@ -198,53 +198,53 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ForkRequest"
+              $ref: '#/components/schemas/ForkRequest'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationDetail"
+                $ref: '#/components/schemas/ConversationDetail'
 
   /chat/{conversationId}:
     get:
       tags: [chat]
-      summary: Get conversation
+      summary: Get conversation detail
       operationId: getConversation
       parameters:
-        - $ref: "#/components/parameters/ConversationId"
+        - $ref: '#/components/parameters/ConversationId'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ConversationDetail"
+                $ref: '#/components/schemas/ConversationDetail'
     delete:
       tags: [chat]
       summary: Delete conversation
       operationId: deleteConversation
       parameters:
-        - $ref: "#/components/parameters/ConversationId"
+        - $ref: '#/components/parameters/ConversationId'
       responses:
-        "204":
+        '204':
           description: Deleted
 
   /reports/{reportId}:
     get:
       tags: [reports]
-      summary: Get report view
+      summary: Get report resource
       operationId: getReport
       parameters:
-        - $ref: "#/components/parameters/ReportId"
+        - $ref: '#/components/parameters/ReportId'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ReportViewResponse"
+                $ref: '#/components/schemas/ReportInstanceResource'
 
   /reports/{reportId}/document-generations:
     post:
@@ -252,37 +252,32 @@ paths:
       summary: Generate report documents
       operationId: generateReportDocuments
       parameters:
-        - $ref: "#/components/parameters/ReportId"
+        - $ref: '#/components/parameters/ReportId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DocumentGenerationRequest"
+              $ref: '#/components/schemas/DocumentGenerationRequest'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentGenerationResponse"
+                $ref: '#/components/schemas/DocumentGenerationResponse'
 
   /reports/{reportId}/documents/{documentId}/download:
     get:
       tags: [reports]
-      summary: Download report document
-      operationId: downloadReportDocument
+      summary: Download generated document
+      operationId: downloadDocument
       parameters:
-        - $ref: "#/components/parameters/ReportId"
-        - $ref: "#/components/parameters/DocumentId"
+        - $ref: '#/components/parameters/ReportId'
+        - $ref: '#/components/parameters/DocumentId'
       responses:
-        "200":
-          description: File stream
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
+        '302':
+          description: Redirect to file storage URL
 
   /parameter-options/resolve:
     post:
@@ -294,14 +289,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ParameterOptionsResolveRequest"
+              $ref: '#/components/schemas/ParameterOptionsResolveRequest'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ParameterOptionsResolveResponse"
+                $ref: '#/components/schemas/ParameterOptionsResolveResponse'
 
 components:
   securitySchemes:
@@ -314,318 +309,233 @@ components:
       name: id
       in: path
       required: true
-      schema:
-        type: string
+      schema: { type: string }
     ConversationId:
       name: conversationId
       in: path
       required: true
-      schema:
-        type: string
+      schema: { type: string }
     ReportId:
       name: reportId
       in: path
       required: true
-      schema:
-        type: string
+      schema: { type: string }
     DocumentId:
       name: documentId
       in: path
       required: true
-      schema:
-        type: string
+      schema: { type: string }
   schemas:
     ReportTemplate:
+      $ref: ../report_system/schemas/report-template.schema.json
+    TemplateInstance:
+      $ref: ../report_system/schemas/template-instance.schema.json
+    ReportDsl:
+      $ref: ../report_system/schemas/report-dsl.schema.json
+    TrioValue:
+      $ref: ../report_system/schemas/report-template.schema.json#/$defs/TrioValue
+    TemplateSummary:
       type: object
       properties:
-        id:
-          type: string
-        category:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        parameters:
-          type: array
-          items:
-            $ref: "#/components/schemas/TemplateParameter"
-        catalogs:
-          type: array
-          items:
-            $ref: "#/components/schemas/TemplateCatalog"
-      required: [id, category, name, description, parameters, catalogs]
-    TemplateParameter:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        type:
-          type: string
-        interaction_mode:
-          type: string
-          enum: [form, chat]
-        required:
-          type: boolean
-      required: [id, name, type, interaction_mode, required]
-    TemplateCatalog:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        sections:
-          type: array
-          items:
-            $ref: "#/components/schemas/TemplateSection"
-      required: [id, name, sections]
-    TemplateSection:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        outline:
-          type: object
-        content:
-          type: object
-      required: [id, title]
+        id: { type: string }
+        category: { type: string }
+        name: { type: string }
+        description: { type: string }
+        schemaVersion: { type: string }
+        updatedAt: { type: string, format: date-time }
+      required: [id, category, name, description, schemaVersion]
     ConversationSummary:
       type: object
       properties:
-        conversationId:
-          type: string
-        title:
-          type: string
-        updatedAt:
-          type: string
-          format: date-time
-      required: [conversationId, title, updatedAt]
+        conversationId: { type: string }
+        title: { type: string }
+        status: { type: string }
+        updatedAt: { type: string, format: date-time }
+      required: [conversationId, title, status, updatedAt]
     ConversationDetail:
       type: object
       properties:
-        conversationId:
-          type: string
-        title:
-          type: string
+        conversationId: { type: string }
+        title: { type: string }
+        status: { type: string }
         chats:
           type: array
           items:
-            $ref: "#/components/schemas/ChatMessage"
-      required: [conversationId, title, chats]
+            $ref: '#/components/schemas/ChatMessage'
+      required: [conversationId, title, status, chats]
     ChatMessage:
       type: object
       properties:
-        chatId:
-          type: string
-        role:
-          type: string
-        content:
-          type: string
-        action:
-          type: object
-        meta:
-          type: object
-      required: [chatId, role, content]
+        chatId: { type: string }
+        conversationId: { type: string }
+        role: { type: string, enum: [user, assistant, system] }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [chatId, conversationId, role, content]
     ChatRequest:
       type: object
       properties:
-        conversationId:
-          type: string
-        chatId:
-          type: string
-        instruction:
-          type: string
-        question:
-          type: string
+        conversationId: { type: string }
+        chatId: { type: string }
+        question: { type: string, nullable: true }
+        instruction: { type: string, enum: [generate_report, extract_report_template] }
         reply:
-          type: object
-        command:
-          type: object
-        histories:
+          anyOf:
+            - { type: 'null' }
+            - { $ref: '#/components/schemas/Reply' }
+        attachments:
           type: array
           items:
             type: object
-      required: [question]
+            properties:
+              type: { type: string }
+              name: { type: string }
+              content: { type: string }
+            required: [type, name, content]
+        histories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+        requestId: { type: string }
+        apiVersion: { type: string }
+      required: [conversationId, chatId, instruction, attachments, histories, requestId, apiVersion]
+    Reply:
+      type: object
+      properties:
+        type: { type: string, enum: [fill_params, confirm_params] }
+        parameters:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/TrioValue'
+        reportContext:
+          type: object
+          properties:
+            templateInstance:
+              $ref: '#/components/schemas/TemplateInstance'
+      required: [type]
     ChatResponse:
       type: object
       properties:
-        conversationId:
-          type: string
-        chatId:
-          type: string
-        answerType:
-          type: string
+        conversationId: { type: string }
+        chatId: { type: string }
+        status: { type: string, enum: [waiting_user, running, finished, failed] }
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/Step'
+        ask:
+          anyOf:
+            - { type: 'null' }
+            - { $ref: '#/components/schemas/Ask' }
+        answer:
+          anyOf:
+            - { type: 'null' }
+            - { $ref: '#/components/schemas/AnswerEnvelope' }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              message: { type: string }
+            required: [code, message]
+        requestId: { type: string }
+        timestamp: { type: integer }
+        apiVersion: { type: string }
+      required: [conversationId, chatId, status, steps, errors, requestId, timestamp, apiVersion]
+    Step:
+      type: object
+      properties:
+        stepId: { type: string }
+        parentStepId: { type: string, nullable: true }
+        stepType: { type: string, enum: [REASONING, QUERY, PREPARE_ANSWER] }
+        title: { type: string }
+        status: { type: string, enum: [running, finished, failed] }
+        contentType: { type: string, enum: [TEXT, JSON, MARKDOWN] }
+        content: {}
+        startTime: { type: integer }
+        endTime: { type: integer, nullable: true }
+        costTime: { type: integer, nullable: true }
+      required: [stepId, stepType, title, status, contentType]
+    Ask:
+      type: object
+      properties:
+        mode: { type: string, enum: [plaintext, form] }
+        type: { type: string, enum: [fill_params, confirm_params] }
+        title: { type: string }
+        text: { type: string }
+        parameters:
+          type: array
+          items:
+            type: object
+            properties:
+              parameter:
+                $ref: '#/components/schemas/TemplateParameterRef'
+              currentValue:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrioValue'
+        reportContext:
+          type: object
+          properties:
+            templateInstance:
+              $ref: '#/components/schemas/TemplateInstance'
+      required: [mode, type, title, text]
+    TemplateParameterRef:
+      type: object
+      properties:
+        id: { type: string }
+        label: { type: string }
+        inputType: { type: string }
+        required: { type: boolean }
+      required: [id, label, inputType, required]
+    AnswerEnvelope:
+      type: object
+      properties:
+        answerType: { type: string, enum: [TEXT, REPORT, REPORT_TEMPLATE] }
         answer:
           oneOf:
-            - $ref: "#/components/schemas/ReportAnswerEnvelope"
-            - type: object
-      required: [conversationId, chatId, answerType, answer]
-    ChatStreamEvent:
+            - { type: string }
+            - { $ref: '#/components/schemas/ReportAnswer' }
+            - { $ref: '#/components/schemas/ReportTemplate' }
+      required: [answerType, answer]
+    ReportAnswer:
       type: object
       properties:
-        eventType:
-          type: string
-          enum: [status, step_delta, ask, answer, error, done]
-        data:
-          type: object
-      required: [eventType, data]
-    ForkRequest:
-      type: object
-      properties:
-        sourceKind:
-          type: string
-          enum: [chat, template_instance]
-        sourceConversationId:
-          type: string
-        sourceChatId:
-          type: string
-        templateInstanceId:
-          type: string
-      required: [sourceKind]
-    ReportViewResponse:
-      type: object
-      properties:
-        reportId:
-          type: string
-        status:
-          type: string
-        answerType:
-          type: string
-          const: REPORT
-        answer:
-          $ref: "#/components/schemas/ReportAnswerEnvelope"
-      required: [reportId, status, answerType, answer]
-    ReportAnswerEnvelope:
-      type: object
-      properties:
-        reportId:
-          type: string
-        status:
-          type: string
+        reportId: { type: string }
+        status: { type: string, enum: [generating, available, failed] }
         report:
-          $ref: "#/components/schemas/ReportDsl"
+          $ref: '#/components/schemas/ReportDsl'
         templateInstance:
-          $ref: "#/components/schemas/TemplateInstance"
+          $ref: '#/components/schemas/TemplateInstance'
         documents:
           type: array
           items:
-            $ref: "#/components/schemas/ReportDocument"
+            $ref: '#/components/schemas/DocumentArtifact'
         generationProgress:
           type: object
+          properties:
+            totalSections: { type: integer }
+            completedSections: { type: integer }
       required: [reportId, status, report, templateInstance, documents]
-    TemplateInstance:
+    ReportInstanceResource:
       type: object
       properties:
-        id:
-          type: string
-        conversationId:
-          type: string
-        templateId:
-          type: string
-        catalogs:
-          type: array
-          items:
-            $ref: "#/components/schemas/TemplateCatalogInstance"
-        bindingStatus:
-          type: object
-      required: [id, conversationId, templateId, catalogs]
-    TemplateCatalogInstance:
+        reportId: { type: string }
+        status: { type: string, enum: [generating, available, failed] }
+        answerType: { const: REPORT }
+        answer:
+          $ref: '#/components/schemas/ReportAnswer'
+      required: [reportId, status, answerType, answer]
+    DocumentArtifact:
       type: object
       properties:
-        id:
-          type: string
-        name:
-          type: string
-        sections:
-          type: array
-          items:
-            $ref: "#/components/schemas/TemplateSectionInstance"
-      required: [id, name, sections]
-    TemplateSectionInstance:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        requirementInstance:
-          type: object
-        skeletonStatus:
-          type: string
-      required: [id, title]
-    ReportDsl:
-      type: object
-      properties:
-        basicInfo:
-          type: object
-        cover:
-          type: object
-        signaturePage:
-          type: object
-        catalogs:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReportCatalog"
-        summary:
-          type: object
-        reportMeta:
-          type: object
-        layout:
-          type: object
-      required: [basicInfo, catalogs, summary, reportMeta, layout]
-    ReportCatalog:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        sections:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReportSection"
-      required: [id, name, sections]
-    ReportSection:
-      type: object
-      properties:
-        id:
-          type: string
-        title:
-          type: string
-        components:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReportComponent"
-      required: [id, title, components]
-    ReportComponent:
-      type: object
-      properties:
-        id:
-          type: string
-        type:
-          type: string
-        data:
-          type: object
-        meta:
-          type: object
-      required: [id, type]
-    ReportDocument:
-      type: object
-      properties:
-        documentId:
-          type: string
-        format:
-          type: string
-          enum: [markdown, word, ppt, pdf]
-        status:
-          type: string
-        downloadUrl:
-          type: string
+        documentId: { type: string }
+        format: { type: string, enum: [word, ppt, pdf, markdown] }
+        status: { type: string, enum: [queued, running, ready, failed] }
+        downloadUrl: { type: string }
       required: [documentId, format, status]
     DocumentGenerationRequest:
       type: object
@@ -634,7 +544,7 @@ components:
           type: array
           items:
             type: string
-            enum: [word, ppt, pdf]
+            enum: [word, ppt, pdf, markdown]
         pdfSource:
           type: string
           enum: [word, ppt]
@@ -648,56 +558,57 @@ components:
     DocumentGenerationResponse:
       type: object
       properties:
-        reportId:
-          type: string
+        reportId: { type: string }
         jobs:
           type: array
           items:
-            type: object
-            properties:
-              jobId:
-                type: string
-              format:
-                type: string
-              status:
-                type: string
-              dependsOn:
-                type: string
-        documents:
-          type: array
-          items:
-            $ref: "#/components/schemas/ReportDocument"
-      required: [reportId, jobs, documents]
+            $ref: '#/components/schemas/ExportJob'
+      required: [reportId, jobs]
+    ExportJob:
+      type: object
+      properties:
+        jobId: { type: string }
+        format: { type: string, enum: [word, ppt, pdf, markdown] }
+        status: { type: string, enum: [queued, running, ready, failed, blocked_by_dependency] }
+        dependsOn: { type: string }
+      required: [jobId, format, status]
     ParameterOptionsResolveRequest:
       type: object
       properties:
-        source:
-          type: string
-        method:
-          type: string
-          enum: [POST]
-        request:
-          type: object
-        limit:
-          type: integer
-          minimum: 1
-          maximum: 50
-      required: [source, method, request]
+        parameterId: { type: string }
+        openSource:
+          $ref: ../report_system/schemas/report-template.schema.json#/$defs/OpenSource
+        contextValues:
+          $ref: ../report_system/schemas/parameter-option-source-request.schema.json
+      required: [parameterId, openSource, contextValues]
     ParameterOptionsResolveResponse:
+      $ref: ../report_system/schemas/parameter-option-source-response.schema.json
+    ChatStreamEvent:
       type: object
       properties:
-        items:
-          type: array
-          items:
-            type: object
-            properties:
-              label:
-                type: string
-              value:
-                type: string
-              query:
-                type: string
-            required: [label, value, query]
-        meta:
+        conversationId: { type: string }
+        chatId: { type: string }
+        eventType: { type: string, enum: [status, step_delta, ask, answer, error, done] }
+        sequence: { type: integer }
+        timestamp: { type: integer }
+        status: { type: string }
+        step:
+          $ref: '#/components/schemas/Step'
+        ask:
+          $ref: '#/components/schemas/Ask'
+        answer:
+          $ref: '#/components/schemas/AnswerEnvelope'
+        error:
           type: object
-      required: [items, meta]
+          properties:
+            code: { type: string }
+            message: { type: string }
+      required: [conversationId, chatId, eventType, sequence, timestamp]
+    ForkRequest:
+      type: object
+      properties:
+        mode: { type: string, enum: [from_conversation, from_template_instance, from_report] }
+        sourceConversationId: { type: string }
+        sourceTemplateInstanceId: { type: string }
+        sourceReportId: { type: string }
+      required: [mode]

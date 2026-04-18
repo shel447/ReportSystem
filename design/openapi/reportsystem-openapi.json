@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "ReportSystem ChatBI Public API",
-    "version": "2026-04-17",
-    "description": "目标态业务公开接口定义。接口外层协议严格对齐 ChatBI，\n报告系统仅在 REPORT 结果体和 reports 资源族上做兼容式扩展。\n"
+    "title": "ReportSystem Public API",
+    "version": "2026-04-18",
+    "description": "报告主系统公开接口。模板、模板实例和报告 DSL 的正式模型定义\n统一收敛到 design/report_system/schemas 下的 JSON Schema 文件。\n"
   },
   "servers": [
     {
@@ -35,7 +35,7 @@
         "tags": [
           "templates"
         ],
-        "summary": "List templates",
+        "summary": "List template summaries",
         "operationId": "listTemplates",
         "responses": {
           "200": {
@@ -48,7 +48,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/ReportTemplate"
+                        "$ref": "#/components/schemas/TemplateSummary"
                       }
                     },
                     "total": {
@@ -100,7 +100,7 @@
         "tags": [
           "templates"
         ],
-        "summary": "Get template",
+        "summary": "Get template detail",
         "operationId": "getTemplate",
         "parameters": [
           {
@@ -312,7 +312,7 @@
         },
         "responses": {
           "200": {
-            "description": "Non-streaming ChatBI response",
+            "description": "Chat snapshot response",
             "content": {
               "application/json": {
                 "schema": {
@@ -322,7 +322,7 @@
             }
           },
           "206": {
-            "description": "Streaming ChatBI response",
+            "description": "Streaming chat events",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -370,7 +370,7 @@
         "tags": [
           "chat"
         ],
-        "summary": "Get conversation",
+        "summary": "Get conversation detail",
         "operationId": "getConversation",
         "parameters": [
           {
@@ -413,7 +413,7 @@
         "tags": [
           "reports"
         ],
-        "summary": "Get report view",
+        "summary": "Get report resource",
         "operationId": "getReport",
         "parameters": [
           {
@@ -426,7 +426,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReportViewResponse"
+                  "$ref": "#/components/schemas/ReportInstanceResource"
                 }
               }
             }
@@ -475,8 +475,8 @@
         "tags": [
           "reports"
         ],
-        "summary": "Download report document",
-        "operationId": "downloadReportDocument",
+        "summary": "Download generated document",
+        "operationId": "downloadDocument",
         "parameters": [
           {
             "$ref": "#/components/parameters/ReportId"
@@ -486,16 +486,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "File stream",
-            "content": {
-              "application/octet-stream": {
-                "schema": {
-                  "type": "string",
-                  "format": "binary"
-                }
-              }
-            }
+          "302": {
+            "description": "Redirect to file storage URL"
           }
         }
       }
@@ -576,6 +568,18 @@
     },
     "schemas": {
       "ReportTemplate": {
+        "$ref": "../report_system/schemas/report-template.schema.json"
+      },
+      "TemplateInstance": {
+        "$ref": "../report_system/schemas/template-instance.schema.json"
+      },
+      "ReportDsl": {
+        "$ref": "../report_system/schemas/report-dsl.schema.json"
+      },
+      "TrioValue": {
+        "$ref": "../report_system/schemas/report-template.schema.json#/$defs/TrioValue"
+      },
+      "TemplateSummary": {
         "type": "object",
         "properties": {
           "id": {
@@ -590,17 +594,12 @@
           "description": {
             "type": "string"
           },
-          "parameters": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateParameter"
-            }
+          "schemaVersion": {
+            "type": "string"
           },
-          "catalogs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateCatalog"
-            }
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -608,82 +607,7 @@
           "category",
           "name",
           "description",
-          "parameters",
-          "catalogs"
-        ]
-      },
-      "TemplateParameter": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "interaction_mode": {
-            "type": "string",
-            "enum": [
-              "form",
-              "chat"
-            ]
-          },
-          "required": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "type",
-          "interaction_mode",
-          "required"
-        ]
-      },
-      "TemplateCatalog": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "sections": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateSection"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "sections"
-        ]
-      },
-      "TemplateSection": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "outline": {
-            "type": "object"
-          },
-          "content": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "id",
-          "title"
+          "schemaVersion"
         ]
       },
       "ConversationSummary": {
@@ -695,6 +619,9 @@
           "title": {
             "type": "string"
           },
+          "status": {
+            "type": "string"
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -703,6 +630,7 @@
         "required": [
           "conversationId",
           "title",
+          "status",
           "updatedAt"
         ]
       },
@@ -715,6 +643,9 @@
           "title": {
             "type": "string"
           },
+          "status": {
+            "type": "string"
+          },
           "chats": {
             "type": "array",
             "items": {
@@ -725,6 +656,7 @@
         "required": [
           "conversationId",
           "title",
+          "status",
           "chats"
         ]
       },
@@ -734,21 +666,28 @@
           "chatId": {
             "type": "string"
           },
-          "role": {
+          "conversationId": {
             "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ]
           },
           "content": {
             "type": "string"
           },
-          "action": {
-            "type": "object"
-          },
-          "meta": {
-            "type": "object"
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
           "chatId",
+          "conversationId",
           "role",
           "content"
         ]
@@ -762,27 +701,102 @@
           "chatId": {
             "type": "string"
           },
-          "instruction": {
-            "type": "string"
-          },
           "question": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
+          },
+          "instruction": {
+            "type": "string",
+            "enum": [
+              "generate_report",
+              "extract_report_template"
+            ]
           },
           "reply": {
-            "type": "object"
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Reply"
+              }
+            ]
           },
-          "command": {
-            "type": "object"
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "content"
+              ]
+            }
           },
           "histories": {
             "type": "array",
             "items": {
-              "type": "object"
+              "$ref": "#/components/schemas/ChatMessage"
+            }
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "apiVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId",
+          "chatId",
+          "instruction",
+          "attachments",
+          "histories",
+          "requestId",
+          "apiVersion"
+        ]
+      },
+      "Reply": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "fill_params",
+              "confirm_params"
+            ]
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TrioValue"
+              }
+            }
+          },
+          "reportContext": {
+            "type": "object",
+            "properties": {
+              "templateInstance": {
+                "$ref": "#/components/schemas/TemplateInstance"
+              }
             }
           }
         },
         "required": [
-          "question"
+          "type"
         ]
       },
       "ChatResponse": {
@@ -794,106 +808,260 @@
           "chatId": {
             "type": "string"
           },
-          "answerType": {
-            "type": "string"
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting_user",
+              "running",
+              "finished",
+              "failed"
+            ]
           },
-          "answer": {
-            "oneOf": [
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            }
+          },
+          "ask": {
+            "anyOf": [
               {
-                "$ref": "#/components/schemas/ReportAnswerEnvelope"
+                "type": "null"
               },
               {
-                "type": "object"
+                "$ref": "#/components/schemas/Ask"
               }
             ]
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AnswerEnvelope"
+              }
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "integer"
+          },
+          "apiVersion": {
+            "type": "string"
           }
         },
         "required": [
           "conversationId",
           "chatId",
-          "answerType",
-          "answer"
+          "status",
+          "steps",
+          "errors",
+          "requestId",
+          "timestamp",
+          "apiVersion"
         ]
       },
-      "ChatStreamEvent": {
+      "Step": {
         "type": "object",
         "properties": {
-          "eventType": {
+          "stepId": {
+            "type": "string"
+          },
+          "parentStepId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stepType": {
             "type": "string",
             "enum": [
-              "status",
-              "step_delta",
-              "ask",
-              "answer",
-              "error",
-              "done"
+              "REASONING",
+              "QUERY",
+              "PREPARE_ANSWER"
             ]
           },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "eventType",
-          "data"
-        ]
-      },
-      "ForkRequest": {
-        "type": "object",
-        "properties": {
-          "sourceKind": {
-            "type": "string",
-            "enum": [
-              "chat",
-              "template_instance"
-            ]
-          },
-          "sourceConversationId": {
-            "type": "string"
-          },
-          "sourceChatId": {
-            "type": "string"
-          },
-          "templateInstanceId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "sourceKind"
-        ]
-      },
-      "ReportViewResponse": {
-        "type": "object",
-        "properties": {
-          "reportId": {
+          "title": {
             "type": "string"
           },
           "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "finished",
+              "failed"
+            ]
+          },
+          "contentType": {
+            "type": "string",
+            "enum": [
+              "TEXT",
+              "JSON",
+              "MARKDOWN"
+            ]
+          },
+          "content": {},
+          "startTime": {
+            "type": "integer"
+          },
+          "endTime": {
+            "type": "integer",
+            "nullable": true
+          },
+          "costTime": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "stepId",
+          "stepType",
+          "title",
+          "status",
+          "contentType"
+        ]
+      },
+      "Ask": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "plaintext",
+              "form"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "fill_params",
+              "confirm_params"
+            ]
+          },
+          "title": {
             "type": "string"
           },
+          "text": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parameter": {
+                  "$ref": "#/components/schemas/TemplateParameterRef"
+                },
+                "currentValue": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrioValue"
+                  }
+                }
+              }
+            }
+          },
+          "reportContext": {
+            "type": "object",
+            "properties": {
+              "templateInstance": {
+                "$ref": "#/components/schemas/TemplateInstance"
+              }
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "type",
+          "title",
+          "text"
+        ]
+      },
+      "TemplateParameterRef": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "inputType": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "inputType",
+          "required"
+        ]
+      },
+      "AnswerEnvelope": {
+        "type": "object",
+        "properties": {
           "answerType": {
             "type": "string",
-            "const": "REPORT"
+            "enum": [
+              "TEXT",
+              "REPORT",
+              "REPORT_TEMPLATE"
+            ]
           },
           "answer": {
-            "$ref": "#/components/schemas/ReportAnswerEnvelope"
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/ReportAnswer"
+              },
+              {
+                "$ref": "#/components/schemas/ReportTemplate"
+              }
+            ]
           }
         },
         "required": [
-          "reportId",
-          "status",
           "answerType",
           "answer"
         ]
       },
-      "ReportAnswerEnvelope": {
+      "ReportAnswer": {
         "type": "object",
         "properties": {
           "reportId": {
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "generating",
+              "available",
+              "failed"
+            ]
           },
           "report": {
             "$ref": "#/components/schemas/ReportDsl"
@@ -904,11 +1072,19 @@
           "documents": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ReportDocument"
+              "$ref": "#/components/schemas/DocumentArtifact"
             }
           },
           "generationProgress": {
-            "type": "object"
+            "type": "object",
+            "properties": {
+              "totalSections": {
+                "type": "integer"
+              },
+              "completedSections": {
+                "type": "integer"
+              }
+            }
           }
         },
         "required": [
@@ -919,180 +1095,35 @@
           "documents"
         ]
       },
-      "TemplateInstance": {
+      "ReportInstanceResource": {
         "type": "object",
         "properties": {
-          "id": {
+          "reportId": {
             "type": "string"
           },
-          "conversationId": {
-            "type": "string"
+          "status": {
+            "type": "string",
+            "enum": [
+              "generating",
+              "available",
+              "failed"
+            ]
           },
-          "templateId": {
-            "type": "string"
+          "answerType": {
+            "const": "REPORT"
           },
-          "catalogs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateCatalogInstance"
-            }
-          },
-          "bindingStatus": {
-            "type": "object"
+          "answer": {
+            "$ref": "#/components/schemas/ReportAnswer"
           }
         },
         "required": [
-          "id",
-          "conversationId",
-          "templateId",
-          "catalogs"
+          "reportId",
+          "status",
+          "answerType",
+          "answer"
         ]
       },
-      "TemplateCatalogInstance": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "sections": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TemplateSectionInstance"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "sections"
-        ]
-      },
-      "TemplateSectionInstance": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "requirementInstance": {
-            "type": "object"
-          },
-          "skeletonStatus": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title"
-        ]
-      },
-      "ReportDsl": {
-        "type": "object",
-        "properties": {
-          "basicInfo": {
-            "type": "object"
-          },
-          "cover": {
-            "type": "object"
-          },
-          "signaturePage": {
-            "type": "object"
-          },
-          "catalogs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReportCatalog"
-            }
-          },
-          "summary": {
-            "type": "object"
-          },
-          "reportMeta": {
-            "type": "object"
-          },
-          "layout": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "basicInfo",
-          "catalogs",
-          "summary",
-          "reportMeta",
-          "layout"
-        ]
-      },
-      "ReportCatalog": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "sections": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReportSection"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "sections"
-        ]
-      },
-      "ReportSection": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "components": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReportComponent"
-            }
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "components"
-        ]
-      },
-      "ReportComponent": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          },
-          "data": {
-            "type": "object"
-          },
-          "meta": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "id",
-          "type"
-        ]
-      },
-      "ReportDocument": {
+      "DocumentArtifact": {
         "type": "object",
         "properties": {
           "documentId": {
@@ -1101,14 +1132,20 @@
           "format": {
             "type": "string",
             "enum": [
-              "markdown",
               "word",
               "ppt",
-              "pdf"
+              "pdf",
+              "markdown"
             ]
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed"
+            ]
           },
           "downloadUrl": {
             "type": "string"
@@ -1130,7 +1167,8 @@
               "enum": [
                 "word",
                 "ppt",
-                "pdf"
+                "pdf",
+                "markdown"
               ]
             }
           },
@@ -1164,95 +1202,153 @@
           "jobs": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "jobId": {
-                  "type": "string"
-                },
-                "format": {
-                  "type": "string"
-                },
-                "status": {
-                  "type": "string"
-                },
-                "dependsOn": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "documents": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReportDocument"
+              "$ref": "#/components/schemas/ExportJob"
             }
           }
         },
         "required": [
           "reportId",
-          "jobs",
-          "documents"
+          "jobs"
+        ]
+      },
+      "ExportJob": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "word",
+              "ppt",
+              "pdf",
+              "markdown"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "ready",
+              "failed",
+              "blocked_by_dependency"
+            ]
+          },
+          "dependsOn": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "format",
+          "status"
         ]
       },
       "ParameterOptionsResolveRequest": {
         "type": "object",
         "properties": {
-          "source": {
+          "parameterId": {
             "type": "string"
           },
-          "method": {
-            "type": "string",
-            "enum": [
-              "POST"
-            ]
+          "openSource": {
+            "$ref": "../report_system/schemas/report-template.schema.json#/$defs/OpenSource"
           },
-          "request": {
-            "type": "object"
-          },
-          "limit": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 50
+          "contextValues": {
+            "$ref": "../report_system/schemas/parameter-option-source-request.schema.json"
           }
         },
         "required": [
-          "source",
-          "method",
-          "request"
+          "parameterId",
+          "openSource",
+          "contextValues"
         ]
       },
       "ParameterOptionsResolveResponse": {
+        "$ref": "../report_system/schemas/parameter-option-source-response.schema.json"
+      },
+      "ChatStreamEvent": {
         "type": "object",
         "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "label": {
-                  "type": "string"
-                },
-                "value": {
-                  "type": "string"
-                },
-                "query": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "label",
-                "value",
-                "query"
-              ]
-            }
+          "conversationId": {
+            "type": "string"
           },
-          "meta": {
-            "type": "object"
+          "chatId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "status",
+              "step_delta",
+              "ask",
+              "answer",
+              "error",
+              "done"
+            ]
+          },
+          "sequence": {
+            "type": "integer"
+          },
+          "timestamp": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "step": {
+            "$ref": "#/components/schemas/Step"
+          },
+          "ask": {
+            "$ref": "#/components/schemas/Ask"
+          },
+          "answer": {
+            "$ref": "#/components/schemas/AnswerEnvelope"
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
           }
         },
         "required": [
-          "items",
-          "meta"
+          "conversationId",
+          "chatId",
+          "eventType",
+          "sequence",
+          "timestamp"
+        ]
+      },
+      "ForkRequest": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "from_conversation",
+              "from_template_instance",
+              "from_report"
+            ]
+          },
+          "sourceConversationId": {
+            "type": "string"
+          },
+          "sourceTemplateInstanceId": {
+            "type": "string"
+          },
+          "sourceReportId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
         ]
       }
     }

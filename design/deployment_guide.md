@@ -1,5 +1,7 @@
 # 智能报告系统安装部署手册
 
+> 说明：本文件只负责部署与运行环境说明，不再作为系统能力与接口契约的事实来源。功能边界、数据模型与接口定义统一以 [design/report_system/README.md](report_system/README.md) 为准。
+
 ## 1. 文档目的
 
 本文档用于指导 `ReportSystemV2` 在 Windows 环境下完成安装、启动、基础配置与常见问题排查。
@@ -10,7 +12,7 @@
 - 服务启动
 - 远程访问配置
 - 系统设置配置
-- 报告生成与 Markdown 导出
+- 报告生成与文档导出
 - 已知问题与 QA
 
 ## 2. 系统组成
@@ -215,8 +217,8 @@ src/backend/contexts/report_runtime/infrastructure/generated_documents/
 
 说明：
 
-- 当前只支持 Markdown
-- PDF 暂未启用
+- 目标态设计支持 `Markdown / Word / PPT / PDF`
+- 当前部署环境是否启用全部导出能力，以主设计包和实际实现为准
 - `contexts/report_runtime/infrastructure/generated_documents/` 已被 `.gitignore` 忽略，不应纳入版本管理
 
 ## 11. 远程访问部署

@@ -1,268 +1,34 @@
-**版本**: v1.9
-**最后更新**: 2026-04-17
-**状态**: 设计基线
+# 报告系统设计总览
 
----
+> 本文档作为主设计包索引页使用。
 
-## 目录
+## 1. 唯一权威设计源
 
-0. [上下文](#0-上下文)
-1. [系统概述](#1-系统概述)
-2. [业务主链路](#2-业务主链路)
-3. [关键概念](#3-关键概念)
-4. [系统架构](#4-系统架构)
-5. [模块设计文档索引](#5-模块设计文档索引)
-6. [修订历史](#6-修订历史)
+报告系统的唯一权威设计源位于：
 
----
+- [design/report_system/README.md](report_system/README.md)
 
-## 0. 上下文
+## 2. 主设计包阅读顺序
 
-本系统在整体业务架构中定位为**平台编排层**，负责模板管理、统一对话编排、报告生成、文档生成与报告聚合读取。其上下游关系如下：
+1. [统一设计包索引](report_system/README.md)
+2. [统一总览](report_system/01-统一总览.md)
+3. [核心业务模型与规范 Schema](report_system/02-核心业务模型与规范Schema.md)
+4. [运行时流程与状态机](report_system/03-运行时流程与状态机.md)
+5. [接口契约](report_system/04-接口契约.md)
+6. [数据模型与持久化](report_system/05-数据模型与持久化.md)
+7. [文档生成与导出架构](report_system/06-文档生成与导出架构.md)
+8. [迁移兼容与验证](report_system/07-迁移兼容与验证.md)
+9. [相对 ChatBI 的扩展点](report_system/08-相对ChatBI的扩展点.md)
 
-| 角色 | 定义 | 职责边界 |
-|------|------|----------|
-| 产品 (Product) | 上游集成方 | 面向最终用户，调用平台接口完成模板管理、对话生成、报告查看与文档下载 |
-| 平台 (Platform) | 本系统 | 模板定义、统一对话、模板实例维护、报告 DSL 构建、文档生成编排、报告聚合 |
-| 推理系统 (Reasoning System) | 下游能力提供方 | 提供 Completion / Embedding 等 AI 原子能力 |
-| Office 导出器 (Office Exporter) | 下游导出子系统 | 基于冻结后的 Report DSL 生成 Word / PPT，并支撑 PDF 派生转换 |
+## 3. 专题文档关系
 
-### 0.1 边界接口交互
+现有专题文档均视为主设计包的从属投影：
 
-```mermaid
-graph LR
-    subgraph 上游
-        P["产品 (Product)"]
-    end
-
-    subgraph 本系统
-        API["REST API 层"]
-        Core["核心引擎<br/>模板 · 对话 · 报告 DSL · 文档生成"]
-    end
-
-    subgraph 下游
-        LLM["LLM 推理接口"]
-        EMB["Embedding 接口"]
-        EXP["Java Office Exporter"]
-    end
-
-    P -- "模板 API" --> API
-    P -- "对话 API" --> API
-    P -- "报告聚合 API" --> API
-    P -- "文档生成 / 下载 API" --> API
-
-    API --> Core
-    Core -- "Completion" --> LLM
-    Core -- "Embedding" --> EMB
-    Core -- "Report DSL export" --> EXP
-```
-
-公开业务面目标态包括：
-
-- `/rest/chatbi/v1/templates/*`
-- `/rest/chatbi/v1/chat*`
-- `/rest/chatbi/v1/reports/*`
-- `/rest/chatbi/v1/parameter-options/resolve`
-
----
-
-## 1. 系统概述
-
-### 1.1 项目背景
-
-智能报告系统是一个以**报告生成**为主能力、同时集成**智能问数**与**智能故障**的统一智能助手平台。系统通过统一对话入口完成能力路由，并通过报告聚合接口输出最终可消费结果。
-
-### 1.2 系统目标
-
-| 目标 | 指标 |
-|------|------|
-| 效率提升 | 简单报告 <30 秒，复杂报告 <10 分钟 |
-| 交互体验 | 对话式交互，支持参数追问、诉求确认、流式生成与继续编辑 |
-| 可追溯性 | 结果可追溯到模板、参数、诉求、来源对话与生成链路 |
-| 输出一致性 | 报告详情、流式生成和文档生成共享同一份 Report DSL |
-| 接口治理 | 对外接口具备稳定错误语义、容量边界与长期可维护性 |
-
-### 1.3 统一对话入口
-
-系统采用统一对话模块承接三类一级能力：
-
-- `report_generation`
-- `smart_query`
-- `fault_diagnosis`
-
-运行原则：
-
-- 一个 `Conversation` 同时只有一个 `active_task`
-- 每轮输入先做能力识别，再决定续写当前任务还是切换任务
-- 报告流程等待 `interaction_mode=chat` 参数时，普通自然语言优先作为参数答案
-- 显式切换能力前需确认，避免中断已推进任务
-
----
-
-## 2. 业务主链路
-
-### 2.1 准备阶段
-
-用户先定义报告模板。模板主结构目标态为：
-
-- `catalogs -> sections`
-- 章节内仍保留“诉求层 + 执行层”双层语义
-
-### 2.2 生成与导出阶段
-
-```mermaid
-sequenceDiagram
-    participant User as 用户
-    participant Chat as 对话服务
-    participant Template as 模板服务
-    participant Runtime as 报告运行时
-    participant LLM as LLM 服务
-    participant Export as 文档生成服务
-    participant Report as 报告聚合服务
-
-    User->>Chat: 提问 / 指令
-    Chat->>Template: 模板匹配
-    Template-->>Chat: 候选模板
-    Chat->>User: 参数追问 (form / chat)
-    User->>Chat: 补充参数
-    Chat->>User: 诉求确认
-    User->>Chat: 确认生成
-    Chat->>Runtime: 构建 TemplateInstance
-    Runtime->>LLM: 逐 section 生成
-    Runtime->>Runtime: BuildReportDslService
-    Runtime-->>Chat: 流式返回 REPORT
-    Runtime->>Runtime: FreezeReportInstanceService
-    User->>Report: GET /reports/{reportId}
-    Report-->>User: report + templateInstance + documents
-    User->>Export: POST /reports/{reportId}/document-generations
-    Export-->>User: 文档生成任务与产物
-```
-
----
-
-## 3. 关键概念
-
-### 3.1 术语统一说明
-
-本系统统一使用“诉求”术语替代早期“蓝图”表述。
-
-- 诉求：用户希望系统获取并表达的信息意图
-- 诉求要素：构成诉求的结构化成分
-- 诉求实例：参数替换和上下文绑定后的具体表达
-- 执行层：系统为满足诉求采取的查询、推理和渲染链路
-
-兼容字段名仍可能出现：
-
-- `outline`
-- `outline_instance`
-- `review_outline`
-
-这些名称仅用于兼容，不改变其“诉求”业务语义。
-
-### 3.2 核心对象
-
-| 概念 | 定义 | 补充说明 |
-|------|------|----------|
-| 报告模板 | 静态模板定义 | 目标态主结构为 `catalogs -> sections` |
-| 对话会话 | 用户对话容器 | 对外语义统一为 `conversation`，消息按 `conversation_id + seq_no` 组装 |
-| 对话消息 | 会话中的真实消息流水 | 对外语义统一为 `chat` |
-| 内部模板实例 | 运行态核心聚合 | 维护参数、诉求确认结果、平铺 delta 视图与运行 warnings |
-| Report DSL | 正式领域模型 | 结构以 `catalog -> section -> component` 为主 |
-| 报告实例 | 冻结后的正式报告产物 | 主体持久化 `Report DSL` |
-| 报告文档 | 报告从属资源 | 支持 Markdown / Word / PPT / PDF |
-
----
-
-## 4. 系统架构
-
-### 4.1 整体架构图
-
-```mermaid
-graph TB
-    subgraph 表现层
-        Web[Web 前端]
-        Mobile[移动端]
-    end
-
-    subgraph 应用层
-        ChatBI[ChatBI 服务]
-        TemplateService[模板服务]
-        ConversationService[对话服务]
-        ReportRuntimeService[报告运行时]
-        DocumentGenerationService[文档生成服务]
-    end
-
-    subgraph 智能层
-        LLMRouter[LLM 路由]
-        Embedding[Embedding 路由]
-    end
-
-    subgraph 导出层
-        JavaExporter[Java Office Exporter]
-        PdfConverter[PDF 派生转换]
-    end
-
-    subgraph 数据层
-        DB[(SQLite 业务库)]
-        Files[(文档存储目录)]
-    end
-
-    Web --> ChatBI
-    Mobile --> ChatBI
-
-    ChatBI --> TemplateService
-    ChatBI --> ConversationService
-    ChatBI --> ReportRuntimeService
-    ChatBI --> DocumentGenerationService
-
-    ConversationService --> LLMRouter
-    TemplateService --> Embedding
-    ReportRuntimeService --> LLMRouter
-    DocumentGenerationService --> JavaExporter
-    DocumentGenerationService --> PdfConverter
-
-    TemplateService --> DB
-    ConversationService --> DB
-    ReportRuntimeService --> DB
-    DocumentGenerationService --> DB
-    DocumentGenerationService --> Files
-```
-
-### 4.2 后台代码组织
-
-当前后端按 bounded context 拆分为：
-
-- `template_catalog`
-- `conversation`
-- `report_runtime`
-- `infrastructure` / `shared/kernel` / `routers`
-
-目标态补充说明：
-
-- `report_runtime.domain` 持有 `ReportDsl`
-- `report_runtime.application` 持有模板实例构建、Report DSL 构建、冻结报告实例、文档生成等核心用例
-- Java Office 导出器是外部技术子系统，不承载业务主数据
-
----
-
-## 5. 模块设计文档索引
-
-| 模块 | 文档 | 说明 |
-|------|------|------|
-| DFX 接口治理 | [design_dfx.md](design_dfx.md) | 异常响应、错误码、限流、容量与保留策略 |
-| 对话模块 | [design_chat.md](design_chat.md) | 统一对话、能力路由、会话历史、参数追问、流式报告生成 |
-| 报告模板 | [design_template.md](design_template.md) | 模板结构、诉求/执行双层模型、动态参数协议 |
-| 报告实例与文档 | [design_instance.md](design_instance.md) | 模板实例、Report DSL、报告实例与文档聚合 |
-| 报告 DSL 闭环 | [design_report_dsl_export.md](design_report_dsl_export.md) | `TemplateInstance -> ReportDsl -> 文档` 总体设计 |
-| API 接口 | [design_api.md](design_api.md) | ChatBI 对齐后的 REST API 定义 |
-| ChatBI 扩展 | [chatbi/README.md](chatbi/README.md) | 与 ChatBI 严格对齐后的扩展说明 |
-| 设计实现索引 | [implementation/index.md](implementation/index.md) | 当前代码实现落点与时序链路 |
-| 定时任务专题 | [design_scheduler.md](design_scheduler.md) | 非公开专题，作为后续恢复/重构参考 |
-
----
-
-## 6. 修订历史
-
-| 版本 | 日期 | 作者 | 变更说明 |
-|------|------|------|----------|
-| v1.9 | 2026-04-17 | Codex | 将总设计刷新到目标态：统一使用 `conversation/chat` 语义，引入 `catalog -> section -> component` 主结构，明确 `Report DSL` 为正式领域模型，并纳入文档生成闭环 |
+- [design_template.md](design_template.md)
+- [design_chat.md](design_chat.md)
+- [design_instance.md](design_instance.md)
+- [design_report_dsl_export.md](design_report_dsl_export.md)
+- [design_api.md](design_api.md)
+- [design_chat_report_stream_case.md](design_chat_report_stream_case.md)
+- [implementation/index.md](implementation/index.md)
+- [chatbi/README.md](chatbi/README.md)

@@ -1,18 +1,18 @@
-# ChatBI 对齐文档
+# ChatBI 文档整理包
 
-本目录用于说明报告系统与 `ChatBI` 协议的关系。
+> 本目录用于整理统一对话协议基线、流式事件模型和相对报告系统的扩展映射。当前报告系统正式设计请查看 [../report_system/README.md](../report_system/README.md)。
 
-当前文档分为三类：
+## 1. 阅读顺序
 
-- 现状输入：
-  - `chatbi_原始输入合并版.md`
-  - `chatbi_优化建议版.md`
-- 报告系统扩展：
-  - [chatbi_report_extension.md](chatbi_report_extension.md)
-  - [chatbi_report_stream_alignment.md](chatbi_report_stream_alignment.md)
+1. [01-统一总览](01-统一总览.md)
+2. [02-核心协议对象](02-核心协议对象.md)
+3. [03-运行时交互流程](03-运行时交互流程.md)
+4. [04-接口契约](04-接口契约.md)
+5. [05-报告系统扩展映射](05-报告系统扩展映射.md)
+6. [chatbi优化建议.md](chatbi优化建议.md)
 
-阅读顺序建议：
+## 2. 归档资料
 
-1. 先看 `chatbi_优化建议版.md`
-2. 再看 [chatbi_report_extension.md](chatbi_report_extension.md)
-3. 最后看 [chatbi_report_stream_alignment.md](chatbi_report_stream_alignment.md)
+已归档原始资料位于：
+
+- [../archive/chatbi/README.md](../archive/chatbi/README.md)
