@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { ChatPage } from "./ChatPage";
@@ -51,31 +51,36 @@ describe("ChatPage", () => {
               text: "请补充参数：报告日期",
               parameters: [
                 {
-                  parameter: {
-                    id: "report_date",
-                    label: "报告日期",
-                    inputType: "date",
-                    required: true,
-                    multi: false,
-                    interactionMode: "form",
-                    valueMode: "value",
-                  },
-                  currentValue: [],
+                  id: "report_date",
+                  label: "报告日期",
+                  inputType: "date",
+                  required: true,
+                  multi: false,
+                  interactionMode: "form",
+                  values: [],
                 },
               ],
               reportContext: {
                 templateInstance: {
                   id: "ti_1",
-                  schemaVersion: "template-instance.v2",
+                  schemaVersion: "template-instance.vNext-draft",
                   templateId: "tpl_network_daily",
+                  template: {
+                    id: "tpl_network_daily",
+                    category: "network_operations",
+                    name: "网络运行日报",
+                    description: "面向网络运维中心的统一日报模板。",
+                    schemaVersion: "template.v3",
+                    parameters: [],
+                    catalogs: [],
+                  },
                   conversationId: "conv_1",
                   status: "collecting_parameters",
                   captureStage: "fill_params",
                   revision: 1,
-                  parameterValues: {},
+                  parameters: [],
+                  parameterConfirmation: { missingParameterIds: ["report_date"], confirmed: false },
                   catalogs: [],
-                  deltaViews: [],
-                  templateSkeletonStatus: { internal: "reusable", ui: "not_broken" },
                   createdAt: "2026-04-18T09:00:00Z",
                   updatedAt: "2026-04-18T09:00:00Z",
                 },
@@ -96,14 +101,7 @@ describe("ChatPage", () => {
             conversationId: "conv_1",
             title: "网络运行日报",
             status: "active",
-            messages: [
-              {
-                chatId: "chat_1",
-                role: "user",
-                content: { question: "生成网络运行日报" },
-                createdAt: "2026-04-18T09:00:00Z",
-              },
-            ],
+            messages: [{ chatId: "chat_1", role: "user", content: { question: "生成网络运行日报" }, createdAt: "2026-04-18T09:00:00Z" }],
           }),
         });
       }

@@ -22,6 +22,7 @@ class TemplateUpsertRequest(BaseModel):
     name: str
     description: str
     schemaVersion: str
+    tags: list[str] = []
     parameters: list[dict[str, Any]]
     catalogs: list[dict[str, Any]]
 

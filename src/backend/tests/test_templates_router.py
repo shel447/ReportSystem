@@ -28,7 +28,7 @@ def _sample_template():
         "catalogs": [
             {
                 "id": "catalog_overview",
-                "name": "运行概览",
+                "title": "运行概览",
                 "sections": [],
             }
         ],

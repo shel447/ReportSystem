@@ -34,7 +34,7 @@ class DynamicSourceServiceTests(unittest.TestCase):
         payload = ParameterOptionService().resolve(
             user_id="default",
             parameter_id="scope",
-            open_source={"url": "api:/sites/list"},
+            source="api:/sites/list",
             context_values={},
         )
         self.assertTrue(payload["options"])

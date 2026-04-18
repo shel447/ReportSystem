@@ -199,13 +199,13 @@ export function ReportDetailPage() {
                       </div>
                       <p>{String(basicInfo.description ?? "暂无描述")}</p>
                     </div>
-                    {readCatalogs(report.answer.report).map((catalog) => (
+                    {readCatalogs(report.answer.report).map((catalog: ReportCatalogView) => (
                       <div key={catalog.id} className="template-editor-subcard">
                         <div className="template-inline-group__header">
                           <strong>{catalog.name}</strong>
                           <span>{catalog.sections.length} 个章节</span>
                         </div>
-                        {catalog.sections.map((section) => (
+                        {catalog.sections.map((section: ReportSectionView) => (
                           <div key={section.id} className="template-inline-group">
                             <div className="template-inline-group__header">
                               <strong>{section.title}</strong>
@@ -230,32 +230,16 @@ export function ReportDetailPage() {
                     <div className="template-inline-group">
                       <div className="template-inline-group__header">
                         <strong>参数生效值</strong>
-                        <span>{Object.keys(report.answer.templateInstance.parameterValues).length} 项</span>
+                        <span>{report.answer.templateInstance.parameters.length} 项</span>
                       </div>
-                      {Object.entries(report.answer.templateInstance.parameterValues).map(([key, values]) => (
-                        <div key={key} className="template-inline-row template-inline-row--wide">
-                          <strong>{key}</strong>
-                          <span>{values.map((item) => String(item.display)).join("、") || "未设置"}</span>
+                      {report.answer.templateInstance.parameters.map((parameter) => (
+                        <div key={parameter.id} className="template-inline-row template-inline-row--wide">
+                          <strong>{parameter.label}</strong>
+                          <span>{(parameter.values ?? []).map((item) => String(item.display)).join("、") || "未设置"}</span>
                         </div>
                       ))}
                     </div>
-                    {report.answer.templateInstance.catalogs.map((catalog) => (
-                      <div key={catalog.id} className="template-editor-subcard">
-                        <div className="template-inline-group__header">
-                          <strong>{catalog.name}</strong>
-                          <span>{catalog.sections.length} 个章节</span>
-                        </div>
-                        {catalog.sections.map((section) => (
-                          <div key={section.id} className="template-inline-group">
-                            <div className="template-inline-group__header">
-                              <strong>{section.title}</strong>
-                              <span>{section.skeletonStatus}</span>
-                            </div>
-                            <p>{section.requirementInstance.text}</p>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
+                    {report.answer.templateInstance.catalogs.map((catalog) => <TemplateInstanceCatalogDetail key={catalog.id} catalog={catalog} />)}
                     <details>
                       <summary>查看原始 JSON</summary>
                       <pre>{prettyJson(report.answer.templateInstance)}</pre>
@@ -275,14 +259,30 @@ function toggleFormat(current: ExportFormat[], format: ExportFormat) {
   return current.includes(format) ? current.filter((item) => item !== format) : [...current, format];
 }
 
-function readCatalogs(report: Record<string, unknown>) {
+type ReportSectionView = {
+  id: string;
+  title: string;
+  summary: string;
+  components: unknown[];
+};
+
+type ReportCatalogView = {
+  id: string;
+  name: string;
+  sections: ReportSectionView[];
+  subCatalogs: ReportCatalogView[];
+};
+
+function readCatalogs(report: Record<string, unknown>): ReportCatalogView[] {
   const catalogs = Array.isArray(report.catalogs) ? report.catalogs : [];
-  return catalogs.map((catalog) => {
+  return catalogs.map((catalog): ReportCatalogView => {
     const value = catalog as Record<string, unknown>;
     const sections = Array.isArray(value.sections) ? value.sections : [];
+    const subCatalogs = Array.isArray(value.subCatalogs) ? value.subCatalogs : [];
     return {
       id: String(value.id ?? ""),
       name: String(value.name ?? "未命名目录"),
+      subCatalogs: readCatalogs({ catalogs: subCatalogs }),
       sections: sections.map((section) => {
         const sectionValue = section as Record<string, unknown>;
         const summary = sectionValue.summary as Record<string, unknown> | undefined;
@@ -296,4 +296,25 @@ function readCatalogs(report: Record<string, unknown>) {
       }),
     };
   });
+}
+
+function TemplateInstanceCatalogDetail({ catalog }: { catalog: any }) {
+  return (
+    <div className="template-editor-subcard">
+      <div className="template-inline-group__header">
+        <strong>{catalog.renderedTitle}</strong>
+        <span>{(catalog.sections ?? []).length} 个章节</span>
+      </div>
+      {(catalog.sections ?? []).map((section: any) => (
+        <div key={section.id} className="template-inline-group">
+          <div className="template-inline-group__header">
+            <strong>{section.id}</strong>
+            <span>{section.skeletonStatus}</span>
+          </div>
+          <p>{section.outline?.renderedRequirement ?? section.outline?.requirement ?? "无诉求"}</p>
+        </div>
+      ))}
+      {(catalog.subCatalogs ?? []).map((subCatalog: any) => <TemplateInstanceCatalogDetail key={subCatalog.id} catalog={subCatalog} />)}
+    </div>
+  );
 }

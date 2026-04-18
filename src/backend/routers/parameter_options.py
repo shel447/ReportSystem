@@ -14,13 +14,9 @@ from ..shared.kernel.errors import ValidationError
 router = APIRouter(prefix="/parameter-options", tags=["parameter-options"])
 
 
-class OpenSourcePayload(BaseModel):
-    url: str
-
-
 class ParameterOptionsResolveRequest(BaseModel):
     parameterId: str
-    openSource: OpenSourcePayload
+    source: str
     contextValues: dict[str, list[dict[str, Any]]]
 
 
@@ -38,7 +34,7 @@ def resolve_parameter_options(
         return build_parameter_option_service(db).resolve(
             user_id=user_id,
             parameter_id=data.parameterId,
-            open_source=data.openSource.model_dump(),
+            source=data.source,
             context_values=data.contextValues,
         )
     except ValidationError as exc:

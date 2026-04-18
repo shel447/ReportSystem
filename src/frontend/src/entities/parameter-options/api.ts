@@ -1,17 +1,15 @@
 import { chatbiPath, postJson } from "../../shared/api/http";
-import type { TrioValue } from "../chat/types";
+import type { ParameterValue } from "../chat/types";
 
 export type ParameterOptionsResolveRequest = {
   parameterId: string;
-  openSource: {
-    url: string;
-  };
-  contextValues: Record<string, TrioValue[]>;
+  source: string;
+  contextValues: Record<string, ParameterValue[]>;
 };
 
 export type ParameterOptionsResolveResponse = {
-  options: TrioValue[];
-  defaultValue: TrioValue[];
+  options: ParameterValue[];
+  defaultValue: ParameterValue[];
 };
 
 export function resolveParameterOptions(payload: ParameterOptionsResolveRequest) {

@@ -1,7 +1,9 @@
-export type TrioValue = {
-  display: string | number | boolean;
-  value: string | number | boolean;
-  query: string | number | boolean;
+export type ParameterScalar = string | number | boolean;
+
+export type ParameterValue = {
+  display: ParameterScalar;
+  value: ParameterScalar;
+  query: ParameterScalar;
 };
 
 export type WarningItem = {
@@ -20,8 +22,13 @@ export type TemplateSummary = {
   updatedAt?: string | null;
 };
 
-export type OpenSource = {
-  url: string;
+export type ParameterRuntimeContext = {
+  valueSource?: "user_input" | "default" | "dynamic_candidate" | "parameter_ref" | "system_fill";
+  queryContext?: Record<string, unknown>;
+  confirmed?: boolean;
+  confirmedAt?: string;
+  optionSource?: string;
+  optionsFetchedAt?: string;
 };
 
 export type TemplateParameter = {
@@ -32,11 +39,12 @@ export type TemplateParameter = {
   required: boolean;
   multi: boolean;
   interactionMode: "form" | "natural_language";
-  valueMode: "display" | "value" | "query";
   placeholder?: string;
-  defaultValue?: TrioValue[];
-  options?: TrioValue[];
-  openSource?: OpenSource;
+  defaultValue?: ParameterValue[];
+  options?: ParameterValue[];
+  values?: ParameterValue[];
+  runtimeContext?: ParameterRuntimeContext;
+  source?: string;
 };
 
 export type RequirementItemDefinition = {
@@ -57,7 +65,9 @@ export type RequirementItemDefinition = {
   description?: string;
   sourceParameterId?: string;
   widget?: "input" | "textarea" | "select" | "multi_select" | "date" | "date_range";
-  defaultValue?: TrioValue[];
+  defaultValue?: ParameterValue[];
+  values?: ParameterValue[];
+  valueSource?: "user_input" | "default" | "parameter_ref" | "system_fill";
 };
 
 export type DatasetDefinition = {
@@ -79,15 +89,15 @@ export type PresentationBlock = {
 
 export type SectionDefinition = {
   id: string;
-  title: string;
   description?: string;
-  order?: number;
+  parameters?: TemplateParameter[];
   foreach?: {
     parameterId: string;
     as: string;
   };
   outline: {
     requirement: string;
+    renderedRequirement?: string;
     items: RequirementItemDefinition[];
   };
   content: {
@@ -101,10 +111,15 @@ export type SectionDefinition = {
 
 export type CatalogDefinition = {
   id: string;
-  name: string;
+  title: string;
   description?: string;
-  order?: number;
-  sections: SectionDefinition[];
+  parameters?: TemplateParameter[];
+  foreach?: {
+    parameterId: string;
+    as: string;
+  };
+  subCatalogs?: CatalogDefinition[];
+  sections?: SectionDefinition[];
 };
 
 export type ReportTemplate = {

@@ -14,15 +14,15 @@ class TemplateInstance:
     id: str
     schema_version: str
     template_id: str
+    template: dict[str, Any]
     conversation_id: str
     chat_id: str | None
     status: str
     capture_stage: str
     revision: int
-    parameter_values: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    parameters: list[dict[str, Any]] = field(default_factory=list)
+    parameter_confirmation: dict[str, Any] = field(default_factory=dict)
     catalogs: list[dict[str, Any]] = field(default_factory=list)
-    delta_views: list[dict[str, Any]] = field(default_factory=list)
-    template_skeleton_status: dict[str, str] = field(default_factory=dict)
     warnings: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
