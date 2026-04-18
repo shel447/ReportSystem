@@ -33,10 +33,10 @@
 
 - `parameters`、`catalogs` 是模板对象根属性，不再放进 `content`
 - 模板是静态资产，不带运行态 `status`
-- 参数动态候选项来源统一用 `openSource.url` 描述，不再把方法、请求体、响应体格式散落在模板中
-- 所有参数都必须显式声明 `multi` 和 `valueMode`，避免 UI 和执行层对单选/多选及主值通道做隐式猜测
+- 参数动态候选项来源统一用 `source` 描述，类型是 URL 字符串；不再把方法、请求体、响应体格式散落在模板中
+- 所有参数都必须显式声明 `multi`；候选值来源由是否存在 `source` 决定
 - 模板支持多层目录：每个 `catalog` 下可以同时存在 `subCatalogs` 与 `sections`
-- `catalog.nameTemplate`、`section.titleTemplate` 允许根据参数值动态渲染标题，标题渲染不经过单独的大模型生成任务
+- `catalog.title` 支持在一句话目录标题中直接使用参数槽位；目录标题渲染不经过单独的大模型生成任务。`section` 不再定义标题，只保留诉求定义。
 - 参数可定义在模板根部、目录或章节上；参数 `id` 在同一模板内必须全局唯一
 - `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
 - 模板中的目录、子目录、章节顺序由数组位置定义，静态模板不再维护 `order`
@@ -49,24 +49,24 @@
 统一原则：
 
 1. 参数定义
-   - 至少包括：`id/label/description/inputType/required/multi/interactionMode/valueMode`
+   - 至少包括：`id/label/description/inputType/required/multi/interactionMode`
 2. 带候选值的参数
-   - `参数定义 + candidates`
+   - `参数定义 + options`
 3. 带外部数据源的参数
-   - `参数定义 + openSource`
+   - `参数定义 + source`
 4. 已赋值参数
    - `参数定义 + values`
 5. 完整运行态参数
-   - `参数定义 + candidates + values + runtime`
+   - `参数定义 + options + values + runtimeContext`
 
 建议统一抽象为：
 
 - `Parameter`
   - 基础定义字段
   - 可选补充：
-    - `candidates`
+    - `options`
     - `values`
-    - `runtime`
+    - `runtimeContext`
 - `ParameterConfirmation`
   - 参数补齐/确认的聚合状态
 
@@ -172,7 +172,7 @@
 | `name` | `name` | 保留 | 无本质变化 |
 | `description` | `description` | 保留 | 无本质变化 |
 | 无 | `schemaVersion` | 新增 | 用于显式标识模板结构版本 |
-| `parameters` | `parameters` | 保留但内部升级 | 参数结构从旧 `input_type/source/value_mapping` 升级为统一三元组与 `openSource` 口径 |
+| `parameters` | `parameters` | 保留但内部升级 | 参数结构从旧 `input_type/source/value_mapping` 收敛为统一参数模型与 `source` 口径 |
 | `sections` | `catalogs -> (subCatalogs)* -> sections` | 重构 | 把“章节树”提升为“目录树 + 章节”正式模型 |
 | 无 | `tags` | 新增可选 | 用于筛选、搜索、运营管理 |
 | 无 | `createdAt/updatedAt` | 新增可选 | 属于模板资产元信息 |
@@ -183,17 +183,17 @@
 |---|---|---|
 | `input_type` | `inputType` | 命名统一 camelCase |
 | `interaction_mode=chat` | `interactionMode=natural_language` | 术语收敛 |
-| `source` | `openSource.url` | 外部数据源定义简化并标准化 |
-| `value_mode=label/key` | `valueMode=display/value/query` | 从双通道升级为三通道 |
-| `value_mapping.query` | 由 `TrioValue.query` + 执行绑定承担 | 不再把值映射逻辑散落在模板参数定义里 |
-| `options=[string/object]` | `options=[TrioValue]` | 候选值结构统一 |
+| `source` | `source` | 外部数据源定义简化为 URL 字符串 |
+| `value_mode=label/key` | 已取消 | 展示值、实际值、查询值统一由 `ParameterValue` 承载 |
+| `value_mapping.query` | 由 `ParameterValue.query` + 运行时上下文承担 | 不再把值映射逻辑散落在模板参数定义里 |
+| `options=[string/object]` | `options=[ParameterValue]` | 候选值结构统一 |
 
 结构层详细对照：
 
 | 历史结构 | 当前结构 | 说明 |
 |---|---|---|
 | `sections[*].subsections` | `catalogs[*].subCatalogs / sections` | 正式引入“目录”业务概念 |
-| `Section.title` | `Catalog.name` / `Section.title` | 目录与章节职责拆清 |
+| `Catalog.title / Section.outline.requirement` | `Catalog.title / Section.outline.requirement` | 目录负责展示标题，章节负责内容诉求 |
 | `foreach.param` | `foreach.parameterId` | 命名统一 |
 
 结论：
@@ -213,13 +213,12 @@
 - 若用户未显式赋值，则先取参数 `defaultValue` 后再写入对应参数对象的 `values`
 - `TemplateInstance.parameters` 与接口层 `Ask.parameters/Reply.parameters` 使用完全相同的数据形状
 - 模板实例中的目录、章节也保留各自定义的 `parameters`
-- 动态参数候选项写入参数对象的 `candidates`
+- 动态参数候选项写入参数对象的 `options`
 - 参数确认聚合态写入 `parameterConfirmation`
-- `deltaViews` 只是局部编辑视图，不是持久化真相
-- `templateSkeletonStatus` 同时包含系统内部三态和 UI 二态
-- `section.outline.items[].values` 也统一保留三元组数组，不提前把多值拼成 SQL 字符串
+- `section.outline.items[].values` 也统一保留 `ParameterValue` 数组，不提前把多值拼成 SQL 字符串
+- 模板实例只维护每次操作后的最新状态，不记录变更轨迹
+- 顶层模板骨架状态不单独持久化；如需整体状态，由服务端基于各 `section.skeletonStatus` 聚合
 - 模板实例允许保留物化后的顺序字段，用于 `foreach` 展开后的稳定排序与后续冻结
-- 多层目录下，`deltaViews` 可补充 `catalogPath/sectionPath`，用于审计、回放和前后端稳态定位，不替代 `targetId`
 
 模板实例顶层示例：
 
@@ -233,12 +232,7 @@
   "captureStage": "confirm_params",
   "revision": 3,
   "parameters": [],
-  "catalogs": [],
-  "deltaViews": [],
-  "templateSkeletonStatus": {
-    "internal": "reusable",
-    "ui": "not_broken"
-  }
+  "catalogs": []
 }
 ```
 
@@ -301,8 +295,6 @@
   - 稳定记录缺失参数、确认状态、确认时间
 - `catalogs -> (subCatalogs)* -> sections -> outline`
   - 树状主体既服务编辑，也服务重新生成
-- `deltaViews`
-  - 只保存用户编辑增量与审计线索，不取代树状主体
 
 设计原则：
 
@@ -317,8 +309,8 @@
 | `base_template` | 已重构回正式模型 | 需要 | `templateSnapshot` |
 | `instance_meta` | 已被顶层元字段替代 | 部分需要 | 保持 `status/captureStage/revision/conversationId/chatId/createdAt/updatedAt` |
 | `runtime_state.parameter_runtime.definitions` | 已并入统一参数模型 | 需要 | `Parameter[]` |
-| `runtime_state.parameter_runtime.candidate_snapshots` | 已并入统一参数模型 | 需要 | `Parameter[].candidates/runtime` |
-| `runtime_state.parameter_runtime.selections` | 已并入统一参数模型 | 需要 | `Parameter[].values/runtime` |
+| `runtime_state.parameter_runtime.candidate_snapshots` | 已并入统一参数模型 | 需要 | `Parameter[].options/runtimeContext` |
+| `runtime_state.parameter_runtime.selections` | 已并入统一参数模型 | 需要 | `Parameter[].values/runtimeContext` |
 | `runtime_state.parameter_runtime.confirmation` | 已补回正式模型 | 需要 | `parameterConfirmation` |
 | `runtime_state.outline_runtime.current_outline_instance` | 已被树状主体替代 | 部分需要 | `catalogs -> (subCatalogs)* -> sections -> outline` |
 | `resolved_view.parameters` | 已被统一 `Parameter[]` 替代 | 部分需要 | 不单独回滚，可派生 |
@@ -366,9 +358,7 @@
 
 ```json
 {
-  "openSource": {
-    "url": "https://example.internal/api/network/scopes/options"
-  }
+  "source": "https://example.internal/api/network/scopes/options"
 }
 ```
 
@@ -434,6 +424,6 @@
 2. API 契约和持久化结构要投影这些模型，不得反向定义第二套对象。
 3. 模板定义中的动态候选项数据源协议已经标准化，模板里不再声明方法和报文结构。
 4. 模板层与实例层统一复用 `outline.requirement + outline.items`；实例态只额外补 `renderedRequirement/values/valueSource`。
-5. 多值参数与多值诉求项在运行态统一保留三元组数组；展示层默认用 `、` 拼接 `display`，执行层默认由 `executionBindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。
+5. 多值参数与多值诉求项在运行态统一保留 `ParameterValue` 数组；展示层默认用 `、` 拼接 `display`，执行层默认由 `runtimeContext.bindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。
 6. 参数作用域采用“节点定义、向下继承可见”：章节可见自身参数，目录可见自身及祖先参数，模板根参数全局可见。
-7. `section.id` 在单份模板内必须全局唯一；`catalog.id` 也建议全局唯一。`reportMeta`、流式进度和 `deltaViews` 都依赖这一点维持稳定定位。
+7. `section.id` 在单份模板内必须全局唯一；`catalog.id` 也建议全局唯一。`reportMeta` 和流式进度都依赖这一点维持稳定定位。

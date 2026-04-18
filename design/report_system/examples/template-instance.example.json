@@ -24,7 +24,6 @@
         "required": true,
         "multi": false,
         "interactionMode": "form",
-        "valueMode": "value",
         "defaultValue": [
           {
             "display": "2026-04-18",
@@ -41,20 +40,15 @@
         "required": true,
         "multi": true,
         "interactionMode": "natural_language",
-        "valueMode": "query",
-        "openSource": {
-          "url": "https://example.internal/api/network/scopes/options"
-        }
+        "source": "https://example.internal/api/network/scopes/options"
       }
     ],
     "catalogs": [
       {
         "id": "catalog_overview",
-        "name": "运行概览",
         "sections": [
           {
             "id": "section_overview",
-            "title": "总体态势",
             "outline": {
               "requirement": "分析{@scope_item}在{@report_date_item}的总体运行态势，并总结关键结论。",
               "items": [
@@ -105,12 +99,11 @@
               }
             }
           }
-        ]
+        ],
+        "title": "运行概览"
       },
       {
         "id": "catalog_scope_analysis",
-        "name": "对象分析",
-        "nameTemplate": "{$scope}专题分析",
         "foreach": {
           "parameterId": "scope",
           "as": "scope_item"
@@ -124,7 +117,6 @@
             "required": true,
             "multi": false,
             "interactionMode": "form",
-            "valueMode": "value",
             "options": [
               {
                 "display": "小时",
@@ -149,13 +141,9 @@
         "subCatalogs": [
           {
             "id": "catalog_scope_availability",
-            "name": "可用性分析",
-            "nameTemplate": "{$scope}可用性分析",
             "sections": [
               {
                 "id": "section_scope_trend",
-                "title": "可用性趋势",
-                "titleTemplate": "{$scope}可用性{$detail_granularity}趋势",
                 "parameters": [
                   {
                     "id": "trend_window",
@@ -165,7 +153,6 @@
                     "required": true,
                     "multi": false,
                     "interactionMode": "form",
-                    "valueMode": "value",
                     "options": [
                       {
                         "display": "最近7天",
@@ -236,9 +223,11 @@
                   }
                 }
               }
-            ]
+            ],
+            "title": "{$scope}可用性分析"
           }
-        ]
+        ],
+        "title": "{$scope}专题分析"
       }
     ]
   },
@@ -256,7 +245,6 @@
       "required": true,
       "multi": false,
       "interactionMode": "form",
-      "valueMode": "value",
       "defaultValue": [
         {
           "display": "2026-04-18",
@@ -271,7 +259,7 @@
           "query": "2026-04-18"
         }
       ],
-      "runtime": {
+      "runtimeContext": {
         "valueSource": "default",
         "confirmed": true,
         "confirmedAt": "2026-04-18T09:15:00Z"
@@ -285,11 +273,20 @@
       "required": true,
       "multi": true,
       "interactionMode": "natural_language",
-      "valueMode": "query",
-      "openSource": {
-        "url": "https://example.internal/api/network/scopes/options"
-      },
-      "candidates": [
+      "values": [
+        {
+          "display": "总部网络",
+          "value": "hq-network",
+          "query": "scope_id = 'hq-network'"
+        },
+        {
+          "display": "分支网络",
+          "value": "branch-network",
+          "query": "scope_id = 'branch-network'"
+        }
+      ],
+      "source": "https://example.internal/api/network/scopes/options",
+      "options": [
         {
           "display": "总部网络",
           "value": "hq-network",
@@ -306,27 +303,15 @@
           "query": "scope_id = 'core-network'"
         }
       ],
-      "values": [
-        {
-          "display": "总部网络",
-          "value": "hq-network",
-          "query": "scope_id = 'hq-network'"
-        },
-        {
-          "display": "分支网络",
-          "value": "branch-network",
-          "query": "scope_id = 'branch-network'"
-        }
-      ],
-      "runtime": {
+      "runtimeContext": {
         "valueSource": "dynamic_candidate",
-        "candidateSource": "https://example.internal/api/network/scopes/options",
-        "candidateFetchedAt": "2026-04-18T09:11:00Z",
         "queryContext": {
           "keyword": "网络"
         },
         "confirmed": true,
-        "confirmedAt": "2026-04-18T09:15:00Z"
+        "confirmedAt": "2026-04-18T09:15:00Z",
+        "optionSource": "https://example.internal/api/network/scopes/options",
+        "optionsFetchedAt": "2026-04-18T09:11:00Z"
       }
     }
   ],
@@ -338,12 +323,10 @@
   "catalogs": [
     {
       "id": "catalog_overview",
-      "name": "运行概览",
       "order": 1,
       "sections": [
         {
           "id": "section_overview",
-          "title": "总体态势",
           "order": 1,
           "outline": {
             "requirement": "分析{@scope_item}在{@report_date_item}的总体运行态势，并总结关键结论。",
@@ -389,25 +372,27 @@
               }
             ]
           },
-          "executionBindings": [
-            {
-              "id": "binding_daily_summary_scope",
-              "bindingType": "dataset_parameter",
-              "sourceType": "sql",
-              "targetRef": "dataset_daily_summary.scope",
-              "multiValueQueryMode": "in",
-              "resolvedQuery": "scope_id IN ('hq-network', 'branch-network')"
-            }
-          ],
           "skeletonStatus": "reusable",
-          "userEdited": false
+          "userEdited": false,
+          "runtimeContext": {
+            "bindings": [
+              {
+                "id": "binding_daily_summary_scope",
+                "bindingType": "dataset_parameter",
+                "sourceType": "sql",
+                "targetRef": "dataset_daily_summary.scope",
+                "multiValueQueryMode": "in",
+                "resolvedQuery": "scope_id IN ('hq-network', 'branch-network')"
+              }
+            ]
+          }
         }
-      ]
+      ],
+      "title": "运行概览",
+      "renderedTitle": "运行概览"
     },
     {
       "id": "catalog_scope_analysis_hq",
-      "name": "总部网络专题分析",
-      "nameTemplate": "{$scope}专题分析",
       "order": 2,
       "foreachContext": {
         "parameterId": "scope",
@@ -428,7 +413,6 @@
           "required": true,
           "multi": false,
           "interactionMode": "form",
-          "valueMode": "value",
           "options": [
             {
               "display": "小时",
@@ -455,7 +439,7 @@
               "query": "day"
             }
           ],
-          "runtime": {
+          "runtimeContext": {
             "valueSource": "default",
             "confirmed": true,
             "confirmedAt": "2026-04-18T09:15:00Z"
@@ -465,14 +449,10 @@
       "subCatalogs": [
         {
           "id": "catalog_scope_availability_hq",
-          "name": "总部网络可用性分析",
-          "nameTemplate": "{$scope}可用性分析",
           "order": 1,
           "sections": [
             {
               "id": "section_scope_trend_hq",
-              "title": "总部网络可用性天趋势",
-              "titleTemplate": "{$scope}可用性{$detail_granularity}趋势",
               "order": 1,
               "parameters": [
                 {
@@ -483,7 +463,6 @@
                   "required": true,
                   "multi": false,
                   "interactionMode": "form",
-                  "valueMode": "value",
                   "options": [
                     {
                       "display": "最近7天",
@@ -510,7 +489,7 @@
                       "query": "7d"
                     }
                   ],
-                  "runtime": {
+                  "runtimeContext": {
                     "valueSource": "default",
                     "confirmed": true,
                     "confirmedAt": "2026-04-18T09:15:00Z"
@@ -555,58 +534,36 @@
                   }
                 ]
               },
-              "executionBindings": [
-                {
-                  "id": "binding_scope_trend_scope_hq",
-                  "bindingType": "dataset_parameter",
-                  "sourceType": "sql",
-                  "targetRef": "dataset_scope_trend.scope",
-                  "resolvedQuery": "scope_id = 'hq-network'"
-                },
-                {
-                  "id": "binding_scope_trend_window_hq",
-                  "bindingType": "dataset_parameter",
-                  "sourceType": "system",
-                  "targetRef": "dataset_scope_trend.window",
-                  "resolvedQuery": "7d"
-                }
-              ],
               "skeletonStatus": "reusable",
-              "userEdited": false
+              "userEdited": false,
+              "runtimeContext": {
+                "bindings": [
+                  {
+                    "id": "binding_scope_trend_scope_hq",
+                    "bindingType": "dataset_parameter",
+                    "sourceType": "sql",
+                    "targetRef": "dataset_scope_trend.scope",
+                    "resolvedQuery": "scope_id = 'hq-network'"
+                  },
+                  {
+                    "id": "binding_scope_trend_window_hq",
+                    "bindingType": "dataset_parameter",
+                    "sourceType": "system",
+                    "targetRef": "dataset_scope_trend.window",
+                    "resolvedQuery": "7d"
+                  }
+                ]
+              }
             }
-          ]
+          ],
+          "title": "{$scope}可用性分析",
+          "renderedTitle": "总部网络可用性分析"
         }
-      ]
-    }
-  ],
-  "deltaViews": [
-    {
-      "targetType": "parameter",
-      "targetId": "scope",
-      "catalogPath": [
-        "catalog_scope_analysis"
       ],
-      "changeKind": "slot_value_update",
-      "payload": {
-        "newValue": [
-          {
-            "display": "总部网络",
-            "value": "hq-network",
-            "query": "scope_id = 'hq-network'"
-          },
-          {
-            "display": "分支网络",
-            "value": "branch-network",
-            "query": "scope_id = 'branch-network'"
-          }
-        ]
-      }
+      "title": "{$scope}专题分析",
+      "renderedTitle": "总部网络专题分析"
     }
   ],
-  "templateSkeletonStatus": {
-    "internal": "reusable",
-    "ui": "not_broken"
-  },
   "warnings": [],
   "createdAt": "2026-04-18T09:10:00Z",
   "updatedAt": "2026-04-18T09:16:00Z"

@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./parameter-option-source-request.schema.json",
   "title": "ParameterOptionSourceRequest",
-  "description": "动态参数候选项外部数据源的统一请求体。键名为参数 id，值为 display/value/query 三元组数组。",
+  "description": "动态参数候选项外部数据源的统一请求体。键名为参数 id，值为 ParameterValue 数组。",
   "type": "object",
   "patternProperties": {
     "^[A-Za-z0-9_\\-]+$": {
       "type": "array",
       "items": {
-        "$ref": "./report-template.schema.json#/$defs/TrioValue"
+        "$ref": "./report-template.schema.json#/$defs/ParameterValue"
       }
     }
   },

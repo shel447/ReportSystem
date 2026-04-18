@@ -56,7 +56,7 @@
 
 模板里的动态参数增加：
 
-- `openSource.url`
+- `source`
 
 同时系统统一约束外部参数候选项协议：
 
@@ -68,7 +68,7 @@
 前端需要新增或调整：
 
 1. `TemplateInstance` 树的渲染与编辑
-2. `deltaViews` 的生成与回传；多层目录下应尽量补充 `catalogPath/sectionPath`
+2. 完整 `TemplateInstance` 的回传与覆盖式更新；模板实例只维护最新状态
 3. 报告生成中的流式 `REPORT` 增量渲染
 4. 报告详情页对 `report + templateInstance + documents` 的统一承载
 5. 模板提取对 `REPORT_TEMPLATE` 的渲染与确认保存流程

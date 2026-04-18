@@ -566,8 +566,8 @@
       "ReportDsl": {
         "$ref": "../report_system/schemas/report-dsl.schema.json"
       },
-      "TrioValue": {
-        "$ref": "../report_system/schemas/report-template.schema.json#/$defs/TrioValue"
+      "ParameterValue": {
+        "$ref": "../report_system/schemas/report-template.schema.json#/$defs/ParameterValue"
       },
       "TemplateSummary": {
         "type": "object",
@@ -1370,8 +1370,8 @@
           "parameterId": {
             "type": "string"
           },
-          "openSource": {
-            "$ref": "../report_system/schemas/report-template.schema.json#/$defs/OpenSource"
+          "source": {
+            "type": "string"
           },
           "contextValues": {
             "$ref": "../report_system/schemas/parameter-option-source-request.schema.json"
@@ -1379,7 +1379,7 @@
         },
         "required": [
           "parameterId",
-          "openSource",
+          "source",
           "contextValues"
         ]
       },
