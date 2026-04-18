@@ -789,13 +789,7 @@
             ]
           },
           "parameters": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/TrioValue"
-              }
-            }
+            "$ref": "#/components/schemas/EffectiveParameterValues"
           },
           "reportContext": {
             "type": "object",
@@ -806,6 +800,37 @@
             }
           }
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "fill_params"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "parameters"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "confirm_params"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "parameters",
+                "reportContext"
+              ]
+            }
+          }
+        ],
         "required": [
           "type"
         ]
@@ -983,12 +1008,13 @@
                   "$ref": "#/components/schemas/AskParameterDefinition"
                 },
                 "currentValue": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TrioValue"
-                  }
+                  "$ref": "#/components/schemas/ParameterValueArray"
                 }
-              }
+              },
+              "required": [
+                "parameter",
+                "currentValue"
+              ]
             }
           },
           "reportContext": {
@@ -1008,70 +1034,19 @@
         ]
       },
       "AskParameterDefinition": {
+        "$ref": "../report_system/schemas/report-template.schema.json#/$defs/ParameterDefinition"
+      },
+      "ParameterValueArray": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/TrioValue"
+        }
+      },
+      "EffectiveParameterValues": {
         "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "label": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "inputType": {
-            "type": "string",
-            "enum": [
-              "free_text",
-              "date",
-              "enum",
-              "dynamic"
-            ]
-          },
-          "required": {
-            "type": "boolean"
-          },
-          "multi": {
-            "type": "boolean"
-          },
-          "interactionMode": {
-            "type": "string",
-            "enum": [
-              "form",
-              "natural_language"
-            ]
-          },
-          "valueMode": {
-            "type": "string",
-            "enum": [
-              "display",
-              "value",
-              "query"
-            ]
-          },
-          "options": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TrioValue"
-            }
-          },
-          "defaultValue": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TrioValue"
-            }
-          },
-          "openSource": {
-            "$ref": "../report_system/schemas/report-template.schema.json#/$defs/OpenSource"
-          }
-        },
-        "required": [
-          "id",
-          "label",
-          "inputType",
-          "required",
-          "interactionMode"
-        ]
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ParameterValueArray"
+        }
       },
       "AnswerEnvelope": {
         "type": "object",

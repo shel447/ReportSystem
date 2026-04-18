@@ -34,7 +34,7 @@
 - `parameters`、`catalogs` 是模板对象根属性，不再放进 `content`
 - 模板是静态资产，不带运行态 `status`
 - 参数动态候选项来源统一用 `openSource.url` 描述，不再把方法、请求体、响应体格式散落在模板中
-- `enum` / `dynamic` 参数必须显式声明 `valueMode`，避免执行层无法判断三元组主值通道
+- 所有参数都必须显式声明 `multi` 和 `valueMode`，避免 UI 和执行层对单选/多选及主值通道做隐式猜测
 - `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
 
 模板顶层示例：
@@ -60,6 +60,7 @@
 - 主体保持 `catalogs -> sections`
 - `parameterValues` 统一采用“三元组数组”表示，兼容单值和多值参数；这里保存的是“已生效值”
 - 若用户未显式赋值，则先取参数或诉求项的 `defaultValue` 后再写入 `parameterValues`
+- `TemplateInstance.parameterValues` 与接口层 `Reply.parameters` 使用完全相同的数据形状
 - `deltaViews` 只是局部编辑视图，不是持久化真相
 - `templateSkeletonStatus` 同时包含系统内部三态和 UI 二态
 - `requirementInstance.items[].resolvedValues` 也统一保留三元组数组，不提前把多值拼成 SQL 字符串
