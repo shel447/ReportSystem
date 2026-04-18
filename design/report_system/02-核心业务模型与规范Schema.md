@@ -35,7 +35,11 @@
 - 模板是静态资产，不带运行态 `status`
 - 参数动态候选项来源统一用 `openSource.url` 描述，不再把方法、请求体、响应体格式散落在模板中
 - 所有参数都必须显式声明 `multi` 和 `valueMode`，避免 UI 和执行层对单选/多选及主值通道做隐式猜测
+- 模板支持多层目录：每个 `catalog` 下可以同时存在 `subCatalogs` 与 `sections`
+- `catalog.nameTemplate`、`section.titleTemplate` 允许根据参数值动态渲染标题，标题渲染不经过单独的大模型生成任务
+- 参数可定义在模板根部、目录或章节上；参数 `id` 在同一模板内必须全局唯一
 - `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
+- 模板中的目录、子目录、章节顺序由数组位置定义，静态模板不再维护 `order`
 
 模板顶层示例：
 
@@ -57,13 +61,15 @@
 
 关键要求：
 
-- 主体保持 `catalogs -> sections`
+- 主体保持 `catalogs -> (subCatalogs)* -> sections`
 - `parameterValues` 统一采用“三元组数组”表示，兼容单值和多值参数；这里保存的是“已生效值”
 - 若用户未显式赋值，则先取参数或诉求项的 `defaultValue` 后再写入 `parameterValues`
 - `TemplateInstance.parameterValues` 与接口层 `Reply.parameters` 使用完全相同的数据形状
+- 模板实例中的目录、章节也保留各自定义的 `parameters`
 - `deltaViews` 只是局部编辑视图，不是持久化真相
 - `templateSkeletonStatus` 同时包含系统内部三态和 UI 二态
 - `requirementInstance.items[].resolvedValues` 也统一保留三元组数组，不提前把多值拼成 SQL 字符串
+- 模板实例允许保留物化后的顺序字段，用于 `foreach` 展开后的稳定排序与后续冻结
 
 模板实例顶层示例：
 
@@ -102,7 +108,7 @@
 
 - Schema 全量能力以 `report.schema.json` 为准
 - 但当前报告系统首版只启用其中一个正式子集：
-  - 目录：`catalogs -> sections`，不启用 `subCatalogs`
+  - 目录：`catalogs -> (subCatalogs)* -> sections`
   - 组件：优先使用 `text`、`table`、`chart`、`markdown`
   - `CompositeTable` 属于保留能力，首版不作为模板编译目标
   - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成
@@ -194,3 +200,4 @@
 3. 模板定义中的动态候选项数据源协议已经标准化，模板里不再声明方法和报文结构。
 4. 模板层保留 `outline.requirement + outline.items`；运行态实例化后才形成 `requirementInstance`。
 5. 多值参数与多值诉求项在运行态统一保留三元组数组；展示层默认用 `、` 拼接 `display`，执行层默认由 `executionBindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。
+6. 参数作用域采用“节点定义、向下继承可见”：章节可见自身参数，目录可见自身及祖先参数，模板根参数全局可见。

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./template-instance.schema.json",
   "title": "TemplateInstance",
-  "description": "模板实例正式定义。模板实例是对话运行态对象，主体仍保持 catalog -> section 层级。",
+  "description": "模板实例正式定义。模板实例是对话运行态对象，主体保持 catalogs -> (subCatalogs)* -> sections 层级。",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -197,6 +197,107 @@
         }
       }
     },
+    "OpenSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "ScopedParameterDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "inputType",
+        "required",
+        "multi",
+        "interactionMode",
+        "valueMode"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputType": {
+          "type": "string",
+          "enum": [
+            "free_text",
+            "date",
+            "enum",
+            "dynamic"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "interactionMode": {
+          "type": "string",
+          "enum": [
+            "form",
+            "natural_language"
+          ]
+        },
+        "valueMode": {
+          "type": "string",
+          "enum": [
+            "display",
+            "value",
+            "query"
+          ]
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "openSource": {
+          "$ref": "#/$defs/OpenSource"
+        }
+      }
+    },
+    "ForeachContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameterId",
+        "itemValues"
+      ],
+      "properties": {
+        "parameterId": {
+          "type": "string"
+        },
+        "itemValues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        }
+      }
+    },
     "ExecutionBinding": {
       "type": "object",
       "additionalProperties": false,
@@ -287,6 +388,18 @@
           "type": "integer",
           "minimum": 1
         },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopedParameterDefinition"
+          }
+        },
+        "titleTemplate": {
+          "type": "string"
+        },
+        "foreachContext": {
+          "$ref": "#/$defs/ForeachContext"
+        },
         "requirementInstance": {
           "$ref": "#/$defs/RequirementInstance"
         },
@@ -309,8 +422,7 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "name",
-        "sections"
+        "name"
       ],
       "properties": {
         "id": {
@@ -326,13 +438,43 @@
           "type": "integer",
           "minimum": 1
         },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScopedParameterDefinition"
+          }
+        },
+        "nameTemplate": {
+          "type": "string"
+        },
+        "foreachContext": {
+          "$ref": "#/$defs/ForeachContext"
+        },
+        "subCatalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TemplateInstanceCatalog"
+          }
+        },
         "sections": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/TemplateInstanceSection"
           }
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "sections"
+          ]
+        },
+        {
+          "required": [
+            "subCatalogs"
+          ]
+        }
+      ]
     },
     "TemplateInstanceDelta": {
       "type": "object",

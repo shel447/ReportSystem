@@ -1441,6 +1441,78 @@
             }
           }
         },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "eventType": {
+                  "const": "status"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "status"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eventType": {
+                  "const": "step_delta"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "step"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eventType": {
+                  "const": "ask"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "ask"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eventType": {
+                  "const": "answer"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "answer"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "eventType": {
+                  "const": "error"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "error"
+              ]
+            }
+          }
+        ],
         "required": [
           "conversationId",
           "chatId",
