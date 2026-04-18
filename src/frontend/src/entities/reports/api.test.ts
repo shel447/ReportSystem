@@ -1,18 +1,18 @@
-import { fetchReportView } from "./api";
+import { fetchReport } from "./api";
 
 describe("reports api", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("calls report view endpoint with encoded id", async () => {
+  it("calls report endpoint with encoded id and user header", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ reportId: "rpt-1", status: "completed", template_instance: { id: "ti-1" }, generated_content: {} }),
+      json: async () => ({ reportId: "rpt-1", status: "available", answerType: "REPORT", answer: {} }),
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    await fetchReportView("rpt/1");
+    await fetchReport("rpt/1");
 
     const [url, options] = fetchMock.mock.calls[0];
     expect(url).toBe("/rest/chatbi/v1/reports/rpt%2F1");

@@ -1,787 +1,540 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 
-import { deleteChatSession, fetchChatSession, fetchChatSessions, forkChatSession, sendChatMessage } from "../entities/chat/api";
-import type {
-  ChatAction,
-  ChatForkMeta,
-  ChatForkResponse,
-  ChatMessageItem,
-  ChatRequest,
-  ChatResponse,
-  ChatSessionDetail,
-  ChatSessionPayload,
-} from "../entities/chat/types";
+import {
+  deleteConversation,
+  fetchConversation,
+  fetchConversations,
+  sendChatMessage,
+} from "../entities/chat/api";
+import type { ChatAsk, ChatResponse, ConversationDetail, TemplateInstance, TrioValue } from "../entities/chat/types";
+import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
-import { ChatActionPanel } from "../features/chat-report-flow/components/ChatActionPanel";
-import { ConversationLayout } from "../shared/layouts/ConversationLayout";
-import { EmptyState } from "../shared/ui/EmptyState";
+import { PageSection } from "../shared/ui/PageSection";
 import { SurfaceCard } from "../shared/ui/SurfaceCard";
+import { EmptyState } from "../shared/ui/EmptyState";
 
-const WELCOME_MESSAGE = "您好！我是您的智能报告助手。";
-const INPUT_PLACEHOLDER = "输入消息，例如：制作设备巡检报告";
-const DEFAULT_MESSAGES: ChatMessageItem[] = [
-  {
-    role: "assistant",
-    content: WELCOME_MESSAGE,
-  },
-];
-
-type ChatPageLocationState = {
-  prefetchedSession?: ChatSessionPayload | null;
-};
+type ParameterDrafts = Record<string, TrioValue[]>;
+type DynamicOptionMap = Record<string, TrioValue[]>;
 
 export function ChatPage() {
   const queryClient = useQueryClient();
-  const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [draft, setDraft] = useState("");
-  const [sessionId, setSessionId] = useState("");
-  const [activeSessionId, setActiveSessionId] = useState("");
-  const [sessionTitle, setSessionTitle] = useState("");
-  const [activeForkMeta, setActiveForkMeta] = useState<ChatForkMeta | null>(null);
-  const [historyCollapsed, setHistoryCollapsed] = useState(false);
-  const [menuSessionId, setMenuSessionId] = useState("");
-  const [menuMessageId, setMenuMessageId] = useState("");
-  const [preferredCapability, setPreferredCapability] = useState<"report_generation" | "smart_query" | "fault_diagnosis" | "">("");
-  const viewRevisionRef = useRef(0);
-  const chatWorkspaceRef = useRef<HTMLDivElement | null>(null);
-  const chatHistoryRailRef = useRef<HTMLDivElement | null>(null);
-  const composeDockRef = useRef<HTMLDivElement | null>(null);
-  const messageEndRef = useRef<HTMLDivElement | null>(null);
-  const autoOpenedSessionRef = useRef("");
-  const [messages, setMessages] = useState<ChatMessageItem[]>(DEFAULT_MESSAGES);
+  const [activeConversationId, setActiveConversationId] = useState("");
+  const [question, setQuestion] = useState("");
+  const [latestResponse, setLatestResponse] = useState<ChatResponse | null>(null);
+  const [parameterDrafts, setParameterDrafts] = useState<ParameterDrafts>({});
+  const [dynamicOptions, setDynamicOptions] = useState<DynamicOptionMap>({});
   const [errorMessage, setErrorMessage] = useState("");
-  const [viewRevision, setViewRevision] = useState(0);
-  const [pendingViewRevisions, setPendingViewRevisions] = useState<number[]>([]);
-  const [composeLayout, setComposeLayout] = useState(() => ({
-    left: 0,
-    width: typeof window !== "undefined" ? window.innerWidth : 0,
-    reserve: 176,
-    historyLeft: 0,
-    historyTop: 0,
-    historyWidth: 280,
-    historyHeight: typeof window !== "undefined" ? window.innerHeight : 0,
-  }));
 
-  const systemSettingsQuery = useQuery({
+  const settingsQuery = useQuery({
     queryKey: ["system-settings"],
     queryFn: fetchSystemSettings,
   });
 
-  const chatSessionsQuery = useQuery({
-    queryKey: ["chat-sessions"],
-    queryFn: fetchChatSessions,
+  const conversationsQuery = useQuery({
+    queryKey: ["conversations"],
+    queryFn: fetchConversations,
   });
 
-  const loadSessionMutation = useMutation({
-    mutationFn: (nextSessionId: string) => fetchChatSession(nextSessionId),
+  const conversationQuery = useQuery({
+    queryKey: ["conversation", activeConversationId],
+    queryFn: () => fetchConversation(activeConversationId),
+    enabled: Boolean(activeConversationId),
   });
 
-  const deleteSessionMutation = useMutation({
-    mutationFn: (nextSessionId: string) => deleteChatSession(nextSessionId),
+  const sendMutation = useMutation({
+    mutationFn: sendChatMessage,
+    onSuccess: async (response) => {
+      setLatestResponse(response);
+      setActiveConversationId(response.conversationId);
+      setQuestion("");
+      setErrorMessage("");
+      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      await queryClient.invalidateQueries({ queryKey: ["conversation", response.conversationId] });
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
+    },
   });
 
-  const forkSessionMutation = useMutation({
-    mutationFn: forkChatSession,
-  });
-
-  const chatMutation = useMutation({
-    mutationFn: (payload: ChatRequest) => sendChatMessage(payload),
-  });
-  const prefetchedSession = (location.state as ChatPageLocationState | null | undefined)?.prefetchedSession ?? null;
-  const sessionSourceBanner = getSessionSourceBanner(activeForkMeta, sessionTitle);
-
-  const latestAction = useMemo(() => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      const item = messages[index];
-      if (item.role === "assistant" && item.action) {
-        return item.action;
+  const deleteMutation = useMutation({
+    mutationFn: deleteConversation,
+    onSuccess: async (_, conversationId) => {
+      if (conversationId === activeConversationId) {
+        setActiveConversationId("");
+        setLatestResponse(null);
       }
+      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : "删除会话失败。");
+    },
+  });
+
+  const currentAsk = latestResponse?.ask ?? null;
+  const currentTemplateInstance = useMemo(() => {
+    if (currentAsk) {
+      return currentAsk.reportContext.templateInstance;
+    }
+    if (latestResponse?.answer?.answerType === "REPORT") {
+      return latestResponse.answer.answer.templateInstance;
     }
     return null;
-  }, [messages]);
-
-  const isCurrentViewPending = pendingViewRevisions.includes(viewRevision);
-
-  const advanceViewRevision = () => {
-    viewRevisionRef.current += 1;
-    setViewRevision(viewRevisionRef.current);
-    return viewRevisionRef.current;
-  };
+  }, [currentAsk, latestResponse]);
 
   useEffect(() => {
-    messageEndRef.current?.scrollIntoView?.({ block: "end" });
-  }, [messages]);
-
-  useLayoutEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
+    if (!currentAsk) {
+      setParameterDrafts({});
+      setDynamicOptions({});
+      return;
     }
+    const nextDrafts: ParameterDrafts = {};
+    for (const item of currentAsk.parameters) {
+      nextDrafts[item.parameter.id] = item.currentValue ?? [];
+    }
+    setParameterDrafts(nextDrafts);
+  }, [currentAsk]);
 
-    const measure = () => {
-      const workspace = chatWorkspaceRef.current;
-      const historyRail = chatHistoryRailRef.current;
-      const composeDock = composeDockRef.current;
-      if (!workspace || !composeDock || !historyRail) {
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDynamicOptions(ask: ChatAsk) {
+      const entries = ask.parameters.filter((item) => item.parameter.inputType === "dynamic" && item.parameter.openSource?.url);
+      if (!entries.length) {
+        setDynamicOptions({});
         return;
       }
 
-      const containerRect = workspace.getBoundingClientRect();
-      const historyRect = historyRail.getBoundingClientRect();
-      const composeRect = composeDock.getBoundingClientRect();
-      const nextLayout = {
-        left: Math.max(containerRect.left, 0),
-        width: Math.max(containerRect.width, 0),
-        reserve: Math.max(Math.ceil(composeRect.height), 176),
-        historyLeft: Math.max(historyRect.left, 0),
-        historyTop: Math.max(historyRect.top, 0),
-        historyWidth: Math.max(historyRect.width, historyCollapsed ? 36 : 280),
-        historyHeight: Math.max(window.innerHeight - Math.max(historyRect.top, 0), 0),
-      };
-
-      setComposeLayout((current) => {
-        if (
-          current.left === nextLayout.left
-          && current.width === nextLayout.width
-          && current.reserve === nextLayout.reserve
-          && current.historyLeft === nextLayout.historyLeft
-          && current.historyTop === nextLayout.historyTop
-          && current.historyWidth === nextLayout.historyWidth
-          && current.historyHeight === nextLayout.historyHeight
-        ) {
-          return current;
+      const resolved: DynamicOptionMap = {};
+      for (const entry of entries) {
+        try {
+          const response = await resolveParameterOptions({
+            parameterId: entry.parameter.id,
+            openSource: entry.parameter.openSource!,
+            contextValues: ask.reportContext.templateInstance.parameterValues,
+          });
+          resolved[entry.parameter.id] = response.options;
+        } catch {
+          resolved[entry.parameter.id] = [];
         }
-        return nextLayout;
-      });
-    };
-
-    const handleResize = () => {
-      window.requestAnimationFrame(measure);
-    };
-
-    measure();
-    window.addEventListener("resize", handleResize);
-
-    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    if (resizeObserver && chatWorkspaceRef.current && composeDockRef.current && chatHistoryRailRef.current) {
-      resizeObserver.observe(chatWorkspaceRef.current);
-      resizeObserver.observe(composeDockRef.current);
-      resizeObserver.observe(chatHistoryRailRef.current);
+      }
+      if (!cancelled) {
+        setDynamicOptions(resolved);
+      }
     }
 
+    if (currentAsk) {
+      void loadDynamicOptions(currentAsk);
+    }
     return () => {
-      window.removeEventListener("resize", handleResize);
-      resizeObserver?.disconnect();
+      cancelled = true;
     };
-  }, [historyCollapsed]);
+  }, [currentAsk]);
 
-  const resetToEmptyConversation = () => {
-    advanceViewRevision();
-    setDraft("");
-    setSessionId("");
-    setActiveSessionId("");
-    setSessionTitle("");
-    setActiveForkMeta(null);
-    setPreferredCapability("");
-    setMenuSessionId("");
-    setMenuMessageId("");
-    setMessages(DEFAULT_MESSAGES);
-    setErrorMessage("");
-    setSearchParams({});
-  };
-
-  const syncChatResponse = (response: ChatResponse, optimisticContent: string) => {
-    setErrorMessage("");
-    setSessionId(response.session_id);
-    setActiveSessionId(response.session_id);
-    if (response.title) {
-      setSessionTitle(response.title);
-    }
-    if (response.fork_meta !== undefined) {
-      setActiveForkMeta(response.fork_meta ?? null);
-    }
-    setMessages(buildVisibleMessages(response, optimisticContent));
-    void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
-  };
-
-  const hydrateSessionSnapshot = (session: ChatSessionPayload) => {
-    setSessionId(session.session_id);
-    setActiveSessionId(session.session_id);
-    setSessionTitle(session.title ?? "");
-    setActiveForkMeta(session.fork_meta ?? null);
-    setDraft(session.draft_message ?? "");
-    setMenuMessageId("");
-    setMenuSessionId("");
-    setErrorMessage("");
-    setMessages(buildVisibleMessagesFromSession(session));
-    void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
-  };
-
-  const sendPayload = (payload: Omit<ChatRequest, "session_id">, optimisticContent: string) => {
-    const requestViewRevision = viewRevisionRef.current;
-    const request: ChatRequest = {
-      session_id: sessionId || undefined,
-      ...payload,
-    };
-
-    setErrorMessage("");
-    setPendingViewRevisions((current) =>
-      current.includes(requestViewRevision) ? current : [...current, requestViewRevision],
-    );
-    if (optimisticContent) {
-      setMessages((current) => appendOptimisticMessage(current, optimisticContent));
-    }
-
-    chatMutation.mutate(request, {
-      onSuccess: (response) => {
-        setPendingViewRevisions((current) => current.filter((value) => value !== requestViewRevision));
-        if (requestViewRevision !== viewRevisionRef.current) {
-          void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
-          return;
-        }
-        syncChatResponse(response, optimisticContent);
-      },
-      onError: (error) => {
-        setPendingViewRevisions((current) => current.filter((value) => value !== requestViewRevision));
-        if (requestViewRevision !== viewRevisionRef.current) {
-          return;
-        }
-        setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
-      },
-    });
-  };
-
-  const submitMessage = () => {
-    const nextMessage = draft.trim();
-    if (!nextMessage || isCurrentViewPending) {
-      return;
-    }
-    setDraft("");
-    sendPayload(
-      {
-        message: nextMessage,
-        preferred_capability: preferredCapability || undefined,
-      },
-      nextMessage,
-    );
-  };
-
-  const runAction = (payload: Omit<ChatRequest, "session_id">) => {
-    sendPayload(payload, buildOptimisticActionMessage(payload, latestAction));
-  };
-
-  const openSession = (nextSessionId: string) => {
-    if (loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
-      return;
-    }
-    const nextViewRevision = advanceViewRevision();
-    setErrorMessage("");
-    loadSessionMutation.mutate(nextSessionId, {
-      onSuccess: (session) => {
-        if (viewRevisionRef.current !== nextViewRevision) {
-          return;
-        }
-        hydrateSessionSnapshot(session);
-      },
-      onError: (error) => {
-        if (viewRevisionRef.current !== nextViewRevision) {
-          return;
-        }
-        setErrorMessage(error instanceof Error ? error.message : "加载历史会话失败。");
-      },
-    });
-  };
-
-  const removeSession = (nextSessionId: string) => {
-    if (loadSessionMutation.isPending || deleteSessionMutation.isPending || forkSessionMutation.isPending) {
-      return;
-    }
-    deleteSessionMutation.mutate(nextSessionId, {
-      onSuccess: () => {
-        setMenuSessionId("");
-        if (nextSessionId === sessionId || nextSessionId === activeSessionId) {
-          resetToEmptyConversation();
-        }
-        void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
-      },
-      onError: (error) => {
-        setErrorMessage(error instanceof Error ? error.message : "删除历史会话失败。");
-      },
-    });
-  };
-
-  const applyForkedSession = (payload: ChatForkResponse) => {
-    hydrateSessionSnapshot(payload);
-  };
+  const conversationMessages = useMemo(
+    () => normalizeConversationMessages(conversationQuery.data),
+    [conversationQuery.data],
+  );
 
   useEffect(() => {
-    if (!prefetchedSession) {
+    if (!activeConversationId) {
       return;
     }
-    if (prefetchedSession.session_id === activeSessionId && prefetchedSession.session_id === sessionId) {
+    if (!conversationQuery.data) {
       return;
     }
-    hydrateSessionSnapshot(prefetchedSession);
-  }, [activeSessionId, prefetchedSession, sessionId]);
+    setLatestResponse(findLatestResponse(conversationQuery.data));
+  }, [activeConversationId, conversationQuery.data]);
 
-  const runForkFromMessage = (messageId: string) => {
-    const sourceSessionId = activeSessionId || sessionId;
-    if (!sourceSessionId || forkSessionMutation.isPending) {
-      return;
-    }
-    forkSessionMutation.mutate(
-      {
-        source_kind: "session_message",
-        source_session_id: sourceSessionId,
-        source_message_id: messageId,
-      },
-      {
-        onSuccess: (payload) => {
-          applyForkedSession(payload);
-        },
-        onError: (error) => {
-          setErrorMessage(error instanceof Error ? error.message : "Fork 会话失败。");
-        },
-      },
-    );
-  };
-
-  useEffect(() => {
-    const requestedSessionId = searchParams.get("session_id") ?? "";
-    if (!requestedSessionId) {
-      autoOpenedSessionRef.current = "";
-      return;
-    }
-    if (
-      requestedSessionId === activeSessionId
-      || requestedSessionId === autoOpenedSessionRef.current
-      || loadSessionMutation.isPending
-    ) {
-      return;
-    }
-    autoOpenedSessionRef.current = requestedSessionId;
-    openSession(requestedSessionId);
-  }, [activeSessionId, loadSessionMutation.isPending, searchParams]);
-
-  const chatPageStyle = {
-    "--chat-compose-left": `${composeLayout.left}px`,
-    "--chat-compose-width": `${composeLayout.width}px`,
-    "--chat-compose-reserve": `${composeLayout.reserve}px`,
-    "--chat-history-left": `${composeLayout.historyLeft}px`,
-    "--chat-history-top": `${composeLayout.historyTop}px`,
-    "--chat-history-width": `${composeLayout.historyWidth}px`,
-    "--chat-history-height": `${composeLayout.historyHeight}px`,
-  } as CSSProperties;
+  const canSubmitQuestion = question.trim().length > 0 && !sendMutation.isPending;
 
   return (
-    <div className="chat-page" style={chatPageStyle}>
-      <div className={`chat-page__shell${historyCollapsed ? " is-history-collapsed" : ""}`}>
-        <div ref={chatHistoryRailRef} className="chat-history-rail">
-          <aside className={`chat-history-panel${historyCollapsed ? " is-collapsed" : ""}`}>
-            {!historyCollapsed ? (
-              <>
-                <div className="chat-history-panel__header">
-                  <strong>会话记录</strong>
-                  <div className="chat-history-panel__actions">
-                    <button
-                      className="chat-history-panel__new"
-                      type="button"
-                      aria-label="新建会话"
-                      onClick={resetToEmptyConversation}
-                    >
-                      <span className="chat-history-panel__new-icon" aria-hidden="true">+</span>
-                      <span>新建</span>
-                    </button>
-                  </div>
+    <div className="chat-page">
+      <PageSection description="对话接口是模板实例运行态的唯一外部入口。参数补齐、诉求确认和报告生成都通过 /chat 推进。">
+        <div className="chat-page__shell">
+          <aside className="chat-history-panel">
+            <div className="chat-history-panel__header">
+              <strong>会话记录</strong>
+              <button
+                className="chat-history-panel__new"
+                type="button"
+                onClick={() => {
+                  setActiveConversationId("");
+                  setLatestResponse(null);
+                  setErrorMessage("");
+                }}
+              >
+                新建
+              </button>
+            </div>
+            <div className="chat-history-panel__body">
+              {conversationsQuery.data?.length ? (
+                <div className="chat-history-list">
+                  {conversationsQuery.data.map((item) => (
+                    <article key={item.conversationId} className={`chat-history-item${item.conversationId === activeConversationId ? " is-active" : ""}`}>
+                      <button type="button" className="chat-history-item__main" onClick={() => setActiveConversationId(item.conversationId)}>
+                        <strong>{item.title || "未命名会话"}</strong>
+                        <span>{item.lastMessagePreview || "暂无摘要"}</span>
+                      </button>
+                      <button
+                        className="chat-history-item__menu-trigger"
+                        type="button"
+                        aria-label={`删除会话 ${item.title}`}
+                        onClick={() => deleteMutation.mutate(item.conversationId)}
+                      >
+                        删除
+                      </button>
+                    </article>
+                  ))}
                 </div>
-                <div className="chat-history-panel__body">
-                  {chatSessionsQuery.isLoading ? (
-                    <p className="muted-text">正在加载会话记录…</p>
-                  ) : chatSessionsQuery.data?.length ? (
-                    <div className="chat-history-list">
-                      {chatSessionsQuery.data.map((item) => (
-                        <article
-                          key={item.session_id}
-                          className={`chat-history-item${item.session_id === activeSessionId ? " is-active" : ""}`}
-                        >
-                          <button
-                            type="button"
-                            className="chat-history-item__main"
-                            aria-label={`打开会话：${item.title}`}
-                            onClick={() => openSession(item.session_id)}
-                          >
-                            <strong title={item.title}>{item.title}</strong>
-                          </button>
-                          <div className="chat-history-item__menu-wrap">
-                            <button
-                              type="button"
-                              className="chat-history-item__menu-trigger"
-                              aria-label={`更多操作：${item.title}`}
-                              aria-expanded={menuSessionId === item.session_id}
-                              onClick={() =>
-                                setMenuSessionId((current) => (current === item.session_id ? "" : item.session_id))
-                              }
-                            >
-                              ...
-                            </button>
-                            {menuSessionId === item.session_id ? (
-                              <div className="chat-history-item__menu" role="menu" aria-label={`会话操作：${item.title}`}>
-                                <button type="button" disabled>
-                                  重命名（暂未开放）
-                                </button>
-                                <button type="button" aria-label="删除会话" onClick={() => removeSession(item.session_id)}>
-                                  删除会话
-                                </button>
-                              </div>
-                            ) : null}
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    <EmptyState
-                      title="暂无历史会话"
-                      description="发送第一条消息后，这里会记录你的对话历史。"
-                    />
-                  )}
-                </div>
-              </>
-            ) : null}
-            <button
-              className="chat-history-panel__divider-toggle"
-              type="button"
-              aria-label={historyCollapsed ? "展开会话栏" : "折叠会话栏"}
-              onClick={() => setHistoryCollapsed((current) => !current)}
-            >
-              <span aria-hidden="true">{historyCollapsed ? ">>" : "<<"}</span>
-            </button>
+              ) : (
+                <EmptyState title="暂无历史会话" description="发送第一条问题后，这里会记录对话会话。" />
+              )}
+            </div>
           </aside>
-        </div>
-        <div ref={chatWorkspaceRef} className="chat-page__workspace">
-          <ConversationLayout
-            notices={
-              <>
-                {systemSettingsQuery.data && !systemSettingsQuery.data.is_ready ? (
-                  <ChatInlineBanner title="系统设置未完成">
-                    Completion 与 Embedding 尚未配置完成。当前仍可查看界面，但实际生成会被后端阻断。
-                  </ChatInlineBanner>
-                ) : null}
 
-                {errorMessage ? (
-                  <ChatInlineBanner title="请求失败">{errorMessage}</ChatInlineBanner>
-                ) : null}
+          <div className="chat-page__workspace">
+            {!settingsQuery.data?.is_ready ? (
+              <InlineBanner title="系统设置未完成">
+                Completion 与 Embedding 尚未配置完成，真实生成链路可能被阻断。
+              </InlineBanner>
+            ) : null}
+            {errorMessage ? <InlineBanner title="请求失败">{errorMessage}</InlineBanner> : null}
 
-                {sessionSourceBanner ? (
-                  <ChatInlineBanner title={sessionSourceBanner.title}>
-                    {sessionSourceBanner.body}
-                  </ChatInlineBanner>
-                ) : null}
-              </>
-            }
-            stream={
-              <div className="chat-stream-shell" data-testid="chat-stream-shell">
-                <SurfaceCard className="chat-stream-card">
-                  <div className="message-list">
-                    {messages.map((message, index) => {
-                      const isCompactAssistantMessage = message.role === "assistant" && !message.action;
-                      const bodyClassName = [
-                        "message-entry__body",
-                        isCompactAssistantMessage ? "message-entry__body--compact" : "",
-                        message.action ? "message-entry__body--has-action" : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ");
-
-                      return (
-                        <div
-                          key={`${message.role}-${index}-${message.content}`}
-                          className={`message-entry message-entry--${message.role}`}
-                        >
-                          <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
-                          <div className={bodyClassName}>
-                            {message.message_id ? (
-                              <div className="message-entry__menu-wrap">
-                                <button
-                                  type="button"
-                                  className="message-entry__menu-trigger"
-                                  aria-label={`更多操作：消息 ${message.message_id}`}
-                                  aria-expanded={menuMessageId === message.message_id}
-                                  onClick={() =>
-                                    setMenuMessageId((current) => (current === message.message_id ? "" : message.message_id ?? ""))
-                                  }
-                                >
-                                  ...
-                                </button>
-                                {menuMessageId === message.message_id ? (
-                                  <div className="message-entry__menu" role="menu" aria-label={`消息操作：${message.message_id}`}>
-                                    <button type="button" onClick={() => runForkFromMessage(message.message_id ?? "")}>
-                                      Fork 为新会话
-                                    </button>
-                                  </div>
-                                ) : null}
-                              </div>
-                            ) : null}
-                            <article
-                              className={`message-bubble message-bubble--${message.role}${message.action ? " message-bubble--has-action" : ""}`}
-                            >
-                              {message.content ? <p>{message.content}</p> : null}
-                              {message.action ? (
-                                <div className="message-bubble__action">
-                                  <ChatActionPanel
-                                    action={message.action}
-                                    disabled={isCurrentViewPending}
-                                    onSubmitParam={(paramId, value) => {
-                                      if (Array.isArray(value)) {
-                                        runAction({ param_id: paramId, param_values: value });
-                                        return;
-                                      }
-                                      runAction({ param_id: paramId, param_value: value });
-                                    }}
-                                    onSubmitOutline={(command, outline) => runAction({ command, outline_override: outline })}
-                                    onSelectTemplate={(templateId) => runAction({ selected_template_id: templateId })}
-                                    onCommand={(command, targetParamId) =>
-                                      runAction({ command, target_param_id: targetParamId })
-                                    }
-                                  />
-                                </div>
-                              ) : null}
-                            </article>
-                            {message.created_at ? (
-                              <div className="message-entry__time">{formatChatTimestamp(message.created_at)}</div>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {isCurrentViewPending ? (
-                      <div className="message-entry message-entry--assistant">
-                        <div className="message-entry__role">助手</div>
-                        <div className="message-entry__body">
-                          <article className="message-bubble message-bubble--assistant message-bubble--pending" aria-live="polite">
-                            <div className="message-pending" role="status">
-                              <span>正在处理中</span>
-                              <span className="message-pending__dots" aria-hidden="true">
-                                <i />
-                                <i />
-                                <i />
-                              </span>
-                            </div>
-                          </article>
-                        </div>
-                      </div>
-                    ) : null}
-                    <div ref={messageEndRef} />
-                  </div>
-                </SurfaceCard>
-              </div>
-            }
-            composer={
-              <div ref={composeDockRef} className="chat-compose-dock" data-testid="chat-compose-dock">
-                <SurfaceCard className="chat-compose-card">
-                  <div className="chat-compose">
-                    <div className="chat-quick-actions">
-                      {[
-                        { id: "report_generation", label: "制作报告" },
-                        { id: "smart_query", label: "智能问数" },
-                        { id: "fault_diagnosis", label: "智能故障" },
-                      ].map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`chat-quick-actions__button${preferredCapability === item.id ? " is-active" : ""}`}
-                          aria-label={`快捷入口：${item.label}`}
-                          onClick={() =>
-                            setPreferredCapability((current) => (current === item.id ? "" : (item.id as typeof preferredCapability)))
-                          }
-                        >
-                          {item.label}
-                        </button>
-                      ))}
+            <SurfaceCard className="chat-stream-card">
+              <div className="message-list">
+                {conversationMessages.length ? conversationMessages.map((message) => (
+                  <div key={message.key} className={`message-entry message-entry--${message.role}`}>
+                    <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
+                    <div className="message-entry__body">
+                      <article className={`message-bubble message-bubble--${message.role}`}>
+                        <p>{message.text}</p>
+                      </article>
+                      {message.createdAt ? <div className="message-entry__time">{formatDateTime(message.createdAt)}</div> : null}
                     </div>
-                    <label className="sr-only" htmlFor="chat-input">
-                      发送消息
-                    </label>
-                    <textarea
-                      id="chat-input"
-                      rows={3}
-                      placeholder={INPUT_PLACEHOLDER}
-                      value={draft}
-                      disabled={isCurrentViewPending}
-                      onChange={(event) => setDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          submitMessage();
-                        }
-                      }}
-                    />
-                    <button
-                      className={`chat-send-button${isCurrentViewPending ? " is-pending" : ""}`}
-                      type="button"
-                      onClick={submitMessage}
-                      disabled={isCurrentViewPending}
-                      aria-label="发送"
-                      aria-busy={isCurrentViewPending}
-                    >
-                      <span className="chat-send-button__glyph" aria-hidden="true" />
-                      <span className="sr-only">发送</span>
-                    </button>
                   </div>
-                </SurfaceCard>
+                )) : (
+                  <EmptyState title="开始对话" description="输入问题，系统会匹配模板、补齐参数，并返回模板实例片段。" />
+                )}
+
+                {latestResponse?.ask ? (
+                  <div className="message-entry message-entry--assistant">
+                    <div className="message-entry__role">助手</div>
+                    <div className="message-entry__body">
+                      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+                        <strong>{latestResponse.ask.title}</strong>
+                        <p>{latestResponse.ask.text}</p>
+                        <AskPanel
+                          ask={latestResponse.ask}
+                          parameterDrafts={parameterDrafts}
+                          dynamicOptions={dynamicOptions}
+                          onChange={setParameterDrafts}
+                          onSubmitFill={() => {
+                            if (!latestResponse.ask) {
+                              return;
+                            }
+                            sendMutation.mutate({
+                              conversationId: latestResponse.conversationId,
+                              instruction: "generate_report",
+                              reply: {
+                                type: "fill_params",
+                                parameters: parameterDrafts,
+                                reportContext: {
+                                  templateInstance: mergeTemplateInstanceParameters(
+                                    latestResponse.ask.reportContext.templateInstance,
+                                    parameterDrafts,
+                                  ),
+                                },
+                              },
+                            });
+                          }}
+                          onSubmitConfirm={() => {
+                            if (!latestResponse.ask) {
+                              return;
+                            }
+                            const mergedTemplateInstance = mergeTemplateInstanceParameters(
+                              latestResponse.ask.reportContext.templateInstance,
+                              parameterDrafts,
+                            );
+                            sendMutation.mutate({
+                              conversationId: latestResponse.conversationId,
+                              instruction: "generate_report",
+                              reply: {
+                                type: "confirm_params",
+                                parameters: mergedTemplateInstance.parameterValues,
+                                reportContext: {
+                                  templateInstance: mergedTemplateInstance,
+                                },
+                              },
+                            });
+                          }}
+                          submitting={sendMutation.isPending}
+                        />
+                      </article>
+                    </div>
+                  </div>
+                ) : null}
+
+                {latestResponse?.answer?.answerType === "REPORT" ? (
+                  <div className="message-entry message-entry--assistant">
+                    <div className="message-entry__role">报告</div>
+                    <div className="message-entry__body">
+                      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+                        <strong>报告已生成</strong>
+                        <p>
+                          状态：{latestResponse.answer.answer.status}，章节完成度：
+                          {latestResponse.answer.answer.generationProgress.completedSections}/
+                          {latestResponse.answer.answer.generationProgress.totalSections}
+                        </p>
+                        <div className="action-row action-row--compact">
+                          <Link className="primary-button button-link" to={`/reports/${latestResponse.answer.answer.reportId}`}>
+                            打开报告
+                          </Link>
+                        </div>
+                      </article>
+                    </div>
+                  </div>
+                ) : null}
               </div>
-            }
-          />
+            </SurfaceCard>
+
+            {currentTemplateInstance ? (
+              <SurfaceCard>
+                <div className="list-header">
+                  <div>
+                    <p className="section-kicker">Template Instance</p>
+                    <h3>当前模板实例</h3>
+                  </div>
+                </div>
+                <TemplateInstancePreview templateInstance={currentTemplateInstance} />
+              </SurfaceCard>
+            ) : null}
+
+            <SurfaceCard className="chat-compose-card">
+              <div className="chat-compose">
+                <label className="sr-only" htmlFor="chat-input">输入问题</label>
+                <textarea
+                  id="chat-input"
+                  rows={4}
+                  placeholder="输入问题，例如：帮我生成总部网络运行日报"
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      if (canSubmitQuestion) {
+                        sendMutation.mutate({
+                          conversationId: activeConversationId || undefined,
+                          instruction: "generate_report",
+                          question: question.trim(),
+                        });
+                      }
+                    }
+                  }}
+                />
+                <div className="action-row">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={!canSubmitQuestion}
+                    onClick={() => sendMutation.mutate({
+                      conversationId: activeConversationId || undefined,
+                      instruction: "generate_report",
+                      question: question.trim(),
+                    })}
+                  >
+                    {sendMutation.isPending ? "处理中..." : "发送"}
+                  </button>
+                </div>
+              </div>
+            </SurfaceCard>
+          </div>
         </div>
+      </PageSection>
+    </div>
+  );
+}
+
+type AskPanelProps = {
+  ask: ChatAsk;
+  parameterDrafts: ParameterDrafts;
+  dynamicOptions: DynamicOptionMap;
+  onChange: Dispatch<SetStateAction<ParameterDrafts>>;
+  onSubmitFill: () => void;
+  onSubmitConfirm: () => void;
+  submitting: boolean;
+};
+
+function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill, onSubmitConfirm, submitting }: AskPanelProps) {
+  return (
+    <div className="stack-list">
+      {ask.parameters.map((item) => {
+        const value = parameterDrafts[item.parameter.id] ?? [];
+        const options = item.parameter.inputType === "dynamic" ? dynamicOptions[item.parameter.id] ?? [] : item.parameter.options ?? [];
+        const currentText = value[0]?.display ? String(value[0].display) : "";
+
+        return (
+          <div key={item.parameter.id} className="form-grid">
+            <label className="field field--full">
+              <span className="field-label">{item.parameter.label}</span>
+              {item.parameter.inputType === "enum" || item.parameter.inputType === "dynamic" ? (
+                <select
+                  value={currentText}
+                  onChange={(event) => {
+                    const selected = options.find((option) => String(option.display) === event.target.value) ?? null;
+                    onChange((current) => ({
+                      ...current,
+                      [item.parameter.id]: selected ? [selected] : [],
+                    }));
+                  }}
+                >
+                  <option value="">请选择</option>
+                  {options.map((option) => (
+                    <option key={`${item.parameter.id}-${option.value}`} value={String(option.display)}>
+                      {String(option.display)}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={currentText}
+                  onChange={(event) => {
+                    const text = event.target.value;
+                    onChange((current) => ({
+                      ...current,
+                      [item.parameter.id]: text ? [{ display: text, value: text, query: text }] : [],
+                    }));
+                  }}
+                  placeholder={item.parameter.placeholder || item.parameter.description || item.parameter.label}
+                />
+              )}
+            </label>
+          </div>
+        );
+      })}
+
+      <div className="action-row">
+        {ask.type === "fill_params" ? (
+          <button className="primary-button" type="button" disabled={submitting} onClick={onSubmitFill}>
+            {submitting ? "提交中..." : "提交参数"}
+          </button>
+        ) : null}
+        {ask.type === "confirm_params" ? (
+          <button className="primary-button" type="button" disabled={submitting} onClick={onSubmitConfirm}>
+            {submitting ? "生成中..." : "确认并生成"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function buildOptimisticActionMessage(payload: Omit<ChatRequest, "session_id">, latestAction: ChatAction | null) {
-  if (payload.param_values?.length) {
-    return payload.param_values.join("、");
+function TemplateInstancePreview({ templateInstance }: { templateInstance: TemplateInstance }) {
+  return (
+    <div className="stack-list">
+      <div className="template-card__meta">
+        <span>{templateInstance.templateId}</span>
+        <span>{templateInstance.status}</span>
+        <span>revision {templateInstance.revision}</span>
+      </div>
+      {templateInstance.catalogs.map((catalog) => (
+        <div key={catalog.id} className="template-editor-subcard">
+          <strong>{catalog.name}</strong>
+          {(catalog.sections || []).map((section) => (
+            <div key={section.id} className="template-inline-group">
+              <div className="template-inline-group__header">
+                <strong>{section.title}</strong>
+                <span>{section.skeletonStatus}</span>
+              </div>
+              <p>{section.requirementInstance.text}</p>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function mergeTemplateInstanceParameters(templateInstance: TemplateInstance, parameterDrafts: ParameterDrafts): TemplateInstance {
+  return {
+    ...templateInstance,
+    parameterValues: {
+      ...templateInstance.parameterValues,
+      ...parameterDrafts,
+    },
+  };
+}
+
+function normalizeConversationMessages(conversation: ConversationDetail | undefined) {
+  if (!conversation) {
+    return [];
   }
-  if (payload.param_value?.trim()) {
-    return payload.param_value.trim();
+  return conversation.messages.map((item, index) => ({
+    key: `${item.chatId}-${index}`,
+    role: item.role,
+    createdAt: item.createdAt ?? undefined,
+    text: extractMessageText(item.content),
+  }));
+}
+
+function findLatestResponse(conversation: ConversationDetail | undefined): ChatResponse | null {
+  if (!conversation) {
+    return null;
   }
-  if (payload.selected_template_id && latestAction?.type === "show_template_candidates") {
-    const candidate = latestAction.candidates.find((item) => item.template_id === payload.selected_template_id);
-    return candidate ? `选择模板：${candidate.template_name}` : "选择模板";
+  for (const message of [...conversation.messages].reverse()) {
+    const value = message.content.response;
+    if (value && typeof value === "object") {
+      return value as ChatResponse;
+    }
   }
-  if (payload.command === "prepare_outline_review" || payload.command === "confirm_generation") {
-    return "确认参数并生成诉求";
+  return null;
+}
+
+function extractMessageText(content: Record<string, unknown>) {
+  if (typeof content.question === "string") {
+    return content.question;
   }
-  if (payload.command === "edit_outline") {
-    return "保存诉求";
-  }
-  if (payload.command === "confirm_outline_generation") {
-    return "确认生成";
-  }
-  if (payload.command === "reset_params") {
-    return "重置参数";
-  }
-  if (payload.command === "confirm_task_switch") {
-    return "继续切换任务";
-  }
-  if (payload.command === "cancel_task_switch") {
-    return "留在当前任务";
-  }
-  if (payload.command === "edit_param" && latestAction?.type === "review_outline") {
-    return "返回改参数";
-  }
-  if (payload.command === "edit_param" && latestAction?.type === "review_params") {
-    const param = latestAction.params.find((item) => item.id === payload.target_param_id);
-    return param ? `编辑参数：${param.label}` : "编辑参数";
+  const response = content.response;
+  if (response && typeof response === "object") {
+    const responseRecord = response as Record<string, unknown>;
+    const ask = responseRecord.ask;
+    if (ask && typeof ask === "object") {
+      const askRecord = ask as Record<string, unknown>;
+      if (typeof askRecord.text === "string" && askRecord.text) {
+        return askRecord.text;
+      }
+      if (typeof askRecord.title === "string") {
+        return askRecord.title;
+      }
+    }
+    const answer = responseRecord.answer;
+    if (answer && typeof answer === "object") {
+      const answerRecord = answer as Record<string, unknown>;
+      if (answerRecord.answerType === "REPORT") {
+        return "报告已生成";
+      }
+      if (answerRecord.answerType === "REPORT_TEMPLATE") {
+        return "模板草案已提取";
+      }
+    }
   }
   return "";
 }
 
-function appendOptimisticMessage(messages: ChatMessageItem[], content: string) {
-  if (!content) {
-    return messages;
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
   }
-  return [...messages, { role: "user" as const, content, created_at: new Date().toISOString() }];
+  return date.toLocaleString("zh-CN", { hour12: false });
 }
 
-type ChatInlineBannerProps = {
-  title: string;
-  children: string;
-};
-
-function ChatInlineBanner({ title, children }: ChatInlineBannerProps) {
+function InlineBanner({ title, children }: { title: string; children: string }) {
   return (
     <div className="chat-inline-banner" role="status">
       <strong>{title}</strong>
       <span>{children}</span>
     </div>
   );
-}
-
-function buildVisibleMessages(response: ChatResponse, fallbackUserContent = ""): ChatMessageItem[] {
-  return normalizeVisibleMessages(response.messages ?? [], fallbackUserContent, response.reply, response.action ?? null);
-}
-
-function buildVisibleMessagesFromSession(session: ChatSessionPayload | ChatSessionDetail): ChatMessageItem[] {
-  return normalizeVisibleMessages(session.messages ?? []);
-}
-
-function normalizeVisibleMessages(
-  source: Array<{ role: "user" | "assistant"; content: string; action?: ChatAction | null; created_at?: string; message_id?: string; meta?: unknown }>,
-  fallbackUserContent = "",
-  fallbackReply = "",
-  fallbackAction: ChatAction | null = null,
-): ChatMessageItem[] {
-  const normalized = source
-    .filter((item) => {
-      if (item.role !== "assistant" && item.role !== "user") {
-        return false;
-      }
-      if (isContextStateMessage(item.meta)) {
-        return false;
-      }
-      return Boolean(item.content) || Boolean(item.action);
-    })
-    .map((item) => ({
-      role: item.role,
-      content: item.content ?? "",
-      action: item.action ?? null,
-      created_at: item.created_at,
-      message_id: item.message_id,
-    }));
-
-  if (!normalized.length) {
-    const fallback = fallbackUserContent
-      ? [{ role: "user" as const, content: fallbackUserContent, created_at: new Date().toISOString() }]
-      : [];
-    if (!fallbackReply && !fallbackAction) {
-      return DEFAULT_MESSAGES;
-    }
-    return [...fallback, { role: "assistant", content: fallbackReply, action: fallbackAction }];
-  }
-  return normalized;
-}
-
-function isContextStateMessage(meta: unknown) {
-  return typeof meta === "object" && meta !== null && "type" in meta && (meta as { type?: string }).type === "context_state";
-}
-
-function getSessionSourceBanner(meta: ChatForkMeta | null, sessionTitle: string) {
-  if (!meta) {
-    return null;
-  }
-
-  if (meta.source_kind === "update_from_instance") {
-    return {
-      title: "更新来源",
-      body: `来源：${meta.source_title || sessionTitle || "未命名会话"} · 来自确认诉求`,
-    };
-  }
-
-  return {
-    title: "Fork 来源",
-    body: `来源：${sessionTitle || meta.source_title || "未命名分支"} · ${meta.source_kind === "session_message" ? "来自历史消息" : "来自确认诉求"}`,
-  };
-}
-
-function formatChatTimestamp(timestamp: string) {
-  const value = new Date(timestamp);
-  if (Number.isNaN(value.getTime())) {
-    return "";
-  }
-  const now = new Date();
-  const sameDay =
-    value.getFullYear() === now.getFullYear()
-    && value.getMonth() === now.getMonth()
-    && value.getDate() === now.getDate();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  const hours = String(value.getHours()).padStart(2, "0");
-  const minutes = String(value.getMinutes()).padStart(2, "0");
-  if (sameDay) {
-    return `${hours}:${minutes}`;
-  }
-  return `${month}-${day} ${hours}:${minutes}`;
 }

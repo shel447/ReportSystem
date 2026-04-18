@@ -1,718 +1,496 @@
-"""Conversation application services."""
 from __future__ import annotations
 
-from copy import deepcopy
-from typing import Any, Dict
+import copy
+import json
+import math
+import re
+from typing import Any
 
-from ....shared.kernel.errors import NotFoundError, ValidationError
-from .errors import ConversationReplyError
-
-
-def _resume_report_action(
-    report_gateway,
-    state: Dict[str, Any],
-    template_params: list[dict[str, Any]],
-) -> tuple[str, Dict[str, Any] | None]:
-    flow = state.get("flow") or {}
-    stage = str(flow.get("stage") or "idle")
-    if stage == "outline_review":
-        return "已保留当前任务，请继续确认报告诉求。", report_gateway.build_review_outline_action(state, template_params)
-    if (state.get("missing") or {}).get("required"):
-        return _build_missing_required_response(
-            report_gateway,
-            state,
-            template_params,
-            default_reply="已保留当前任务，请继续补充参数。",
-        )
-    return "已保留当前任务，请继续确认参数。", report_gateway.build_review_params_action(state, template_params)
+from ....infrastructure.ai.openai_compat import OpenAICompatGateway
+from ....infrastructure.settings.system_settings import build_completion_provider_config, build_embedding_provider_config
+from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+from ...report_runtime.domain.services import instantiate_template_instance, merge_parameter_values, serialize_template_instance
 
 
-def _build_missing_required_response(
-    report_gateway,
-    state: Dict[str, Any],
-    template_params: list[dict[str, Any]],
-    *,
-    default_reply: str,
-) -> tuple[str, Dict[str, Any] | None]:
-    target_param = report_gateway.get_next_missing_param(state, template_params)
-    if not target_param:
-        return default_reply, None
-    prompt = report_gateway.build_param_prompt(target_param)
-    if str(target_param.get("interaction_mode") or "form") == "chat":
-        return prompt or default_reply, None
-    action = report_gateway.build_ask_param_action(state, template_params)
-    return prompt or default_reply, action
-
-
-def _serialize_fork_source_message(message: Dict[str, Any]) -> Dict[str, Any]:
-    action = message.get("action") if isinstance(message.get("action"), dict) else {}
-    return {
-        "message_id": message.get("message_id"),
-        "role": message.get("role"),
-        "content": message.get("content"),
-        "created_at": message.get("created_at"),
-        "preview": str(message.get("content") or action.get("type") or "").strip()[:80],
-        "action_type": action.get("type") if action else None,
-    }
+DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
 class ConversationService:
     def __init__(
         self,
         *,
-        persistence,
-        state_gateway,
-        capability_gateway,
-        report_gateway,
-        fork_gateway,
+        conversation_repository,
+        chat_repository,
+        template_catalog_service,
+        template_repository,
+        runtime_service,
+        parameter_option_service,
+        db,
     ) -> None:
-        self.persistence = persistence
-        self.state_gateway = state_gateway
-        self.capability_gateway = capability_gateway
-        self.report_gateway = report_gateway
-        self.fork_gateway = fork_gateway
+        self.conversation_repository = conversation_repository
+        self.chat_repository = chat_repository
+        self.template_catalog_service = template_catalog_service
+        self.template_repository = template_repository
+        self.runtime_service = runtime_service
+        self.parameter_option_service = parameter_option_service
+        self.db = db
+        self.ai_gateway = OpenAICompatGateway()
 
     def list_sessions(self, *, user_id: str) -> list[dict[str, Any]]:
-        return self.persistence.list_sessions(user_id=user_id)
-
-    def send_message(self, *, data, user_id: str) -> dict[str, Any]:
-        user_message = str(data.message or "")
-        has_request_intent = bool(
-            user_message.strip()
-            or data.param_id
-            or data.selected_template_id
-            or data.command
-        )
-
-        session = None
-        if data.session_id:
-            session = self.persistence.get_session(data.session_id, user_id=user_id)
-            if session and self.persistence.ensure_session_metadata(session):
-                self.persistence.save_session(session)
-        if not session and not has_request_intent:
-            return {
-                "session_id": "",
-                "reply": "",
-                "action": None,
-                "matched_template_id": None,
-                "messages": [],
-            }
-        if not session:
-            session = self.persistence.create_session(
-                user_id=user_id,
-                session_id=getattr(data, "session_id", "") or None,
+        result = []
+        for conversation in self.conversation_repository.list_all(user_id=user_id):
+            messages = self.chat_repository.list_by_conversation(conversation.id, user_id=user_id)
+            latest = messages[-1] if messages else None
+            result.append(
+                {
+                    "conversationId": conversation.id,
+                    "title": conversation.title or "未命名会话",
+                    "status": conversation.status,
+                    "updatedAt": conversation.updated_at.isoformat().replace("+00:00", "Z") if conversation.updated_at else None,
+                    "lastMessagePreview": _message_preview(latest.content if latest else {}),
+                }
             )
+        return result
 
-        messages = list(session.messages or [])
-        should_append_user_message = bool(
-            user_message
-            or data.param_id
-            or data.selected_template_id
-            or (data.command and data.command not in {"confirm_task_switch", "cancel_task_switch"})
-        )
-        if should_append_user_message:
-            messages.append(self.persistence.build_message_payload("user", user_message))
-
-        state = self.state_gateway.restore_state_from_history(messages) or self.state_gateway.new_context_state(session.session_id)
-        state = self.state_gateway.ensure_task_state(state, session_id=session.session_id)
-        flow = state.get("flow") or {}
-        flow["turn_index"] = int(flow.get("turn_index") or 0) + 1
-        state["flow"] = flow
-
-        reply = ""
-        action = None
-        effective_user_message = user_message
-        previous_state = deepcopy(state)
-        settings = self.capability_gateway.get_settings_payload()
-
-        if not settings["is_ready"]:
-            reply = "系统设置尚未完成，请先到“系统设置”中配置 Completion 与 Embedding 接口，再开始对话生成。"
-        else:
-            try:
-                current_capability = str((state.get("active_task") or {}).get("capability") or "report_generation")
-                current_stage = str((state.get("active_task") or {}).get("stage") or "idle")
-
-                if data.command == "confirm_task_switch":
-                    pending = state.get("pending_switch") or {}
-                    next_capability = str(pending.get("to_capability") or "report_generation")
-                    captured_user_message = str(pending.get("captured_user_message") or "")
-                    effective_user_message = captured_user_message
-                    state = self.capability_gateway.clear_current_task_state(state)
-                    state = self.capability_gateway.set_active_task(
-                        state,
-                        capability=next_capability,
-                        stage="idle",
-                    )
-                    if next_capability == "report_generation":
-                        reply, action = self._handle_report_turn(
-                            state=state,
-                            session=session,
-                            data=self._clone_chat_message(
-                                data,
-                                message=captured_user_message,
-                                preferred_capability=next_capability,
-                            ),
-                            user_message=captured_user_message,
-                        )
-                    elif next_capability == "smart_query":
-                        reply, action, task_update = self.capability_gateway.handle_smart_query_turn(
-                            message=captured_user_message,
-                            state=state,
-                        )
-                        state = self.capability_gateway.set_active_task(
-                            state,
-                            capability="smart_query",
-                            stage=str(task_update.get("stage") or "idle"),
-                            progress_state=task_update.get("progress_state"),
-                            context_payload=task_update.get("context_payload"),
-                        )
-                    else:
-                        reply, action, task_update = self.capability_gateway.handle_fault_diagnosis_turn(
-                            message=captured_user_message,
-                            state=state,
-                        )
-                        state = self.capability_gateway.set_active_task(
-                            state,
-                            capability="fault_diagnosis",
-                            stage=str(task_update.get("stage") or "idle"),
-                            progress_state=task_update.get("progress_state"),
-                            context_payload=task_update.get("context_payload"),
-                        )
-                    state["pending_switch"] = None
-                elif data.command == "cancel_task_switch":
-                    state["pending_switch"] = None
-                    if current_capability == "report_generation":
-                        template_id = state.get("report", {}).get("template_id")
-                        template = self.persistence.get_template(template_id) if template_id else None
-                        template_params = self.report_gateway.normalize_parameters(
-                            (template.parameters or []) if template else []
-                        )
-                        reply, action = _resume_report_action(self.report_gateway, state, template_params)
-                        state = self.capability_gateway.sync_report_task_state(state)
-                    else:
-                        reply = f"已保留当前{self.capability_gateway.capability_label(current_capability)}任务，请继续。"
-                else:
-                    has_report_commands = bool(
-                        data.selected_template_id
-                        or data.param_id
-                        or data.outline_override
-                        or data.command
-                    )
-                    desired_capability = current_capability
-                    if (
-                        current_capability == "report_generation"
-                        and not data.preferred_capability
-                        and not has_report_commands
-                    ):
-                        template_id = state.get("report", {}).get("template_id")
-                        template = self.persistence.get_template(template_id) if template_id else None
-                        template_params = self.report_gateway.normalize_parameters(
-                            (template.parameters or []) if template else []
-                        )
-                        target_param = self.report_gateway.get_next_missing_param(state, template_params)
-                        if target_param and str(target_param.get("interaction_mode") or "form") == "chat":
-                            routed_capability = self.capability_gateway.detect_capability(
-                                message=user_message,
-                                preferred_capability=data.preferred_capability,
-                                current_capability=current_capability,
-                                current_stage=current_stage,
-                                has_report_commands=has_report_commands,
-                            )
-                            if routed_capability == "report_generation" or not self.capability_gateway.is_explicit_capability_switch_request(
-                                user_message,
-                                routed_capability,
-                            ):
-                                desired_capability = "report_generation"
-                            else:
-                                desired_capability = routed_capability
-                        else:
-                            desired_capability = self.capability_gateway.detect_capability(
-                                message=user_message,
-                                preferred_capability=data.preferred_capability,
-                                current_capability=current_capability,
-                                current_stage=current_stage,
-                                has_report_commands=has_report_commands,
-                            )
-                    else:
-                        desired_capability = self.capability_gateway.detect_capability(
-                            message=user_message,
-                            preferred_capability=data.preferred_capability,
-                            current_capability=current_capability,
-                            current_stage=current_stage,
-                            has_report_commands=has_report_commands,
-                        )
-                    if desired_capability != current_capability and self.capability_gateway.has_substantial_progress(state):
-                        state["pending_switch"] = {
-                            "from_capability": current_capability,
-                            "to_capability": desired_capability,
-                            "reason": f"检测到你正在发起{self.capability_gateway.capability_label(desired_capability)}，这会结束当前任务。",
-                            "captured_user_message": user_message,
-                        }
-                        reply = f"检测到你想切换到{self.capability_gateway.capability_label(desired_capability)}，这将结束当前任务。"
-                        action = self.capability_gateway.build_confirm_task_switch_action(state)
-                    else:
-                        if desired_capability != current_capability:
-                            state = self.capability_gateway.clear_current_task_state(state)
-                        if desired_capability == "report_generation":
-                            state = self.capability_gateway.set_active_task(
-                                state,
-                                capability="report_generation",
-                                stage=str((state.get("active_task") or {}).get("stage") or "idle"),
-                            )
-                            reply, action = self._handle_report_turn(
-                                state=state,
-                                session=session,
-                                data=data,
-                                user_message=user_message,
-                            )
-                        elif desired_capability == "smart_query":
-                            reply, action, task_update = self.capability_gateway.handle_smart_query_turn(
-                                message=user_message,
-                                state=state,
-                            )
-                            state = self.capability_gateway.set_active_task(
-                                state,
-                                capability="smart_query",
-                                stage=str(task_update.get("stage") or "idle"),
-                                progress_state=task_update.get("progress_state"),
-                                context_payload=task_update.get("context_payload"),
-                            )
-                        else:
-                            reply, action, task_update = self.capability_gateway.handle_fault_diagnosis_turn(
-                                message=user_message,
-                                state=state,
-                            )
-                            state = self.capability_gateway.set_active_task(
-                                state,
-                                capability="fault_diagnosis",
-                                stage=str(task_update.get("stage") or "idle"),
-                                progress_state=task_update.get("progress_state"),
-                                context_payload=task_update.get("context_payload"),
-                            )
-            except ConversationReplyError as exc:
-                reply = str(exc)
-
-        messages.append(self.persistence.build_message_payload("assistant", reply, action=action))
-        if action:
-            flow = state.get("flow") or {}
-            target = ""
-            if action.get("type") == "ask_param":
-                target = action.get("param", {}).get("id", "")
-            if action.get("type") == "download_document":
-                target = action.get("document", {}).get("document_id", "")
-            flow["last_action"] = {"kind": action.get("type"), "target": target}
-            state["flow"] = flow
-        summary = state.get("summary") or {}
-        summary["recent_turns"] = {
-            "system": reply,
-            "user": effective_user_message,
-        }
-        state["summary"] = summary
-        self.state_gateway.compress_state(state)
-        messages = self.state_gateway.persist_state_to_history(
-            messages,
-            state,
-            previous_state=previous_state,
-            min_turns=3,
-        )
-
-        session.messages = messages
-        if not (session.title or "").strip() and effective_user_message.strip():
-            session.title = self.persistence.derive_session_title(messages)
-        template_id = state.get("report", {}).get("template_id")
-        if template_id:
-            session.matched_template_id = template_id
-        elif action and action.get("type") == "show_template_candidates":
-            session.matched_template_id = None
-        elif (state.get("active_task") or {}).get("capability") != "report_generation":
-            session.matched_template_id = None
-
-        self.persistence.save_session(session)
-
+    def get_session(self, *, conversation_id: str, user_id: str) -> dict[str, Any]:
+        conversation = self.conversation_repository.get(conversation_id, user_id=user_id)
+        if conversation is None:
+            raise NotFoundError("Conversation not found")
+        messages = self.chat_repository.list_by_conversation(conversation_id, user_id=user_id)
         return {
-            "session_id": session.session_id,
-            "reply": reply,
-            "action": action,
-            "matched_template_id": session.matched_template_id,
-            "messages": messages,
+            "conversationId": conversation.id,
+            "title": conversation.title,
+            "status": conversation.status,
+            "messages": [
+                {
+                    "chatId": row.id,
+                    "role": row.role,
+                    "content": row.content,
+                    "action": row.action,
+                    "meta": row.meta,
+                    "createdAt": row.created_at.isoformat().replace("+00:00", "Z") if row.created_at else None,
+                }
+                for row in messages
+            ],
         }
 
-    def get_session(self, *, session_id: str, user_id: str) -> dict[str, Any]:
-        session = self.persistence.get_session(session_id, user_id=user_id)
-        if not session:
-            raise NotFoundError("Session not found")
-        if self.persistence.ensure_session_metadata(session):
-            self.persistence.save_session(session)
-        return self.persistence.serialize_session_detail(session)
-
-    def fork_session(self, *, data, user_id: str) -> dict[str, Any]:
-        if data.source_kind == "session_message":
-            if not data.source_session_id or not data.source_message_id:
-                raise NotFoundError("Source session or message not found")
-            source_session = self.persistence.get_session(data.source_session_id, user_id=user_id)
-            if not source_session:
-                raise NotFoundError("Source session not found")
-            return self.fork_gateway.fork_session_from_message(
-                source_session=source_session,
-                source_message_id=data.source_message_id,
-            )
-
-        raise ValidationError("Unsupported fork source")
-
-    def delete_session(self, *, session_id: str, user_id: str) -> dict[str, Any]:
-        if not self.persistence.delete_session(session_id, user_id=user_id):
-            raise NotFoundError("Session not found")
+    def delete_session(self, *, conversation_id: str, user_id: str) -> dict[str, Any]:
+        if not self.conversation_repository.delete(conversation_id, user_id=user_id):
+            raise NotFoundError("Conversation not found")
         return {"message": "deleted"}
 
-    def update_session_from_instance(self, *, instance_id: str, user_id: str = "default") -> dict[str, Any]:
-        template_instance = self.persistence.get_template_instance_by_instance(instance_id)
-        if not template_instance:
-            raise NotFoundError("Template instance not found")
-        report_instance = self.persistence.get_report_instance(instance_id, user_id=user_id)
-        preferred_session_id = str(getattr(report_instance, "source_session_id", "") or "").strip() if report_instance else ""
-        if preferred_session_id:
-            source_session = self.persistence.get_session(preferred_session_id, user_id=user_id)
-            if not source_session:
-                raise NotFoundError("Source session not found")
-        return self.fork_gateway.update_session_from_template_instance(template_instance=template_instance)
+    def fork_session(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        source_conversation_id = str(data.get("source_conversation_id") or "").strip()
+        source_chat_id = str(data.get("source_chat_id") or "").strip()
+        source = self.conversation_repository.get(source_conversation_id, user_id=user_id)
+        if source is None:
+            raise NotFoundError("Source conversation not found")
+        messages = self.chat_repository.list_by_conversation(source_conversation_id, user_id=user_id)
+        target = next((row for row in messages if row.id == source_chat_id), None)
+        if target is None:
+            raise NotFoundError("Source chat not found")
+        new_conversation = self.conversation_repository.create(conversation_id=None, user_id=user_id)
+        self.chat_repository.append_message(
+            conversation_id=new_conversation.id,
+            user_id=user_id,
+            role=target.role,
+            content=target.content,
+            action=target.action,
+            meta={"forkedFrom": {"conversationId": source_conversation_id, "chatId": source_chat_id}},
+        )
+        new_conversation.title = source.title or _message_preview(target.content)
+        self.conversation_repository.save(new_conversation)
+        return {"conversationId": new_conversation.id}
 
-    def list_instance_fork_sources(self, *, instance_id: str, user_id: str = "default") -> list[dict[str, Any]]:
-        session_id = self._resolve_instance_source_session_id(instance_id=instance_id, user_id=user_id)
-        if not session_id:
-            raise NotFoundError("Source session not found")
-        source_session = self.persistence.get_session(session_id, user_id=user_id)
-        if not source_session:
-            raise NotFoundError("Source session not found")
-        if self.persistence.ensure_session_metadata(source_session):
-            self.persistence.save_session(source_session)
-        visible = self.persistence.visible_messages(source_session.messages or [])
-        return [_serialize_fork_source_message(item) for item in visible]
+    def send_message(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        instruction = str(data.get("instruction") or "generate_report").strip() or "generate_report"
+        if instruction == "extract_report_template":
+            return self._extract_report_template(data=data, user_id=user_id)
+        if instruction != "generate_report":
+            raise ValidationError(f"Unsupported instruction: {instruction}")
+        return self._generate_report(data=data, user_id=user_id)
 
-    def fork_instance_chat(self, *, instance_id: str, source_message_id: str, user_id: str = "default") -> dict[str, Any]:
-        session_id = self._resolve_instance_source_session_id(instance_id=instance_id, user_id=user_id)
-        if not session_id:
-            raise NotFoundError("Source session not found")
-        source_session = self.persistence.get_session(session_id, user_id=user_id)
-        if not source_session:
-            raise NotFoundError("Source session not found")
-        if not source_message_id:
-            raise NotFoundError("Source message not found")
-        return self.fork_gateway.fork_session_from_message(
-            source_session=source_session,
-            source_message_id=source_message_id,
+    def _extract_report_template(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        normalized = self.template_catalog_service.preview_import_template(data.get("question") or {})
+        return {
+            "conversationId": str(data.get("conversationId") or ""),
+            "chatId": str(data.get("chatId") or ""),
+            "status": "finished",
+            "steps": [],
+            "ask": None,
+            "answer": {
+                "answerType": "REPORT_TEMPLATE",
+                "answer": {
+                    "normalizedTemplate": normalized["normalizedTemplate"],
+                    "warnings": normalized["warnings"],
+                    "persisted": False,
+                },
+            },
+            "errors": [],
+            "requestId": data.get("requestId"),
+            "timestamp": _epoch_ms(),
+            "apiVersion": data.get("apiVersion") or "v1",
+        }
+
+    def _generate_report(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        conversation = self._ensure_conversation(data=data, user_id=user_id)
+        user_chat = self.chat_repository.append_message(
+            conversation_id=conversation.id,
+            user_id=user_id,
+            role="user",
+            content={"question": str(data.get("question") or "")},
+            chat_id=data.get("chatId"),
         )
 
-    def _handle_report_turn(
-        self,
-        *,
-        state: Dict[str, Any],
-        session,
-        data,
-        user_message: str,
-    ) -> tuple[str, Dict[str, Any] | None]:
-        templates_count = self.persistence.count_templates()
-        if templates_count == 0:
-            state = self.capability_gateway.sync_report_task_state(state)
-            return "当前还没有可用模板，请先在“报告模板”中创建报告模板。", None
+        reply = data.get("reply") if isinstance(data.get("reply"), dict) else None
+        current_instance = self.runtime_service.get_latest_template_instance(conversation_id=conversation.id, user_id=user_id)
 
-        reply = ""
-        action = None
-        template = None
-        template_locked = bool(state.get("report", {}).get("template_locked"))
-
-        if data.selected_template_id:
-            template = self.persistence.get_template(data.selected_template_id)
-            if not template:
-                raise NotFoundError("Selected template not found")
-            state = self.report_gateway.apply_template_selection(
-                state,
-                {
-                    "template_id": template.template_id,
-                    "name": template.name,
-                },
-                confidence=1.0,
-                locked=True,
+        if reply and str(reply.get("type") or "") == "confirm_params":
+            template_instance_payload = ((reply.get("reportContext") or {}).get("templateInstance")) if isinstance(reply.get("reportContext"), dict) else None
+            if not isinstance(template_instance_payload, dict):
+                raise ValidationError("confirm_params requires reportContext.templateInstance")
+            template_id = str(template_instance_payload.get("templateId") or "").strip()
+            template = self.template_catalog_service.get_template(template_id)
+            missing = _missing_required_parameters(template=template, template_instance=template_instance_payload)
+            if missing:
+                missing_ids = ", ".join(str(item.get("id") or "") for item in missing)
+                raise ValidationError(f"confirm_params requires all required parameters: {missing_ids}")
+            persisted = self.runtime_service.persist_template_instance(
+                _template_instance_from_payload(template_instance_payload, chat_id=user_chat.id, status="confirmed", capture_stage="confirm_params"),
+                user_id=user_id,
             )
-            template_locked = True
-        elif template_locked:
-            template_id = state.get("report", {}).get("template_id")
-            if template_id:
-                template = self.persistence.get_template(template_id)
-        else:
-            matched = self.report_gateway.match_templates(user_message)
-            if matched["auto_match"]:
-                template = self.persistence.get_template(matched["best"]["template_id"])
-                if not template:
-                    raise NotFoundError("Matched template not found")
-                state = self.report_gateway.apply_template_selection(
-                    state,
+            answer = self.runtime_service.generate_report_from_template_instance(
+                template_instance_id=persisted["id"],
+                user_id=user_id,
+                source_conversation_id=conversation.id,
+                source_chat_id=user_chat.id,
+            )
+            response = _chat_response(
+                conversation_id=conversation.id,
+                chat_id=user_chat.id,
+                status="finished",
+                ask=None,
+                answer={"answerType": "REPORT", "answer": answer},
+                request_id=data.get("requestId"),
+                api_version=data.get("apiVersion"),
+            )
+            self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
+            return response
+
+        if current_instance:
+            template_id = current_instance["templateId"]
+            template = self.template_catalog_service.get_template(template_id)
+            merged_values = merge_parameter_values(
+                parameter_definitions=list(template.get("parameters") or []),
+                current_values=current_instance.get("parameterValues") or {},
+                incoming_values=(reply or {}).get("parameters") if isinstance(reply, dict) else self._extract_parameter_values(template, str(data.get("question") or "")),
+            )
+            instance = instantiate_template_instance(
+                instance_id=current_instance["id"],
+                template=template,
+                conversation_id=conversation.id,
+                chat_id=user_chat.id,
+                status="ready_for_confirmation",
+                capture_stage="fill_params",
+                revision=int(current_instance.get("revision") or 1) + 1,
+                parameter_values=merged_values,
+                existing_delta_views=current_instance.get("deltaViews") or [],
+                warnings=current_instance.get("warnings") or [],
+            )
+            persisted = self.runtime_service.persist_template_instance(instance, user_id=user_id)
+            response = self._build_ask_response(conversation_id=conversation.id, chat_id=user_chat.id, template=template, template_instance=persisted, request_id=data.get("requestId"), api_version=data.get("apiVersion"))
+            self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
+            return response
+
+        template = self._match_template(str(data.get("question") or ""))
+        initial_values = self._extract_parameter_values(template, str(data.get("question") or ""))
+        instance = instantiate_template_instance(
+            instance_id=_random_id("ti"),
+            template=template,
+            conversation_id=conversation.id,
+            chat_id=user_chat.id,
+            status="collecting_parameters",
+            capture_stage="fill_params",
+            revision=1,
+            parameter_values=initial_values,
+        )
+        persisted = self.runtime_service.persist_template_instance(instance, user_id=user_id)
+        if not conversation.title:
+            conversation.title = template["name"]
+            self.conversation_repository.save(conversation)
+        response = self._build_ask_response(
+            conversation_id=conversation.id,
+            chat_id=user_chat.id,
+            template=template,
+            template_instance=persisted,
+            request_id=data.get("requestId"),
+            api_version=data.get("apiVersion"),
+        )
+        self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
+        return response
+
+    def _ensure_conversation(self, *, data: dict[str, Any], user_id: str):
+        conversation_id = str(data.get("conversationId") or "").strip()
+        if conversation_id:
+            existing = self.conversation_repository.get(conversation_id, user_id=user_id)
+            if existing is None:
+                raise NotFoundError("Conversation not found")
+            return existing
+        return self.conversation_repository.create(conversation_id=None, user_id=user_id)
+
+    def _match_template(self, question: str) -> dict[str, Any]:
+        templates = [self.template_catalog_service.serialize_detail(item) for item in self.template_repository.list_all()]
+        if not templates:
+            raise ValidationError("No report templates available")
+        query_text = question.strip()
+        if not query_text:
+            return templates[0]
+
+        scored = []
+        query_embedding = self._embed_text(query_text)
+        for template in templates:
+            lexical = _lexical_score(query_text, template)
+            semantic = _cosine_similarity(query_embedding, self._embed_text(_template_match_text(template))) if query_embedding else 0.0
+            scored.append((lexical + semantic * 0.55, template))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return scored[0][1]
+
+    def _embed_text(self, text: str) -> list[float]:
+        if not text.strip():
+            return []
+        try:
+            config = build_embedding_provider_config(self.db)
+        except Exception:
+            return []
+        try:
+            return self.ai_gateway.create_embedding(config, [text])[0]
+        except Exception:
+            return []
+
+    def _extract_parameter_values(self, template: dict[str, Any], question: str) -> dict[str, list[dict[str, Any]]]:
+        parameter_values: dict[str, list[dict[str, Any]]] = {}
+        question_text = question or ""
+        for parameter in list(template.get("parameters") or []):
+            param_id = str(parameter.get("id") or "").strip()
+            input_type = str(parameter.get("inputType") or "")
+            matched = None
+            if input_type == "date":
+                date_match = DATE_PATTERN.search(question_text)
+                if date_match:
+                    value = date_match.group(0)
+                    matched = [{"display": value, "value": value, "query": value}]
+            elif input_type == "enum":
+                for option in list(parameter.get("options") or []):
+                    display = str(option.get("display") or "")
+                    value = str(option.get("value") or "")
+                    if display and display in question_text or value and value in question_text:
+                        matched = [copy_option(option)]
+                        break
+            elif input_type == "dynamic":
+                source = parameter.get("openSource") or {}
+                try:
+                    resolved = self.parameter_option_service.resolve(
+                        user_id="default",
+                        parameter_id=param_id,
+                        open_source=source,
+                        context_values=parameter_values,
+                    )
+                except Exception:
+                    resolved = {"options": []}
+                choices = []
+                for option in list(resolved.get("options") or []):
+                    display = str(option.get("display") or "")
+                    value = str(option.get("value") or "")
+                    if display and display in question_text or value and value in question_text:
+                        choices.append(copy_option(option))
+                        if not parameter.get("multi"):
+                            break
+                if choices:
+                    matched = choices
+            elif input_type == "free_text":
+                if question_text.strip():
+                    matched = [{"display": question_text.strip(), "value": question_text.strip(), "query": question_text.strip()}]
+
+            if matched:
+                parameter_values[param_id] = matched
+        return merge_parameter_values(
+            parameter_definitions=list(template.get("parameters") or []),
+            current_values={},
+            incoming_values=parameter_values,
+        )
+
+    def _build_ask_response(self, *, conversation_id: str, chat_id: str, template: dict[str, Any], template_instance: dict[str, Any], request_id: str | None, api_version: str | None) -> dict[str, Any]:
+        missing = _missing_required_parameters(template=template, template_instance=template_instance)
+        if missing:
+            next_parameter = missing[0]
+            ask = {
+                "mode": "natural_language" if next_parameter.get("interactionMode") == "natural_language" else "form",
+                "type": "fill_params",
+                "title": "请补充报告参数",
+                "text": f"请补充参数：{next_parameter.get('label')}",
+                "parameters": [
                     {
-                        "template_id": template.template_id,
-                        "name": template.name,
-                    },
-                    confidence=matched["best"]["score"],
-                    locked=True,
-                )
-                template_locked = True
-            else:
-                reply = self.capability_gateway.generate_chat_reply(user_message, candidates=matched["candidates"])
-                action = {
-                    "type": "show_template_candidates",
-                    "candidates": [
-                        {
-                            "template_id": item["template_id"],
-                            "template_name": item["template_name"],
-                            "description": item.get("description", ""),
-                            "category": item.get("category", ""),
-                            "score": item["score"],
-                            "score_label": item["score_label"],
-                            "match_reasons": item["match_reasons"],
-                        }
-                        for item in matched["candidates"]
-                    ],
-                }
-                flow = state.get("flow") or {}
-                flow["stage"] = "template_matching"
-                state["flow"] = flow
-                state = self.capability_gateway.sync_report_task_state(state)
-                return reply, action
-
-        if template_locked and template is not None:
-            template_params = self.report_gateway.normalize_parameters(template.parameters or [])
-            if data.command == "reset_params":
-                state = self.report_gateway.reset_slots(state)
-                report = state.get("report") or {}
-                report["pending_outline_review"] = []
-                report["outline_review_warnings"] = []
-                state["report"] = report
-            elif data.command == "edit_param" and data.target_param_id:
-                state = self.report_gateway.rewind_slots_for_param(state, template_params, data.target_param_id)
-                report = state.get("report") or {}
-                report["pending_outline_review"] = []
-                report["outline_review_warnings"] = []
-                state["report"] = report
-
-            collected = {key: slot.get("value") for key, slot in (state.get("slots") or {}).items()}
-            updates: Dict[str, Any] = {}
-            source = "llm"
-            if data.param_id:
-                if data.param_values is not None:
-                    updates = {data.param_id: data.param_values}
-                else:
-                    updates = {data.param_id: data.param_value}
-                source = "user"
-            elif getattr(data, "parameter_updates", None):
-                updates = dict(getattr(data, "parameter_updates") or {})
-                source = "user"
-            elif user_message and not data.command:
-                updates = self.report_gateway.extract_params_from_message(
-                    template_params=template_params,
-                    message=user_message,
-                )
-
-            merged, _warnings = self.report_gateway.validate_and_merge_params(
-                template_params=template_params,
-                collected=collected,
-                updates=updates,
-            )
-            if updates:
-                state = self.report_gateway.upsert_slots_from_params(
-                    state,
-                    merged,
-                    template_params,
-                    source=source,
-                    turn_index=state.get("flow", {}).get("turn_index", 0),
-                )
-
-            missing_required = self.report_gateway.build_missing_required(template_params, merged)
-            missing = state.get("missing") or {}
-            missing["required"] = missing_required
-            state["missing"] = missing
-
-            if data.command == "edit_param" and not data.target_param_id and (state.get("flow") or {}).get("stage") == "outline_review":
-                reply = "请确认需要调整的参数。"
-                action = self.report_gateway.build_review_params_action(state, template_params)
-                report = state.get("report") or {}
-                report["pending_outline_review"] = []
-                report["outline_review_warnings"] = []
-                state["report"] = report
-                flow = state.get("flow") or {}
-                flow["stage"] = "review_ready"
-                state["flow"] = flow
-            elif data.command in {"prepare_outline_review", "confirm_generation"}:
-                if missing_required:
-                    reply, action = _build_missing_required_response(
-                        self.report_gateway,
-                        state,
-                        template_params,
-                        default_reply="请先补充完所有必填参数。",
-                    )
-                    flow = state.get("flow") or {}
-                    flow["stage"] = "required_collection"
-                    state["flow"] = flow
-                else:
-                    outline_review, outline_warnings = self.report_gateway.build_pending_outline_review(template, merged)
-                    report = state.get("report") or {}
-                    report["pending_outline_review"] = outline_review
-                    report["outline_review_warnings"] = outline_warnings
-                    state["report"] = report
-                    self.report_gateway.capture_template_instance_state(
-                        template=template,
-                        session_id=session.session_id,
-                        capture_stage="outline_confirmed",
-                        input_params_snapshot=merged,
-                        outline_snapshot=outline_review,
-                        warnings=outline_warnings,
-                        report_instance_id=None,
-                        created_by=session.user_id or "system",
-                    )
-                    reply = "参数已确认，请检查报告诉求。"
-                    action = self.report_gateway.build_review_outline_action(state, template_params)
-                    flow = state.get("flow") or {}
-                    flow["stage"] = "outline_review"
-                    state["flow"] = flow
-                    summary = state.get("summary") or {}
-                    summary["open_question"] = reply
-                    state["summary"] = summary
-            elif data.command == "edit_outline":
-                report = state.get("report") or {}
-                pending_outline = report.get("pending_outline_review") or []
-                report["pending_outline_review"] = self.report_gateway.merge_outline_override(pending_outline, data.outline_override or [])
-                state["report"] = report
-                self.report_gateway.capture_template_instance_state(
-                    template=template,
-                    session_id=session.session_id,
-                    capture_stage="outline_confirmed",
-                    input_params_snapshot=merged,
-                    outline_snapshot=report.get("pending_outline_review") or [],
-                    warnings=report.get("outline_review_warnings") or [],
-                    report_instance_id=None,
-                    created_by=session.user_id or "system",
-                )
-                reply = "报告诉求已更新，请继续确认。"
-                action = self.report_gateway.build_review_outline_action(state, template_params)
-                flow = state.get("flow") or {}
-                flow["stage"] = "outline_review"
-                state["flow"] = flow
-            elif data.command == "confirm_outline_generation":
-                if missing_required:
-                    reply, action = _build_missing_required_response(
-                        self.report_gateway,
-                        state,
-                        template_params,
-                        default_reply="请先补充完所有必填参数。",
-                    )
-                    flow = state.get("flow") or {}
-                    flow["stage"] = "required_collection"
-                    state["flow"] = flow
-                else:
-                    report = state.get("report") or {}
-                    pending_outline = report.get("pending_outline_review") or []
-                    if data.outline_override:
-                        pending_outline = self.report_gateway.merge_outline_override(pending_outline, data.outline_override)
-                        report["pending_outline_review"] = pending_outline
-                        state["report"] = report
-                    resolved_outline = self.report_gateway.resolve_outline_execution_baseline(pending_outline)
-                    created = self.report_gateway.create_instance(
-                        template_id=template.template_id,
-                        input_params=merged,
-                        outline_override=resolved_outline,
-                        user_id=session.user_id or "default",
-                        source_session_id=session.session_id,
-                        source_message_id=None,
-                    )
-                    try:
-                        template_instance_id = self.report_gateway.capture_template_instance_for_generation(
-                            template=template,
-                            session_id=session.session_id,
-                            report_instance_id=created["instance_id"],
-                            input_params_snapshot=merged,
-                            outline_snapshot=resolved_outline,
-                            generated_sections=created.get("outline_content") or [],
-                            warnings=report.get("outline_review_warnings") or [],
-                            created_by=session.user_id or "system",
-                        )
-                    except Exception:
-                        self.persistence.delete_report_instance(created["instance_id"])
-                        raise
-                    document = self.report_gateway.create_markdown_document(created["instance_id"])
-                    reply = "报告已生成，可以下载 Markdown 文档。"
-                    action = {
-                        "type": "download_document",
-                        "report_id": created["instance_id"],
-                        "template_instance_id": template_instance_id,
-                        "document": self.report_gateway.serialize_document(document),
+                        "parameter": copy.deepcopy(next_parameter),
+                        "currentValue": copy.deepcopy((template_instance.get("parameterValues") or {}).get(next_parameter.get("id")) or []),
                     }
-                    flow = state.get("flow") or {}
-                    flow["stage"] = "generated"
-                    state["flow"] = flow
-                    summary = state.get("summary") or {}
-                    summary["open_question"] = ""
-                    state["summary"] = summary
-            elif missing_required:
-                reply, action = _build_missing_required_response(
-                    self.report_gateway,
-                    state,
-                    template_params,
-                    default_reply="请补充必填参数。",
-                )
-                flow = state.get("flow") or {}
-                flow["stage"] = "required_collection"
-                state["flow"] = flow
-                summary = state.get("summary") or {}
-                summary["open_question"] = reply
-                state["summary"] = summary
-            else:
-                reply = "参数已收集完成，请确认后生成诉求。"
-                action = self.report_gateway.build_review_params_action(state, template_params)
-                flow = state.get("flow") or {}
-                flow["stage"] = "review_ready"
-                state["flow"] = flow
-                summary = state.get("summary") or {}
-                summary["open_question"] = reply
-                state["summary"] = summary
+                ],
+                "reportContext": {"templateInstance": template_instance},
+            }
+        else:
+            ask = {
+                "mode": "form",
+                "type": "confirm_params",
+                "title": "请确认报告诉求",
+                "text": "请确认报告诉求后开始生成。",
+                "parameters": [
+                    {
+                        "parameter": copy.deepcopy(parameter),
+                        "currentValue": copy.deepcopy((template_instance.get("parameterValues") or {}).get(parameter.get("id")) or []),
+                    }
+                    for parameter in list(template.get("parameters") or [])
+                ],
+                "reportContext": {"templateInstance": template_instance},
+            }
+        return _chat_response(
+            conversation_id=conversation_id,
+            chat_id=chat_id,
+            status="waiting_user",
+            ask=ask,
+            answer=None,
+            request_id=request_id,
+            api_version=api_version,
+        )
 
-            state_facts = []
-            if template:
-                state_facts.append(f"模板={template.name}")
-            for key, slot in (state.get("slots") or {}).items():
-                value = slot.get("value")
-                if value:
-                    state_facts.append(f"{key}={value}")
-            summary = state.get("summary") or {}
-            summary["facts"] = state_facts[:6]
-            state["summary"] = summary
+    def _append_assistant_message(self, *, conversation_id: str, user_id: str, response: dict[str, Any]) -> None:
+        self.chat_repository.append_message(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role="assistant",
+            content={"response": response},
+            action={"type": "chat_response"},
+            meta={"status": response.get("status")},
+        )
 
-        if not reply:
-            reply = self.capability_gateway.generate_chat_reply(user_message)
-        state = self.capability_gateway.sync_report_task_state(state)
-        return reply, action
 
-    def _resolve_instance_source_session_id(self, *, instance_id: str, user_id: str) -> str:
-        report_instance = self.persistence.get_report_instance(instance_id, user_id=user_id)
-        if not report_instance:
-            raise NotFoundError("Instance not found")
-        preferred = str(getattr(report_instance, "source_session_id", "") or "").strip()
-        if preferred:
-            return preferred
-        template_instance = self.persistence.get_template_instance_by_instance(instance_id)
-        if not template_instance:
-            raise NotFoundError("Template instance not found")
-        return str(getattr(template_instance, "session_id", "") or "").strip()
+def _message_preview(content: dict[str, Any]) -> str:
+    if not isinstance(content, dict):
+        return ""
+    if isinstance(content.get("question"), str):
+        return str(content["question"])[:80]
+    response = content.get("response")
+    if isinstance(response, dict):
+        ask = response.get("ask")
+        if isinstance(ask, dict):
+            return str(ask.get("title") or ask.get("text") or "")[:80]
+    return ""
 
-    @staticmethod
-    def _clone_chat_message(source, **overrides):
-        payload = {
-            "message": getattr(source, "message", ""),
-            "session_id": getattr(source, "session_id", ""),
-            "preferred_capability": getattr(source, "preferred_capability", None),
-            "selected_template_id": getattr(source, "selected_template_id", None),
-            "param_id": getattr(source, "param_id", None),
-            "param_value": getattr(source, "param_value", None),
-            "param_values": getattr(source, "param_values", None),
-            "command": getattr(source, "command", None),
-            "target_param_id": getattr(source, "target_param_id", None),
-            "outline_override": getattr(source, "outline_override", None),
-        }
-        payload.update(overrides)
-        return type("ConversationChatMessage", (), payload)()
+
+def _chat_response(
+    *,
+    conversation_id: str,
+    chat_id: str,
+    status: str,
+    ask: dict[str, Any] | None,
+    answer: dict[str, Any] | None,
+    request_id: str | None,
+    api_version: str | None,
+) -> dict[str, Any]:
+    return {
+        "conversationId": conversation_id,
+        "chatId": chat_id,
+        "status": status,
+        "steps": [],
+        "ask": ask,
+        "answer": answer,
+        "errors": [],
+        "requestId": request_id,
+        "timestamp": _epoch_ms(),
+        "apiVersion": api_version or "v1",
+    }
+
+
+def _template_match_text(template: dict[str, Any]) -> str:
+    parts = [
+        str(template.get("name") or ""),
+        str(template.get("description") or ""),
+        str(template.get("category") or ""),
+    ]
+    for parameter in list(template.get("parameters") or []):
+        parts.append(str(parameter.get("label") or parameter.get("id") or ""))
+    for catalog in list(template.get("catalogs") or []):
+        parts.append(str(catalog.get("name") or ""))
+        for section in list(catalog.get("sections") or []):
+            parts.append(str(section.get("title") or ""))
+            outline = section.get("outline") or {}
+            parts.append(str(outline.get("requirement") or ""))
+    return "\n".join([part for part in parts if part])
+
+
+def _lexical_score(question: str, template: dict[str, Any]) -> float:
+    lowered = question.lower()
+    score = 0.0
+    for part in [template.get("name"), template.get("category"), template.get("description")]:
+        text = str(part or "").lower()
+        if text and text in lowered:
+            score += 1.0
+    return score
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right or len(left) != len(right):
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right))
+    left_norm = math.sqrt(sum(value * value for value in left))
+    right_norm = math.sqrt(sum(value * value for value in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return dot / (left_norm * right_norm)
+
+
+def _missing_required_parameters(*, template: dict[str, Any], template_instance: dict[str, Any]) -> list[dict[str, Any]]:
+    values = template_instance.get("parameterValues") or {}
+    missing = []
+    for parameter in list(template.get("parameters") or []):
+        if not parameter.get("required"):
+            continue
+        if not list(values.get(parameter.get("id")) or []):
+            missing.append(parameter)
+    return missing
+
+
+def _template_instance_from_payload(payload: dict[str, Any], *, chat_id: str, status: str, capture_stage: str):
+    from ...report_runtime.domain.models import TemplateInstance
+
+    return TemplateInstance(
+        id=str(payload.get("id") or ""),
+        schema_version=str(payload.get("schemaVersion") or "template-instance.v2"),
+        template_id=str(payload.get("templateId") or ""),
+        conversation_id=str(payload.get("conversationId") or ""),
+        chat_id=chat_id,
+        status=status,
+        capture_stage=capture_stage,
+        revision=int(payload.get("revision") or 1),
+        parameter_values=payload.get("parameterValues") or {},
+        catalogs=payload.get("catalogs") or [],
+        delta_views=payload.get("deltaViews") or [],
+        template_skeleton_status=payload.get("templateSkeletonStatus") or {"internal": "reusable", "ui": "not_broken"},
+        warnings=payload.get("warnings") or [],
+    )
+
+
+def copy_option(option: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "display": option.get("display"),
+        "value": option.get("value"),
+        "query": option.get("query"),
+    }
+
+
+def _random_id(prefix: str) -> str:
+    import uuid
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+
+def _epoch_ms() -> int:
+    import time
+    return int(time.time() * 1000)

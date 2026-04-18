@@ -1,158 +1,128 @@
+export type TrioValue = {
+  display: string | number | boolean;
+  value: string | number | boolean;
+  query: string | number | boolean;
+};
+
+export type WarningItem = {
+  code: string;
+  message: string;
+  path?: string;
+  targetId?: string;
+};
+
 export type TemplateSummary = {
   id: string;
+  category: string;
   name: string;
   description: string;
-  category: string;
-  parameter_count?: number;
-  top_level_section_count?: number;
-  created_at?: string;
+  schemaVersion: string;
+  updatedAt?: string | null;
+};
+
+export type OpenSource = {
+  url: string;
 };
 
 export type TemplateParameter = {
   id: string;
   label: string;
-  required: boolean;
-  input_type: "free_text" | "date" | "enum" | "dynamic";
-  interaction_mode?: "form" | "chat";
-  multi?: boolean;
-  options?: string[] | Array<{ key: string; label: string }>;
-  source?: string;
-  value_mode?: "label" | "key";
-  value_mapping?: {
-    query: {
-      by: "label" | "key";
-      map?: Record<string, string | string[]>;
-      on_unmapped?: "error";
-    };
-  };
-};
-
-export type TemplateForeach = {
-  param: string;
-  as: string;
-};
-
-export type TemplateRequirementItem = {
-  id: string;
-  type: "indicator" | "time_range" | "scope" | "threshold" | "operator" | "enum_select" | "number" | "boolean" | "free_text" | "param_ref";
-  hint?: string;
-  default?: string;
-  options?: string[];
-  source?: string;
-  param_id?: string;
-  multi?: boolean;
-  widget?: string;
-};
-
-export type TemplateSectionOutline = {
-  requirement: string;
-  items: TemplateRequirementItem[];
-};
-
-export type TemplateDatasetSource = {
-  kind: "sql" | "nl2sql" | "ai_synthesis";
-  query?: string;
-  key_col?: string;
-  value_col?: string;
   description?: string;
-  context?: {
-    refs?: string[];
-    queries?: Array<{ id: string; query: string }>;
-  };
-  knowledge?: {
-    query_template?: string;
-    params?: {
-      subject?: string;
-      symptoms?: string;
-      objective?: string;
-    };
-  };
-  prompt?: string;
+  inputType: "free_text" | "date" | "enum" | "dynamic";
+  required: boolean;
+  multi: boolean;
+  interactionMode: "form" | "natural_language";
+  valueMode: "display" | "value" | "query";
+  placeholder?: string;
+  defaultValue?: TrioValue[];
+  options?: TrioValue[];
+  openSource?: OpenSource;
 };
 
-export type TemplateDataset = {
+export type RequirementItemDefinition = {
   id: string;
-  depends_on?: string[];
-  source: TemplateDatasetSource;
+  label: string;
+  kind:
+    | "search_target"
+    | "search_condition"
+    | "metric"
+    | "time_range"
+    | "filter"
+    | "threshold"
+    | "sort"
+    | "free_text"
+    | "parameter_ref";
+  required: boolean;
+  multi?: boolean;
+  description?: string;
+  sourceParameterId?: string;
+  widget?: "input" | "textarea" | "select" | "multi_select" | "date" | "date_range";
+  defaultValue?: TrioValue[];
 };
 
-export type TemplateLayout = {
-  type: "kv_grid" | "tabular";
-  cols_per_row?: number;
-  key_span?: number;
-  value_span?: number;
-  fields?: Array<{ key: string; value?: string; col?: string }>;
-  headers?: Array<{ label: string; span: number; repeat?: boolean }>;
-  columns?: Array<{ field: string; span: number; repeat?: boolean }>;
+export type DatasetDefinition = {
+  id: string;
+  name?: string;
+  sourceType: "sql" | "api" | "llm" | "compose";
+  sourceRef: string;
+  dependsOn?: string[];
+  description?: string;
 };
 
-export type TemplateCompositeSection = {
-  id?: string;
-  band?: string | null;
-  dataset_id?: string;
-  layout: TemplateLayout;
+export type PresentationBlock = {
+  id: string;
+  type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown";
+  title?: string;
+  datasetId?: string;
+  description?: string;
 };
 
-export type TemplatePresentation = {
-  type: "text" | "value" | "chart" | "simple_table" | "composite_table";
-  template?: string;
-  anchor?: string;
-  dataset_id?: string;
-  chart_type?: "bar" | "line" | "pie" | "area" | "scatter";
-  columns?: number;
-  sections?: TemplateCompositeSection[];
-};
-
-export type TemplateContent = {
-  datasets?: TemplateDataset[];
-  presentation: TemplatePresentation;
-};
-
-export type TemplateSection = {
+export type SectionDefinition = {
+  id: string;
   title: string;
   description?: string;
-  outline?: TemplateSectionOutline;
-  foreach?: TemplateForeach;
-  content?: TemplateContent;
-  subsections?: TemplateSection[];
+  order?: number;
+  foreach?: {
+    parameterId: string;
+    as: string;
+  };
+  outline: {
+    requirement: string;
+    items: RequirementItemDefinition[];
+  };
+  content: {
+    datasets?: DatasetDefinition[];
+    presentation: {
+      kind: "narrative" | "table" | "chart" | "mixed";
+      blocks: PresentationBlock[];
+    };
+  };
 };
 
-export type TemplateDetail = TemplateSummary & {
-  parameters: TemplateParameter[];
-  sections: TemplateSection[];
+export type CatalogDefinition = {
+  id: string;
+  name: string;
+  description?: string;
+  order?: number;
+  sections: SectionDefinition[];
 };
 
-export type TemplateEditableDraft = {
-  id?: string;
+export type ReportTemplate = {
+  id: string;
+  category: string;
   name: string;
   description: string;
-  category: string;
+  schemaVersion: string;
+  tags?: string[];
+  createdAt?: string | null;
+  updatedAt?: string | null;
   parameters: TemplateParameter[];
-  sections: TemplateSection[];
-  created_at?: string;
-};
-
-export type ImportConflict = {
-  status: "none" | "single_match" | "multiple_matches";
-  matched_templates: Array<{ template_id: string; name: string }>;
-  overwrite_supported: boolean;
-  default_action: "create_copy";
+  catalogs: CatalogDefinition[];
 };
 
 export type TemplateImportPreview = {
-  normalized_template: TemplateEditableDraft;
-  source_kind: "system_export" | "external_report_template";
-  warnings: string[];
-  conflict: ImportConflict;
+  normalizedTemplate: ReportTemplate;
+  warnings: WarningItem[];
 };
 
-export type ImportSaveMode = "create_copy" | "overwrite";
-
-export type TemplateUpsertPayload = {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  parameters: TemplateParameter[];
-  sections: TemplateSection[];
-};
+export type TemplateUpsertPayload = ReportTemplate;

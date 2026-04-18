@@ -7,148 +7,136 @@ from fastapi import HTTPException
 
 from backend.routers.templates import (
     TemplateImportPreviewRequest,
-    _clean_template_payload,
+    TemplateUpsertRequest,
+    create_template,
     export_template_definition,
     list_templates,
     preview_import_template,
+    update_template,
 )
-from backend.shared.kernel.errors import ValidationError
+from backend.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+
+
+def _sample_template():
+    return {
+        "id": "tpl_network_daily",
+        "category": "network_operations",
+        "name": "网络运行日报",
+        "description": "面向网络运维中心的统一日报模板。",
+        "schemaVersion": "template.v3",
+        "parameters": [],
+        "catalogs": [
+            {
+                "id": "catalog_overview",
+                "name": "运行概览",
+                "sections": [],
+            }
+        ],
+    }
 
 
 class TemplatesRouterTests(unittest.TestCase):
-    def test_list_templates_includes_v2_summary_fields(self):
-        template = SimpleNamespace(
-            template_id="tpl-1",
-            name="设备巡检报告",
-            description="巡检模板",
-            category="巡检",
-            created_at="2026-03-19T00:00:00",
-            parameters=[{"id": "date"}, {"id": "devices"}],
-            sections=[{"title": "概览"}, {"title": "详情"}],
-        )
-
-        class FakeQuery:
-            def all(self):
-                return [template]
-
-        class FakeDb:
-            def query(self, _model):
-                return FakeQuery()
-
-        payload = list_templates(db=FakeDb())
-
-        self.assertEqual(payload[0]["category"], "巡检")
-        self.assertEqual(payload[0]["parameter_count"], 2)
-        self.assertEqual(payload[0]["top_level_section_count"], 2)
-        self.assertNotIn("report_type", payload[0])
-        self.assertNotIn("schema_version", payload[0])
-
-    def test_clean_template_payload_validates_and_normalizes_v2_template(self):
-        payload = {
-            "id": "device_health_report",
-            "name": "设备健康报告",
-            "category": "设备健康评估",
-            "description": "模板描述",
-            "parameters": [],
-            "sections": [
+    def test_list_templates_returns_template_summary_only(self):
+        fake_service = SimpleNamespace(
+            list_templates=lambda: [
                 {
-                    "title": "概述",
-                    "content": {
-                        "source": {"kind": "sql", "query": "SELECT 1 AS value"},
-                        "presentation": {"type": "value", "anchor": "{$value}"},
-                    },
+                    "id": "tpl_network_daily",
+                    "category": "network_operations",
+                    "name": "网络运行日报",
+                    "description": "面向网络运维中心的统一日报模板。",
+                    "schemaVersion": "template.v3",
+                    "updatedAt": "2026-04-18T09:00:00Z",
                 }
-            ],
-        }
-
-        cleaned = _clean_template_payload(payload)
-
-        self.assertEqual(cleaned["id"], "device_health_report")
-        self.assertEqual(cleaned["category"], "设备健康评估")
-        self.assertEqual(cleaned["sections"][0]["content"]["datasets"][0]["id"], "ds_main")
-
-    def test_export_template_definition_returns_portable_json_attachment(self):
-        template = SimpleNamespace(
-            template_id="tpl-1",
-            name="设备巡检报告",
-            description="巡检模板",
-            category="巡检",
-            parameters=[{"id": "date", "label": "日期", "required": True, "input_type": "date"}],
-            sections=[{"title": "概览", "content": {"presentation": {"type": "text", "template": "周期 {date}"}}}],
-            created_at="2026-03-19T00:00:00",
-            version="1.0",
+            ]
         )
 
-        class FakeQuery:
-            def __init__(self, value):
-                self.value = value
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            payload = list_templates(db=object())
 
-            def filter(self, *_args, **_kwargs):
-                return self
+        self.assertEqual(payload[0]["id"], "tpl_network_daily")
+        self.assertNotIn("parameters", payload[0])
+        self.assertNotIn("catalogs", payload[0])
 
-            def first(self):
-                return self.value
+    def test_create_template_accepts_formal_report_template(self):
+        fake_service = SimpleNamespace(create_template=lambda payload: payload)
 
-        class FakeDb:
-            def query(self, _model):
-                return FakeQuery(template)
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            payload = create_template(TemplateUpsertRequest(**_sample_template()), db=object())
 
-        response = export_template_definition("tpl-1", db=FakeDb())
+        self.assertEqual(payload["schemaVersion"], "template.v3")
+        self.assertIn("catalogs", payload)
+        self.assertNotIn("sections", payload)
+
+    def test_update_template_requires_same_path_and_body_id(self):
+        fake_service = SimpleNamespace(
+            update_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("Template id mismatch"))
+        )
+
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            with self.assertRaises(HTTPException) as ctx:
+                update_template("tpl_a", TemplateUpsertRequest(**{**_sample_template(), "id": "tpl_b"}), db=object())
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(ctx.exception.detail, "Template id mismatch")
+
+    def test_export_template_definition_returns_formal_template_json(self):
+        template = _sample_template()
+        fake_service = SimpleNamespace(
+            export_template=lambda template_id: (template, "网络运行日报-20260418-120000.json")
+        )
+
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            response = export_template_definition("tpl_network_daily", db=object())
 
         self.assertEqual(response.media_type, "application/json")
-        self.assertIn("attachment;", response.headers["content-disposition"])
-        self.assertIn('filename*=', response.headers["content-disposition"])
-        self.assertIn("%E8%AE%BE%E5%A4%87%E5%B7%A1%E6%A3%80%E6%8A%A5%E5%91%8A-", response.headers["content-disposition"])
-        self.assertRegex(response.headers["content-disposition"], r"\d{8}-\d{6}\.json")
-
         payload = json.loads(response.body.decode("utf-8"))
-        self.assertEqual(payload["name"], "设备巡检报告")
-        self.assertEqual(payload["category"], "巡检")
-        self.assertEqual(payload["description"], "巡检模板")
-        self.assertEqual(payload["id"], "tpl-1")
-        self.assertEqual(payload["parameters"][0]["id"], "date")
-        self.assertEqual(payload["sections"][0]["title"], "概览")
-        self.assertNotIn("created_at", payload)
-        self.assertNotIn("version", payload)
-        self.assertNotIn("report_type", payload)
-        self.assertNotIn("schema_version", payload)
+        self.assertEqual(payload["catalogs"][0]["id"], "catalog_overview")
+        self.assertNotIn("sections", payload)
 
-    def test_preview_import_template_returns_service_payload(self):
-        payload = {
-            "normalized_template": {"name": "导入模板"},
-            "source_kind": "system_export",
-            "warnings": [],
-            "conflict": {
-                "status": "none",
-                "matched_templates": [],
-                "overwrite_supported": False,
-                "default_action": "create_copy",
-            },
-        }
-        fake_service = SimpleNamespace(preview_import_template=lambda *_args, **_kwargs: payload)
+    def test_preview_import_template_uses_content_only(self):
+        normalized = _sample_template()
+        fake_service = SimpleNamespace(
+            preview_import_template=lambda raw_content: {
+                "normalizedTemplate": normalized,
+                "warnings": [],
+            }
+        )
 
         with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
             result = preview_import_template(
-                TemplateImportPreviewRequest(payload={"name": "导入模板"}, filename="template.json"),
+                TemplateImportPreviewRequest(content=normalized),
                 db=object(),
             )
 
-        self.assertEqual(result, payload)
+        self.assertEqual(result["normalizedTemplate"]["id"], "tpl_network_daily")
 
-    def test_preview_import_template_maps_validation_error_to_http_400(self):
+    def test_preview_import_template_validation_error_maps_to_http_400(self):
         fake_service = SimpleNamespace(
-            preview_import_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("不支持的模板结构。"))
+            preview_import_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("Invalid template"))
         )
 
         with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
-            with self.assertRaises(HTTPException) as exc:
-                preview_import_template(
-                    TemplateImportPreviewRequest(payload={"foo": "bar"}, filename="template.json"),
-                    db=object(),
-                )
+            with self.assertRaises(HTTPException) as ctx:
+                preview_import_template(TemplateImportPreviewRequest(content={"foo": "bar"}), db=object())
 
-        self.assertEqual(exc.exception.status_code, 400)
-        self.assertEqual(exc.exception.detail, "不支持的模板结构。")
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_router_maps_conflict_and_not_found(self):
+        fake_create = SimpleNamespace(
+            create_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ConflictError("Template already exists"))
+        )
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_create):
+            with self.assertRaises(HTTPException) as create_ctx:
+                create_template(TemplateUpsertRequest(**_sample_template()), db=object())
+        self.assertEqual(create_ctx.exception.status_code, 409)
+
+        fake_update = SimpleNamespace(
+            update_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(NotFoundError("Template not found"))
+        )
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_update):
+            with self.assertRaises(HTTPException) as update_ctx:
+                update_template("tpl_network_daily", TemplateUpsertRequest(**_sample_template()), db=object())
+        self.assertEqual(update_ctx.exception.status_code, 404)
 
 
 if __name__ == "__main__":

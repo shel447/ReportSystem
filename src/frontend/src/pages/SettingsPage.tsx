@@ -287,11 +287,18 @@ export function SettingsPage() {
                 <div className="list-header">
                   <div>
                     <p className="section-kicker">Operations</p>
-                    <h3>连接测试与索引</h3>
+                    <h3>连接测试与运行说明</h3>
                   </div>
                 </div>
 
                 <div className="settings-actions-panel">
+                  <div className="template-inline-group">
+                    <div className="template-inline-group__header">
+                      <strong>文档导出链路</strong>
+                      <span>Java Office Exporter</span>
+                    </div>
+                    <p>报告文档生成依赖本地 Java 导出服务；Completion 与 Embedding 负责对话和语义能力，导出链路单独运行。</p>
+                  </div>
                   <div className="action-row">
                     <button className="primary-button" type="button" onClick={() => saveMutation.mutate()}>
                       {saveMutation.isPending ? "保存中..." : "保存设置"}

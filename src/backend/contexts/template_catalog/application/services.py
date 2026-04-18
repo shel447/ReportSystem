@@ -3,198 +3,102 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime
-from typing import Any, List
+from typing import Any
 
-from ....shared.kernel.errors import NotFoundError, ValidationError
+from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 from ..domain.models import ReportTemplate
 
 
 class TemplateCatalogService:
-    def __init__(self, *, repository, matcher, schema_gateway) -> None:
+    def __init__(self, *, repository, schema_gateway) -> None:
         self.repository = repository
-        self.matcher = matcher
         self.schema_gateway = schema_gateway
 
     def create_template(self, payload: dict[str, Any]) -> dict[str, Any]:
-        cleaned = self._clean_payload(payload)
-        template = self.repository.create(cleaned)
-        self.matcher.mark_stale(template.template_id, "模板新建后尚未建立语义索引。")
-        return self.serialize_detail(template)
-
-    def list_templates(self) -> list[dict[str, Any]]:
-        return [self.serialize_summary(item) for item in self.repository.list_all()]
-
-    def get_template(self, template_id: str) -> dict[str, Any]:
-        template = self.repository.get(template_id)
-        if not template:
-            raise NotFoundError("Template not found")
+        cleaned = self._validate_template_payload(payload)
+        try:
+            template = self.repository.create(cleaned)
+        except ConflictError:
+            raise
         return self.serialize_detail(template)
 
     def update_template(self, template_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        if not self.repository.get(template_id):
-            raise NotFoundError("Template not found")
-        cleaned = self._clean_payload(payload)
+        if template_id != str(payload.get("id") or "").strip():
+            raise ValidationError("Template id mismatch")
+        cleaned = self._validate_template_payload(payload)
         template = self.repository.update(template_id, cleaned)
-        self.matcher.mark_stale(template.template_id, "模板已更新，请重建语义索引。")
         return self.serialize_detail(template)
 
     def delete_template(self, template_id: str) -> None:
-        if not self.repository.get(template_id):
-            raise NotFoundError("Template not found")
         self.repository.delete(template_id)
-        self.matcher.delete_index(template_id)
+
+    def get_template(self, template_id: str) -> dict[str, Any]:
+        template = self.repository.get(template_id)
+        if template is None:
+            raise NotFoundError("Template not found")
+        return self.serialize_detail(template)
+
+    def list_templates(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": item.id,
+                "category": item.category,
+                "name": item.name,
+                "description": item.description,
+                "schemaVersion": item.schema_version,
+                "updatedAt": item.updated_at.isoformat().replace("+00:00", "Z") if item.updated_at else None,
+            }
+            for item in self.repository.list_summaries()
+        ]
 
     def export_template(self, template_id: str) -> tuple[dict[str, Any], str]:
         template = self.repository.get(template_id)
-        if not template:
+        if template is None:
             raise NotFoundError("Template not found")
-        return self._export_payload(template), self._build_export_filename(template)
+        payload = self.serialize_detail(template)
+        return payload, self._build_export_filename(template)
 
-    def preview_import_template(self, payload: dict[str, Any], filename: str | None = None) -> dict[str, Any]:
-        source_kind, candidate_payload, candidate_id, warnings = self._normalize_import_payload(payload, filename)
-        cleaned = self._clean_payload(candidate_payload)
+    def preview_import_template(self, raw_content: Any) -> dict[str, Any]:
+        normalized = self._parse_import_content(raw_content)
+        cleaned = self._validate_template_payload(normalized)
         return {
-            "normalized_template": self._serialize_import_draft(cleaned),
-            "source_kind": source_kind,
-            "warnings": warnings,
-            "conflict": self._detect_import_conflict(candidate_id, str(cleaned.get("name") or "").strip()),
-        }
-
-    def match_templates(self, message: str, gateway) -> dict[str, Any]:
-        return self.matcher.match(message, gateway)
-
-    def serialize_summary(self, template: ReportTemplate) -> dict[str, Any]:
-        return {
-            "id": template.id,
-            "name": template.name,
-            "description": template.description,
-            "category": template.category,
-            "parameter_count": len(template.parameters or []),
-            "top_level_section_count": len(template.sections or []),
-            "created_at": str(template.created_at),
+            "normalizedTemplate": cleaned,
+            "warnings": [],
         }
 
     def serialize_detail(self, template: ReportTemplate) -> dict[str, Any]:
         return {
             "id": template.id,
+            "category": template.category,
             "name": template.name,
             "description": template.description,
-            "category": template.category,
-            "parameters": template.parameters,
-            "sections": template.sections,
-            "created_at": str(template.created_at),
+            "schemaVersion": template.schema_version,
+            "tags": list(template.tags or []),
+            "parameters": list(template.parameters or []),
+            "catalogs": list(template.catalogs or []),
+            "createdAt": template.created_at.isoformat().replace("+00:00", "Z") if template.created_at else None,
+            "updatedAt": template.updated_at.isoformat().replace("+00:00", "Z") if template.updated_at else None,
         }
 
-    def _export_payload(self, template: ReportTemplate) -> dict[str, Any]:
-        return {
-            "id": template.id,
-            "name": template.name,
-            "description": template.description,
-            "category": template.category,
-            "parameters": template.parameters or [],
-            "sections": template.sections or [],
-        }
-
-    def _serialize_import_draft(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "id": str(payload.get("id") or ""),
-            "name": str(payload.get("name") or ""),
-            "description": str(payload.get("description") or ""),
-            "category": str(payload.get("category") or ""),
-            "parameters": list(payload.get("parameters") or []),
-            "sections": list(payload.get("sections") or []),
-        }
-
-    def _clean_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _validate_template_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            cleaned = self.schema_gateway.validate(payload)
+            return self.schema_gateway.validate(dict(payload or {}))
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
-        cleaned["id"] = str(cleaned.get("id") or payload.get("id") or "").strip()
-        return cleaned
-
-    def _normalize_import_payload(
-        self,
-        payload: dict[str, Any],
-        filename: str | None = None,
-    ) -> tuple[str, dict[str, Any], str | None, list[str]]:
-        candidate = dict(payload or {})
-        if not candidate:
-            raise ValidationError("不支持的模板结构。")
-
-        if self._looks_like_system_export(candidate):
-            candidate_id = str(candidate.get("id") or "").strip() or None
-            return "system_export", candidate, candidate_id, []
-
-        if self._looks_like_external_report_template(candidate):
-            candidate_id = str(candidate.get("id") or "").strip() or None
-            normalized = {
-                "id": candidate_id or "",
-                "name": str(candidate.get("name") or ""),
-                "description": str(candidate.get("description") or ""),
-                "category": str(candidate.get("category") or candidate.get("type") or ""),
-                "parameters": list(candidate.get("parameters") or []),
-                "sections": list(candidate.get("sections") or []),
-            }
-            warnings: list[str] = []
-            if filename:
-                warnings.append(f"已按外部 ReportTemplate 模板定义解析：{filename}")
-            return "external_report_template", normalized, candidate_id, warnings
-
-        raise ValidationError("不支持的模板结构。")
 
     @staticmethod
-    def _looks_like_system_export(payload: dict[str, Any]) -> bool:
-        required_fields = {"id", "name", "description", "category", "parameters", "sections"}
-        return required_fields.issubset(payload.keys())
-
-    @staticmethod
-    def _looks_like_external_report_template(payload: dict[str, Any]) -> bool:
-        required_fields = {"id", "name", "parameters", "sections"}
-        return required_fields.issubset(payload.keys())
-
-    def _detect_import_conflict(self, candidate_id: str | None, candidate_name: str) -> dict[str, Any]:
-        templates = list(self.repository.list_all())
-        matches: list[ReportTemplate] = []
-        if candidate_id:
-            matches = [item for item in templates if item.template_id == candidate_id]
-        if not matches and candidate_name:
-            matches = [item for item in templates if (item.name or "") == candidate_name]
-
-        status = "none"
-        overwrite_supported = False
-        if len(matches) == 1:
-            status = "single_match"
-            overwrite_supported = True
-        elif len(matches) > 1:
-            status = "multiple_matches"
-
-        return {
-            "status": status,
-            "matched_templates": [
-                {
-                    "template_id": item.id,
-                    "name": item.name,
-                }
-                for item in matches
-            ],
-            "overwrite_supported": overwrite_supported,
-            "default_action": "create_copy",
-        }
-
-    @staticmethod
-    def _normalize_keywords(items: List[Any] | None) -> list[str]:
-        if not isinstance(items, list):
-            return []
-        seen: set[str] = set()
-        normalized: list[str] = []
-        for item in items:
-            text = str(item or "").strip()
-            if not text or text in seen:
-                continue
-            seen.add(text)
-            normalized.append(text)
-        return normalized
+    def _parse_import_content(raw_content: Any) -> dict[str, Any]:
+        if isinstance(raw_content, dict):
+            return raw_content
+        if isinstance(raw_content, str):
+            try:
+                loaded = json.loads(raw_content)
+            except json.JSONDecodeError as exc:
+                raise ValidationError(f"模板导入内容不是合法 JSON: {exc.msg}") from exc
+            if not isinstance(loaded, dict):
+                raise ValidationError("模板导入内容必须是 JSON 对象")
+            return loaded
+        raise ValidationError("模板导入内容必须是对象或 JSON 文本")
 
     @staticmethod
     def _build_export_filename(template: ReportTemplate) -> str:
@@ -202,6 +106,6 @@ class TemplateCatalogService:
         base = re.sub(r'[<>:"/\\\\|?*\x00-\x1f]+', "-", raw_name)
         base = re.sub(r"\s+", "-", base).strip("-.")
         if not base:
-            base = f"template-{template.template_id}"
+            base = template.id
         exported_at = datetime.now().strftime("%Y%m%d-%H%M%S")
         return f"{base}-{exported_at}.json"

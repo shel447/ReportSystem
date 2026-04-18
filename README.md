@@ -6,9 +6,9 @@
 
 系统围绕三类公开业务对象运行：
 
-- `报告模板`：静态模板定义，只保留唯一结构 `id/category/name/description/parameters/sections`
+- `报告模板`：静态模板定义，只保留唯一结构 `id/category/name/description/schemaVersion/parameters/catalogs`
 - `统一对话`：完整驱动模板匹配、参数收集、诉求确认、报告生成
-- `报告`：最终聚合视图，返回完整 `template_instance + generated_content`
+- `报告`：最终聚合视图，返回完整 `templateInstance + report DSL + documents`
 
 当前主流程：
 
@@ -29,7 +29,7 @@ flowchart LR
 - 诉求确认
 - 章节级内容生成
 - 报告聚合视图
-- 报告级 Markdown 下载
+- 报告级 Word/PPT/PDF/Markdown 文档导出与下载
 
 ### 2.2 统一对话
 
@@ -50,7 +50,8 @@ flowchart LR
 - `name`
 - `description`
 - `parameters`
-- `sections`
+- `schemaVersion`
+- `catalogs`
 
 章节节点采用双层模型：
 
@@ -79,6 +80,7 @@ flowchart LR
 - Pydantic
 - HTTPX
 - Ibis + SQLite
+- Java 17（文档导出服务）
 
 ### 数据
 
@@ -116,6 +118,10 @@ ReportSystemV2/
 - `parameter-options`（前端动态参数辅助接口）
 
 `TemplateInstance` 是内部核心聚合，不作为独立公开资源。
+
+文档导出服务单独落在：
+
+- `services/java-office-exporter`
 
 ## 5. 快速启动
 
@@ -190,7 +196,7 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 ## 7. 当前实现边界
 
 - 报告级编辑流接口 `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` 仍待实现
-- 文档导出当前以 Markdown 为主
+- Word/PPT/PDF 导出由 `services/java-office-exporter` 提供
 - 动态参数解析是辅助公共接口，不作为独立业务资源页暴露
 
 ## 8. 开发与验证

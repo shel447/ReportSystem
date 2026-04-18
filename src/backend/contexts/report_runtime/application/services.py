@@ -1,271 +1,364 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from typing import Any, Dict, Optional
+import copy
+import hashlib
+import json
+import sqlite3
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-from ..domain.models import ReportInstance, TemplateInstance
+from jsonschema import Draft202012Validator
+
+from ....infrastructure.demo.telecom import get_demo_db_path, init_telecom_demo_db
 from ....shared.kernel.errors import NotFoundError, ValidationError
+from ...template_catalog.domain.models import ReportTemplate
+from ..domain.models import TemplateInstance
+from ..domain.services import serialize_template_instance
+
+REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "report.schema.json"
+REPORT_SCHEMA = json.loads(REPORT_SCHEMA_PATH.read_text(encoding="utf-8"))
+REPORT_VALIDATOR = Draft202012Validator(REPORT_SCHEMA)
 
 
 class ReportRuntimeService:
     def __init__(
         self,
         *,
-        instance_creator,
-        instance_repository,
-        template_instance_repository,
         template_repository,
-        legacy_runtime,
+        template_instance_repository,
+        report_instance_repository,
+        document_repository,
+        export_job_repository,
+        document_gateway,
     ) -> None:
-        self.instance_creator = instance_creator
-        self.instance_repository = instance_repository
-        self.template_instance_repository = template_instance_repository
         self.template_repository = template_repository
-        self.legacy_runtime = legacy_runtime
+        self.template_instance_repository = template_instance_repository
+        self.report_instance_repository = report_instance_repository
+        self.document_repository = document_repository
+        self.export_job_repository = export_job_repository
+        self.document_gateway = document_gateway
 
-    def create_instance(self, *, template_id: str, input_params: dict[str, Any], outline_override: Optional[list[Any]] = None, user_id: str = "default", source_session_id: str | None = None, source_message_id: str | None = None) -> dict[str, Any]:
-        try:
-            return self.instance_creator.create_instance(
-                template_id=template_id,
-                input_params=input_params or {},
-                outline_override=outline_override,
-                user_id=user_id,
-                source_session_id=source_session_id,
-                source_message_id=source_message_id,
-            )
-        except ValueError as exc:
-            if str(exc) == "Template not found":
-                raise NotFoundError("Template not found") from exc
-            raise ValidationError(str(exc)) from exc
-
-    def get_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
-        instance = self._require_instance(instance_id, user_id=user_id)
-        template_instance = self.template_instance_repository.get_by_instance(instance_id)
-        return self.serialize_instance(instance, template_instance)
-
-    def get_report_view(self, report_id: str, *, user_id: str = "default") -> dict[str, Any]:
-        instance = self._require_instance(report_id, user_id=user_id)
-        template_instance = self.template_instance_repository.get_by_instance(report_id)
-        if template_instance:
-            return self.serialize_report_view(instance, template_instance)
-        template = self.template_repository.get_by_id(instance.template_id)
-        return self.serialize_report_view(instance, None, template=template)
-
-    def list_instances(self, *, template_id: str | None = None, user_id: str = "default") -> list[dict[str, Any]]:
-        instances = self.instance_repository.list(template_id, user_id=user_id)
-        template_instance_map = self.template_instance_repository.list_map_by_instances([item.instance_id for item in instances])
-        return [self.serialize_instance(item, template_instance_map.get(item.instance_id)) for item in instances]
-
-    def update_instance(self, instance_id: str, updates: dict[str, Any], *, user_id: str = "default") -> dict[str, Any]:
-        try:
-            instance = self.instance_repository.update_fields(instance_id, updates, user_id=user_id)
-        except LookupError as exc:
-            raise NotFoundError("Instance not found") from exc
-        template_instance = self.template_instance_repository.get_by_instance(instance_id)
-        return self.serialize_instance(instance, template_instance)
-
-    def delete_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
-        try:
-            self.template_instance_repository.delete_by_instance(instance_id)
-            self.instance_repository.delete(instance_id, user_id=user_id)
-        except LookupError as exc:
-            raise NotFoundError("Instance not found") from exc
-        return {"message": "deleted"}
-
-    def finalize_instance(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
-        try:
-            self.instance_repository.update_fields(instance_id, {"status": "finalized"}, user_id=user_id)
-        except LookupError as exc:
-            raise NotFoundError("Instance not found") from exc
-        return {"message": "finalized", "instance_id": instance_id}
-
-    def get_generation_baseline(self, instance_id: str, *, user_id: str = "default") -> dict[str, Any]:
-        self._require_instance(instance_id, user_id=user_id)
-        template_instance = self.template_instance_repository.get_by_instance(instance_id)
-        if not template_instance:
-            raise NotFoundError("Report baseline not found")
-        return build_generation_baseline_payload(template_instance)
-
-    def regenerate_section(self, instance_id: str, section_index: int, *, user_id: str = "default") -> dict[str, Any]:
-        instance = self._require_instance(instance_id, user_id=user_id)
-        content = list(instance.outline_content or [])
-        if section_index < 0 or section_index >= len(content):
-            raise ValidationError("Invalid section index")
-
-        current = content[section_index]
-        template_entity = self.template_repository.get_template_entity(instance.template_id)
-        template_record = self.template_repository.get_runtime_template(instance.template_id)
-        regenerated = self.legacy_runtime.regenerate_section(
-            template_entity=template_entity,
-            template_record=template_record,
-            current_section=current,
-            input_params=instance.input_params or {},
-            existing_sections=content,
-            section_index=section_index,
+    def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> dict[str, Any]:
+        existing = self.template_instance_repository.get(instance.id, user_id=user_id)
+        saved = (
+            self.template_instance_repository.update(instance, user_id=user_id)
+            if existing
+            else self.template_instance_repository.create(instance, user_id=user_id)
         )
-        updated = self.instance_repository.replace_outline_section(
-            instance_id,
-            section_index,
-            {**current, **regenerated, "regenerated": True},
-            user_id=user_id,
-        )
-        self.template_instance_repository.save_runtime_updates(
-            report_instance_id=instance_id,
-            outline_snapshot=updated.outline_content or [],
-            generated_sections=updated.outline_content or [],
-            status="completed",
-        )
-        template_instance = self.template_instance_repository.get_by_instance(instance_id)
-        return self.serialize_instance(updated, template_instance)
+        return serialize_template_instance(saved)
 
-    @staticmethod
-    def serialize_instance(instance: ReportInstance, template_instance: TemplateInstance | None) -> dict[str, Any]:
-        has_generation_baseline = template_instance is not None
-        supports_fork_chat = bool(has_generation_baseline and getattr(template_instance, "session_id", ""))
-        return {
-            "instance_id": instance.instance_id,
-            "template_id": instance.template_id,
-            "status": instance.status,
-            "user_id": instance.user_id,
-            "source_session_id": instance.source_session_id,
-            "source_message_id": instance.source_message_id,
-            "input_params": deepcopy(instance.input_params or {}),
-            "outline_content": deepcopy(instance.outline_content or []),
-            "report_time": str(instance.report_time) if instance.report_time else None,
-            "report_time_source": instance.report_time_source or "",
-            "created_at": str(instance.created_at),
-            "updated_at": str(instance.updated_at),
-            "has_generation_baseline": has_generation_baseline,
-            "supports_update_chat": has_generation_baseline,
-            "supports_fork_chat": supports_fork_chat,
-        }
+    def get_latest_template_instance(self, *, conversation_id: str, user_id: str) -> dict[str, Any] | None:
+        instance = self.template_instance_repository.get_latest_for_conversation(conversation_id, user_id=user_id)
+        if instance is None:
+            return None
+        return serialize_template_instance(instance)
 
-    @staticmethod
-    def serialize_report_view(
-        instance: ReportInstance,
-        template_instance: TemplateInstance | None,
+    def generate_report_from_template_instance(
+        self,
         *,
-        template=None,
+        template_instance_id: str,
+        user_id: str,
+        source_conversation_id: str | None,
+        source_chat_id: str | None,
     ) -> dict[str, Any]:
-        if template_instance:
-            base_template = template_instance.base_template
-            template_payload = {
-                "id": template_instance.template_instance_id,
-                "schema_version": template_instance.schema_version or "ti.v1.0",
-                "instance_meta": {
-                    "status": template_instance.status or "",
-                    "revision": max(1, int(template_instance.revision or 1)),
-                    "created_at": str(template_instance.created_at) if template_instance.created_at else None,
-                },
-                "base_template": {
-                    "id": template_instance.template_id,
-                    "name": template_instance.template_name,
-                    "category": (base_template.category if base_template else ""),
-                    "description": (base_template.description if base_template else ""),
-                },
-                "runtime_state": deepcopy(template_instance.runtime_state or {}),
-                "resolved_view": deepcopy(template_instance.resolved_view or {}),
-                "fragments": deepcopy(template_instance.fragments or {}),
-            }
-            generated_content = deepcopy(template_instance.generated_content or {})
-        else:
-            template_payload = {
-                "id": "",
-                "schema_version": "ti.v1.0",
-                "instance_meta": {
-                    "status": str(instance.status or ""),
-                    "revision": 1,
-                    "created_at": str(instance.created_at) if instance.created_at else None,
-                },
-                "base_template": {
-                    "id": str(instance.template_id or ""),
-                    "name": str(getattr(template, "name", "") or ""),
-                    "category": str(getattr(template, "category", "") or ""),
-                    "description": str(getattr(template, "description", "") or ""),
-                },
-                "runtime_state": {},
-                "resolved_view": {
-                    "parameters": deepcopy(instance.input_params or {}),
-                    "outline": deepcopy(instance.outline_content or []),
-                    "sections": deepcopy(instance.outline_content or []),
-                },
-                "fragments": {},
-            }
-            generated_content = {
-                "sections": deepcopy(instance.outline_content or []),
-                "documents": [],
-            }
+        template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
+        if template_instance is None:
+            raise NotFoundError("Template instance not found")
+        template = self.template_repository.get_by_id(template_instance.template_id)
+        if template is None:
+            raise NotFoundError("Template not found")
+
+        report_id = f"rpt_{uuid.uuid4().hex[:12]}"
+        report = build_report_dsl(report_id=report_id, template=template, template_instance=template_instance)
+        _validate_report_dsl(report)
+        resource_status = _resource_status_from_dsl(report)
+        instance = self.report_instance_repository.create(
+            report_id=report_id,
+            template_id=template.id,
+            template_instance_id=template_instance.id,
+            user_id=user_id,
+            source_conversation_id=source_conversation_id,
+            source_chat_id=source_chat_id,
+            status=resource_status,
+            schema_version=report["basicInfo"]["schemaVersion"],
+            report=report,
+        )
+        template_instance.status = "completed"
+        template_instance.capture_stage = "report_ready"
+        updated_template_instance = self.template_instance_repository.update(template_instance, user_id=user_id)
+        return self.serialize_report_answer(instance=instance, template_instance=updated_template_instance)
+
+    def get_report_view(self, report_id: str, *, user_id: str) -> dict[str, Any]:
+        instance = self.report_instance_repository.get(report_id, user_id=user_id)
+        if instance is None:
+            raise NotFoundError("Report not found")
+        template_instance = self.template_instance_repository.get(instance.template_instance_id, user_id=user_id)
+        if template_instance is None:
+            raise NotFoundError("Template instance not found")
         return {
-            "reportId": instance.instance_id,
+            "reportId": instance.id,
             "status": instance.status,
-            "template_instance": template_payload,
-            "generated_content": generated_content,
+            "answerType": "REPORT",
+            "answer": self.serialize_report_answer(instance=instance, template_instance=template_instance),
         }
 
-    def _require_instance(self, instance_id: str, *, user_id: str = "default") -> ReportInstance:
-        instance = self.instance_repository.get(instance_id, user_id=user_id)
-        if not instance:
-            raise NotFoundError("Instance not found")
-        return instance
+    def generate_documents(
+        self,
+        *,
+        report_id: str,
+        user_id: str,
+        formats: list[str],
+        pdf_source: str | None,
+        theme: str,
+        strict_validation: bool,
+        regenerate_if_exists: bool,
+    ) -> dict[str, Any]:
+        report_view = self.get_report_view(report_id, user_id=user_id)
+        answer = report_view["answer"]
+        existing_documents = self.document_repository.list_by_report(report_id)
+        reusable_documents = [] if regenerate_if_exists else [self.document_gateway.serialize_document(item) for item in existing_documents]
+        jobs = []
+        new_documents = []
+
+        request_hash = hashlib.sha1(
+            json.dumps(
+                {
+                    "formats": formats,
+                    "pdfSource": pdf_source,
+                    "theme": theme,
+                    "strictValidation": strict_validation,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+
+        dependency_job_id = None
+        for format_name in formats:
+            job = self.export_job_repository.create(
+                report_instance_id=report_id,
+                current_format=format_name,
+                status="queued",
+                dependency_job_id=dependency_job_id,
+                exporter_backend="java_office_exporter" if format_name in {"word", "ppt", "pdf"} else "local_markdown",
+                request_payload_hash=request_hash,
+            )
+            jobs.append(
+                {
+                    "jobId": job.id,
+                    "format": format_name,
+                    "status": "queued" if dependency_job_id is None else "blocked_by_dependency",
+                    "dependsOn": dependency_job_id,
+                }
+            )
+            artifact = self.document_gateway.generate_document(
+                report=answer["report"],
+                report_id=report_id,
+                format_name=format_name,
+                theme=theme,
+                strict_validation=strict_validation,
+                pdf_source=pdf_source,
+            )
+            document = self.document_repository.create(
+                report_instance_id=report_id,
+                artifact_kind=format_name,
+                source_format=pdf_source if format_name == "pdf" else None,
+                generation_mode="sync",
+                mime_type=artifact["mimeType"],
+                storage_key=artifact["storageKey"],
+                status="ready",
+            )
+            new_documents.append(self.document_gateway.serialize_document(document))
+            dependency_job_id = job.id if format_name in {"word", "ppt"} else dependency_job_id
+
+        return {
+            "reportId": report_id,
+            "jobs": jobs,
+            "documents": reusable_documents + new_documents,
+        }
+
+    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> tuple[dict[str, Any], str]:
+        self.get_report_view(report_id, user_id=user_id)
+        document = self.document_repository.get_for_report(report_id, document_id)
+        if document is None:
+            raise NotFoundError("Document not found")
+        metadata, absolute_path = self.document_gateway.resolve_download(document)
+        return metadata, absolute_path
+
+    def serialize_report_answer(self, *, instance, template_instance: TemplateInstance) -> dict[str, Any]:
+        documents = [self.document_gateway.serialize_document(item) for item in self.document_repository.list_by_report(instance.id)]
+        return {
+            "reportId": instance.id,
+            "status": instance.status,
+            "report": copy.deepcopy(instance.report),
+            "templateInstance": serialize_template_instance(template_instance),
+            "documents": documents,
+            "generationProgress": _build_generation_progress(instance.report),
+        }
 
 
 class ReportDocumentService:
-    def __init__(self, *, document_gateway) -> None:
-        self.document_gateway = document_gateway
+    def __init__(self, *, runtime_service: ReportRuntimeService) -> None:
+        self.runtime_service = runtime_service
 
-    def create_document(self, *, instance_id: str, format_name: str) -> dict[str, Any]:
-        return self.document_gateway.create(instance_id=instance_id, format_name=format_name)
-
-    def list_documents(self, *, instance_id: str | None = None) -> list[dict[str, Any]]:
-        return self.document_gateway.list(instance_id=instance_id)
-
-    def get_document(self, *, document_id: str) -> dict[str, Any]:
-        document = self.document_gateway.get(document_id)
-        if not document:
-            raise NotFoundError("Document not found")
-        return document
-
-    def resolve_download(self, *, document_id: str) -> tuple[dict[str, Any], str]:
-        document, absolute_path = self.document_gateway.resolve_download(document_id)
-        if not document:
-            raise NotFoundError("Document not found")
-        if not absolute_path:
-            raise ValidationError("Document file not found")
-        return document, absolute_path
-
-    def delete_document(self, *, document_id: str) -> dict[str, Any]:
-        deleted = self.document_gateway.delete(document_id)
-        if not deleted:
-            raise NotFoundError("Document not found")
-        return {"message": "deleted"}
+    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> tuple[dict[str, Any], str]:
+        return self.runtime_service.resolve_download(report_id=report_id, document_id=document_id, user_id=user_id)
 
 
-def build_generation_baseline_payload(record: TemplateInstance) -> Dict[str, Any]:
-    baseline_payload = {
-        "schema_version": record.schema_version or "ti.v1.0",
-        "status": record.status,
-        "revision": record.revision,
-        "created_at": str(record.created_at) if record.created_at else None,
-        "template_snapshot": {
-            "id": record.template_id,
-            "name": record.template_name or record.template_id,
-            "category": (record.base_template.category if record.base_template else ""),
-            "description": (record.base_template.description if record.base_template else ""),
-            "parameters": deepcopy(record.base_template.parameters if record.base_template else []),
-            "sections": deepcopy(record.base_template.sections if record.base_template else []),
+def build_report_dsl(*, report_id: str, template: ReportTemplate, template_instance: TemplateInstance) -> dict[str, Any]:
+    catalogs = []
+    report_meta: dict[str, Any] = {}
+    init_telecom_demo_db()
+
+    for catalog in template_instance.catalogs:
+        section_payloads = []
+        for section in catalog.get("sections") or []:
+            components, summary, additional_infos = _build_section_components(section)
+            section_payloads.append(
+                {
+                    "id": section.get("id"),
+                    "title": section.get("title"),
+                    "order": section.get("order") or 1,
+                    "components": components,
+                    "summary": {
+                        "id": f"summary_{section.get('id')}",
+                        "overview": summary,
+                    },
+                }
+            )
+            report_meta[str(section.get("id"))] = {
+                "status": "Success",
+                "question": str((section.get("requirementInstance") or {}).get("text") or ""),
+                "additionalInfos": additional_infos,
+            }
+        catalogs.append(
+            {
+                "id": catalog.get("id"),
+                "name": catalog.get("name"),
+                "order": catalog.get("order") or 1,
+                "sections": section_payloads,
+            }
+        )
+
+    report_name = _build_report_name(template=template, template_instance=template_instance)
+    today = datetime.now(timezone.utc).date().isoformat()
+    report = {
+        "basicInfo": {
+            "id": report_id,
+            "schemaVersion": "1.0.0",
+            "mode": "published",
+            "status": "Success",
+            "name": report_name,
+            "subTitle": today,
+            "description": template.description,
+            "templateId": template.id,
+            "templateName": template.name,
+            "version": "1.0.0",
+            "createDate": today,
+            "modifyDate": today,
+            "creator": "report-system",
+            "modifier": "report-system",
+            "category": template.category,
         },
-        "runtime_state": deepcopy(record.runtime_state or {}),
-        "resolved_view": deepcopy(record.resolved_view or {}),
-        "generated_content": deepcopy(record.generated_content or {}),
-        "fragments": deepcopy(record.fragments or {}),
+        "catalogs": catalogs,
+        "summary": {
+            "id": "summary_report",
+            "overview": _build_report_summary(catalogs),
+        },
+        "reportMeta": report_meta,
+        "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
     }
-    return {
-        "instance_id": record.report_instance_id,
-        "template_id": record.template_id,
-        "template_name": record.template_name or record.template_id,
-        "params_snapshot": deepcopy(record.input_params_snapshot or {}),
-        "outline": deepcopy(record.outline_snapshot or []),
-        "warnings": list(record.warnings or []),
-        "created_at": str(record.created_at),
-        "generation_baseline": baseline_payload,
-    }
+    return report
+
+
+def _build_section_components(section: dict[str, Any]) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]]]:
+    requirement_text = str((section.get("requirementInstance") or {}).get("text") or "")
+    datasets = []
+    additional_infos = []
+    for binding in list(section.get("executionBindings") or []):
+        resolved_query = str(binding.get("resolvedQuery") or "").strip()
+        if resolved_query:
+            additional_infos.append({"type": "SQL", "value": resolved_query})
+
+    # Current implementation compiles deterministic markdown/text content from the requirement and resolved values.
+    components = [
+        {
+            "id": f"component_{section.get('id')}_markdown",
+            "type": "markdown",
+            "dataProperties": {
+                "dataType": "static",
+                "content": _build_markdown_content(section, requirement_text),
+            },
+        }
+    ]
+    summary = requirement_text or str(section.get("title") or "")
+    return components, summary[:160], additional_infos
+
+
+def _build_markdown_content(section: dict[str, Any], requirement_text: str) -> str:
+    lines = [f"## {section.get('title') or ''}".strip(), "", requirement_text or "本章节基于模板诉求自动生成。", ""]
+    items = ((section.get("requirementInstance") or {}).get("items") or [])
+    if items:
+        lines.append("### 诉求要素")
+        lines.append("")
+        for item in items:
+            values = [str(value.get("display") or value.get("value") or "") for value in item.get("resolvedValues") or []]
+            rendered = "、".join([value for value in values if value]) or "未设置"
+            lines.append(f"- {item.get('label')}: {rendered}")
+        lines.append("")
+    lines.append("### 生成说明")
+    lines.append("")
+    lines.append("当前实现按正式模板实例生成报告 DSL，并保留诉求文本与执行绑定证据。")
+    return "\n".join(lines).strip()
+
+
+def _build_report_name(*, template: ReportTemplate, template_instance: TemplateInstance) -> str:
+    first_values = []
+    for values in template_instance.parameter_values.values():
+        if values:
+            first_values.append(str(values[0].get("display") or values[0].get("value") or ""))
+        if len(first_values) >= 2:
+            break
+    suffix = " ".join([value for value in first_values if value])
+    if suffix:
+        return f"{suffix} {template.name}".strip()
+    return template.name
+
+
+def _build_report_summary(catalogs: list[dict[str, Any]]) -> str:
+    section_titles = [
+        str(section.get("title") or "")
+        for catalog in catalogs
+        for section in list(catalog.get("sections") or [])
+        if str(section.get("title") or "").strip()
+    ]
+    if not section_titles:
+        return "报告已生成。"
+    return f"报告已生成，共包含 {len(section_titles)} 个章节：{'、'.join(section_titles[:5])}"
+
+
+def _resource_status_from_dsl(report: dict[str, Any]) -> str:
+    status = str((((report.get("basicInfo") or {}).get("status")) or "")).strip()
+    if status == "Running":
+        return "generating"
+    if status == "Failed":
+        return "failed"
+    return "available"
+
+
+def _build_generation_progress(report: dict[str, Any]) -> dict[str, int]:
+    total = sum(len(list(catalog.get("sections") or [])) for catalog in list(report.get("catalogs") or []))
+    return {"totalSections": total, "completedSections": total}
+
+
+def _validate_report_dsl(report: dict[str, Any]) -> None:
+    errors = sorted(REPORT_VALIDATOR.iter_errors(report), key=lambda item: list(item.absolute_path))
+    if not errors:
+        return
+    error = errors[0]
+    path = ".".join(str(part) for part in error.absolute_path)
+    if path:
+        raise ValidationError(f"报告 DSL 校验失败: {path} {error.message}")
+    raise ValidationError(f"报告 DSL 校验失败: {error.message}")

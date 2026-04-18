@@ -1,220 +1,192 @@
-export type ChatCandidate = {
-  template_id: string;
-  template_name: string;
-  category?: string;
+export type TrioValue = {
+  display: string | number | boolean;
+  value: string | number | boolean;
+  query: string | number | boolean;
+};
+
+export type TemplateParameterProjection = {
+  id: string;
+  label: string;
   description?: string;
-  score?: number;
-  score_label?: string;
-  match_reasons?: string[];
+  inputType: "free_text" | "date" | "enum" | "dynamic";
+  required: boolean;
+  multi: boolean;
+  interactionMode: "form" | "natural_language";
+  valueMode: "display" | "value" | "query";
+  placeholder?: string;
+  defaultValue?: TrioValue[];
+  options?: TrioValue[];
+  openSource?: { url: string };
 };
 
-export type AskParamAction = {
-  type: "ask_param";
-  template_name?: string;
-  param: {
+export type TemplateInstance = {
+  id: string;
+  schemaVersion: string;
+  templateId: string;
+  conversationId: string;
+  chatId?: string;
+  status:
+    | "draft"
+    | "collecting_parameters"
+    | "ready_for_confirmation"
+    | "confirmed"
+    | "generating"
+    | "completed"
+    | "failed";
+  captureStage: "fill_params" | "confirm_params" | "generate_report" | "report_ready";
+  revision: number;
+  parameterValues: Record<string, TrioValue[]>;
+  catalogs: Array<{
     id: string;
-    label: string;
-    input_type?: string;
-    multi?: boolean;
-    options?: string[];
-  };
-  widget: {
-    kind: "text" | "date" | "single_select" | "multi_select";
-  };
-  selected_values?: string[];
-  progress?: {
-    collected: number;
-    required: number;
-  };
-};
-
-export type ReviewParamsAction = {
-  type: "review_params";
-  template_id?: string;
-  template_name?: string;
-  params: Array<{
-    id: string;
-    label: string;
-    value: string | string[];
-    required: boolean;
-  }>;
-  missing_required: string[];
-};
-
-export type OutlineNode = {
-  node_id: string;
-  title: string;
-  description: string;
-  level: number;
-  children: OutlineNode[];
-  outline_mode?: "structured" | "freeform";
-  dynamic_meta?: Record<string, unknown>;
-  display_text?: string;
-  ai_generated?: boolean;
-  node_kind?: "group" | "structured_leaf" | "freeform_leaf";
-  requirement_instance?: {
-    requirement?: string;
-    rendered_requirement?: string;
-    segments?: Array<
-      | { kind: "text"; text: string }
-      | { kind: "item"; item_id: string; item_type?: string; value?: string }
-    >;
-    items?: Array<{
+    name: string;
+    description?: string;
+    order?: number;
+    sections: Array<{
       id: string;
-      type?: string;
-      hint?: string;
-      value?: string;
-      default?: string;
-      param_id?: string;
-      widget?: string;
-      source?: string;
-      options?: string[];
+      title: string;
+      description?: string;
+      order?: number;
+      requirementInstance: {
+        text: string;
+        items: Array<{
+          id: string;
+          label: string;
+          kind: string;
+          resolvedValues: TrioValue[];
+          bindingSource: "parameter" | "user_input" | "system_fill";
+          sourceParameterId?: string;
+        }>;
+      };
+      executionBindings: Array<{
+        id: string;
+        bindingType: string;
+        sourceType: string;
+        targetRef: string;
+        multiValueQueryMode?: string;
+        queryTemplate?: string;
+        resolvedQuery?: string;
+        notes?: string;
+      }>;
+      skeletonStatus: "reusable" | "conditionally_reusable" | "broken";
+      userEdited: boolean;
     }>;
-  };
-  execution_bindings?: Array<{
-    item_id: string;
-    targets: string[];
   }>;
+  deltaViews: Array<{
+    targetType: string;
+    targetId: string;
+    changeKind: string;
+    payload?: Record<string, unknown>;
+  }>;
+  templateSkeletonStatus: {
+    internal: "reusable" | "conditionally_reusable" | "broken";
+    ui: "not_broken" | "broken";
+  };
+  warnings?: Array<{ code: string; message: string; targetId?: string }>;
+  createdAt: string;
+  updatedAt: string;
 };
 
-export type ReviewOutlineAction = {
-  type: "review_outline";
-  template_id?: string;
-  template_name?: string;
-  outline: OutlineNode[];
-  warnings: string[];
-  params_snapshot: Array<{
+export type ReportAnswerPayload = {
+  reportId: string;
+  status: "generating" | "available" | "failed";
+  report: Record<string, unknown>;
+  templateInstance: TemplateInstance;
+  documents: Array<{
     id: string;
-    label: string;
-    value: string | string[];
+    format: string;
+    mimeType: string;
+    fileName: string;
+    downloadUrl: string;
+    status: string;
   }>;
-};
-
-export type ShowTemplateCandidatesAction = {
-  type: "show_template_candidates";
-  selected_template_id?: string;
-  candidates: ChatCandidate[];
-};
-
-export type DownloadDocumentAction = {
-  type: "download_document";
-  report_id?: string;
-  template_instance_id?: string;
-  document: {
-    document_id: string;
-    file_name?: string;
-    download_url?: string;
+  generationProgress: {
+    totalSections: number;
+    completedSections: number;
   };
 };
 
-export type ConfirmTaskSwitchAction = {
-  type: "confirm_task_switch";
-  from_capability: "report_generation" | "smart_query" | "fault_diagnosis";
-  to_capability: "report_generation" | "smart_query" | "fault_diagnosis";
-  reason: string;
-};
-
-export type ChatAction =
-  | AskParamAction
-  | ReviewParamsAction
-  | ReviewOutlineAction
-  | ShowTemplateCandidatesAction
-  | DownloadDocumentAction
-  | ConfirmTaskSwitchAction;
-
-export type ChatForkMeta = {
-  source_kind: "session_message" | "update_from_instance";
-  source_title: string;
-  source_preview: string;
-  source_session_id?: string;
-  source_message_id?: string;
-  source_report_instance_id?: string;
-};
-
-export type ChatSessionPayload = {
-  session_id: string;
-  title?: string;
-  matched_template_id?: string | null;
-  fork_meta?: ChatForkMeta | null;
-  draft_message?: string;
-  messages: Array<{
-    role: "user" | "assistant";
-    content: string;
-    action?: ChatAction | null;
-    created_at?: string;
-    message_id?: string;
-    meta?: unknown;
+export type ChatAsk = {
+  mode: "form" | "natural_language";
+  type: "fill_params" | "confirm_params";
+  title: string;
+  text: string;
+  parameters: Array<{
+    parameter: TemplateParameterProjection;
+    currentValue: TrioValue[];
   }>;
+  reportContext: {
+    templateInstance: TemplateInstance;
+  };
 };
 
-export type ChatMessageItem = {
-  role: "user" | "assistant";
-  content: string;
-  action?: ChatAction | null;
-  created_at?: string;
-  message_id?: string;
-};
-
-export type ChatSessionSummary = {
-  session_id: string;
-  title: string;
-  created_at?: string | null;
-  updated_at?: string | null;
-  message_count: number;
-  last_message_preview: string;
-  matched_template_id?: string | null;
-  fork_meta?: ChatForkMeta | null;
-};
-
-export type ChatSessionDetail = {
-  session_id: string;
-  title?: string;
-  matched_template_id?: string | null;
-  fork_meta?: ChatForkMeta | null;
-  messages: ChatSessionPayload["messages"];
-};
 export type ChatResponse = {
-  session_id: string;
-  reply: string;
-  title?: string;
-  action?: ChatAction | null;
-  matched_template_id?: string | null;
-  fork_meta?: ChatForkMeta | null;
-  messages?: ChatSessionPayload["messages"];
+  conversationId: string;
+  chatId: string;
+  status: "waiting_user" | "finished" | "failed";
+  steps: unknown[];
+  ask: ChatAsk | null;
+  answer:
+    | {
+        answerType: "REPORT_TEMPLATE";
+        answer: {
+          normalizedTemplate: Record<string, unknown>;
+          warnings: Array<{ code: string; message: string; path?: string }>;
+          persisted: false;
+        };
+      }
+    | {
+        answerType: "REPORT";
+        answer: ReportAnswerPayload;
+      }
+    | null;
+  errors: unknown[];
+  requestId?: string;
+  timestamp: number;
+  apiVersion: string;
 };
 
-export type ChatForkResponse = {
-  session_id: string;
+export type ConversationSummary = {
+  conversationId: string;
   title: string;
-  matched_template_id?: string | null;
-  messages: ChatSessionPayload["messages"];
-  draft_message?: string;
-  fork_meta?: ChatForkMeta | null;
+  status: string;
+  updatedAt?: string | null;
+  lastMessagePreview?: string;
+};
+
+export type ConversationDetail = {
+  conversationId: string;
+  title?: string;
+  status?: string;
+  messages: Array<{
+    chatId: string;
+    role: "user" | "assistant";
+    content: Record<string, unknown>;
+    action?: Record<string, unknown> | null;
+    meta?: Record<string, unknown> | null;
+    createdAt?: string | null;
+  }>;
 };
 
 export type ChatRequest = {
-  message?: string;
-  session_id?: string;
-  preferred_capability?: "report_generation" | "smart_query" | "fault_diagnosis";
-  selected_template_id?: string;
-  param_id?: string;
-  param_value?: string;
-  param_values?: string[];
-  command?:
-    | "prepare_outline_review"
-    | "edit_outline"
-    | "confirm_outline_generation"
-    | "confirm_generation"
-    | "reset_params"
-    | "edit_param"
-    | "confirm_task_switch"
-    | "cancel_task_switch";
-  target_param_id?: string;
-  outline_override?: OutlineNode[];
+  conversationId?: string;
+  chatId?: string;
+  question?: string;
+  instruction?: "generate_report" | "extract_report_template";
+  reply?: {
+    type: "fill_params" | "confirm_params";
+    parameters?: Record<string, TrioValue[]>;
+    reportContext?: {
+      templateInstance: TemplateInstance;
+    };
+  } | null;
+  attachments?: Array<Record<string, unknown>>;
+  histories?: Array<Record<string, unknown>>;
+  requestId?: string;
+  apiVersion?: "v1";
 };
 
 export type ChatForkRequest = {
-  source_kind: "session_message";
-  source_session_id?: string;
-  source_message_id?: string;
+  source_kind: string;
+  source_conversation_id?: string;
+  source_chat_id?: string;
 };

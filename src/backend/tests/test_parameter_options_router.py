@@ -3,93 +3,60 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
-from backend.contexts.template_catalog.application.parameter_options import ParameterOptionService
 from backend.routers.parameter_options import ParameterOptionsResolveRequest, resolve_parameter_options
 
 
 class ParameterOptionsRouterTests(unittest.TestCase):
-    def test_resolve_parameter_options_returns_label_value_query_items(self):
-        with patch("backend.routers.parameter_options.build_parameter_option_service") as build_service:
-            build_service.return_value.resolve.return_value = {
-                "items": [{"label": "华东一大区", "value": "EAST_1", "query": "EAST_1"}],
-                "meta": {"source": "api:/devices/list", "limit": 10, "returned": 1, "has_more": False, "truncated": False},
-            }
+    def test_resolve_parameter_options_returns_formal_option_payload(self):
+        fake_service = type(
+            "FakeService",
+            (),
+            {
+                "resolve": lambda self, **_kwargs: {
+                    "options": [{"display": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
+                    "defaultValue": [],
+                }
+            },
+        )()
 
+        with patch("backend.routers.parameter_options.build_parameter_option_service", return_value=fake_service):
             payload = resolve_parameter_options(
                 ParameterOptionsResolveRequest(
-                    template_id="tpl-1",
-                    param_id="region",
-                    source="api:/devices/list",
-                    query="华东",
-                    selected_params={"scene": "总部"},
-                    limit=10,
+                    parameterId="scope",
+                    openSource={"url": "https://example.internal/api/network/scopes/options"},
+                    contextValues={
+                        "report_date": [
+                            {"display": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}
+                        ]
+                    },
                 ),
                 db=None,
                 user_id="default",
             )
 
-        self.assertEqual(payload["items"][0]["label"], "华东一大区")
-        self.assertEqual(payload["items"][0]["value"], "EAST_1")
-        self.assertEqual(payload["items"][0]["query"], "EAST_1")
+        self.assertEqual(payload["options"][0]["display"], "总部网络")
+        self.assertEqual(payload["options"][0]["query"], "scope_id = 'hq-network'")
 
     def test_resolve_parameter_options_maps_validation_error_to_http_400(self):
-        with patch("backend.routers.parameter_options.build_parameter_option_service") as build_service:
-            build_service.return_value.resolve.side_effect = ValueError("limit too large")
+        fake_service = type(
+            "FakeService",
+            (),
+            {"resolve": lambda self, **_kwargs: (_ for _ in ()).throw(ValueError("invalid parameter option request"))},
+        )()
 
+        with patch("backend.routers.parameter_options.build_parameter_option_service", return_value=fake_service):
             with self.assertRaises(HTTPException) as ctx:
                 resolve_parameter_options(
-                    ParameterOptionsResolveRequest(param_id="region", source="api:/devices/list"),
+                    ParameterOptionsResolveRequest(
+                        parameterId="scope",
+                        openSource={"url": "https://example.internal/api/network/scopes/options"},
+                        contextValues={},
+                    ),
                     db=None,
                     user_id="default",
                 )
 
         self.assertEqual(ctx.exception.status_code, 400)
-
-
-class ParameterOptionServiceTests(unittest.TestCase):
-    def test_resolve_demo_source_returns_query_channel(self):
-        payload = ParameterOptionService().resolve(
-            user_id="default",
-            template_id="tpl-1",
-            param_id="region",
-            source="api:/devices/list",
-            limit=2,
-        )
-
-        self.assertTrue(payload["items"])
-        self.assertIn("query", payload["items"][0])
-
-    def test_resolve_http_source_returns_empty_items_when_query_channel_missing(self):
-        service = ParameterOptionService()
-
-        class FakeResponse:
-            def raise_for_status(self):
-                return None
-
-            def json(self):
-                return {"items": [{"label": "华东一大区", "value": "EAST_1"}], "has_more": False}
-
-        class FakeClient:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def post(self, *_args, **_kwargs):
-                return FakeResponse()
-
-        with patch("backend.contexts.template_catalog.application.parameter_options.httpx.Client", return_value=FakeClient()):
-            payload = service.resolve(
-                user_id="default",
-                template_id="tpl-1",
-                param_id="region",
-                source="https://example.com/regions",
-                limit=2,
-            )
-
-        self.assertEqual(payload["items"], [])
-        self.assertEqual(payload["meta"]["error_code"], "PARAM_SOURCE_RESPONSE_INVALID")
 
 
 if __name__ == "__main__":

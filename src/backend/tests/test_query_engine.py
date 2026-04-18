@@ -47,8 +47,7 @@ class QueryEngineTests(unittest.TestCase):
             template_context={
                 "name": "测试模板",
                 "description": "测试描述",
-                "report_type": "daily",
-                "scenario": "测试场景",
+                "category": "operations",
             },
             section={
                 "title": "站点列表",
@@ -57,7 +56,7 @@ class QueryEngineTests(unittest.TestCase):
             params={"date": "2026-03-06"},
         )
 
-    def test_run_query_legacy_strategy_uses_single_generation_step(self):
+    def test_run_query_single_pass_strategy_uses_single_generation_step(self):
         gateway = FakeGateway(
             [
                 'result = tables["dim_site"].select("site_name").limit(2)',
@@ -68,10 +67,10 @@ class QueryEngineTests(unittest.TestCase):
             gateway=gateway,
             config=self.config,
             request=self.request,
-            strategy="legacy",
+            strategy="single_pass",
         )
 
-        self.assertEqual(result.debug["strategy"], "legacy")
+        self.assertEqual(result.debug["strategy"], "single_pass")
         self.assertEqual(result.debug["attempts"], 1)
         self.assertEqual(result.debug["query_spec"], {})
         self.assertIn("dim_site", result.compiled_sql)
@@ -159,8 +158,7 @@ class SectionQueryServiceStrategyTests(unittest.TestCase):
         self.template_context = {
             "name": "设备巡检报告",
             "description": "每日巡检",
-            "report_type": "daily",
-            "scenario": "总部",
+            "category": "operations",
         }
         self.section = {"title": "站点列表", "description": "查询站点"}
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -14,13 +14,14 @@ from ..shared.kernel.errors import ValidationError
 router = APIRouter(prefix="/parameter-options", tags=["parameter-options"])
 
 
+class OpenSourcePayload(BaseModel):
+    url: str
+
+
 class ParameterOptionsResolveRequest(BaseModel):
-    template_id: Optional[str] = None
-    param_id: str
-    source: str
-    query: Optional[str] = None
-    selected_params: Optional[dict[str, Any]] = None
-    limit: Optional[int] = None
+    parameterId: str
+    openSource: OpenSourcePayload
+    contextValues: dict[str, list[dict[str, Any]]]
 
 
 def build_parameter_option_service(_db: Session | None = None) -> ParameterOptionService:
@@ -36,12 +37,9 @@ def resolve_parameter_options(
     try:
         return build_parameter_option_service(db).resolve(
             user_id=user_id,
-            template_id=data.template_id,
-            param_id=data.param_id,
-            source=data.source,
-            query=data.query,
-            selected_params=data.selected_params,
-            limit=data.limit,
+            parameter_id=data.parameterId,
+            open_source=data.openSource.model_dump(),
+            context_values=data.contextValues,
         )
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

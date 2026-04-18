@@ -2,45 +2,68 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List
-
-from ...template_catalog.domain.models import ReportTemplate
+from typing import Any
 
 
 @dataclass(slots=True)
-class ReportInstance:
-    instance_id: str
+class TemplateInstance:
+    id: str
+    schema_version: str
     template_id: str
+    conversation_id: str
+    chat_id: str | None
     status: str
-    user_id: str = "default"
-    source_session_id: str | None = None
-    source_message_id: str | None = None
-    input_params: dict[str, Any] = field(default_factory=dict)
-    outline_content: list[Any] = field(default_factory=list)
-    report_time: datetime | None = None
-    report_time_source: str = ""
+    capture_stage: str
+    revision: int
+    parameter_values: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    catalogs: list[dict[str, Any]] = field(default_factory=list)
+    delta_views: list[dict[str, Any]] = field(default_factory=list)
+    template_skeleton_status: dict[str, str] = field(default_factory=dict)
+    warnings: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 @dataclass(slots=True)
-class TemplateInstance:
-    template_instance_id: str
+class ReportInstance:
+    id: str
     template_id: str
-    template_name: str
-    session_id: str
-    capture_stage: str
-    base_template: ReportTemplate | None = None
-    schema_version: str = "ti.v1.0"
-    status: str = "draft"
-    revision: int = 1
-    input_params_snapshot: dict[str, Any] = field(default_factory=dict)
-    outline_snapshot: list[dict[str, Any]] = field(default_factory=list)
-    resolved_view: dict[str, Any] = field(default_factory=dict)
-    runtime_state: dict[str, Any] = field(default_factory=dict)
-    generated_content: dict[str, Any] = field(default_factory=dict)
-    fragments: dict[str, Any] = field(default_factory=dict)
-    warnings: list[str] = field(default_factory=list)
-    report_instance_id: str | None = None
+    template_instance_id: str
+    user_id: str
+    source_conversation_id: str | None
+    source_chat_id: str | None
+    status: str
+    schema_version: str
+    report: dict[str, Any]
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
+
+@dataclass(slots=True)
+class DocumentArtifact:
+    id: str
+    report_instance_id: str
+    artifact_kind: str
+    source_format: str | None
+    generation_mode: str
+    mime_type: str
+    storage_key: str
+    status: str
+    error_message: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class ExportJob:
+    id: str
+    report_instance_id: str
+    current_format: str
+    status: str
+    dependency_job_id: str | None = None
+    exporter_backend: str = "local"
+    request_payload_hash: str = ""
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error_code: str | None = None
+    error_message: str | None = None

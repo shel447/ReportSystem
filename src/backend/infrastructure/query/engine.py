@@ -21,8 +21,8 @@ from ..demo.telecom import (
 MAX_QUERY_RETRIES = 3
 MAX_SAMPLE_ROWS = 10
 MAX_RESULT_ROWS_HINT = 50
-DEFAULT_QUERY_STRATEGY = "legacy"
-VALID_QUERY_STRATEGIES = {"legacy", "ibis_planner"}
+DEFAULT_QUERY_STRATEGY = "single_pass"
+VALID_QUERY_STRATEGIES = {"single_pass", "ibis_planner"}
 
 _ALLOWED_METHODS = {
     "aggregate",
@@ -227,8 +227,8 @@ def run_query(
         schema_candidates=schema_candidates,
     )
 
-    if effective_strategy == "legacy":
-        return _run_legacy_query(gateway=gateway, config=config, request=request, debug=debug)
+    if effective_strategy == "single_pass":
+        return _run_single_pass_query(gateway=gateway, config=config, request=request, debug=debug)
     return _run_ibis_planner_query(gateway=gateway, config=config, request=request, debug=debug)
 
 
@@ -277,7 +277,7 @@ def build_schema_candidates(request: QueryRequest, *, limit: int = 5) -> List[Di
     return candidates[:limit]
 
 
-def _run_legacy_query(
+def _run_single_pass_query(
     *,
     gateway: OpenAICompatGateway,
     config: ProviderConfig,
@@ -300,7 +300,7 @@ def _run_legacy_query(
                         "你只能输出 Python 代码，不要解释，不要 Markdown 围栏。"
                     ),
                 },
-                {"role": "user", "content": _build_legacy_query_prompt(request.nl_request, last_error)},
+                {"role": "user", "content": _build_single_pass_query_prompt(request.nl_request, last_error)},
             ],
             temperature=min(config.temperature, 0.1),
             max_tokens=900,
@@ -481,7 +481,7 @@ def execute_ibis_code(code: str) -> QueryExecutionResult:
     )
 
 
-def _build_legacy_query_prompt(nl_request: str, last_error: str) -> str:
+def _build_single_pass_query_prompt(nl_request: str, last_error: str) -> str:
     retry_hint = ""
     if last_error:
         retry_hint = f"\n上一次生成失败，失败原因如下，请修正：\n{last_error}\n"

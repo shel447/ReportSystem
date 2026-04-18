@@ -1,55 +1,42 @@
-"""报告模板路由"""
+from __future__ import annotations
+
 import json
 import re
+from typing import Any
 from urllib.parse import quote
-from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..infrastructure.persistence.database import get_db
 from ..infrastructure.dependencies import build_template_catalog_service
-from ..contexts.template_catalog.application.services import TemplateCatalogService
-from ..contexts.template_catalog.infrastructure.repositories import TemplateSchemaGateway
-from ..shared.kernel.errors import NotFoundError, ValidationError
+from ..infrastructure.persistence.database import get_db
+from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
 
-class TemplateCreate(BaseModel):
+class TemplateUpsertRequest(BaseModel):
     id: str
+    category: str
     name: str
-    description: str = ""
-    category: str = ""
-    parameters: List[Any] = []
-    sections: List[Any] = []
-
-
-class TemplateUpdate(BaseModel):
-    id: Optional[str] = None
-    name: Optional[str] = None
-    description: Optional[str] = None
-    category: Optional[str] = None
-    parameters: Optional[List[Any]] = None
-    sections: Optional[List[Any]] = None
+    description: str
+    schemaVersion: str
+    parameters: list[dict[str, Any]]
+    catalogs: list[dict[str, Any]]
 
 
 class TemplateImportPreviewRequest(BaseModel):
-    payload: dict[str, Any]
-    filename: Optional[str] = None
-
-
-def _clean_template_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    service = TemplateCatalogService(repository=None, matcher=None, schema_gateway=TemplateSchemaGateway())
-    return service._clean_payload(dict(payload))
+    content: Any
 
 
 @router.post("")
-def create_template(data: TemplateCreate, db: Session = Depends(get_db)):
+def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
     service = build_template_catalog_service(db)
     try:
         return service.create_template(data.model_dump())
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -67,34 +54,15 @@ def get_template(template_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.get("/{template_id}/export")
-def export_template_definition(template_id: str, db: Session = Depends(get_db)):
-    try:
-        payload, filename = build_template_catalog_service(db).export_template(template_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(
-        content=json.dumps(payload, ensure_ascii=False, indent=2),
-        media_type="application/json",
-        headers={"Content-Disposition": _build_download_header(filename)},
-    )
-
-
-@router.post("/import/preview")
-def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
-    try:
-        return build_template_catalog_service(db).preview_import_template(data.payload, data.filename)
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 @router.put("/{template_id}")
-def update_template(template_id: str, data: TemplateUpdate, db: Session = Depends(get_db)):
+def update_template(template_id: str, data: TemplateUpsertRequest, db: Session = Depends(get_db)):
     service = build_template_catalog_service(db)
     try:
-        return service.update_template(template_id, data.model_dump(exclude_none=True))
+        return service.update_template(template_id, data.model_dump())
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -106,6 +74,27 @@ def delete_template(template_id: str, db: Session = Depends(get_db)):
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"message": "deleted"}
+
+
+@router.post("/import/preview")
+def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
+    try:
+        return build_template_catalog_service(db).preview_import_template(data.content)
+    except ValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/{template_id}/export")
+def export_template_definition(template_id: str, db: Session = Depends(get_db)):
+    try:
+        payload, filename = build_template_catalog_service(db).export_template(template_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": _build_download_header(filename)},
+    )
 
 
 def _build_download_header(filename: str) -> str:

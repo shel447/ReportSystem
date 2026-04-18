@@ -45,3 +45,6 @@ node_modules/
 *.out.log
 *.err.log
 uvicorn*.log
+output/
+services/java-office-exporter/artifacts/
+src/backend/contexts/report_runtime/infrastructure/generated_documents/
