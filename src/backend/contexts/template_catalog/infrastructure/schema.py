@@ -1,3 +1,5 @@
+"""唯一报告模板定义契约的结构校验辅助函数。"""
+
 from __future__ import annotations
 
 import copy
@@ -41,18 +43,21 @@ _PARAMETER_OPTION_RESPONSE_VALIDATOR = Draft202012Validator(
 
 
 def validate_report_template(payload: dict[str, Any]) -> dict[str, Any]:
+    """校验设计资料包定义的正式报告模板契约。"""
     candidate = copy.deepcopy(payload or {})
     _raise_first_error(_TEMPLATE_VALIDATOR, candidate, "模板定义校验失败")
     return candidate
 
 
 def validate_template_instance(payload: dict[str, Any]) -> dict[str, Any]:
+    """按设计原样校验运行时模板实例契约。"""
     candidate = copy.deepcopy(payload or {})
     _raise_first_error(_TEMPLATE_INSTANCE_VALIDATOR, candidate, "模板实例校验失败")
     return candidate
 
 
 def validate_parameter_option_source_response(payload: dict[str, Any]) -> dict[str, Any]:
+    """先归一化可选字段，再校验动态选项响应契约。"""
     candidate = copy.deepcopy(payload or {})
     options = candidate.get("options")
     default_value = candidate.get("defaultValue")
@@ -65,6 +70,8 @@ def validate_parameter_option_source_response(payload: dict[str, Any]) -> dict[s
 
 
 def _raise_first_error(validator: Draft202012Validator, payload: dict[str, Any], prefix: str) -> None:
+    # 只暴露第一条错误，这样接口返回的是单一、明确的契约失败，
+    # 不会把校验器内部细节泄漏到路由层。
     errors = sorted(validator.iter_errors(payload), key=lambda item: list(item.absolute_path))
     if not errors:
         return

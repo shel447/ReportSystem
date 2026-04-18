@@ -1,3 +1,5 @@
+"""报告运行时聚合的领域模型：模板实例、报告实例与导出产物。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,6 +9,8 @@ from typing import Any
 
 @dataclass(slots=True)
 class TemplateInstance:
+    """运行时聚合，持续维护一条报告对话对应的模板实例状态。"""
+
     id: str
     schema_version: str
     template_id: str
@@ -26,6 +30,8 @@ class TemplateInstance:
 
 @dataclass(slots=True)
 class ReportInstance:
+    """冻结后的报告资源，内部承载最终报告结构。"""
+
     id: str
     template_id: str
     template_instance_id: str
@@ -41,6 +47,8 @@ class ReportInstance:
 
 @dataclass(slots=True)
 class DocumentArtifact:
+    """报告作用域下的导出文件元数据。"""
+
     id: str
     report_instance_id: str
     artifact_kind: str
@@ -56,6 +64,8 @@ class DocumentArtifact:
 
 @dataclass(slots=True)
 class ExportJob:
+    """文档导出流水线中单一格式的一次执行记录。"""
+
     id: str
     report_instance_id: str
     current_format: str

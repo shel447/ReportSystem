@@ -1,3 +1,5 @@
+"""定时任务聚合及其执行历史的持久化适配器。"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -9,6 +11,8 @@ from ....infrastructure.persistence.models import ScheduledTask as ScheduledTask
 
 
 class SqlAlchemyScheduledTaskRepository:
+    """定时任务聚合的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -63,6 +67,7 @@ class SqlAlchemyScheduledTaskRepository:
         return True
 
     def record_success(self, task_id: str, run_at: datetime, *, complete_once: bool) -> None:
+        # 成功计数直接落在任务行上，列表页无需扫描执行历史也能展示运行健康度。
         row = self.db.query(ScheduledTaskModel).filter(ScheduledTaskModel.task_id == task_id).first()
         if not row:
             return
@@ -84,6 +89,8 @@ class SqlAlchemyScheduledTaskRepository:
 
 
 class SqlAlchemyTaskExecutionRepository:
+    """任务执行历史的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -124,6 +131,7 @@ class SqlAlchemyTaskExecutionRepository:
 
 
 def _to_task(row: ScheduledTaskModel) -> ScheduledTask:
+    """把持久化行对象映射为调度领域模型。"""
     return ScheduledTask(
         task_id=row.task_id,
         user_id=row.user_id,

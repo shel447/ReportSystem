@@ -1,3 +1,5 @@
+"""报告运行时应用服务，负责将模板实例冻结为报告和导出文档。"""
+
 from __future__ import annotations
 
 import copy
@@ -23,6 +25,8 @@ REPORT_VALIDATOR = Draft202012Validator(REPORT_SCHEMA)
 
 
 class ReportRuntimeService:
+    """负责模板实例冻结与报告导出的应用服务。"""
+
     def __init__(
         self,
         *,
@@ -41,6 +45,7 @@ class ReportRuntimeService:
         self.document_gateway = document_gateway
 
     def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> dict[str, Any]:
+        """创建或更新流程中唯一被跟踪的模板实例。"""
         existing = self.template_instance_repository.get(instance.id, user_id=user_id)
         saved = (
             self.template_instance_repository.update(instance, user_id=user_id)
@@ -63,6 +68,7 @@ class ReportRuntimeService:
         source_conversation_id: str | None,
         source_chat_id: str | None,
     ) -> dict[str, Any]:
+        """将已确认的模板实例冻结为正式报告结构与报告资源。"""
         template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
         if template_instance is None:
             raise NotFoundError("Template instance not found")
@@ -91,6 +97,7 @@ class ReportRuntimeService:
         return self.serialize_report_answer(instance=instance, template_instance=updated_template_instance)
 
     def get_report_view(self, report_id: str, *, user_id: str) -> dict[str, Any]:
+        """返回公开的报告聚合视图。"""
         instance = self.report_instance_repository.get(report_id, user_id=user_id)
         if instance is None:
             raise NotFoundError("Report not found")
@@ -115,6 +122,7 @@ class ReportRuntimeService:
         strict_validation: bool,
         regenerate_if_exists: bool,
     ) -> dict[str, Any]:
+        """生成报告作用域下的文档产物及对应导出任务。"""
         report_view = self.get_report_view(report_id, user_id=user_id)
         answer = report_view["answer"]
         existing_documents = self.document_repository.list_by_report(report_id)
@@ -137,6 +145,7 @@ class ReportRuntimeService:
 
         dependency_job_id = None
         for format_name in formats:
+            # 导出任务只负责记录编排顺序，实际文件生成下沉到文档网关。
             job = self.export_job_repository.create(
                 report_instance_id=report_id,
                 current_format=format_name,
@@ -180,6 +189,7 @@ class ReportRuntimeService:
         }
 
     def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> tuple[dict[str, Any], str]:
+        """在不暴露独立文档资源的前提下解析报告范围下载。"""
         self.get_report_view(report_id, user_id=user_id)
         document = self.document_repository.get_for_report(report_id, document_id)
         if document is None:
@@ -188,6 +198,7 @@ class ReportRuntimeService:
         return metadata, absolute_path
 
     def serialize_report_answer(self, *, instance, template_instance: TemplateInstance) -> dict[str, Any]:
+        """保持聊天报告响应与报告详情载荷结构一致。"""
         documents = [self.document_gateway.serialize_document(item) for item in self.document_repository.list_by_report(instance.id)]
         return {
             "reportId": instance.id,
@@ -200,6 +211,8 @@ class ReportRuntimeService:
 
 
 class ReportDocumentService:
+    """面向报告范围文档下载的轻量应用门面。"""
+
     def __init__(self, *, runtime_service: ReportRuntimeService) -> None:
         self.runtime_service = runtime_service
 
@@ -208,6 +221,7 @@ class ReportDocumentService:
 
 
 def build_report_dsl(*, report_id: str, template: ReportTemplate, template_instance: TemplateInstance) -> dict[str, Any]:
+    """把已确认的模板实例编译成正式报告载荷。"""
     catalogs = []
     report_meta: dict[str, Any] = {}
     init_telecom_demo_db()
@@ -275,14 +289,14 @@ def build_report_dsl(*, report_id: str, template: ReportTemplate, template_insta
 
 def _build_section_components(section: dict[str, Any]) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]]]:
     requirement_text = str((section.get("requirementInstance") or {}).get("text") or "")
-    datasets = []
     additional_infos = []
     for binding in list(section.get("executionBindings") or []):
         resolved_query = str(binding.get("resolvedQuery") or "").strip()
         if resolved_query:
             additional_infos.append({"type": "SQL", "value": resolved_query})
 
-    # Current implementation compiles deterministic markdown/text content from the requirement and resolved values.
+    # 当前运行时保持确定性生成：把正式诉求状态编译成文稿区块，
+    # 并把已解析的执行绑定作为证据写入附加信息。
     components = [
         {
             "id": f"component_{section.get('id')}_markdown",
@@ -354,6 +368,7 @@ def _build_generation_progress(report: dict[str, Any]) -> dict[str, int]:
 
 
 def _validate_report_dsl(report: dict[str, Any]) -> None:
+    """若冻结后的报告不再满足公开结构约束，则立即失败。"""
     errors = sorted(REPORT_VALIDATOR.iter_errors(report), key=lambda item: list(item.absolute_path))
     if not errors:
         return

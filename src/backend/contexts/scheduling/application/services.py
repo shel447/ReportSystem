@@ -1,3 +1,5 @@
+"""内部调度流程与立即执行路径的应用服务。"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,6 +13,8 @@ MAX_TASKS_GLOBAL = 100
 
 
 class SchedulingService:
+    """负责定时任务生命周期与立即执行的应用服务。"""
+
     def __init__(self, *, task_repository, execution_repository, scheduled_instance_creator, document_service, clock) -> None:
         self.task_repository = task_repository
         self.execution_repository = execution_repository
@@ -19,6 +23,7 @@ class SchedulingService:
         self.clock = clock
 
     def create_task(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """在校验用户与全局配额后创建定时任务。"""
         user_id = payload.get("user_id") or "default"
         if self.task_repository.count_active_for_user(user_id) >= MAX_TASKS_PER_USER:
             raise ValidationError(f"每位用户最多创建 {MAX_TASKS_PER_USER} 个定时任务")
@@ -57,6 +62,7 @@ class SchedulingService:
         return {"message": "resumed"}
 
     def run_task_now(self, task_id: str, *, user_id: str) -> dict[str, Any]:
+        """复用同一运行时创建链路立即执行一次任务。"""
         task = self._require_task(task_id, user_id=user_id)
         actual_run_time = self.clock.now()
         scheduled_time = actual_run_time
@@ -64,6 +70,7 @@ class SchedulingService:
         if task.time_param_name:
             params[task.time_param_name] = scheduled_time.strftime(task.time_format or "%Y-%m-%d")
         try:
+            # 调度只负责计算执行时覆盖参数；真正的实例/文档创建仍依赖报告运行时。
             created = self.scheduled_instance_creator.create_instance_from_schedule(
                 template_id=task.template_id,
                 source_instance_id=task.source_instance_id,
@@ -106,6 +113,7 @@ class SchedulingService:
 
 
 def serialize_task(task: ScheduledTask) -> dict[str, Any]:
+    """把调度聚合投影为任务接口视图。"""
     return {
         "task_id": task.task_id,
         "user_id": task.user_id,

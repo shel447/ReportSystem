@@ -1,3 +1,5 @@
+"""用于持久化权威报告模板定义的仓储适配器。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -11,6 +13,8 @@ from .schema import validate_report_template
 
 
 class SqlAlchemyTemplateCatalogRepository:
+    """静态报告模板资源的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -68,6 +72,7 @@ class SqlAlchemyTemplateCatalogRepository:
 class TemplateSchemaGateway:
     @staticmethod
     def validate(payload: dict[str, Any]) -> dict[str, Any]:
+        # 通过网关承接结构校验，这样应用层可以替换校验实现而不影响业务规则。
         return validate_report_template(payload)
 
 

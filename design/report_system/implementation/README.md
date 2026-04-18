@@ -19,3 +19,19 @@
 - 领域主线固定为 `ReportTemplate -> TemplateInstance -> Report DSL -> ReportInstance -> DocumentArtifact`。
 - `TemplateInstance` 是核心运行态聚合。参数收集、诉求实例化、delta 合并、报告生成都围绕同一份模板实例推进。
 - 数据库允许删表重建，因此实现中不得保留任何旧结构向新结构的转换映射。
+
+## Application Service 导航
+
+实现文档中的 application service 按模块拆分说明：
+
+- `template_catalog`
+  - [模板目录实现](./模板目录实现.md)
+- `conversation`
+  - [统一对话实现](./统一对话实现.md)
+- `report_runtime`
+  - [报告运行时实现](./报告运行时实现.md)
+
+每篇文档都必须回答两件事：
+
+- 该模块有哪些 application service
+- 每个 service 负责的业务边界、输入输出和禁止承担的职责是什么

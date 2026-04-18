@@ -1,3 +1,5 @@
+"""用于从模板定义的数据源解析参数候选值的应用服务。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -13,6 +15,8 @@ UPSTREAM_TIMEOUT_SECONDS = 3.0
 
 
 class ParameterOptionService:
+    """通过正式外部数据源端点解析动态参数候选值。"""
+
     def resolve(
         self,
         *,
@@ -21,6 +25,8 @@ class ParameterOptionService:
         open_source: dict[str, Any],
         context_values: dict[str, list[dict[str, Any]]],
     ) -> dict[str, Any]:
+        # 报告系统始终通过统一的提交契约调用动态源，即使是本地演示源也不例外，
+        # 这样对话层只需要面对一种返回结构。
         source_url = str((open_source or {}).get("url") or "").strip()
         if not source_url:
             raise ValidationError("openSource.url is required")
