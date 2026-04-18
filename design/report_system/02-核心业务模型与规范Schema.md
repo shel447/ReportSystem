@@ -258,7 +258,7 @@
 
 经本轮重构后，`TemplateInstance` 已补足复杂二次编辑与重新生成所需的最小正式能力：
 
-1. `templateSnapshot`
+1. `template`
    - 实例冻结时必须保存完整模板快照
    - 后续二次编辑和重新生成都以该快照为准，不回读线上最新模板
 2. 统一 `parameters`
@@ -272,7 +272,7 @@
    - 实例只补 `renderedRequirement/items[].values/items[].valueSource`
 5. 章节模板只读回溯能力
    - 当前不单独落 `sectionTemplateSnapshots`
-   - 通过 `templateSnapshot + 全局唯一 section.id + 稳定目录树` 回溯实例当时使用的章节模板定义
+   - 通过 `template + 全局唯一 section.id + 稳定目录树` 回溯实例当时使用的章节模板定义
 
 不建议直接回归为正式领域模型主体的历史对象：
 
@@ -287,7 +287,7 @@
 
 为支持“调整诉求取值 -> 再次生成报告”的复杂二次编辑，当前正式 `TemplateInstance` 至少具备以下能力：
 
-- `templateSnapshot`
+- `template`
   - 冻结模板结构、参数定义、目录树和章节模板骨架
 - 统一 `parameters`
   - 在同一参数对象上表达：定义、候选值、取值、运行态来源
@@ -299,14 +299,14 @@
 设计原则：
 
 - `TemplateInstance` 仍以树状主体为核心
-- `templateSnapshot` 与运行态补强字段是为了保证可编辑性和可复现性，不是把旧版镜像结构原样搬回来
+- `template` 与运行态补强字段是为了保证可编辑性和可复现性，不是把旧版镜像结构原样搬回来
 - `Report DSL` 仍然是正式报告内容主体；`TemplateInstance` 只负责“生成前”和“再生成前”的完整编辑上下文
 
 ### 3.3 历史字段对照与当前归宿
 
 | 历史字段 | 当前状态 | 能力是否仍需要 | 当前归宿建议 |
 |---|---|---|---|
-| `base_template` | 已重构回正式模型 | 需要 | `templateSnapshot` |
+| `base_template` | 已重构回正式模型 | 需要 | `template` |
 | `instance_meta` | 已被顶层元字段替代 | 部分需要 | 保持 `status/captureStage/revision/conversationId/chatId/createdAt/updatedAt` |
 | `runtime_state.parameter_runtime.definitions` | 已并入统一参数模型 | 需要 | `Parameter[]` |
 | `runtime_state.parameter_runtime.candidate_snapshots` | 已并入统一参数模型 | 需要 | `Parameter[].options/runtimeContext` |
@@ -315,7 +315,7 @@
 | `runtime_state.outline_runtime.current_outline_instance` | 已被树状主体替代 | 部分需要 | `catalogs -> (subCatalogs)* -> sections -> outline` |
 | `resolved_view.parameters` | 已被统一 `Parameter[]` 替代 | 部分需要 | 不单独回滚，可派生 |
 | `resolved_view.outline` | 已被 `outline` 树替代 | 部分需要 | 不单独回滚，可派生 |
-| `resolved_view.sections[].section_template` | 不单独存储 | 需要 | `templateSnapshot + section.id/path` 回溯 |
+| `resolved_view.sections[].section_template` | 不单独存储 | 需要 | `template + section.id/path` 回溯 |
 | `generated_content` | 已迁往报告侧 | 不需要回归模板实例 | 保持在 `Report DSL / ReportInstance` |
 | `fragments` | 已删除 | 不应回归为正式领域字段 | 如有需要，作为派生 UI 视图处理 |
 

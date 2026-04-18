@@ -9,7 +9,7 @@
     "id",
     "schemaVersion",
     "templateId",
-    "templateSnapshot",
+    "template",
     "conversationId",
     "status",
     "captureStage",
@@ -29,10 +29,6 @@
     },
     "templateId": {
       "type": "string"
-    },
-    "templateSnapshot": {
-      "$ref": "./report-template.schema.json",
-      "description": "模板实例冻结时使用的完整模板快照。二次编辑与重新生成必须以该快照为准，不能回读线上最新模板。"
     },
     "conversationId": {
       "type": "string"
@@ -94,6 +90,10 @@
     "updatedAt": {
       "type": "string",
       "format": "date-time"
+    },
+    "template": {
+      "$ref": "./report-template.schema.json",
+      "description": "模板实例冻结时使用的完整模板快照。二次编辑与重新生成必须以该模板为准，不能回读线上最新模板。"
     }
   },
   "$defs": {
