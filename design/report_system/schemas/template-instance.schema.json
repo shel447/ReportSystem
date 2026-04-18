@@ -497,6 +497,20 @@
         "targetId": {
           "type": "string"
         },
+        "catalogPath": {
+          "type": "array",
+          "description": "多层目录下的辅助定位路径，按祖先到当前目录的 id 顺序给出。它不替代 targetId，只用于审计、回放和前后端稳态定位。",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sectionPath": {
+          "type": "array",
+          "description": "多层目录下章节辅助定位路径，通常为 catalogPath 后追加 section id。仅在需要稳态定位具体章节时返回。",
+          "items": {
+            "type": "string"
+          }
+        },
         "changeKind": {
           "type": "string",
           "enum": [
