@@ -11,11 +11,7 @@ type AppShellProps = {
 
 export function AppShell({ pathname, children }: AppShellProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const routeMeta = [...PAGE_META, ...FOOTER_META];
-  const pageTitle =
-    routeMeta
-      .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-      .sort((left, right) => right.href.length - left.href.length)[0]?.label ?? "智能报告系统";
+  const pageTitle = resolvePageTitle(pathname);
 
   return (
     <div className="app-shell">
@@ -77,5 +73,20 @@ export function AppShell({ pathname, children }: AppShellProps) {
       </main>
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
+  );
+}
+
+function resolvePageTitle(pathname: string) {
+  if (pathname.startsWith("/templates/")) {
+    return "模板详情";
+  }
+  if (pathname.startsWith("/reports/")) {
+    return "报告详情";
+  }
+  const routeMeta = [...PAGE_META, ...FOOTER_META];
+  return (
+    routeMeta
+      .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+      .sort((left, right) => right.href.length - left.href.length)[0]?.label ?? "智能报告系统"
   );
 }

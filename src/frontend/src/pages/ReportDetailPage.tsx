@@ -146,10 +146,12 @@ export function ReportDetailPage() {
                           <span>{mutationResult.jobs.length} 个</span>
                         </div>
                         {mutationResult.jobs.map((job) => (
-                          <div key={job.jobId} className="template-inline-row template-inline-row--wide">
-                            <strong>{job.format}</strong>
-                            <span>{job.status}</span>
-                            <span>{job.dependsOn ?? "无依赖"}</span>
+                          <div key={job.jobId} className="template-inline-row template-inline-row--wide report-document-row">
+                            <strong>{job.format.toUpperCase()}</strong>
+                            <div className="report-document-row__meta">
+                              <span className="status-chip status-chip--soft">{job.status}</span>
+                              <span className="report-document-row__dependency">{job.dependsOn ? `依赖 ${job.dependsOn}` : "无依赖"}</span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -162,13 +164,17 @@ export function ReportDetailPage() {
                           <span>{report.answer.documents.length} 个</span>
                         </div>
                         {report.answer.documents.map((item) => (
-                          <div key={item.id} className="template-inline-row template-inline-row--wide">
+                          <div key={item.id} className="template-inline-row template-inline-row--wide report-document-row">
                             <strong>{item.fileName}</strong>
-                            <span>{item.format}</span>
-                            <span>{item.status}</span>
-                            <a className="secondary-button button-link" href={item.downloadUrl}>
-                              下载
-                            </a>
+                            <div className="report-document-row__meta">
+                              <span className="status-chip">{item.format.toUpperCase()}</span>
+                              <span className="status-chip status-chip--soft">{item.status}</span>
+                            </div>
+                            <div className="report-document-row__actions">
+                              <a className="secondary-button button-link" href={item.downloadUrl}>
+                                下载
+                              </a>
+                            </div>
                           </div>
                         ))}
                       </div>

@@ -26,7 +26,7 @@ _DEFAULT_EMBEDDING = {
 
 
 def get_settings_record(db: Session) -> SystemSetting | None:
-    return db.query(SystemSetting).filter(SystemSetting.settings_id == GLOBAL_SETTINGS_ID).first()
+    return db.query(SystemSetting).filter(SystemSetting.id == GLOBAL_SETTINGS_ID).first()
 
 
 def get_settings_payload(db: Session) -> Dict[str, Any]:
@@ -43,7 +43,7 @@ def get_settings_payload(db: Session) -> Dict[str, Any]:
 def save_settings(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     row = get_settings_record(db)
     if row is None:
-        row = SystemSetting(settings_id=GLOBAL_SETTINGS_ID)
+        row = SystemSetting(id=GLOBAL_SETTINGS_ID)
         db.add(row)
 
     completion = _merged_completion(row.completion_config if row else {})
