@@ -855,7 +855,10 @@
             ]
           },
           "parameters": {
-            "$ref": "#/components/schemas/EffectiveParameterValues"
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Parameter"
+            }
           },
           "reportContext": {
             "type": "object",
@@ -1068,19 +1071,7 @@
           "parameters": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "parameter": {
-                  "$ref": "#/components/schemas/AskParameterDefinition"
-                },
-                "currentValue": {
-                  "$ref": "#/components/schemas/ParameterValueArray"
-                }
-              },
-              "required": [
-                "parameter",
-                "currentValue"
-              ]
+              "$ref": "#/components/schemas/Parameter"
             }
           },
           "reportContext": {
@@ -1099,20 +1090,8 @@
           "text"
         ]
       },
-      "AskParameterDefinition": {
-        "$ref": "../report_system/schemas/report-template.schema.json#/$defs/ParameterDefinition"
-      },
-      "ParameterValueArray": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/TrioValue"
-        }
-      },
-      "EffectiveParameterValues": {
-        "type": "object",
-        "additionalProperties": {
-          "$ref": "#/components/schemas/ParameterValueArray"
-        }
+      "Parameter": {
+        "$ref": "../report_system/schemas/report-template.schema.json#/$defs/Parameter"
       },
       "AnswerEnvelope": {
         "type": "object",
