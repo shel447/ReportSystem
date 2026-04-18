@@ -1,0 +1,492 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./report-template.schema.json",
+  "title": "ReportTemplate",
+  "description": "报告模板正式定义。模板定义是静态系统资产，不带运行态状态字段。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "category",
+    "name",
+    "description",
+    "schemaVersion",
+    "parameters",
+    "catalogs"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    "category": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ParameterDefinition"
+      }
+    },
+    "catalogs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CatalogDefinition"
+      }
+    }
+  },
+  "$defs": {
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "TrioValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display",
+        "value",
+        "query"
+      ],
+      "properties": {
+        "display": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "query": {
+          "$ref": "#/$defs/Scalar"
+        }
+      }
+    },
+    "OpenSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "ParameterDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "inputType",
+        "required",
+        "interactionMode"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputType": {
+          "type": "string",
+          "enum": [
+            "free_text",
+            "date",
+            "enum",
+            "dynamic"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean",
+          "default": false
+        },
+        "interactionMode": {
+          "type": "string",
+          "enum": [
+            "form",
+            "natural_language"
+          ]
+        },
+        "valueMode": {
+          "type": "string",
+          "enum": [
+            "display",
+            "value",
+            "query"
+          ]
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "openSource": {
+          "$ref": "#/$defs/OpenSource"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "inputType": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "options"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "inputType": {
+                "const": "dynamic"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "openSource"
+            ]
+          }
+        }
+      ]
+    },
+    "RequirementDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "items"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RequirementItemDefinition"
+          }
+        }
+      }
+    },
+    "RequirementItemDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "search_target",
+            "search_condition",
+            "metric",
+            "time_range",
+            "filter",
+            "threshold",
+            "sort",
+            "free_text",
+            "parameter_ref"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceParameterId": {
+          "type": "string"
+        },
+        "widget": {
+          "type": "string",
+          "enum": [
+            "input",
+            "textarea",
+            "select",
+            "multi_select",
+            "date",
+            "date_range"
+          ]
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        }
+      }
+    },
+    "ForeachDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parameterId",
+        "as"
+      ],
+      "properties": {
+        "parameterId": {
+          "type": "string"
+        },
+        "as": {
+          "type": "string"
+        }
+      }
+    },
+    "DatasetDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceType",
+        "sourceRef"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "sourceType": {
+          "type": "string",
+          "enum": [
+            "sql",
+            "api",
+            "llm",
+            "compose"
+          ]
+        },
+        "sourceRef": {
+          "type": "string"
+        },
+        "dependsOn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "PresentationBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "paragraph",
+            "bullet",
+            "kpi",
+            "table",
+            "chart",
+            "markdown"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "datasetId": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "PresentationDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "blocks"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "narrative",
+            "table",
+            "chart",
+            "mixed"
+          ]
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PresentationBlock"
+          }
+        }
+      }
+    },
+    "SectionContentDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presentation"
+      ],
+      "properties": {
+        "datasets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DatasetDefinition"
+          }
+        },
+        "presentation": {
+          "$ref": "#/$defs/PresentationDefinition"
+        }
+      }
+    },
+    "SectionDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "requirement",
+        "content"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "foreach": {
+          "$ref": "#/$defs/ForeachDefinition"
+        },
+        "requirement": {
+          "$ref": "#/$defs/RequirementDefinition"
+        },
+        "content": {
+          "$ref": "#/$defs/SectionContentDefinition"
+        }
+      }
+    },
+    "CatalogDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "sections"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SectionDefinition"
+          }
+        }
+      }
+    }
+  }
+}

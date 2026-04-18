@@ -1,0 +1,76 @@
+{
+  "basicInfo": {
+    "id": "rpt_20260418_001",
+    "schemaVersion": "1.0.0",
+    "mode": "published",
+    "status": "Success",
+    "name": "总部网络运行日报",
+    "subTitle": "2026-04-18",
+    "description": "总部网络统一运行日报",
+    "templateId": "tpl_network_daily",
+    "templateName": "网络运行日报",
+    "version": "1.0.0",
+    "createDate": "2026-04-18",
+    "modifyDate": "2026-04-18",
+    "creator": "report-system",
+    "modifier": "report-system",
+    "category": "network_operations"
+  },
+  "cover": {
+    "title": "总部网络运行日报",
+    "author": "报告系统",
+    "date": "2026-04-18"
+  },
+  "catalogs": [
+    {
+      "id": "catalog_overview",
+      "name": "运行概览",
+      "order": 1,
+      "sections": [
+        {
+          "id": "section_overview",
+          "title": "总体态势",
+          "order": 1,
+          "components": [
+            {
+              "id": "component_overview_markdown",
+              "type": "markdown",
+              "dataProperties": {
+                "dataType": "static",
+                "content": "## 总体结论\n\n总部网络整体稳定，关键指标正常。"
+              }
+            }
+          ],
+          "summary": {
+            "id": "summary_overview",
+            "overview": "总部网络整体稳定，重点异常已闭环。"
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "id": "summary_report",
+    "overview": "总部网络整体稳定，重点异常已闭环，建议持续关注链路时延。"
+  },
+  "reportMeta": {
+    "section_overview": {
+      "status": "Success",
+      "question": "分析总部网络在 2026-04-18 的总体运行态势，并总结关键结论。",
+      "additionalInfos": [
+        {
+          "type": "SQL",
+          "value": "SELECT * FROM daily_summary WHERE scope_id = 'hq-network' AND stat_date = '2026-04-18'"
+        }
+      ]
+    }
+  },
+  "layout": {
+    "type": "grid",
+    "grid": {
+      "cols": 12,
+      "rowHeight": 24,
+      "gap": 8
+    }
+  }
+}

@@ -1,0 +1,402 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./template-instance.schema.json",
+  "title": "TemplateInstance",
+  "description": "模板实例正式定义。模板实例是对话运行态对象，主体仍保持 catalog -> section 层级。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "schemaVersion",
+    "templateId",
+    "conversationId",
+    "status",
+    "captureStage",
+    "revision",
+    "parameterValues",
+    "catalogs",
+    "deltaViews",
+    "templateSkeletonStatus",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "string"
+    },
+    "templateId": {
+      "type": "string"
+    },
+    "conversationId": {
+      "type": "string"
+    },
+    "chatId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "collecting_parameters",
+        "ready_for_confirmation",
+        "confirmed",
+        "generating",
+        "completed",
+        "failed"
+      ]
+    },
+    "captureStage": {
+      "type": "string",
+      "enum": [
+        "fill_params",
+        "confirm_params",
+        "generate_report",
+        "report_ready"
+      ]
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "parameterValues": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/TrioValue"
+        }
+      }
+    },
+    "catalogs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TemplateInstanceCatalog"
+      }
+    },
+    "deltaViews": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TemplateInstanceDelta"
+      }
+    },
+    "templateSkeletonStatus": {
+      "$ref": "#/$defs/TemplateSkeletonStatus"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/WarningItem"
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "TrioValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display",
+        "value",
+        "query"
+      ],
+      "properties": {
+        "display": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "query": {
+          "$ref": "#/$defs/Scalar"
+        }
+      }
+    },
+    "RequirementItemInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "resolvedValues",
+        "bindingSource"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "resolvedValues": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "bindingSource": {
+          "type": "string",
+          "enum": [
+            "parameter",
+            "user_input",
+            "system_fill"
+          ]
+        },
+        "sourceParameterId": {
+          "type": "string"
+        }
+      }
+    },
+    "RequirementInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "items"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RequirementItemInstance"
+          }
+        }
+      }
+    },
+    "ExecutionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "bindingType",
+        "sourceType",
+        "targetRef"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "bindingType": {
+          "type": "string",
+          "enum": [
+            "dataset_parameter",
+            "requirement_mapping",
+            "render_hint"
+          ]
+        },
+        "sourceType": {
+          "type": "string",
+          "enum": [
+            "sql",
+            "api",
+            "llm",
+            "system"
+          ]
+        },
+        "targetRef": {
+          "type": "string"
+        },
+        "resolvedQuery": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    },
+    "SectionSkeletonStatus": {
+      "type": "string",
+      "enum": [
+        "reusable",
+        "conditionally_reusable",
+        "broken"
+      ]
+    },
+    "TemplateInstanceSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "requirementInstance",
+        "executionBindings",
+        "skeletonStatus",
+        "userEdited"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "requirementInstance": {
+          "$ref": "#/$defs/RequirementInstance"
+        },
+        "executionBindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ExecutionBinding"
+          }
+        },
+        "skeletonStatus": {
+          "$ref": "#/$defs/SectionSkeletonStatus"
+        },
+        "userEdited": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TemplateInstanceCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "sections"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TemplateInstanceSection"
+          }
+        }
+      }
+    },
+    "TemplateInstanceDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "targetType",
+        "targetId",
+        "changeKind"
+      ],
+      "properties": {
+        "targetType": {
+          "type": "string",
+          "enum": [
+            "parameter",
+            "catalog",
+            "section",
+            "requirement_item"
+          ]
+        },
+        "targetId": {
+          "type": "string"
+        },
+        "changeKind": {
+          "type": "string",
+          "enum": [
+            "slot_value_update",
+            "text_edit",
+            "structure_edit",
+            "binding_break",
+            "binding_restore",
+            "reorder"
+          ]
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "TemplateSkeletonStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "internal",
+        "ui"
+      ],
+      "properties": {
+        "internal": {
+          "type": "string",
+          "enum": [
+            "reusable",
+            "conditionally_reusable",
+            "broken"
+          ]
+        },
+        "ui": {
+          "type": "string",
+          "enum": [
+            "not_broken",
+            "broken"
+          ]
+        }
+      }
+    },
+    "WarningItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "targetId": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

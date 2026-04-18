@@ -1,0 +1,114 @@
+{
+  "id": "ti_20260418_001",
+  "schemaVersion": "template-instance.v2",
+  "templateId": "tpl_network_daily",
+  "conversationId": "conv_20260418_001",
+  "chatId": "chat_20260418_003",
+  "status": "confirmed",
+  "captureStage": "confirm_params",
+  "revision": 3,
+  "parameterValues": {
+    "report_date": [
+      {
+        "display": "2026-04-18",
+        "value": "2026-04-18",
+        "query": "2026-04-18"
+      }
+    ],
+    "scope": [
+      {
+        "display": "总部网络",
+        "value": "hq-network",
+        "query": "scope_id = 'hq-network'"
+      }
+    ],
+    "metric_set": [
+      {
+        "display": "综合",
+        "value": "all",
+        "query": "all"
+      }
+    ]
+  },
+  "catalogs": [
+    {
+      "id": "catalog_overview",
+      "name": "运行概览",
+      "order": 1,
+      "sections": [
+        {
+          "id": "section_overview",
+          "title": "总体态势",
+          "order": 1,
+          "requirementInstance": {
+            "text": "分析总部网络在 2026-04-18 的总体运行态势，并总结关键结论。",
+            "items": [
+              {
+                "id": "scope_item",
+                "label": "分析对象",
+                "kind": "search_target",
+                "resolvedValues": [
+                  {
+                    "display": "总部网络",
+                    "value": "hq-network",
+                    "query": "scope_id = 'hq-network'"
+                  }
+                ],
+                "bindingSource": "parameter",
+                "sourceParameterId": "scope"
+              },
+              {
+                "id": "report_date_item",
+                "label": "报告日期",
+                "kind": "time_range",
+                "resolvedValues": [
+                  {
+                    "display": "2026-04-18",
+                    "value": "2026-04-18",
+                    "query": "2026-04-18"
+                  }
+                ],
+                "bindingSource": "parameter",
+                "sourceParameterId": "report_date"
+              }
+            ]
+          },
+          "executionBindings": [
+            {
+              "id": "binding_daily_summary_scope",
+              "bindingType": "dataset_parameter",
+              "sourceType": "sql",
+              "targetRef": "dataset_daily_summary.scope",
+              "resolvedQuery": "scope_id = 'hq-network'"
+            }
+          ],
+          "skeletonStatus": "reusable",
+          "userEdited": false
+        }
+      ]
+    }
+  ],
+  "deltaViews": [
+    {
+      "targetType": "parameter",
+      "targetId": "scope",
+      "changeKind": "slot_value_update",
+      "payload": {
+        "newValue": [
+          {
+            "display": "总部网络",
+            "value": "hq-network",
+            "query": "scope_id = 'hq-network'"
+          }
+        ]
+      }
+    }
+  ],
+  "templateSkeletonStatus": {
+    "internal": "reusable",
+    "ui": "not_broken"
+  },
+  "warnings": [],
+  "createdAt": "2026-04-18T09:10:00Z",
+  "updatedAt": "2026-04-18T09:16:00Z"
+}

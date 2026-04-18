@@ -1,0 +1,200 @@
+{
+  "id": "tpl_network_daily",
+  "category": "network_operations",
+  "name": "网络运行日报",
+  "description": "面向网络运维中心的统一日报模板。",
+  "schemaVersion": "template.v3",
+  "tags": [
+    "daily",
+    "network",
+    "operations"
+  ],
+  "createdAt": "2026-04-18T09:00:00Z",
+  "updatedAt": "2026-04-18T09:00:00Z",
+  "parameters": [
+    {
+      "id": "report_date",
+      "label": "报告日期",
+      "description": "日报统计日期。",
+      "inputType": "date",
+      "required": true,
+      "interactionMode": "form",
+      "defaultValue": [
+        {
+          "display": "2026-04-18",
+          "value": "2026-04-18",
+          "query": "2026-04-18"
+        }
+      ]
+    },
+    {
+      "id": "scope",
+      "label": "分析对象",
+      "description": "需要分析的网络对象。",
+      "inputType": "dynamic",
+      "required": true,
+      "multi": true,
+      "interactionMode": "natural_language",
+      "valueMode": "query",
+      "openSource": {
+        "url": "https://example.internal/api/network/scopes/options"
+      }
+    },
+    {
+      "id": "metric_set",
+      "label": "指标集",
+      "description": "选择报告关注的指标集。",
+      "inputType": "enum",
+      "required": true,
+      "interactionMode": "form",
+      "options": [
+        {
+          "display": "可用性",
+          "value": "availability",
+          "query": "availability"
+        },
+        {
+          "display": "时延",
+          "value": "latency",
+          "query": "latency"
+        },
+        {
+          "display": "综合",
+          "value": "all",
+          "query": "all"
+        }
+      ],
+      "defaultValue": [
+        {
+          "display": "综合",
+          "value": "all",
+          "query": "all"
+        }
+      ]
+    }
+  ],
+  "catalogs": [
+    {
+      "id": "catalog_overview",
+      "name": "运行概览",
+      "order": 1,
+      "sections": [
+        {
+          "id": "section_overview",
+          "title": "总体态势",
+          "order": 1,
+          "requirement": {
+            "text": "分析{@scope_item}在{@report_date_item}的总体运行态势，并总结关键结论。",
+            "items": [
+              {
+                "id": "scope_item",
+                "label": "分析对象",
+                "kind": "search_target",
+                "required": true,
+                "multi": true,
+                "sourceParameterId": "scope",
+                "widget": "multi_select"
+              },
+              {
+                "id": "report_date_item",
+                "label": "报告日期",
+                "kind": "time_range",
+                "required": true,
+                "sourceParameterId": "report_date",
+                "widget": "date"
+              }
+            ]
+          },
+          "content": {
+            "datasets": [
+              {
+                "id": "dataset_daily_summary",
+                "name": "运行概览数据集",
+                "sourceType": "sql",
+                "sourceRef": "sql.network.daily_summary"
+              }
+            ],
+            "presentation": {
+              "kind": "mixed",
+              "blocks": [
+                {
+                  "id": "block_summary_text",
+                  "type": "paragraph",
+                  "title": "态势综述",
+                  "datasetId": "dataset_daily_summary"
+                },
+                {
+                  "id": "block_summary_chart",
+                  "type": "chart",
+                  "title": "关键指标趋势",
+                  "datasetId": "dataset_daily_summary"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "catalog_detail",
+      "name": "明细分析",
+      "order": 2,
+      "sections": [
+        {
+          "id": "section_alarm_detail",
+          "title": "异常明细",
+          "order": 1,
+          "requirement": {
+            "text": "列出{@scope_item}在{@report_date_item}期间的主要异常及处理建议。",
+            "items": [
+              {
+                "id": "scope_item",
+                "label": "分析对象",
+                "kind": "search_target",
+                "required": true,
+                "multi": true,
+                "sourceParameterId": "scope",
+                "widget": "multi_select"
+              },
+              {
+                "id": "report_date_item",
+                "label": "报告日期",
+                "kind": "time_range",
+                "required": true,
+                "sourceParameterId": "report_date",
+                "widget": "date"
+              }
+            ]
+          },
+          "content": {
+            "datasets": [
+              {
+                "id": "dataset_alarm_detail",
+                "name": "异常明细数据集",
+                "sourceType": "api",
+                "sourceRef": "api.network.alarm_detail"
+              }
+            ],
+            "presentation": {
+              "kind": "mixed",
+              "blocks": [
+                {
+                  "id": "block_alarm_table",
+                  "type": "table",
+                  "title": "异常列表",
+                  "datasetId": "dataset_alarm_detail"
+                },
+                {
+                  "id": "block_alarm_markdown",
+                  "type": "markdown",
+                  "title": "处置建议",
+                  "datasetId": "dataset_alarm_detail"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

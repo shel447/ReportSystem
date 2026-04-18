@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./parameter-option-source-response.schema.json",
+  "title": "ParameterOptionSourceResponse",
+  "description": "动态参数候选项外部数据源的统一响应体。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "options",
+    "defaultValue"
+  ],
+  "properties": {
+    "options": {
+      "type": "array",
+      "items": {
+        "$ref": "./report-template.schema.json#/$defs/TrioValue"
+      }
+    },
+    "defaultValue": {
+      "type": "array",
+      "items": {
+        "$ref": "./report-template.schema.json#/$defs/TrioValue"
+      }
+    }
+  }
+}

@@ -1,0 +1,1595 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./report-dsl.schema.json",
+  "title": "Report",
+  "description": "根据提供的 DSL 类型定义生成的 Report 根对象 JSON Schema",
+  "type": "object",
+  "properties": {
+    "basicInfo": {
+      "$ref": "#/$defs/BasicInfo"
+    },
+    "cover": {
+      "$ref": "#/$defs/Cover"
+    },
+    "signaturePage": {
+      "$ref": "#/$defs/SignaturePage"
+    },
+    "catalogs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Catalog"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/ReportSummary"
+    },
+    "reportMeta": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/GenerateMeta"
+      }
+    },
+    "layout": {
+      "$ref": "#/$defs/PageLayout"
+    }
+  },
+  "required": [
+    "basicInfo",
+    "catalogs",
+    "layout"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Status": {
+      "type": "string",
+      "enum": [
+        "Running",
+        "Success",
+        "Aborted",
+        "Failed"
+      ]
+    },
+    "LayoutType": {
+      "type": "string",
+      "enum": [
+        "grid",
+        "flow",
+        "absolute"
+      ]
+    },
+    "FieldType": {
+      "type": "string",
+      "enum": [
+        "string",
+        "long",
+        "int",
+        "timestamp",
+        "double",
+        "float",
+        "enum"
+      ]
+    },
+    "AdditionalInfoType": {
+      "type": "string",
+      "enum": [
+        "Prompt",
+        "Summary",
+        "SQL",
+        "API",
+        "Knowledge"
+      ]
+    },
+    "ValueFormat": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "time"
+            },
+            "format": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "format"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "percentage"
+            },
+            "decimal": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "number"
+            },
+            "decimal": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "byte"
+            },
+            "decimal": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "UIEvent": {
+      "type": "object",
+      "properties": {
+        "trigger": {
+          "type": "string",
+          "enum": [
+            "click",
+            "dblclick",
+            "hover"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "dependency": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "trigger",
+        "name",
+        "dependency"
+      ],
+      "additionalProperties": false
+    },
+    "FieldUI": {
+      "type": "object",
+      "properties": {
+        "displayPriority": {
+          "type": "string",
+          "enum": [
+            "high",
+            "normal",
+            "never"
+          ]
+        },
+        "valueFormat": {
+          "$ref": "#/$defs/ValueFormat"
+        },
+        "event": {
+          "$ref": "#/$defs/UIEvent"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EnumValue": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value",
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/FieldType"
+        },
+        "enumConfig": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnumValue"
+          }
+        },
+        "uiConfig": {
+          "$ref": "#/$defs/FieldUI"
+        },
+        "colSpan": {
+          "type": "number"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Column"
+          }
+        }
+      },
+      "required": [
+        "title",
+        "key"
+      ],
+      "additionalProperties": false
+    },
+    "MergeColumnInfo": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "title",
+        "columns"
+      ],
+      "additionalProperties": false
+    },
+    "MergeRowConfig": {
+      "type": "object",
+      "properties": {
+        "startRowIndex": {
+          "type": "number"
+        },
+        "rowSpan": {
+          "type": "number"
+        },
+        "columnKey": {
+          "type": "string"
+        },
+        "mergedText": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "startRowIndex",
+        "rowSpan",
+        "columnKey"
+      ],
+      "additionalProperties": false
+    },
+    "GridLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "grid"
+        },
+        "gx": {
+          "type": "number"
+        },
+        "gy": {
+          "type": "number"
+        },
+        "gw": {
+          "type": "number"
+        },
+        "gh": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "gx",
+        "gy",
+        "gw",
+        "gh"
+      ],
+      "additionalProperties": false
+    },
+    "FlowLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "flow"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "AbsoluteLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "absolute"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "zIndex": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false
+    },
+    "ComponentLayout": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GridLayout"
+        },
+        {
+          "$ref": "#/$defs/FlowLayout"
+        },
+        {
+          "$ref": "#/$defs/AbsoluteLayout"
+        }
+      ]
+    },
+    "PageLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/LayoutType"
+        },
+        "grid": {
+          "type": "object",
+          "properties": {
+            "cols": {
+              "type": "number"
+            },
+            "rowHeight": {
+              "type": "number"
+            },
+            "gap": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "cols",
+            "rowHeight"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "InteractionTrigger": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "click",
+            "hover",
+            "change",
+            "select"
+          ]
+        },
+        "field": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false
+    },
+    "InteractionTarget": {
+      "type": "object",
+      "properties": {
+        "componentId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "filter",
+            "jump",
+            "highlight"
+          ]
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "componentId",
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "Interaction": {
+      "type": "object",
+      "properties": {
+        "trigger": {
+          "$ref": "#/$defs/InteractionTrigger"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InteractionTarget"
+          }
+        }
+      },
+      "required": [
+        "trigger",
+        "targets"
+      ],
+      "additionalProperties": false
+    },
+    "TextDataProperty": {
+      "type": "object",
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "static",
+            "datasource",
+            "api"
+          ]
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "refreshInterval": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dataType",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "TableDataProperty": {
+      "type": "object",
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "static",
+            "datasource",
+            "api"
+          ]
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "refreshInterval": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Column"
+          }
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "mergeColumns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MergeColumnInfo"
+          }
+        },
+        "mergeRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MergeRowConfig"
+          }
+        },
+        "hasMerge": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dataType"
+      ],
+      "additionalProperties": false
+    },
+    "Axis": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "category",
+            "value"
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "LineSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "line"
+        },
+        "subType": {
+          "const": "area"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "string"
+            },
+            "y": {
+              "type": "string"
+            },
+            "xAxisIndex": {
+              "type": "number"
+            },
+            "yAxisIndex": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "BarSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "bar"
+        },
+        "subType": {
+          "const": "horizontal"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "string"
+            },
+            "y": {
+              "type": "string"
+            },
+            "xAxisIndex": {
+              "type": "number"
+            },
+            "yAxisIndex": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "PieSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "pie"
+        },
+        "subType": {
+          "const": "ring"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ScatterSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "scatter"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "type": "string"
+            },
+            "y": {
+              "type": "string"
+            },
+            "xAxisIndex": {
+              "type": "number"
+            },
+            "yAxisIndex": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "RadarSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "radar"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "GaugeSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "gauge"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        },
+        "config": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "CandlestickSeries": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "candlestick"
+        },
+        "encode": {
+          "type": "object",
+          "properties": {
+            "open": {
+              "type": "string"
+            },
+            "close": {
+              "type": "string"
+            },
+            "low": {
+              "type": "string"
+            },
+            "high": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "open",
+            "close",
+            "low",
+            "high"
+          ],
+          "additionalProperties": false
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "encode",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "Series": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LineSeries"
+        },
+        {
+          "$ref": "#/$defs/BarSeries"
+        },
+        {
+          "$ref": "#/$defs/PieSeries"
+        },
+        {
+          "$ref": "#/$defs/ScatterSeries"
+        },
+        {
+          "$ref": "#/$defs/RadarSeries"
+        },
+        {
+          "$ref": "#/$defs/GaugeSeries"
+        },
+        {
+          "$ref": "#/$defs/CandlestickSeries"
+        }
+      ]
+    },
+    "ChartOption": {
+      "type": "object",
+      "properties": {
+        "eChartOption": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "centerText": {
+          "type": "string"
+        },
+        "subCenterText": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChartDataProperty": {
+      "type": "object",
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "static",
+            "datasource",
+            "api"
+          ]
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "refreshInterval": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Column"
+          }
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Series"
+          }
+        },
+        "axisGroup": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "dataType"
+      ],
+      "additionalProperties": false
+    },
+    "MarkdownDataProperty": {
+      "type": "object",
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "static",
+            "datasource",
+            "api"
+          ]
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "refreshInterval": {
+          "type": "number"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dataType",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "CompositeTableDataProperty": {
+      "type": "object",
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "static",
+            "datasource",
+            "api"
+          ]
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "refreshInterval": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dataType"
+      ],
+      "additionalProperties": false
+    },
+    "TextComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/ComponentLayout"
+        },
+        "basicProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "advanceProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "interactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          }
+        },
+        "type": {
+          "const": "text"
+        },
+        "dataProperties": {
+          "$ref": "#/$defs/TextDataProperty"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "dataProperties"
+      ],
+      "additionalProperties": false
+    },
+    "TableComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/ComponentLayout"
+        },
+        "basicProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "advanceProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "interactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          }
+        },
+        "type": {
+          "const": "table"
+        },
+        "dataProperties": {
+          "$ref": "#/$defs/TableDataProperty"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "dataProperties"
+      ],
+      "additionalProperties": false
+    },
+    "ChartComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/ComponentLayout"
+        },
+        "basicProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "advanceProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "interactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          }
+        },
+        "type": {
+          "const": "chart"
+        },
+        "dataProperties": {
+          "$ref": "#/$defs/ChartDataProperty"
+        },
+        "xAxis": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Axis"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Axis"
+              }
+            }
+          ]
+        },
+        "yAxis": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Axis"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Axis"
+              }
+            }
+          ]
+        },
+        "options": {
+          "$ref": "#/$defs/ChartOption"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "dataProperties"
+      ],
+      "additionalProperties": false
+    },
+    "MarkdownComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/ComponentLayout"
+        },
+        "basicProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "advanceProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "interactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          }
+        },
+        "type": {
+          "const": "markdown"
+        },
+        "dataProperties": {
+          "$ref": "#/$defs/MarkdownDataProperty"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "dataProperties"
+      ],
+      "additionalProperties": false
+    },
+    "CompositeTable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/ComponentLayout"
+        },
+        "basicProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "advanceProperties": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "interactions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Interaction"
+          }
+        },
+        "type": {
+          "const": "compositeTable"
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TableComponent"
+          }
+        },
+        "dataProperties": {
+          "$ref": "#/$defs/CompositeTableDataProperty"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "tables"
+      ],
+      "additionalProperties": false
+    },
+    "BIEngineComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextComponent"
+        },
+        {
+          "$ref": "#/$defs/TableComponent"
+        },
+        {
+          "$ref": "#/$defs/ChartComponent"
+        },
+        {
+          "$ref": "#/$defs/MarkdownComponent"
+        },
+        {
+          "$ref": "#/$defs/CompositeTable"
+        }
+      ]
+    },
+    "ReportSummary": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "overview": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "overview"
+      ],
+      "additionalProperties": false
+    },
+    "Section": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BIEngineComponent"
+          }
+        },
+        "summary": {
+          "$ref": "#/$defs/ReportSummary"
+        }
+      },
+      "required": [
+        "id",
+        "components"
+      ],
+      "additionalProperties": false
+    },
+    "Catalog": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "order": {
+          "type": "number"
+        },
+        "subCatalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Catalog"
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Section"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "CoverContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "image",
+            "text"
+          ]
+        },
+        "content": {
+          "type": "string"
+        },
+        "elementId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "content",
+        "elementId"
+      ],
+      "additionalProperties": false
+    },
+    "Cover": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "layoutTemplate": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "contents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CoverContent"
+          }
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "Signer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "SignaturePage": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "signers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Signer"
+          }
+        },
+        "layoutTemplate": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "signers"
+      ],
+      "additionalProperties": false
+    },
+    "AdditionalInfo": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/AdditionalInfoType"
+        },
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "appendix": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "GenerateMeta": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "question": {
+          "type": "string"
+        },
+        "additionalInfos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AdditionalInfo"
+          }
+        }
+      },
+      "required": [
+        "status",
+        "question"
+      ],
+      "additionalProperties": false
+    },
+    "BasicInfo": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "1.0.0"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "name": {
+          "type": "string"
+        },
+        "subTitle": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "templateName": {
+          "type": "string"
+        },
+        "remark": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "createDate": {
+          "type": "string"
+        },
+        "modifyDate": {
+          "type": "string"
+        },
+        "creator": {
+          "type": "string"
+        },
+        "modifier": {
+          "type": "string"
+        },
+        "header": {
+          "type": "string"
+        },
+        "footer": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "schemaVersion",
+        "mode"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
