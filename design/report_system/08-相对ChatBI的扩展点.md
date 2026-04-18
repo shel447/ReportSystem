@@ -37,6 +37,12 @@
 - `documents`
 - `generationProgress`
 
+同时，报告系统把 `REPORT_TEMPLATE` 收紧为结构化模板提取结果，而不是直接裸返回 `ReportTemplate`：
+
+- `normalizedTemplate`
+- `warnings`
+- `persisted`
+
 ### 2.3 文档生成扩展
 
 统一对话基线中没有正式的报告文档生成资源；报告系统新增：
@@ -63,3 +69,4 @@
 2. `deltaViews` 的生成与回传
 3. 报告生成中的流式 `REPORT` 增量渲染
 4. 报告详情页对 `report + templateInstance + documents` 的统一承载
+5. 模板提取对 `REPORT_TEMPLATE` 的渲染与确认保存流程

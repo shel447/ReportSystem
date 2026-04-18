@@ -98,6 +98,15 @@
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 
+当前业务 profile：
+
+- Schema 全量能力以 `report.schema.json` 为准
+- 但当前报告系统首版只启用其中一个正式子集：
+  - 目录：`catalogs -> sections`，不启用 `subCatalogs`
+  - 组件：优先使用 `text`、`table`、`chart`、`markdown`
+  - `CompositeTable` 属于保留能力，首版不作为模板编译目标
+  - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成
+
 报告 DSL 顶层示例：
 
 ```json
