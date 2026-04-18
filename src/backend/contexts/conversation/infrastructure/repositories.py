@@ -1,3 +1,5 @@
+"""统一对话上下文的会话与消息流持久化适配器。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -10,6 +12,8 @@ from ....infrastructure.persistence.models import gen_id, utc_now
 
 
 class SqlAlchemyConversationRepository:
+    """会话容器的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -56,6 +60,8 @@ class SqlAlchemyConversationRepository:
 
 
 class SqlAlchemyChatRepository:
+    """有序聊天消息流的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -70,6 +76,7 @@ class SqlAlchemyChatRepository:
         meta: dict[str, Any] | None = None,
         chat_id: str | None = None,
     ) -> ChatRow:
+        # 序号字段是单条会话消息流的权威排序键。
         seq_no = self.next_seq_no(conversation_id)
         row = ChatRow(
             id=chat_id or gen_id(),

@@ -1,3 +1,5 @@
+"""使用持久化框架保存运行时聚合，并避免对象映射细节向上层泄漏。"""
+
 from __future__ import annotations
 
 import copy
@@ -18,6 +20,8 @@ from ..domain.services import serialize_template_instance
 
 
 class SqlAlchemyRuntimeTemplateRepository:
+    """供报告运行时读取模板的只读适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -41,6 +45,8 @@ class SqlAlchemyRuntimeTemplateRepository:
 
 
 class SqlAlchemyTemplateInstanceRepository:
+    """模板实例运行时聚合的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -98,6 +104,8 @@ class SqlAlchemyTemplateInstanceRepository:
 
 
 class SqlAlchemyReportInstanceRepository:
+    """冻结后报告资源的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -150,6 +158,8 @@ class SqlAlchemyReportInstanceRepository:
 
 
 class SqlAlchemyDocumentRepository:
+    """报告作用域文档产物的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -202,6 +212,8 @@ class SqlAlchemyDocumentRepository:
 
 
 class SqlAlchemyExportJobRepository:
+    """导出编排任务的持久化适配器。"""
+
     def __init__(self, db: Session) -> None:
         self.db = db
 
@@ -230,6 +242,7 @@ class SqlAlchemyExportJobRepository:
 
 
 def _to_template_instance(row: TemplateInstanceRow) -> TemplateInstance:
+    # 内容字段是运行时树结构的事实来源；顶层列只保留仓储查询需要的索引字段。
     payload = copy.deepcopy(row.content or {})
     return TemplateInstance(
         id=row.id,

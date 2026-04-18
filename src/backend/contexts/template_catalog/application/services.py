@@ -1,3 +1,5 @@
+"""静态模板目录及导入导出流程的应用服务。"""
+
 from __future__ import annotations
 
 import json
@@ -10,11 +12,14 @@ from ..domain.models import ReportTemplate
 
 
 class TemplateCatalogService:
+    """负责静态报告模板生命周期的应用服务。"""
+
     def __init__(self, *, repository, schema_gateway) -> None:
         self.repository = repository
         self.schema_gateway = schema_gateway
 
     def create_template(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """校验并持久化正式报告模板载荷。"""
         cleaned = self._validate_template_payload(payload)
         try:
             template = self.repository.create(cleaned)
@@ -23,6 +28,7 @@ class TemplateCatalogService:
         return self.serialize_detail(template)
 
     def update_template(self, template_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """更新已有模板，同时保持资源标识不可变。"""
         if template_id != str(payload.get("id") or "").strip():
             raise ValidationError("Template id mismatch")
         cleaned = self._validate_template_payload(payload)
@@ -33,12 +39,14 @@ class TemplateCatalogService:
         self.repository.delete(template_id)
 
     def get_template(self, template_id: str) -> dict[str, Any]:
+        """返回接口层与对话匹配流程共同消费的正式模板详情视图。"""
         template = self.repository.get(template_id)
         if template is None:
             raise NotFoundError("Template not found")
         return self.serialize_detail(template)
 
     def list_templates(self) -> list[dict[str, Any]]:
+        """返回模板列表页使用的紧凑摘要。"""
         return [
             {
                 "id": item.id,
@@ -52,6 +60,7 @@ class TemplateCatalogService:
         ]
 
     def export_template(self, template_id: str) -> tuple[dict[str, Any], str]:
+        """导出精确的正式模板对象与面向用户的文件名。"""
         template = self.repository.get(template_id)
         if template is None:
             raise NotFoundError("Template not found")
@@ -59,6 +68,7 @@ class TemplateCatalogService:
         return payload, self._build_export_filename(template)
 
     def preview_import_template(self, raw_content: Any) -> dict[str, Any]:
+        """解析并校验导入内容，但不修改持久化存储。"""
         normalized = self._parse_import_content(raw_content)
         cleaned = self._validate_template_payload(normalized)
         return {
@@ -67,6 +77,7 @@ class TemplateCatalogService:
         }
 
     def serialize_detail(self, template: ReportTemplate) -> dict[str, Any]:
+        """把领域对象投影为公开的报告模板契约。"""
         return {
             "id": template.id,
             "category": template.category,
@@ -81,6 +92,7 @@ class TemplateCatalogService:
         }
 
     def _validate_template_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # 校验停留在应用层，这样仓储层只接收结构干净的对象，不需要兼容分支。
         try:
             return self.schema_gateway.validate(dict(payload or {}))
         except ValueError as exc:

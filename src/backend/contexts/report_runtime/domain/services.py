@@ -1,3 +1,5 @@
+"""纯领域辅助函数，用于推进模板实例并派生报告期结构。"""
+
 from __future__ import annotations
 
 import copy
@@ -16,6 +18,7 @@ def merge_parameter_values(
     current_values: dict[str, list[dict[str, Any]]] | None,
     incoming_values: dict[str, list[dict[str, Any]]] | None,
 ) -> dict[str, list[dict[str, Any]]]:
+    """把传入参数值与默认值合并成正式三通道结构。"""
     merged = copy.deepcopy(current_values or {})
     incoming = incoming_values or {}
     for definition in parameter_definitions:
@@ -47,6 +50,7 @@ def instantiate_template_instance(
     created_at: datetime | None = None,
     updated_at: datetime | None = None,
 ) -> TemplateInstance:
+    """基于模板与当前参数值创建标准运行时聚合。"""
     parameter_definitions = list(template.get("parameters") or [])
     effective_values = merge_parameter_values(
         parameter_definitions=parameter_definitions,
@@ -75,6 +79,7 @@ def instantiate_template_instance(
 
 
 def build_catalog_instances(*, template: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """把模板目录物化为包含展开章节的运行时目录。"""
     catalogs: list[dict[str, Any]] = []
     for catalog in list(template.get("catalogs") or []):
         sections: list[dict[str, Any]] = []
@@ -93,6 +98,7 @@ def build_catalog_instances(*, template: dict[str, Any], parameter_values: dict[
 
 
 def expand_section_instances(*, section: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """按逐项展开语义扩展章节，为每个生成章节绑定一个参数值作用域。"""
     foreach = section.get("foreach") if isinstance(section.get("foreach"), dict) else None
     if not foreach:
         return [build_section_instance(section=section, parameter_values=parameter_values)]
@@ -115,6 +121,7 @@ def expand_section_instances(*, section: dict[str, Any], parameter_values: dict[
 
 
 def build_section_instance(*, section: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """构建单个运行时章节节点，产出诉求文本与执行绑定。"""
     outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
     item_instances = []
     for item in list(outline.get("items") or []):
@@ -137,6 +144,7 @@ def build_section_instance(*, section: dict[str, Any], parameter_values: dict[st
 
 
 def build_requirement_item_instance(*, item: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """根据参数绑定或局部默认值解析单个诉求要素。"""
     source_parameter_id = str(item.get("sourceParameterId") or "").strip()
     resolved_values = []
     binding_source = "system_fill"
@@ -156,6 +164,7 @@ def build_requirement_item_instance(*, item: dict[str, Any], parameter_values: d
 
 
 def build_execution_bindings(*, section: dict[str, Any], item_instances: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把已解析的诉求要素投影成数据集级执行绑定。"""
     datasets = ((section.get("content") or {}).get("datasets") or []) if isinstance(section.get("content"), dict) else []
     bindings: list[dict[str, Any]] = []
     for dataset in datasets:
@@ -176,6 +185,7 @@ def build_execution_bindings(*, section: dict[str, Any], item_instances: list[di
 
 
 def render_requirement_text(template_text: str, item_lookup: dict[str, dict[str, Any]]) -> str:
+    """使用已解析的三通道值渲染诉求要素占位符。"""
     def replace(match: re.Match[str]) -> str:
         item_id = match.group(1)
         channel = match.group(2) or "display"
@@ -190,6 +200,7 @@ def render_requirement_text(template_text: str, item_lookup: dict[str, dict[str,
 
 
 def build_resolved_query(values: list[dict[str, Any]]) -> str:
+    """把已解析的查询值转换为执行绑定使用的查询通道。"""
     if not values:
         return ""
     queries = [value.get("query") for value in values if value.get("query") is not None]
@@ -202,6 +213,7 @@ def build_resolved_query(values: list[dict[str, Any]]) -> str:
 
 
 def serialize_template_instance(instance: TemplateInstance) -> dict[str, Any]:
+    """把运行时聚合序列化成公开的模板实例契约。"""
     return {
         "id": instance.id,
         "schemaVersion": instance.schema_version,

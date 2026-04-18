@@ -25,6 +25,7 @@ from ..contexts.template_catalog.infrastructure.repositories import (
 
 
 def build_template_catalog_service(db: Session) -> TemplateCatalogService:
+    """装配模板目录应用服务及其依赖适配器。"""
     return TemplateCatalogService(
         repository=SqlAlchemyTemplateCatalogRepository(db),
         schema_gateway=TemplateSchemaGateway(),
@@ -32,10 +33,12 @@ def build_template_catalog_service(db: Session) -> TemplateCatalogService:
 
 
 def build_parameter_option_service(db: Session | None = None) -> ParameterOptionService:
+    """返回对话流和预览流共用的动态参数解析服务。"""
     return ParameterOptionService()
 
 
 def build_report_runtime_service(db: Session) -> ReportRuntimeService:
+    """围绕持久化与文档适配器装配报告运行时服务。"""
     return ReportRuntimeService(
         template_repository=SqlAlchemyRuntimeTemplateRepository(db),
         template_instance_repository=SqlAlchemyTemplateInstanceRepository(db),
@@ -47,10 +50,12 @@ def build_report_runtime_service(db: Session) -> ReportRuntimeService:
 
 
 def build_report_document_service(db: Session) -> ReportDocumentService:
+    """暴露面向报告范围的文档下载门面。"""
     return ReportDocumentService(runtime_service=build_report_runtime_service(db))
 
 
 def build_conversation_service(db: Session) -> ConversationService:
+    """装配聊天接口应用服务及其依赖上下文。"""
     return ConversationService(
         conversation_repository=SqlAlchemyConversationRepository(db),
         chat_repository=SqlAlchemyChatRepository(db),

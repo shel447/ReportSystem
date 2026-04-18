@@ -1,3 +1,5 @@
+"""报告运行时应用层使用的文档与导出适配器。"""
+
 from __future__ import annotations
 
 import json
@@ -23,6 +25,8 @@ EXTENSIONS = {
 
 
 class ReportDocumentGateway:
+    """隔离文稿导出与办公文档导出后端的文档适配器。"""
+
     def __init__(self, *, office_exporter: JavaOfficeExporterGateway | None = None) -> None:
         self.office_exporter = office_exporter or JavaOfficeExporterGateway()
 
@@ -36,6 +40,8 @@ class ReportDocumentGateway:
         strict_validation: bool = True,
         pdf_source: str | None = None,
     ) -> dict[str, Any]:
+        # 文稿格式直接由已冻结的报告结构在本地生成；办公文档格式则委托给
+        # 导出服务，以便把渲染细节隔离在应用层之外。
         normalized_format = str(format_name or "").strip().lower()
         if normalized_format == "markdown":
             return self._generate_markdown(report=report, report_id=report_id, theme=theme)
@@ -79,6 +85,7 @@ class ReportDocumentGateway:
 
 
 def _serialize_report_payload(report: dict[str, Any], *, theme: str, format_name: str) -> str:
+    """生成确定性的文稿导出结果，用于调试和轻量分发。"""
     return "\n".join(
         [
             f"# Report Export ({format_name})",

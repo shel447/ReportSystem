@@ -1,3 +1,5 @@
+"""定时任务定义与执行记录的领域模型。"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,6 +8,8 @@ from datetime import datetime
 
 @dataclass(slots=True)
 class ScheduledTask:
+    """保存执行策略与运行计数器的调度聚合。"""
+
     task_id: str
     user_id: str
     name: str
@@ -29,6 +33,8 @@ class ScheduledTask:
 
 @dataclass(slots=True)
 class TaskExecution:
+    """定时任务的一次执行尝试。"""
+
     execution_id: str
     task_id: str
     status: str

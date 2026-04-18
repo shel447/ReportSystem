@@ -1,3 +1,5 @@
+"""统一对话应用服务，负责编排对话、模板实例与报告生成。"""
+
 from __future__ import annotations
 
 import copy
@@ -16,6 +18,8 @@ DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
 class ConversationService:
+    """拥有聊天接口协议与会话生命周期的应用服务。"""
+
     def __init__(
         self,
         *,
@@ -37,6 +41,7 @@ class ConversationService:
         self.ai_gateway = OpenAICompatGateway()
 
     def list_sessions(self, *, user_id: str) -> list[dict[str, Any]]:
+        """返回会话列表视图，仅包含最后一条消息预览。"""
         result = []
         for conversation in self.conversation_repository.list_all(user_id=user_id):
             messages = self.chat_repository.list_by_conversation(conversation.id, user_id=user_id)
@@ -53,6 +58,7 @@ class ConversationService:
         return result
 
     def get_session(self, *, conversation_id: str, user_id: str) -> dict[str, Any]:
+        """加载单个会话，并按顺序组装聊天消息流。"""
         conversation = self.conversation_repository.get(conversation_id, user_id=user_id)
         if conversation is None:
             raise NotFoundError("Conversation not found")
@@ -80,6 +86,7 @@ class ConversationService:
         return {"message": "deleted"}
 
     def fork_session(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        """从历史聊天节点派生出一个新会话。"""
         source_conversation_id = str(data.get("source_conversation_id") or "").strip()
         source_chat_id = str(data.get("source_chat_id") or "").strip()
         source = self.conversation_repository.get(source_conversation_id, user_id=user_id)
@@ -103,6 +110,7 @@ class ConversationService:
         return {"conversationId": new_conversation.id}
 
     def send_message(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        """分派公开的聊天指令契约。"""
         instruction = str(data.get("instruction") or "generate_report").strip() or "generate_report"
         if instruction == "extract_report_template":
             return self._extract_report_template(data=data, user_id=user_id)
@@ -111,6 +119,7 @@ class ConversationService:
         return self._generate_report(data=data, user_id=user_id)
 
     def _extract_report_template(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        """将自由文本输入投影为模板导入预览结果。"""
         normalized = self.template_catalog_service.preview_import_template(data.get("question") or {})
         return {
             "conversationId": str(data.get("conversationId") or ""),
@@ -133,6 +142,7 @@ class ConversationService:
         }
 
     def _generate_report(self, *, data: dict[str, Any], user_id: str) -> dict[str, Any]:
+        """围绕模板实例驱动报告对话状态机。"""
         conversation = self._ensure_conversation(data=data, user_id=user_id)
         user_chat = self.chat_repository.append_message(
             conversation_id=conversation.id,
@@ -146,6 +156,8 @@ class ConversationService:
         current_instance = self.runtime_service.get_latest_template_instance(conversation_id=conversation.id, user_id=user_id)
 
         if reply and str(reply.get("type") or "") == "confirm_params":
+            # 只有确认参数分支允许把当前模板实例冻结成报告，
+            # 其它分支都必须继续停留在追问态推进收参流程。
             template_instance_payload = ((reply.get("reportContext") or {}).get("templateInstance")) if isinstance(reply.get("reportContext"), dict) else None
             if not isinstance(template_instance_payload, dict):
                 raise ValidationError("confirm_params requires reportContext.templateInstance")
@@ -178,6 +190,8 @@ class ConversationService:
             return response
 
         if current_instance:
+            # 一旦模板实例已存在，后续每轮都必须更新同一个聚合，
+            # 不能在消息流上再派生旁路状态。
             template_id = current_instance["templateId"]
             template = self.template_catalog_service.get_template(template_id)
             merged_values = merge_parameter_values(
@@ -202,6 +216,7 @@ class ConversationService:
             self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
             return response
 
+        # 首轮先完成模板匹配，再用抽取值和默认值初始化第一版模板实例。
         template = self._match_template(str(data.get("question") or ""))
         initial_values = self._extract_parameter_values(template, str(data.get("question") or ""))
         instance = instantiate_template_instance(
@@ -239,6 +254,7 @@ class ConversationService:
         return self.conversation_repository.create(conversation_id=None, user_id=user_id)
 
     def _match_template(self, question: str) -> dict[str, Any]:
+        """结合词法与向量信号选择最匹配的正式模板。"""
         templates = [self.template_catalog_service.serialize_detail(item) for item in self.template_repository.list_all()]
         if not templates:
             raise ValidationError("No report templates available")
@@ -268,6 +284,7 @@ class ConversationService:
             return []
 
     def _extract_parameter_values(self, template: dict[str, Any], question: str) -> dict[str, list[dict[str, Any]]]:
+        """对用户文本执行轻量首轮参数抽取。"""
         parameter_values: dict[str, list[dict[str, Any]]] = {}
         question_text = question or ""
         for parameter in list(template.get("parameters") or []):
@@ -320,6 +337,7 @@ class ConversationService:
         )
 
     def _build_ask_response(self, *, conversation_id: str, chat_id: str, template: dict[str, Any], template_instance: dict[str, Any], request_id: str | None, api_version: str | None) -> dict[str, Any]:
+        """根据模板实例当前完整度直接构造下一轮追问。"""
         missing = _missing_required_parameters(template=template, template_instance=template_instance)
         if missing:
             next_parameter = missing[0]
@@ -362,6 +380,7 @@ class ConversationService:
         )
 
     def _append_assistant_message(self, *, conversation_id: str, user_id: str, response: dict[str, Any]) -> None:
+        """持久化统一聊天响应，确保聊天与报告视图都可重放。"""
         self.chat_repository.append_message(
             conversation_id=conversation_id,
             user_id=user_id,
