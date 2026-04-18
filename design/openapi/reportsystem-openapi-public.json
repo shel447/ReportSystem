@@ -91,6 +91,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Template id already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -114,6 +124,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReportTemplate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Path id and body id mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -184,22 +204,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "content": {
-                    "oneOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "object"
-                      }
-                    ]
-                  }
-                },
-                "required": [
-                  "content"
-                ]
+                "$ref": "#/components/schemas/TemplateImportPreviewRequest"
               }
             }
           }
@@ -210,22 +215,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "normalizedTemplate": {
-                      "$ref": "#/components/schemas/ReportTemplate"
-                    },
-                    "warnings": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
-                  },
-                  "required": [
-                    "normalizedTemplate",
-                    "warnings"
-                  ]
+                  "$ref": "#/components/schemas/TemplateImportPreviewResponse"
                 }
               }
             }
@@ -608,6 +598,81 @@
           "name",
           "description",
           "schemaVersion"
+        ]
+      },
+      "TemplateImportPreviewRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "TemplateImportPreviewResponse": {
+        "type": "object",
+        "properties": {
+          "normalizedTemplate": {
+            "$ref": "#/components/schemas/ReportTemplate"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WarningItem"
+            }
+          }
+        },
+        "required": [
+          "normalizedTemplate",
+          "warnings"
+        ]
+      },
+      "WarningItem": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WarningItem"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "message"
         ]
       },
       "ConversationSummary": {

@@ -52,6 +52,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReportTemplate'
+        '409':
+          description: Template id already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /templates/{id}:
     get:
@@ -67,6 +73,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReportTemplate'
+        '400':
+          description: Path id and body id mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     put:
       tags: [templates]
       summary: Update template
@@ -106,28 +118,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                content:
-                  oneOf:
-                    - type: string
-                    - type: object
-              required: [content]
+              $ref: '#/components/schemas/TemplateImportPreviewRequest'
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  normalizedTemplate:
-                    $ref: '#/components/schemas/ReportTemplate'
-                  warnings:
-                    type: array
-                    items:
-                      type: string
-                required: [normalizedTemplate, warnings]
+                $ref: '#/components/schemas/TemplateImportPreviewResponse'
 
   /templates/{id}/export:
     get:
@@ -344,6 +342,41 @@ components:
         schemaVersion: { type: string }
         updatedAt: { type: string, format: date-time }
       required: [id, category, name, description, schemaVersion]
+    TemplateImportPreviewRequest:
+      type: object
+      properties:
+        content:
+          oneOf:
+            - type: string
+            - type: object
+      required: [content]
+    TemplateImportPreviewResponse:
+      type: object
+      properties:
+        normalizedTemplate:
+          $ref: '#/components/schemas/ReportTemplate'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/WarningItem'
+      required: [normalizedTemplate, warnings]
+    WarningItem:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        path: { type: string }
+      required: [code, message]
+    ErrorResponse:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details:
+          type: array
+          items:
+            $ref: '#/components/schemas/WarningItem'
+      required: [code, message]
     ConversationSummary:
       type: object
       properties:
