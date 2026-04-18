@@ -13,13 +13,13 @@
     "options": {
       "type": "array",
       "items": {
-        "$ref": "./report-template.schema.json#/$defs/TrioValue"
+        "$ref": "./report-template.schema.json#/$defs/ParameterValue"
       }
     },
     "defaultValue": {
       "type": "array",
       "items": {
-        "$ref": "./report-template.schema.json#/$defs/TrioValue"
+        "$ref": "./report-template.schema.json#/$defs/ParameterValue"
       }
     }
   }

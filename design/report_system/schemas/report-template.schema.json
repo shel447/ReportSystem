@@ -75,73 +75,6 @@
         }
       ]
     },
-    "TrioValue": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "display",
-        "value",
-        "query"
-      ],
-      "properties": {
-        "display": {
-          "$ref": "#/$defs/Scalar"
-        },
-        "value": {
-          "$ref": "#/$defs/Scalar"
-        },
-        "query": {
-          "$ref": "#/$defs/Scalar"
-        }
-      }
-    },
-    "OpenSource": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "url"
-      ],
-      "properties": {
-        "url": {
-          "type": "string",
-          "format": "uri"
-        }
-      }
-    },
-    "ParameterRuntime": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "valueSource": {
-          "type": "string",
-          "enum": [
-            "user_input",
-            "default",
-            "dynamic_candidate",
-            "parameter_ref",
-            "system_fill"
-          ]
-        },
-        "candidateSource": {
-          "type": "string"
-        },
-        "candidateFetchedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "queryContext": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "confirmed": {
-          "type": "boolean"
-        },
-        "confirmedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      }
-    },
     "Parameter": {
       "type": "object",
       "additionalProperties": false,
@@ -151,8 +84,7 @@
         "inputType",
         "required",
         "multi",
-        "interactionMode",
-        "valueMode"
+        "interactionMode"
       ],
       "properties": {
         "id": {
@@ -188,46 +120,33 @@
             "natural_language"
           ]
         },
-        "valueMode": {
-          "type": "string",
-          "enum": [
-            "display",
-            "value",
-            "query"
-          ]
-        },
         "placeholder": {
           "type": "string"
         },
         "defaultValue": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TrioValue"
+            "$ref": "#/$defs/ParameterValue"
           }
         },
         "options": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TrioValue"
-          }
-        },
-        "openSource": {
-          "$ref": "#/$defs/OpenSource"
-        },
-        "candidates": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/TrioValue"
+            "$ref": "#/$defs/ParameterValue"
           }
         },
         "values": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TrioValue"
+            "$ref": "#/$defs/ParameterValue"
           }
         },
-        "runtime": {
-          "$ref": "#/$defs/ParameterRuntime"
+        "runtimeContext": {
+          "$ref": "#/$defs/ParameterRuntimeContext"
+        },
+        "source": {
+          "type": "string",
+          "description": "动态候选值来源地址。内容为 URL。"
         }
       },
       "allOf": [
@@ -255,7 +174,7 @@
           },
           "then": {
             "required": [
-              "openSource"
+              "source"
             ]
           }
         }
@@ -276,7 +195,8 @@
       ],
       "properties": {
         "requirement": {
-          "type": "string"
+          "type": "string",
+          "description": "章节诉求模板。可在文本中使用 {@itemId} 引用诉求项槽位。"
         },
         "renderedRequirement": {
           "type": "string"
@@ -347,13 +267,13 @@
         "defaultValue": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TrioValue"
+            "$ref": "#/$defs/ParameterValue"
           }
         },
         "values": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TrioValue"
+            "$ref": "#/$defs/ParameterValue"
           }
         },
         "valueSource": {
@@ -502,7 +422,6 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "title",
         "outline",
         "content"
       ],
@@ -511,18 +430,11 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9_\\-]+$"
         },
-        "title": {
-          "type": "string"
-        },
         "description": {
           "type": "string"
         },
         "parameters": {
           "$ref": "#/$defs/ScopedParameters"
-        },
-        "titleTemplate": {
-          "type": "string",
-          "description": "章节动态标题模板。使用 {$parameterId} 引用当前层级及其父层级可见参数的 display 值。"
         },
         "foreach": {
           "$ref": "#/$defs/ForeachDefinition"
@@ -540,25 +452,22 @@
       "additionalProperties": false,
       "required": [
         "id",
-        "name"
+        "title"
       ],
       "properties": {
         "id": {
           "type": "string",
           "pattern": "^[A-Za-z0-9_\\-]+$"
         },
-        "name": {
-          "type": "string"
+        "title": {
+          "type": "string",
+          "description": "目录标题模板。可直接在句子中使用 {$parameterId} 引用当前层级及父层级可见参数的 display 值。"
         },
         "description": {
           "type": "string"
         },
         "parameters": {
           "$ref": "#/$defs/ScopedParameters"
-        },
-        "nameTemplate": {
-          "type": "string",
-          "description": "目录动态标题模板。使用 {$parameterId} 引用当前层级及其父层级可见参数的 display 值。"
         },
         "foreach": {
           "$ref": "#/$defs/ForeachDefinition"
@@ -588,6 +497,60 @@
           ]
         }
       ]
+    },
+    "ParameterValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display",
+        "value",
+        "query"
+      ],
+      "properties": {
+        "display": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "query": {
+          "$ref": "#/$defs/Scalar"
+        }
+      }
+    },
+    "ParameterRuntimeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "dynamic_candidate",
+            "parameter_ref",
+            "system_fill"
+          ]
+        },
+        "queryContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "optionSource": {
+          "type": "string"
+        },
+        "optionsFetchedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
     }
   }
 }
