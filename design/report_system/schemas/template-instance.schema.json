@@ -63,6 +63,7 @@
     },
     "parameterValues": {
       "type": "object",
+      "description": "参数已生效值。若用户未显式填写，则先应用默认值后再落入这里；单值和多值统一使用 TrioValue 数组。",
       "additionalProperties": {
         "type": "array",
         "items": {
@@ -159,6 +160,7 @@
         },
         "resolvedValues": {
           "type": "array",
+          "description": "诉求项实例化后的最终值。多值场景继续保留 TrioValue 数组，不提前拼接为 SQL 字符串。",
           "items": {
             "$ref": "#/$defs/TrioValue"
           }
@@ -228,8 +230,24 @@
         "targetRef": {
           "type": "string"
         },
+        "multiValueQueryMode": {
+          "type": "string",
+          "description": "多值查询组合策略。默认推荐使用 in。",
+          "enum": [
+            "single",
+            "in",
+            "or",
+            "and",
+            "custom"
+          ]
+        },
+        "queryTemplate": {
+          "type": "string",
+          "description": "仅在 multiValueQueryMode=custom 时使用的查询模板。"
+        },
         "resolvedQuery": {
-          "type": "string"
+          "type": "string",
+          "description": "对执行层可直接使用的最终查询表达式。多值场景由 resolvedValues 和 multiValueQueryMode 生成。"
         },
         "notes": {
           "type": "string"

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "./report-dsl.schema.json",
+  "$id": "https://example.com/schemas/report.schema.json",
   "title": "Report",
   "description": "根据提供的 DSL 类型定义生成的 Report 根对象 JSON Schema",
   "type": "object",
