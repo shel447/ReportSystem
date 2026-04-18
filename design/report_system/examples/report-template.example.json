@@ -18,7 +18,9 @@
       "description": "日报统计日期。",
       "inputType": "date",
       "required": true,
+      "multi": false,
       "interactionMode": "form",
+      "valueMode": "value",
       "defaultValue": [
         {
           "display": "2026-04-18",
@@ -46,6 +48,7 @@
       "description": "选择报告关注的指标集。",
       "inputType": "enum",
       "required": true,
+      "multi": false,
       "interactionMode": "form",
       "valueMode": "value",
       "options": [

@@ -116,7 +116,9 @@
         "label",
         "inputType",
         "required",
-        "interactionMode"
+        "multi",
+        "interactionMode",
+        "valueMode"
       ],
       "properties": {
         "id": {
@@ -190,8 +192,7 @@
           },
           "then": {
             "required": [
-              "options",
-              "valueMode"
+              "options"
             ]
           }
         },
@@ -205,8 +206,7 @@
           },
           "then": {
             "required": [
-              "openSource",
-              "valueMode"
+              "openSource"
             ]
           }
         }
