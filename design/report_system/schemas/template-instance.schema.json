@@ -2,18 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./template-instance.schema.json",
   "title": "TemplateInstance",
-  "description": "模板实例正式定义。模板实例是对话运行态对象，主体保持 catalogs -> (subCatalogs)* -> sections 层级。",
+  "description": "模板实例正式定义。模板实例是对话运行态对象，主体保持 catalogs -> (subCatalogs)* -> sections 层级；参数与诉求统一复用渐进式核心模型。",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "id",
     "schemaVersion",
     "templateId",
+    "templateSnapshot",
     "conversationId",
     "status",
     "captureStage",
     "revision",
-    "parameterValues",
+    "parameters",
+    "parameterConfirmation",
     "catalogs",
     "deltaViews",
     "templateSkeletonStatus",
@@ -29,6 +31,10 @@
     },
     "templateId": {
       "type": "string"
+    },
+    "templateSnapshot": {
+      "$ref": "./report-template.schema.json",
+      "description": "模板实例冻结时使用的完整模板快照。二次编辑与重新生成必须以该快照为准，不能回读线上最新模板。"
     },
     "conversationId": {
       "type": "string"
@@ -61,15 +67,15 @@
       "type": "integer",
       "minimum": 1
     },
-    "parameterValues": {
-      "type": "object",
-      "description": "参数已生效值。若用户未显式填写，则先应用默认值后再落入这里；单值和多值统一使用 TrioValue 数组。",
-      "additionalProperties": {
-        "type": "array",
-        "items": {
-          "$ref": "#/$defs/TrioValue"
-        }
+    "parameters": {
+      "type": "array",
+      "description": "模板实例根部参数。与模板、ask、reply 复用同一套参数模型；实例态可带 candidates/values/runtime。",
+      "items": {
+        "$ref": "#/$defs/Parameter"
       }
+    },
+    "parameterConfirmation": {
+      "$ref": "#/$defs/ParameterConfirmation"
     },
     "catalogs": {
       "type": "array",
@@ -138,65 +144,6 @@
         }
       }
     },
-    "RequirementItemInstance": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "label",
-        "kind",
-        "resolvedValues",
-        "bindingSource"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        },
-        "resolvedValues": {
-          "type": "array",
-          "description": "诉求项实例化后的最终值。多值场景继续保留 TrioValue 数组，不提前拼接为 SQL 字符串。",
-          "items": {
-            "$ref": "#/$defs/TrioValue"
-          }
-        },
-        "bindingSource": {
-          "type": "string",
-          "enum": [
-            "parameter",
-            "user_input",
-            "system_fill"
-          ]
-        },
-        "sourceParameterId": {
-          "type": "string"
-        }
-      }
-    },
-    "RequirementInstance": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "text",
-        "items"
-      ],
-      "properties": {
-        "text": {
-          "type": "string"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/RequirementItemInstance"
-          }
-        }
-      }
-    },
     "OpenSource": {
       "type": "object",
       "additionalProperties": false,
@@ -210,7 +157,64 @@
         }
       }
     },
-    "ScopedParameterDefinition": {
+    "ParameterRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "dynamic_candidate",
+            "parameter_ref",
+            "system_fill"
+          ]
+        },
+        "candidateSource": {
+          "type": "string"
+        },
+        "candidateFetchedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "queryContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ParameterConfirmation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "missingParameterIds",
+        "confirmed"
+      ],
+      "properties": {
+        "missingParameterIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Parameter": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -262,6 +266,9 @@
             "query"
           ]
         },
+        "placeholder": {
+          "type": "string"
+        },
         "defaultValue": {
           "type": "array",
           "items": {
@@ -276,6 +283,100 @@
         },
         "openSource": {
           "$ref": "#/$defs/OpenSource"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "runtime": {
+          "$ref": "#/$defs/ParameterRuntime"
+        }
+      }
+    },
+    "RequirementItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "required"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceParameterId": {
+          "type": "string"
+        },
+        "widget": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "parameter_ref",
+            "system_fill"
+          ]
+        }
+      }
+    },
+    "Outline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement",
+        "items"
+      ],
+      "properties": {
+        "requirement": {
+          "type": "string"
+        },
+        "renderedRequirement": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RequirementItem"
+          }
         }
       }
     },
@@ -348,7 +449,7 @@
         },
         "resolvedQuery": {
           "type": "string",
-          "description": "对执行层可直接使用的最终查询表达式。多值场景由 resolvedValues 和 multiValueQueryMode 生成。"
+          "description": "对执行层可直接使用的最终查询表达式。多值场景由 values 和 multiValueQueryMode 生成。"
         },
         "notes": {
           "type": "string"
@@ -369,7 +470,7 @@
       "required": [
         "id",
         "title",
-        "requirementInstance",
+        "outline",
         "executionBindings",
         "skeletonStatus",
         "userEdited"
@@ -391,7 +492,7 @@
         "parameters": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ScopedParameterDefinition"
+            "$ref": "#/$defs/Parameter"
           }
         },
         "titleTemplate": {
@@ -400,8 +501,8 @@
         "foreachContext": {
           "$ref": "#/$defs/ForeachContext"
         },
-        "requirementInstance": {
-          "$ref": "#/$defs/RequirementInstance"
+        "outline": {
+          "$ref": "#/$defs/Outline"
         },
         "executionBindings": {
           "type": "array",
@@ -441,7 +542,7 @@
         "parameters": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ScopedParameterDefinition"
+            "$ref": "#/$defs/Parameter"
           }
         },
         "nameTemplate": {

@@ -451,7 +451,9 @@ components:
       properties:
         type: { type: string, enum: [fill_params, confirm_params] }
         parameters:
-          $ref: '#/components/schemas/EffectiveParameterValues'
+          type: array
+          items:
+            $ref: '#/components/schemas/Parameter'
         reportContext:
           type: object
           properties:
@@ -525,29 +527,15 @@ components:
         parameters:
           type: array
           items:
-            type: object
-            properties:
-              parameter:
-                $ref: '#/components/schemas/AskParameterDefinition'
-              currentValue:
-                $ref: '#/components/schemas/ParameterValueArray'
-            required: [parameter, currentValue]
+            $ref: '#/components/schemas/Parameter'
         reportContext:
           type: object
           properties:
             templateInstance:
               $ref: '#/components/schemas/TemplateInstance'
       required: [mode, type, title, text]
-    AskParameterDefinition:
-      $ref: ../report_system/schemas/report-template.schema.json#/$defs/ParameterDefinition
-    ParameterValueArray:
-      type: array
-      items:
-        $ref: '#/components/schemas/TrioValue'
-    EffectiveParameterValues:
-      type: object
-      additionalProperties:
-        $ref: '#/components/schemas/ParameterValueArray'
+    Parameter:
+      $ref: ../report_system/schemas/report-template.schema.json#/$defs/Parameter
     AnswerEnvelope:
       type: object
       properties:

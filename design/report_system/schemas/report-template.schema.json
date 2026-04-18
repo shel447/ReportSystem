@@ -48,7 +48,7 @@
     "parameters": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/ParameterDefinition"
+        "$ref": "#/$defs/Parameter"
       }
     },
     "catalogs": {
@@ -108,7 +108,41 @@
         }
       }
     },
-    "ParameterDefinition": {
+    "ParameterRuntime": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "dynamic_candidate",
+            "parameter_ref",
+            "system_fill"
+          ]
+        },
+        "candidateSource": {
+          "type": "string"
+        },
+        "candidateFetchedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "queryContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Parameter": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -179,6 +213,21 @@
         },
         "openSource": {
           "$ref": "#/$defs/OpenSource"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "runtime": {
+          "$ref": "#/$defs/ParameterRuntime"
         }
       },
       "allOf": [
@@ -212,10 +261,10 @@
         }
       ]
     },
-    "ScopedParameterDefinitions": {
+    "ScopedParameters": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/ParameterDefinition"
+        "$ref": "#/$defs/Parameter"
       }
     },
     "OutlineDefinition": {
@@ -229,15 +278,18 @@
         "requirement": {
           "type": "string"
         },
+        "renderedRequirement": {
+          "type": "string"
+        },
         "items": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/RequirementItemDefinition"
+            "$ref": "#/$defs/RequirementItem"
           }
         }
       }
     },
-    "RequirementItemDefinition": {
+    "RequirementItem": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -297,6 +349,21 @@
           "items": {
             "$ref": "#/$defs/TrioValue"
           }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TrioValue"
+          }
+        },
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "parameter_ref",
+            "system_fill"
+          ]
         }
       }
     },
@@ -451,7 +518,7 @@
           "type": "string"
         },
         "parameters": {
-          "$ref": "#/$defs/ScopedParameterDefinitions"
+          "$ref": "#/$defs/ScopedParameters"
         },
         "titleTemplate": {
           "type": "string",
@@ -487,7 +554,7 @@
           "type": "string"
         },
         "parameters": {
-          "$ref": "#/$defs/ScopedParameterDefinitions"
+          "$ref": "#/$defs/ScopedParameters"
         },
         "nameTemplate": {
           "type": "string",
