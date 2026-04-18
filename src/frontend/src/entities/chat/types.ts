@@ -1,28 +1,56 @@
-export type TrioValue = {
-  display: string | number | boolean;
-  value: string | number | boolean;
-  query: string | number | boolean;
+import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition } from "../templates/types";
+
+export type TemplateInstanceRequirementItem = RequirementItemDefinition;
+
+export type TemplateInstanceSection = {
+  id: string;
+  description?: string;
+  parameters?: TemplateParameter[];
+  foreachContext?: {
+    parameterId: string;
+    itemValues: ParameterValue[];
+  };
+  outline: {
+    requirement: string;
+    renderedRequirement?: string;
+    items: TemplateInstanceRequirementItem[];
+  };
+  runtimeContext: {
+    bindings: Array<{
+      id: string;
+      bindingType: string;
+      sourceType: string;
+      targetRef: string;
+      multiValueQueryMode?: string;
+      queryTemplate?: string;
+      resolvedQuery?: string;
+      notes?: string;
+    }>;
+    notes?: string;
+  };
+  skeletonStatus: "reusable" | "conditionally_reusable" | "broken";
+  userEdited: boolean;
 };
 
-export type TemplateParameterProjection = {
+export type TemplateInstanceCatalog = {
   id: string;
-  label: string;
+  title: string;
+  renderedTitle: string;
   description?: string;
-  inputType: "free_text" | "date" | "enum" | "dynamic";
-  required: boolean;
-  multi: boolean;
-  interactionMode: "form" | "natural_language";
-  valueMode: "display" | "value" | "query";
-  placeholder?: string;
-  defaultValue?: TrioValue[];
-  options?: TrioValue[];
-  openSource?: { url: string };
+  parameters?: TemplateParameter[];
+  foreachContext?: {
+    parameterId: string;
+    itemValues: ParameterValue[];
+  };
+  subCatalogs?: TemplateInstanceCatalog[];
+  sections?: TemplateInstanceSection[];
 };
 
 export type TemplateInstance = {
   id: string;
   schemaVersion: string;
   templateId: string;
+  template: ReportTemplate;
   conversationId: string;
   chatId?: string;
   status:
@@ -35,52 +63,13 @@ export type TemplateInstance = {
     | "failed";
   captureStage: "fill_params" | "confirm_params" | "generate_report" | "report_ready";
   revision: number;
-  parameterValues: Record<string, TrioValue[]>;
-  catalogs: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    order?: number;
-    sections: Array<{
-      id: string;
-      title: string;
-      description?: string;
-      order?: number;
-      requirementInstance: {
-        text: string;
-        items: Array<{
-          id: string;
-          label: string;
-          kind: string;
-          resolvedValues: TrioValue[];
-          bindingSource: "parameter" | "user_input" | "system_fill";
-          sourceParameterId?: string;
-        }>;
-      };
-      executionBindings: Array<{
-        id: string;
-        bindingType: string;
-        sourceType: string;
-        targetRef: string;
-        multiValueQueryMode?: string;
-        queryTemplate?: string;
-        resolvedQuery?: string;
-        notes?: string;
-      }>;
-      skeletonStatus: "reusable" | "conditionally_reusable" | "broken";
-      userEdited: boolean;
-    }>;
-  }>;
-  deltaViews: Array<{
-    targetType: string;
-    targetId: string;
-    changeKind: string;
-    payload?: Record<string, unknown>;
-  }>;
-  templateSkeletonStatus: {
-    internal: "reusable" | "conditionally_reusable" | "broken";
-    ui: "not_broken" | "broken";
+  parameters: TemplateParameter[];
+  parameterConfirmation: {
+    missingParameterIds: string[];
+    confirmed: boolean;
+    confirmedAt?: string;
   };
+  catalogs: TemplateInstanceCatalog[];
   warnings?: Array<{ code: string; message: string; targetId?: string }>;
   createdAt: string;
   updatedAt: string;
@@ -102,6 +91,10 @@ export type ReportAnswerPayload = {
   generationProgress: {
     totalSections: number;
     completedSections: number;
+    totalCatalogs?: number;
+    completedCatalogs?: number;
+    currentCatalogPath?: string[];
+    currentSectionId?: string;
   };
 };
 
@@ -110,10 +103,7 @@ export type ChatAsk = {
   type: "fill_params" | "confirm_params";
   title: string;
   text: string;
-  parameters: Array<{
-    parameter: TemplateParameterProjection;
-    currentValue: TrioValue[];
-  }>;
+  parameters: TemplateParameter[];
   reportContext: {
     templateInstance: TemplateInstance;
   };
@@ -122,7 +112,7 @@ export type ChatAsk = {
 export type ChatResponse = {
   conversationId: string;
   chatId: string;
-  status: "waiting_user" | "finished" | "failed";
+  status: "waiting_user" | "running" | "finished" | "failed";
   steps: unknown[];
   ask: ChatAsk | null;
   answer:
@@ -174,7 +164,7 @@ export type ChatRequest = {
   instruction?: "generate_report" | "extract_report_template";
   reply?: {
     type: "fill_params" | "confirm_params";
-    parameters?: Record<string, TrioValue[]>;
+    parameters?: TemplateParameter[];
     reportContext?: {
       templateInstance: TemplateInstance;
     };
@@ -190,3 +180,5 @@ export type ChatForkRequest = {
   source_conversation_id?: string;
   source_chat_id?: string;
 };
+
+export type { ParameterValue, TemplateParameter, ParameterRuntimeContext };

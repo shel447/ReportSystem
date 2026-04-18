@@ -23,15 +23,13 @@ describe("TemplateDetailPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("creates a formal template payload rooted at catalogs", async () => {
-    let savedPayload: Record<string, unknown> | null = null;
+  it("creates a formal template payload rooted at recursive catalogs", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url === "/rest/chatbi/v1/templates" && init?.method === "POST") {
-        savedPayload = JSON.parse(String(init.body));
-        return Promise.resolve({ ok: true, json: async () => savedPayload });
+        return Promise.resolve({ ok: true, json: async () => JSON.parse(String(init.body)) });
       }
       if (url === "/rest/chatbi/v1/templates/tpl_network_daily" && !init?.method) {
-        return Promise.resolve({ ok: true, json: async () => savedPayload });
+        return Promise.resolve({ ok: true, json: async () => ({}) });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -44,17 +42,12 @@ describe("TemplateDetailPage", () => {
     fireEvent.change(screen.getByLabelText("名称"), { target: { value: "网络运行日报" } });
     fireEvent.change(screen.getByLabelText("描述"), { target: { value: "面向网络运维中心的统一日报模板。" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "新增目录" }));
-    const catalogIdInputs = screen.getAllByLabelText("目录 ID");
-    const catalogNameInputs = screen.getAllByLabelText("目录名称");
-    fireEvent.change(catalogIdInputs[0], { target: { value: "catalog_overview" } });
-    fireEvent.change(catalogNameInputs[0], { target: { value: "运行概览" } });
+    fireEvent.click(screen.getByRole("button", { name: "新增根目录" }));
+    fireEvent.change(screen.getByLabelText("目录 ID"), { target: { value: "catalog_overview" } });
+    fireEvent.change(screen.getByLabelText("目录标题"), { target: { value: "运行概览" } });
     fireEvent.click(screen.getByRole("button", { name: "新增章节" }));
-
-    const sectionIdInputs = screen.getAllByLabelText("章节 ID");
-    const sectionTitleInputs = screen.getAllByLabelText("章节标题");
-    fireEvent.change(sectionIdInputs[0], { target: { value: "section_overview" } });
-    fireEvent.change(sectionTitleInputs[0], { target: { value: "总体态势" } });
+    fireEvent.change(screen.getByLabelText("章节 ID"), { target: { value: "section_overview" } });
+    fireEvent.change(screen.getByLabelText("诉求文本"), { target: { value: "分析{@scope_item}的总体运行态势。" } });
 
     fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
 
@@ -64,7 +57,9 @@ describe("TemplateDetailPage", () => {
       const payload = JSON.parse(String(call?.[1]?.body));
       expect(payload.id).toBe("tpl_network_daily");
       expect(payload.catalogs[0].id).toBe("catalog_overview");
+      expect(payload.catalogs[0].title).toBe("运行概览");
       expect(payload.catalogs[0].sections[0].id).toBe("section_overview");
+      expect(payload.catalogs[0].sections[0].title).toBeUndefined();
       expect(payload.sections).toBeUndefined();
     });
   });

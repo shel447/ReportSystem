@@ -9,7 +9,9 @@ from typing import Any
 
 from .models import TemplateInstance
 
-PLACEHOLDER_PATTERN = re.compile(r"\{@([A-Za-z0-9_\-]+)(?:\.(display|value|query))?\}")
+ITEM_PLACEHOLDER_PATTERN = re.compile(r"\{@([A-Za-z0-9_\-]+)(?:\.(display|value|query))?\}")
+PARAMETER_PLACEHOLDER_PATTERN = re.compile(r"\{\$([A-Za-z0-9_\-]+)(?:\.(display|value|query))?\}")
+SQL_EQUALS_PATTERN = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=\s*(.+?)\s*$")
 
 
 def merge_parameter_values(
@@ -18,7 +20,7 @@ def merge_parameter_values(
     current_values: dict[str, list[dict[str, Any]]] | None,
     incoming_values: dict[str, list[dict[str, Any]]] | None,
 ) -> dict[str, list[dict[str, Any]]]:
-    """把传入参数值与默认值合并成正式三通道结构。"""
+    """把传入参数值与默认值合并成统一 ParameterValue 结构。"""
     merged = copy.deepcopy(current_values or {})
     incoming = incoming_values or {}
     for definition in parameter_definitions:
@@ -26,13 +28,33 @@ def merge_parameter_values(
         if not param_id:
             continue
         if param_id in incoming and incoming[param_id] is not None:
-            merged[param_id] = _normalize_trio_list(incoming[param_id])
+            merged[param_id] = _normalize_parameter_value_list(incoming[param_id])
             continue
         if param_id not in merged:
             default_value = definition.get("defaultValue")
             if isinstance(default_value, list):
-                merged[param_id] = _normalize_trio_list(default_value)
+                merged[param_id] = _normalize_parameter_value_list(default_value)
     return merged
+
+
+def parameters_to_value_map(parameters: list[dict[str, Any]] | None) -> dict[str, list[dict[str, Any]]]:
+    value_map: dict[str, list[dict[str, Any]]] = {}
+    for parameter in list(parameters or []):
+        param_id = str(parameter.get("id") or "").strip()
+        if not param_id:
+            continue
+        values = _normalize_parameter_value_list(parameter.get("values") or [])
+        if values:
+            value_map[param_id] = values
+    return value_map
+
+
+def parameters_by_id(parameters: list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    return {
+        str(parameter.get("id") or "").strip(): copy.deepcopy(parameter)
+        for parameter in list(parameters or [])
+        if str(parameter.get("id") or "").strip()
+    }
 
 
 def instantiate_template_instance(
@@ -45,210 +67,399 @@ def instantiate_template_instance(
     capture_stage: str,
     revision: int,
     parameter_values: dict[str, list[dict[str, Any]]],
-    existing_delta_views: list[dict[str, Any]] | None = None,
+    current_parameters: list[dict[str, Any]] | None = None,
     warnings: list[dict[str, Any]] | None = None,
     created_at: datetime | None = None,
     updated_at: datetime | None = None,
 ) -> TemplateInstance:
     """基于模板与当前参数值创建标准运行时聚合。"""
-    parameter_definitions = list(template.get("parameters") or [])
+    root_parameter_definitions = list(template.get("parameters") or [])
     effective_values = merge_parameter_values(
-        parameter_definitions=parameter_definitions,
-        current_values=parameter_values,
-        incoming_values={},
+        parameter_definitions=root_parameter_definitions,
+        current_values=parameters_to_value_map(current_parameters),
+        incoming_values=parameter_values,
     )
-    catalogs = build_catalog_instances(template=template, parameter_values=effective_values)
+    root_parameters = materialize_parameters(
+        parameter_definitions=root_parameter_definitions,
+        effective_values=effective_values,
+        current_parameters=current_parameters,
+    )
+    catalogs = build_catalog_instances(template=template, root_parameters=root_parameters)
+    missing_parameter_ids = [
+        str(parameter.get("id") or "")
+        for parameter in root_parameters
+        if parameter.get("required") and not list(parameter.get("values") or [])
+    ]
     now = datetime.now(timezone.utc).replace(microsecond=0)
+    confirmation = {
+        "missingParameterIds": missing_parameter_ids,
+        "confirmed": not missing_parameter_ids and capture_stage in {"confirm_params", "generate_report", "report_ready"},
+    }
+    if confirmation["confirmed"]:
+        confirmation["confirmedAt"] = _isoformat(updated_at or now)
+
     return TemplateInstance(
         id=instance_id,
-        schema_version="template-instance.v2",
+        schema_version="template-instance.vNext-draft",
         template_id=str(template.get("id") or ""),
+        template=copy.deepcopy(template),
         conversation_id=conversation_id,
         chat_id=chat_id,
         status=status,
         capture_stage=capture_stage,
         revision=revision,
-        parameter_values=effective_values,
+        parameters=root_parameters,
+        parameter_confirmation=confirmation,
         catalogs=catalogs,
-        delta_views=list(existing_delta_views or []),
-        template_skeleton_status={"internal": "reusable", "ui": "not_broken"},
         warnings=list(warnings or []),
         created_at=created_at or now,
         updated_at=updated_at or now,
     )
 
 
-def build_catalog_instances(*, template: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
-    """把模板目录物化为包含展开章节的运行时目录。"""
+def materialize_parameters(
+    *,
+    parameter_definitions: list[dict[str, Any]],
+    effective_values: dict[str, list[dict[str, Any]]] | None = None,
+    current_parameters: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    current_by_id = parameters_by_id(current_parameters)
+    value_map = copy.deepcopy(effective_values or {})
+    materialized: list[dict[str, Any]] = []
+    for definition in list(parameter_definitions or []):
+        param_id = str(definition.get("id") or "").strip()
+        if not param_id:
+            continue
+        current = current_by_id.get(param_id) or {}
+        values = _normalize_parameter_value_list(value_map.get(param_id) or current.get("values") or definition.get("defaultValue") or [])
+        options = _normalize_parameter_value_list(current.get("options") or definition.get("options") or [])
+        runtime_context = copy.deepcopy(current.get("runtimeContext") or {})
+        if values and not runtime_context.get("valueSource"):
+            runtime_context["valueSource"] = "default" if values == _normalize_parameter_value_list(definition.get("defaultValue") or []) else "user_input"
+        materialized_parameter = {
+            "id": param_id,
+            "label": definition.get("label"),
+            "description": definition.get("description"),
+            "inputType": definition.get("inputType"),
+            "required": bool(definition.get("required")),
+            "multi": bool(definition.get("multi")),
+            "interactionMode": definition.get("interactionMode"),
+        }
+        if definition.get("placeholder") is not None:
+            materialized_parameter["placeholder"] = definition.get("placeholder")
+        if isinstance(definition.get("defaultValue"), list):
+            materialized_parameter["defaultValue"] = _normalize_parameter_value_list(definition.get("defaultValue"))
+        if isinstance(definition.get("source"), str) and definition.get("source"):
+            materialized_parameter["source"] = definition.get("source")
+        if options or definition.get("inputType") == "enum":
+            materialized_parameter["options"] = options
+        if values:
+            materialized_parameter["values"] = values
+        if runtime_context:
+            materialized_parameter["runtimeContext"] = runtime_context
+        materialized.append(materialized_parameter)
+    return materialized
+
+
+def build_catalog_instances(*, template: dict[str, Any], root_parameters: list[dict[str, Any]]) -> list[dict[str, Any]]:
     catalogs: list[dict[str, Any]] = []
+    inherited_values = parameters_to_value_map(root_parameters)
     for catalog in list(template.get("catalogs") or []):
-        sections: list[dict[str, Any]] = []
-        for section in list(catalog.get("sections") or []):
-            sections.extend(expand_section_instances(section=section, parameter_values=parameter_values))
-        catalogs.append(
-            {
-                "id": catalog.get("id"),
-                "name": catalog.get("name"),
-                "description": catalog.get("description"),
-                "order": catalog.get("order"),
-                "sections": sections,
-            }
+        catalogs.extend(
+            expand_catalog_instances(
+                catalog=catalog,
+                inherited_values=inherited_values,
+            )
         )
     return catalogs
 
 
-def expand_section_instances(*, section: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
-    """按逐项展开语义扩展章节，为每个生成章节绑定一个参数值作用域。"""
-    foreach = section.get("foreach") if isinstance(section.get("foreach"), dict) else None
+def expand_catalog_instances(*, catalog: dict[str, Any], inherited_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    foreach = catalog.get("foreach") if isinstance(catalog.get("foreach"), dict) else None
     if not foreach:
-        return [build_section_instance(section=section, parameter_values=parameter_values)]
+        return [build_catalog_instance(catalog=catalog, inherited_values=inherited_values, foreach_context=None)]
 
     parameter_id = str(foreach.get("parameterId") or "").strip()
-    values = list(parameter_values.get(parameter_id) or [])
+    values = list(inherited_values.get(parameter_id) or [])
     if not parameter_id or not values:
-        return [build_section_instance(section=section, parameter_values=parameter_values)]
+        return [build_catalog_instance(catalog=catalog, inherited_values=inherited_values, foreach_context=None)]
 
     expanded: list[dict[str, Any]] = []
-    for index, value in enumerate(values, start=1):
-        scoped_values = copy.deepcopy(parameter_values)
-        scoped_values[parameter_id] = [value]
-        built = build_section_instance(section=section, parameter_values=scoped_values)
-        built["id"] = f"{built['id']}__{index}"
-        display = str(value.get("display") or value.get("value") or index)
-        built["title"] = f"{section.get('title')} - {display}"
-        expanded.append(built)
+    for value in values:
+        scoped_values = copy.deepcopy(inherited_values)
+        scoped_values[parameter_id] = [_normalize_parameter_value(value)]
+        expanded.append(
+            build_catalog_instance(
+                catalog=catalog,
+                inherited_values=scoped_values,
+                foreach_context={
+                    "parameterId": parameter_id,
+                    "itemValues": [_normalize_parameter_value(value)],
+                },
+            )
+        )
     return expanded
 
 
-def build_section_instance(*, section: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
-    """构建单个运行时章节节点，产出诉求文本与执行绑定。"""
+def build_catalog_instance(
+    *,
+    catalog: dict[str, Any],
+    inherited_values: dict[str, list[dict[str, Any]]],
+    foreach_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    catalog_parameters = materialize_parameters(
+        parameter_definitions=list(catalog.get("parameters") or []),
+        effective_values=inherited_values,
+    )
+    visible_values = {**copy.deepcopy(inherited_values), **parameters_to_value_map(catalog_parameters)}
+    built: dict[str, Any] = {
+        "id": catalog.get("id"),
+        "title": catalog.get("title"),
+        "renderedTitle": render_parameter_text(str(catalog.get("title") or ""), visible_values),
+    }
+    if catalog.get("description") is not None:
+        built["description"] = catalog.get("description")
+    if catalog_parameters:
+        built["parameters"] = catalog_parameters
+    if foreach_context:
+        built["foreachContext"] = foreach_context
+
+    sub_catalogs = []
+    for sub_catalog in list(catalog.get("subCatalogs") or []):
+        sub_catalogs.extend(expand_catalog_instances(catalog=sub_catalog, inherited_values=visible_values))
+    sections = []
+    for section in list(catalog.get("sections") or []):
+        sections.extend(expand_section_instances(section=section, inherited_values=visible_values))
+    if sub_catalogs:
+        built["subCatalogs"] = sub_catalogs
+    if sections:
+        built["sections"] = sections
+    return built
+
+
+def expand_section_instances(*, section: dict[str, Any], inherited_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    foreach = section.get("foreach") if isinstance(section.get("foreach"), dict) else None
+    if not foreach:
+        return [build_section_instance(section=section, inherited_values=inherited_values, foreach_context=None)]
+
+    parameter_id = str(foreach.get("parameterId") or "").strip()
+    values = list(inherited_values.get(parameter_id) or [])
+    if not parameter_id or not values:
+        return [build_section_instance(section=section, inherited_values=inherited_values, foreach_context=None)]
+
+    expanded: list[dict[str, Any]] = []
+    for value in values:
+        scoped_values = copy.deepcopy(inherited_values)
+        scoped_values[parameter_id] = [_normalize_parameter_value(value)]
+        expanded.append(
+            build_section_instance(
+                section=section,
+                inherited_values=scoped_values,
+                foreach_context={
+                    "parameterId": parameter_id,
+                    "itemValues": [_normalize_parameter_value(value)],
+                },
+            )
+        )
+    return expanded
+
+
+def build_section_instance(
+    *,
+    section: dict[str, Any],
+    inherited_values: dict[str, list[dict[str, Any]]],
+    foreach_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    section_parameters = materialize_parameters(
+        parameter_definitions=list(section.get("parameters") or []),
+        effective_values=inherited_values,
+    )
+    visible_values = {**copy.deepcopy(inherited_values), **parameters_to_value_map(section_parameters)}
     outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
-    item_instances = []
-    for item in list(outline.get("items") or []):
-        item_instances.append(build_requirement_item_instance(item=item, parameter_values=parameter_values))
+    item_instances = [
+        build_requirement_item_instance(item=item, visible_values=visible_values)
+        for item in list(outline.get("items") or [])
+    ]
     item_lookup = {item["id"]: item for item in item_instances}
-    requirement_text = render_requirement_text(str(outline.get("requirement") or ""), item_lookup)
-    return {
+    rendered_requirement = render_requirement_text(str(outline.get("requirement") or ""), item_lookup, visible_values)
+    built: dict[str, Any] = {
         "id": section.get("id"),
-        "title": section.get("title"),
-        "description": section.get("description"),
-        "order": section.get("order"),
-        "requirementInstance": {
-            "text": requirement_text,
+        "outline": {
+            "requirement": str(outline.get("requirement") or ""),
+            "renderedRequirement": rendered_requirement,
             "items": item_instances,
         },
-        "executionBindings": build_execution_bindings(section=section, item_instances=item_instances),
+        "runtimeContext": {
+            "bindings": build_execution_bindings(section=section, item_instances=item_instances),
+        },
         "skeletonStatus": "reusable",
         "userEdited": False,
     }
+    if section.get("description") is not None:
+        built["description"] = section.get("description")
+    if section_parameters:
+        built["parameters"] = section_parameters
+    if foreach_context:
+        built["foreachContext"] = foreach_context
+    return built
 
 
-def build_requirement_item_instance(*, item: dict[str, Any], parameter_values: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
-    """根据参数绑定或局部默认值解析单个诉求要素。"""
+def build_requirement_item_instance(*, item: dict[str, Any], visible_values: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
     source_parameter_id = str(item.get("sourceParameterId") or "").strip()
-    resolved_values = []
-    binding_source = "system_fill"
     if source_parameter_id:
-        resolved_values = _normalize_trio_list(parameter_values.get(source_parameter_id) or item.get("defaultValue") or [])
-        binding_source = "parameter"
+        resolved_values = _normalize_parameter_value_list(visible_values.get(source_parameter_id) or item.get("defaultValue") or [])
+        value_source = "parameter_ref"
     else:
-        resolved_values = _normalize_trio_list(item.get("defaultValue") or [])
-    return {
+        resolved_values = _normalize_parameter_value_list(item.get("defaultValue") or item.get("values") or [])
+        value_source = "default" if resolved_values else "system_fill"
+    built = {
         "id": item.get("id"),
         "label": item.get("label"),
         "kind": item.get("kind"),
-        "resolvedValues": resolved_values,
-        "bindingSource": binding_source,
-        "sourceParameterId": source_parameter_id or None,
+        "required": bool(item.get("required")),
     }
+    if item.get("multi") is not None:
+        built["multi"] = bool(item.get("multi"))
+    if item.get("description") is not None:
+        built["description"] = item.get("description")
+    if source_parameter_id:
+        built["sourceParameterId"] = source_parameter_id
+    if item.get("widget") is not None:
+        built["widget"] = item.get("widget")
+    if isinstance(item.get("defaultValue"), list):
+        built["defaultValue"] = _normalize_parameter_value_list(item.get("defaultValue"))
+    if resolved_values:
+        built["values"] = resolved_values
+    built["valueSource"] = value_source
+    return built
 
 
 def build_execution_bindings(*, section: dict[str, Any], item_instances: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """把已解析的诉求要素投影成数据集级执行绑定。"""
     datasets = ((section.get("content") or {}).get("datasets") or []) if isinstance(section.get("content"), dict) else []
     bindings: list[dict[str, Any]] = []
     for dataset in datasets:
         dataset_id = str(dataset.get("id") or "")
         for item in item_instances:
-            resolved_values = list(item.get("resolvedValues") or [])
+            values = _normalize_parameter_value_list(item.get("values") or [])
             bindings.append(
                 {
                     "id": f"binding_{dataset_id}_{item.get('id')}",
                     "bindingType": "dataset_parameter",
                     "sourceType": dataset.get("sourceType") or "sql",
                     "targetRef": f"{dataset_id}.{item.get('id')}",
-                    "multiValueQueryMode": "in" if len(resolved_values) > 1 else "single",
-                    "resolvedQuery": build_resolved_query(resolved_values),
+                    "multiValueQueryMode": "single" if len(values) <= 1 else _default_multi_value_query_mode(values),
+                    "resolvedQuery": build_resolved_query(values),
                 }
             )
     return bindings
 
 
-def render_requirement_text(template_text: str, item_lookup: dict[str, dict[str, Any]]) -> str:
-    """使用已解析的三通道值渲染诉求要素占位符。"""
-    def replace(match: re.Match[str]) -> str:
-        item_id = match.group(1)
-        channel = match.group(2) or "display"
-        item = item_lookup.get(item_id)
-        if not item:
-            return ""
-        values = list(item.get("resolvedValues") or [])
-        rendered = [str(value.get(channel) or value.get("display") or "") for value in values]
-        return "、".join([text for text in rendered if text])
-
-    return PLACEHOLDER_PATTERN.sub(replace, template_text).strip()
+def render_requirement_text(template_text: str, item_lookup: dict[str, dict[str, Any]], parameter_values: dict[str, list[dict[str, Any]]]) -> str:
+    rendered = ITEM_PLACEHOLDER_PATTERN.sub(lambda match: _render_item_placeholder(match, item_lookup), template_text)
+    rendered = PARAMETER_PLACEHOLDER_PATTERN.sub(lambda match: _render_parameter_placeholder(match, parameter_values), rendered)
+    return rendered.strip()
 
 
-def build_resolved_query(values: list[dict[str, Any]]) -> str:
-    """把已解析的查询值转换为执行绑定使用的查询通道。"""
-    if not values:
-        return ""
-    queries = [value.get("query") for value in values if value.get("query") is not None]
-    if not queries:
-        return ""
-    if len(queries) == 1:
-        return str(queries[0])
-    quoted = ", ".join(f"'{item}'" if isinstance(item, str) else str(item) for item in queries)
-    return f"IN ({quoted})"
+def render_parameter_text(template_text: str, parameter_values: dict[str, list[dict[str, Any]]]) -> str:
+    rendered = PARAMETER_PLACEHOLDER_PATTERN.sub(lambda match: _render_parameter_placeholder(match, parameter_values), template_text)
+    return rendered.strip()
 
 
 def serialize_template_instance(instance: TemplateInstance) -> dict[str, Any]:
-    """把运行时聚合序列化成公开的模板实例契约。"""
     return {
         "id": instance.id,
         "schemaVersion": instance.schema_version,
         "templateId": instance.template_id,
+        "template": copy.deepcopy(instance.template),
         "conversationId": instance.conversation_id,
         "chatId": instance.chat_id,
         "status": instance.status,
         "captureStage": instance.capture_stage,
         "revision": instance.revision,
-        "parameterValues": copy.deepcopy(instance.parameter_values),
+        "parameters": copy.deepcopy(instance.parameters),
+        "parameterConfirmation": copy.deepcopy(instance.parameter_confirmation),
         "catalogs": copy.deepcopy(instance.catalogs),
-        "deltaViews": copy.deepcopy(instance.delta_views),
-        "templateSkeletonStatus": copy.deepcopy(instance.template_skeleton_status),
         "warnings": copy.deepcopy(instance.warnings),
         "createdAt": _isoformat(instance.created_at),
         "updatedAt": _isoformat(instance.updated_at),
     }
 
 
-def _normalize_trio_list(values: Any) -> list[dict[str, Any]]:
+def _render_item_placeholder(match: re.Match[str], item_lookup: dict[str, dict[str, Any]]) -> str:
+    item_id = match.group(1)
+    channel = match.group(2) or "display"
+    item = item_lookup.get(item_id)
+    if not item:
+        return ""
+    values = _normalize_parameter_value_list(item.get("values") or [])
+    return _render_value_channel(values, channel)
+
+
+def _render_parameter_placeholder(match: re.Match[str], parameter_values: dict[str, list[dict[str, Any]]]) -> str:
+    parameter_id = match.group(1)
+    channel = match.group(2) or "display"
+    values = _normalize_parameter_value_list(parameter_values.get(parameter_id) or [])
+    return _render_value_channel(values, channel)
+
+
+def _render_value_channel(values: list[dict[str, Any]], channel: str) -> str:
+    rendered = [str(value.get(channel) or value.get("display") or "") for value in values]
+    return "、".join([text for text in rendered if text])
+
+
+def build_resolved_query(values: list[dict[str, Any]]) -> str:
+    queries = [str(value.get("query") or "").strip() for value in values if str(value.get("query") or "").strip()]
+    if not queries:
+        return ""
+    if len(queries) == 1:
+        return queries[0]
+    parsed = [_parse_sql_equals(query) for query in queries]
+    if parsed and all(item is not None for item in parsed):
+        left = parsed[0][0]
+        if all(item[0] == left for item in parsed):
+            right_values = ", ".join(item[1] for item in parsed)
+            return f"{left} IN ({right_values})"
+    return " OR ".join(f"({query})" for query in queries)
+
+
+def _default_multi_value_query_mode(values: list[dict[str, Any]]) -> str:
+    queries = [str(value.get("query") or "").strip() for value in values if str(value.get("query") or "").strip()]
+    if len(queries) <= 1:
+        return "single"
+    parsed = [_parse_sql_equals(query) for query in queries]
+    if parsed and all(item is not None for item in parsed) and len({item[0] for item in parsed}) == 1:
+        return "in"
+    return "or"
+
+
+def _parse_sql_equals(query: str) -> tuple[str, str] | None:
+    matched = SQL_EQUALS_PATTERN.match(query)
+    if not matched:
+        return None
+    return matched.group(1), matched.group(2)
+
+
+def _normalize_parameter_value_list(values: Any) -> list[dict[str, Any]]:
     if not isinstance(values, list):
         return []
     normalized: list[dict[str, Any]] = []
     for value in values:
-        if not isinstance(value, dict):
-            continue
-        if {"display", "value", "query"}.issubset(value.keys()):
-            normalized.append(
-                {
-                    "display": value.get("display"),
-                    "value": value.get("value"),
-                    "query": value.get("query"),
-                }
-            )
+        normalized_value = _normalize_parameter_value(value)
+        if normalized_value:
+            normalized.append(normalized_value)
     return normalized
+
+
+def _normalize_parameter_value(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    if not {"display", "value", "query"}.issubset(value.keys()):
+        return None
+    return {
+        "display": value.get("display"),
+        "value": value.get("value"),
+        "query": value.get("query"),
+    }
 
 
 def _isoformat(value: datetime | None) -> str | None:

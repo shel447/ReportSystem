@@ -11,7 +11,12 @@ from typing import Any
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
 from ....infrastructure.settings.system_settings import build_completion_provider_config, build_embedding_provider_config
 from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
-from ...report_runtime.domain.services import instantiate_template_instance, merge_parameter_values, serialize_template_instance
+from ...report_runtime.domain.services import (
+    instantiate_template_instance,
+    merge_parameter_values,
+    parameters_to_value_map,
+    serialize_template_instance,
+)
 
 
 DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -196,8 +201,10 @@ class ConversationService:
             template = self.template_catalog_service.get_template(template_id)
             merged_values = merge_parameter_values(
                 parameter_definitions=list(template.get("parameters") or []),
-                current_values=current_instance.get("parameterValues") or {},
-                incoming_values=(reply or {}).get("parameters") if isinstance(reply, dict) else self._extract_parameter_values(template, str(data.get("question") or "")),
+                current_values=parameters_to_value_map(current_instance.get("parameters") or []),
+                incoming_values=parameters_to_value_map((reply or {}).get("parameters") if isinstance((reply or {}).get("parameters"), list) else [])
+                if isinstance(reply, dict)
+                else self._extract_parameter_values(template, str(data.get("question") or "")),
             )
             instance = instantiate_template_instance(
                 instance_id=current_instance["id"],
@@ -208,8 +215,9 @@ class ConversationService:
                 capture_stage="fill_params",
                 revision=int(current_instance.get("revision") or 1) + 1,
                 parameter_values=merged_values,
-                existing_delta_views=current_instance.get("deltaViews") or [],
+                current_parameters=current_instance.get("parameters") or [],
                 warnings=current_instance.get("warnings") or [],
+                created_at=_parse_datetime(current_instance.get("createdAt")),
             )
             persisted = self.runtime_service.persist_template_instance(instance, user_id=user_id)
             response = self._build_ask_response(conversation_id=conversation.id, chat_id=user_chat.id, template=template, template_instance=persisted, request_id=data.get("requestId"), api_version=data.get("apiVersion"))
@@ -304,12 +312,12 @@ class ConversationService:
                         matched = [copy_option(option)]
                         break
             elif input_type == "dynamic":
-                source = parameter.get("openSource") or {}
+                source = str(parameter.get("source") or "").strip()
                 try:
                     resolved = self.parameter_option_service.resolve(
                         user_id="default",
                         parameter_id=param_id,
-                        open_source=source,
+                        source=source,
                         context_values=parameter_values,
                     )
                 except Exception:
@@ -341,17 +349,20 @@ class ConversationService:
         missing = _missing_required_parameters(template=template, template_instance=template_instance)
         if missing:
             next_parameter = missing[0]
+            next_parameter_state = next(
+                (
+                    copy.deepcopy(parameter)
+                    for parameter in list(template_instance.get("parameters") or [])
+                    if str(parameter.get("id") or "") == str(next_parameter.get("id") or "")
+                ),
+                copy.deepcopy(next_parameter),
+            )
             ask = {
                 "mode": "natural_language" if next_parameter.get("interactionMode") == "natural_language" else "form",
                 "type": "fill_params",
                 "title": "请补充报告参数",
                 "text": f"请补充参数：{next_parameter.get('label')}",
-                "parameters": [
-                    {
-                        "parameter": copy.deepcopy(next_parameter),
-                        "currentValue": copy.deepcopy((template_instance.get("parameterValues") or {}).get(next_parameter.get("id")) or []),
-                    }
-                ],
+                "parameters": [next_parameter_state],
                 "reportContext": {"templateInstance": template_instance},
             }
         else:
@@ -360,13 +371,7 @@ class ConversationService:
                 "type": "confirm_params",
                 "title": "请确认报告诉求",
                 "text": "请确认报告诉求后开始生成。",
-                "parameters": [
-                    {
-                        "parameter": copy.deepcopy(parameter),
-                        "currentValue": copy.deepcopy((template_instance.get("parameterValues") or {}).get(parameter.get("id")) or []),
-                    }
-                    for parameter in list(template.get("parameters") or [])
-                ],
+                "parameters": copy.deepcopy(template_instance.get("parameters") or []),
                 "reportContext": {"templateInstance": template_instance},
             }
         return _chat_response(
@@ -437,11 +442,7 @@ def _template_match_text(template: dict[str, Any]) -> str:
     for parameter in list(template.get("parameters") or []):
         parts.append(str(parameter.get("label") or parameter.get("id") or ""))
     for catalog in list(template.get("catalogs") or []):
-        parts.append(str(catalog.get("name") or ""))
-        for section in list(catalog.get("sections") or []):
-            parts.append(str(section.get("title") or ""))
-            outline = section.get("outline") or {}
-            parts.append(str(outline.get("requirement") or ""))
+        parts.extend(_catalog_match_text(catalog))
     return "\n".join([part for part in parts if part])
 
 
@@ -453,6 +454,16 @@ def _lexical_score(question: str, template: dict[str, Any]) -> float:
         if text and text in lowered:
             score += 1.0
     return score
+
+
+def _catalog_match_text(catalog: dict[str, Any]) -> list[str]:
+    parts = [str(catalog.get("title") or "")]
+    for sub_catalog in list(catalog.get("subCatalogs") or []):
+        parts.extend(_catalog_match_text(sub_catalog))
+    for section in list(catalog.get("sections") or []):
+        outline = section.get("outline") or {}
+        parts.append(str(outline.get("requirement") or ""))
+    return [part for part in parts if part]
 
 
 def _cosine_similarity(left: list[float], right: list[float]) -> float:
@@ -467,7 +478,7 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
 
 
 def _missing_required_parameters(*, template: dict[str, Any], template_instance: dict[str, Any]) -> list[dict[str, Any]]:
-    values = template_instance.get("parameterValues") or {}
+    values = parameters_to_value_map(template_instance.get("parameters") or [])
     missing = []
     for parameter in list(template.get("parameters") or []):
         if not parameter.get("required"):
@@ -480,20 +491,31 @@ def _missing_required_parameters(*, template: dict[str, Any], template_instance:
 def _template_instance_from_payload(payload: dict[str, Any], *, chat_id: str, status: str, capture_stage: str):
     from ...report_runtime.domain.models import TemplateInstance
 
+    parameter_confirmation = payload.get("parameterConfirmation") or {"missingParameterIds": [], "confirmed": False}
+    if capture_stage in {"confirm_params", "generate_report", "report_ready"}:
+        parameter_confirmation = {
+            **parameter_confirmation,
+            "missingParameterIds": [],
+            "confirmed": True,
+            "confirmedAt": parameter_confirmation.get("confirmedAt") or _iso_timestamp(),
+        }
+
     return TemplateInstance(
         id=str(payload.get("id") or ""),
-        schema_version=str(payload.get("schemaVersion") or "template-instance.v2"),
+        schema_version=str(payload.get("schemaVersion") or "template-instance.vNext-draft"),
         template_id=str(payload.get("templateId") or ""),
+        template=copy.deepcopy(payload.get("template") or {}),
         conversation_id=str(payload.get("conversationId") or ""),
         chat_id=chat_id,
         status=status,
         capture_stage=capture_stage,
         revision=int(payload.get("revision") or 1),
-        parameter_values=payload.get("parameterValues") or {},
+        parameters=payload.get("parameters") or [],
+        parameter_confirmation=parameter_confirmation,
         catalogs=payload.get("catalogs") or [],
-        delta_views=payload.get("deltaViews") or [],
-        template_skeleton_status=payload.get("templateSkeletonStatus") or {"internal": "reusable", "ui": "not_broken"},
         warnings=payload.get("warnings") or [],
+        created_at=_parse_datetime(payload.get("createdAt")),
+        updated_at=_parse_datetime(payload.get("updatedAt")),
     )
 
 
@@ -513,3 +535,21 @@ def _random_id(prefix: str) -> str:
 def _epoch_ms() -> int:
     import time
     return int(time.time() * 1000)
+
+
+def _iso_timestamp() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _parse_datetime(value: Any):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    candidate = value.strip().replace("Z", "+00:00")
+    try:
+        from datetime import datetime
+
+        return datetime.fromisoformat(candidate)
+    except ValueError:
+        return None

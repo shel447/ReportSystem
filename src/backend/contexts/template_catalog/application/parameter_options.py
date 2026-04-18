@@ -22,14 +22,14 @@ class ParameterOptionService:
         *,
         user_id: str,
         parameter_id: str,
-        open_source: dict[str, Any],
+        source: str,
         context_values: dict[str, list[dict[str, Any]]],
     ) -> dict[str, Any]:
         # 报告系统始终通过统一的提交契约调用动态源，即使是本地演示源也不例外，
         # 这样对话层只需要面对一种返回结构。
-        source_url = str((open_source or {}).get("url") or "").strip()
+        source_url = str(source or "").strip()
         if not source_url:
-            raise ValidationError("openSource.url is required")
+            raise ValidationError("source is required")
 
         request_payload = dict(context_values or {})
         body_size = len(httpx.Request("POST", "http://local", json=request_payload).content)

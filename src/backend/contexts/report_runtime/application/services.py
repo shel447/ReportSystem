@@ -15,6 +15,7 @@ from jsonschema import Draft202012Validator
 
 from ....infrastructure.demo.telecom import get_demo_db_path, init_telecom_demo_db
 from ....shared.kernel.errors import NotFoundError, ValidationError
+from ...template_catalog.infrastructure.schema import validate_template_instance
 from ...template_catalog.domain.models import ReportTemplate
 from ..domain.models import TemplateInstance
 from ..domain.services import serialize_template_instance
@@ -46,6 +47,11 @@ class ReportRuntimeService:
 
     def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> dict[str, Any]:
         """创建或更新流程中唯一被跟踪的模板实例。"""
+        serialized = serialize_template_instance(instance)
+        try:
+            validate_template_instance(serialized)
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
         existing = self.template_instance_repository.get(instance.id, user_id=user_id)
         saved = (
             self.template_instance_repository.update(instance, user_id=user_id)
@@ -72,9 +78,31 @@ class ReportRuntimeService:
         template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
         if template_instance is None:
             raise NotFoundError("Template instance not found")
-        template = self.template_repository.get_by_id(template_instance.template_id)
-        if template is None:
-            raise NotFoundError("Template not found")
+        template_payload = copy.deepcopy(template_instance.template or {})
+        if not template_payload:
+            template = self.template_repository.get_by_id(template_instance.template_id)
+            if template is None:
+                raise NotFoundError("Template not found")
+            template_payload = {
+                "id": template.id,
+                "category": template.category,
+                "name": template.name,
+                "description": template.description,
+                "schemaVersion": template.schema_version,
+                "parameters": copy.deepcopy(template.parameters),
+                "catalogs": copy.deepcopy(template.catalogs),
+                "tags": copy.deepcopy(template.tags),
+            }
+        template = ReportTemplate(
+            id=str(template_payload.get("id") or template_instance.template_id),
+            category=str(template_payload.get("category") or ""),
+            name=str(template_payload.get("name") or ""),
+            description=str(template_payload.get("description") or ""),
+            schema_version=str(template_payload.get("schemaVersion") or "template.v3"),
+            parameters=list(template_payload.get("parameters") or []),
+            catalogs=list(template_payload.get("catalogs") or []),
+            tags=list(template_payload.get("tags") or []),
+        )
 
         report_id = f"rpt_{uuid.uuid4().hex[:12]}"
         report = build_report_dsl(report_id=report_id, template=template, template_instance=template_instance)
@@ -227,34 +255,7 @@ def build_report_dsl(*, report_id: str, template: ReportTemplate, template_insta
     init_telecom_demo_db()
 
     for catalog in template_instance.catalogs:
-        section_payloads = []
-        for section in catalog.get("sections") or []:
-            components, summary, additional_infos = _build_section_components(section)
-            section_payloads.append(
-                {
-                    "id": section.get("id"),
-                    "title": section.get("title"),
-                    "order": section.get("order") or 1,
-                    "components": components,
-                    "summary": {
-                        "id": f"summary_{section.get('id')}",
-                        "overview": summary,
-                    },
-                }
-            )
-            report_meta[str(section.get("id"))] = {
-                "status": "Success",
-                "question": str((section.get("requirementInstance") or {}).get("text") or ""),
-                "additionalInfos": additional_infos,
-            }
-        catalogs.append(
-            {
-                "id": catalog.get("id"),
-                "name": catalog.get("name"),
-                "order": catalog.get("order") or 1,
-                "sections": section_payloads,
-            }
-        )
+        catalogs.append(_build_report_catalog(catalog, report_meta))
 
     report_name = _build_report_name(template=template, template_instance=template_instance)
     today = datetime.now(timezone.utc).date().isoformat()
@@ -287,10 +288,42 @@ def build_report_dsl(*, report_id: str, template: ReportTemplate, template_insta
     return report
 
 
+def _build_report_catalog(catalog: dict[str, Any], report_meta: dict[str, Any]) -> dict[str, Any]:
+    built = {
+        "id": catalog.get("id"),
+        "name": catalog.get("renderedTitle") or catalog.get("title") or catalog.get("id"),
+    }
+    sub_catalogs = [_build_report_catalog(sub_catalog, report_meta) for sub_catalog in list(catalog.get("subCatalogs") or [])]
+    sections = []
+    for section in list(catalog.get("sections") or []):
+        components, summary, additional_infos = _build_section_components(section)
+        section_payload = {
+            "id": section.get("id"),
+            "title": _section_title(section),
+            "components": components,
+            "summary": {
+                "id": f"summary_{section.get('id')}",
+                "overview": summary,
+            },
+        }
+        sections.append(section_payload)
+        report_meta[str(section.get("id"))] = {
+            "status": "Success",
+            "question": str(((section.get("outline") or {}).get("renderedRequirement")) or ((section.get("outline") or {}).get("requirement")) or ""),
+            "additionalInfos": additional_infos,
+        }
+    if sub_catalogs:
+        built["subCatalogs"] = sub_catalogs
+    if sections:
+        built["sections"] = sections
+    return built
+
+
 def _build_section_components(section: dict[str, Any]) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]]]:
-    requirement_text = str((section.get("requirementInstance") or {}).get("text") or "")
+    outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
+    requirement_text = str(outline.get("renderedRequirement") or outline.get("requirement") or "")
     additional_infos = []
-    for binding in list(section.get("executionBindings") or []):
+    for binding in list((((section.get("runtimeContext") or {}).get("bindings")) or [])):
         resolved_query = str(binding.get("resolvedQuery") or "").strip()
         if resolved_query:
             additional_infos.append({"type": "SQL", "value": resolved_query})
@@ -307,18 +340,18 @@ def _build_section_components(section: dict[str, Any]) -> tuple[list[dict[str, A
             },
         }
     ]
-    summary = requirement_text or str(section.get("title") or "")
+    summary = requirement_text or str(section.get("id") or "")
     return components, summary[:160], additional_infos
 
 
 def _build_markdown_content(section: dict[str, Any], requirement_text: str) -> str:
-    lines = [f"## {section.get('title') or ''}".strip(), "", requirement_text or "本章节基于模板诉求自动生成。", ""]
-    items = ((section.get("requirementInstance") or {}).get("items") or [])
+    lines = [f"## {_section_title(section)}".strip(), "", requirement_text or "本章节基于模板诉求自动生成。", ""]
+    items = ((section.get("outline") or {}).get("items") or [])
     if items:
         lines.append("### 诉求要素")
         lines.append("")
         for item in items:
-            values = [str(value.get("display") or value.get("value") or "") for value in item.get("resolvedValues") or []]
+            values = [str(value.get("display") or value.get("value") or "") for value in item.get("values") or []]
             rendered = "、".join([value for value in values if value]) or "未设置"
             lines.append(f"- {item.get('label')}: {rendered}")
         lines.append("")
@@ -328,9 +361,18 @@ def _build_markdown_content(section: dict[str, Any], requirement_text: str) -> s
     return "\n".join(lines).strip()
 
 
+def _section_title(section: dict[str, Any]) -> str:
+    outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
+    rendered_requirement = str(outline.get("renderedRequirement") or outline.get("requirement") or "").strip()
+    if not rendered_requirement:
+        return str(section.get("id") or "")
+    return rendered_requirement[:80]
+
+
 def _build_report_name(*, template: ReportTemplate, template_instance: TemplateInstance) -> str:
     first_values = []
-    for values in template_instance.parameter_values.values():
+    for parameter in template_instance.parameters:
+        values = parameter.get("values") or []
         if values:
             first_values.append(str(values[0].get("display") or values[0].get("value") or ""))
         if len(first_values) >= 2:
@@ -342,15 +384,29 @@ def _build_report_name(*, template: ReportTemplate, template_instance: TemplateI
 
 
 def _build_report_summary(catalogs: list[dict[str, Any]]) -> str:
-    section_titles = [
-        str(section.get("title") or "")
-        for catalog in catalogs
-        for section in list(catalog.get("sections") or [])
-        if str(section.get("title") or "").strip()
-    ]
+    section_titles = _collect_section_titles(catalogs)
     if not section_titles:
         return "报告已生成。"
     return f"报告已生成，共包含 {len(section_titles)} 个章节：{'、'.join(section_titles[:5])}"
+
+
+def _collect_section_titles(catalogs: list[dict[str, Any]]) -> list[str]:
+    titles: list[str] = []
+    for catalog in catalogs:
+        for section in list(catalog.get("sections") or []):
+            title = str(section.get("title") or "").strip()
+            if title:
+                titles.append(title)
+        titles.extend(_collect_section_titles(list(catalog.get("subCatalogs") or [])))
+    return titles
+
+
+def _count_catalogs(catalogs: list[dict[str, Any]]) -> int:
+    total = 0
+    for catalog in catalogs:
+        total += 1
+        total += _count_catalogs(list(catalog.get("subCatalogs") or []))
+    return total
 
 
 def _resource_status_from_dsl(report: dict[str, Any]) -> str:
@@ -363,8 +419,14 @@ def _resource_status_from_dsl(report: dict[str, Any]) -> str:
 
 
 def _build_generation_progress(report: dict[str, Any]) -> dict[str, int]:
-    total = sum(len(list(catalog.get("sections") or [])) for catalog in list(report.get("catalogs") or []))
-    return {"totalSections": total, "completedSections": total}
+    total_sections = len(_collect_section_titles(list(report.get("catalogs") or [])))
+    total_catalogs = _count_catalogs(list(report.get("catalogs") or []))
+    return {
+        "totalSections": total_sections,
+        "completedSections": total_sections,
+        "totalCatalogs": total_catalogs,
+        "completedCatalogs": total_catalogs,
+    }
 
 
 def _validate_report_dsl(report: dict[str, Any]) -> None:

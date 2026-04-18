@@ -21,9 +21,9 @@ class ParameterOptionsRouterTests(unittest.TestCase):
 
         with patch("backend.routers.parameter_options.build_parameter_option_service", return_value=fake_service):
             payload = resolve_parameter_options(
-                ParameterOptionsResolveRequest(
-                    parameterId="scope",
-                    openSource={"url": "https://example.internal/api/network/scopes/options"},
+                    ParameterOptionsResolveRequest(
+                        parameterId="scope",
+                        source="https://example.internal/api/network/scopes/options",
                     contextValues={
                         "report_date": [
                             {"display": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}
@@ -49,7 +49,7 @@ class ParameterOptionsRouterTests(unittest.TestCase):
                 resolve_parameter_options(
                     ParameterOptionsResolveRequest(
                         parameterId="scope",
-                        openSource={"url": "https://example.internal/api/network/scopes/options"},
+                        source="https://example.internal/api/network/scopes/options",
                         contextValues={},
                     ),
                     db=None,
