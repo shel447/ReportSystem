@@ -28,7 +28,7 @@ async def create_feedback(
     """提交意见反馈"""
     try:
         # 自动提取客户端 IP
-        client_ip = request.client.host
+        client_ip = request.client.host if request.client else None
         
         new_feedback = Feedback(
             user_ip=client_ip,
@@ -40,7 +40,7 @@ async def create_feedback(
         db.add(new_feedback)
         db.commit()
         db.refresh(new_feedback)
-        return {"status": "success", "feedback_id": new_feedback.feedback_id}
+        return {"status": "success", "feedback_id": new_feedback.id}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -84,7 +84,7 @@ async def export_feedbacks(db: Session = Depends(get_db)):
                             ext = "gif"
                             
                         image_data = base64.b64decode(encoded)
-                        asset_path = f"assets/{fb.feedback_id}_{idx}.{ext}"
+                        asset_path = f"assets/{fb.id}_{idx}.{ext}"
                         
                         # Write image to zip
                         zip_file.writestr(asset_path, image_data)
@@ -92,7 +92,7 @@ async def export_feedbacks(db: Session = Depends(get_db)):
                         # Add relative link to markdown
                         md_content += f"![相关截图 {idx+1}]({asset_path})\n\n"
                     except Exception as e:
-                        print(f"Error decoding image {idx} for feedback {fb.feedback_id}: {e}")
+                        print(f"Error decoding image {idx} for feedback {fb.id}: {e}")
                         md_content += f"> [图片解析失败]\n\n"
             
             md_content += "---\n\n"
@@ -116,7 +116,7 @@ async def list_feedbacks(db: Session = Depends(get_db)):
 @router.delete("/{feedback_id}")
 async def delete_feedback(feedback_id: str, db: Session = Depends(get_db)):
     """删除指定的反馈意见"""
-    fb = db.query(Feedback).filter(Feedback.feedback_id == feedback_id).first()
+    fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
     if not fb:
         raise HTTPException(status_code=404, detail="Feedback not found")
     

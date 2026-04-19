@@ -162,6 +162,10 @@ class ConversationService:
         reply = data.get("reply") if isinstance(data.get("reply"), dict) else None
         current_instance = self.runtime_service.get_latest_template_instance(conversation_id=conversation.id, user_id=user_id)
 
+        if reply and str(reply.get("type") or "") in {"fill_params", "confirm_params"}:
+            # 追问一旦被结构化 reply 消费，历史消息中的该追问就必须转为 replied。
+            self.chat_repository.mark_latest_pending_ask_replied(conversation_id=conversation.id, user_id=user_id)
+
         if reply and str(reply.get("type") or "") == "confirm_params":
             # 只有确认参数分支允许把当前模板实例冻结成报告，
             # 其它分支都必须继续停留在追问态推进收参流程。
@@ -364,6 +368,7 @@ class ConversationService:
                 copy.deepcopy(next_parameter),
             )
             ask = {
+                "status": "pending",
                 "mode": "natural_language" if next_parameter.get("interactionMode") == "natural_language" else "form",
                 "type": "fill_params",
                 "title": "请补充报告参数",
@@ -373,6 +378,7 @@ class ConversationService:
             }
         else:
             ask = {
+                "status": "pending",
                 "mode": "form",
                 "type": "confirm_params",
                 "title": "请确认报告诉求",

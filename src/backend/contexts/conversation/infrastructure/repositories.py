@@ -102,6 +102,32 @@ class SqlAlchemyChatRepository:
             .all()
         )
 
+    def mark_latest_pending_ask_replied(self, *, conversation_id: str, user_id: str) -> bool:
+        """把最近一条待回复追问锁定为已回复，避免历史消息继续可编辑。"""
+        rows = (
+            self.db.query(ChatRow)
+            .filter(ChatRow.conversation_id == conversation_id, ChatRow.user_id == user_id, ChatRow.role == "assistant")
+            .order_by(ChatRow.seq_no.desc())
+            .all()
+        )
+        for row in rows:
+            content = row.content if isinstance(row.content, dict) else {}
+            response = content.get("response") if isinstance(content.get("response"), dict) else None
+            ask = response.get("ask") if isinstance(response, dict) else None
+            if not isinstance(ask, dict) or ask.get("status") != "pending":
+                continue
+            updated = dict(content)
+            updated_response = dict(response)
+            updated_ask = dict(ask)
+            updated_ask["status"] = "replied"
+            updated_response["ask"] = updated_ask
+            updated["response"] = updated_response
+            row.content = updated
+            self.db.add(row)
+            self.db.commit()
+            return True
+        return False
+
     def next_seq_no(self, conversation_id: str) -> int:
         last = (
             self.db.query(ChatRow)

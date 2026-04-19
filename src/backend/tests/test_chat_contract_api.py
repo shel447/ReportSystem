@@ -69,6 +69,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "status": "waiting_user",
                     "steps": [],
                     "ask": {
+                        "status": "pending",
                         "mode": "form",
                         "type": "confirm_params",
                         "title": "请确认报告诉求",
@@ -110,6 +111,7 @@ class ChatContractApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
+        self.assertEqual(payload["ask"]["status"], "pending")
         self.assertEqual(payload["ask"]["type"], "confirm_params")
         self.assertEqual(payload["ask"]["parameters"][0]["id"], "scope")
         self.assertEqual(payload["ask"]["reportContext"]["templateInstance"]["id"], "ti_001")
@@ -203,6 +205,90 @@ class ChatContractApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_post_chat_stream_returns_delta_events_and_final_answer(self):
+        fake_service = type(
+            "FakeConversationService",
+            (),
+            {
+                "send_message": lambda self, data, user_id: {
+                    "conversationId": "conv_001",
+                    "chatId": "chat_010",
+                    "status": "finished",
+                    "steps": [{"code": "generate_report", "status": "running"}],
+                    "ask": None,
+                    "answer": {
+                        "answerType": "REPORT",
+                        "answer": {
+                            "reportId": "rpt_001",
+                            "status": "available",
+                            "report": {
+                                "basicInfo": {
+                                    "id": "rpt_001",
+                                    "schemaVersion": "1.0.0",
+                                    "mode": "published",
+                                    "status": "Success",
+                                    "name": "网络运行日报",
+                                },
+                                "catalogs": [
+                                    {
+                                        "id": "catalog_1",
+                                        "name": "总览",
+                                        "sections": [
+                                            {
+                                                "id": "section_1",
+                                                "title": "总体运行态势",
+                                                "components": [{"id": "component_1", "type": "markdown"}],
+                                            }
+                                        ],
+                                    }
+                                ],
+                                "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
+                            },
+                            "templateInstance": _sample_template_instance(status="completed", capture_stage="report_ready"),
+                            "documents": [],
+                            "generationProgress": {
+                                "totalSections": 1,
+                                "completedSections": 1,
+                                "totalCatalogs": 1,
+                                "completedCatalogs": 1,
+                            },
+                        },
+                    },
+                    "errors": [],
+                    "requestId": "req_stream",
+                    "timestamp": 1713427200200,
+                    "apiVersion": "v1",
+                }
+            },
+        )()
+
+        with patch("backend.routers.chat.build_conversation_service", return_value=fake_service):
+            with self.client.stream(
+                "POST",
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default", "Accept": "text/event-stream"},
+                json={
+                    "conversationId": "conv_001",
+                    "chatId": "chat_010",
+                    "instruction": "generate_report",
+                    "reply": {
+                        "type": "confirm_params",
+                        "parameters": _sample_template_instance()["parameters"],
+                        "reportContext": {"templateInstance": _sample_template_instance()},
+                    },
+                },
+            ) as response:
+                body = "".join(response.iter_text())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"eventType": "status"', body)
+        self.assertIn('"eventType": "answer"', body)
+        self.assertIn('"eventType": "done"', body)
+        self.assertIn('"action": "init_report"', body)
+        self.assertIn('"action": "add_catalog"', body)
+        self.assertIn('"action": "add_section"', body)
+        self.assertIn('"reportId": "rpt_001"', body)
 
 
 if __name__ == "__main__":

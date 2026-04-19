@@ -3,8 +3,8 @@ import type { Dispatch, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
-import { deleteConversation, fetchConversation, fetchConversations, sendChatMessage } from "../entities/chat/api";
-import type { ChatAsk, ChatResponse, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
+import { deleteConversation, fetchConversation, fetchConversations, sendChatMessageStream } from "../entities/chat/api";
+import type { ChatAsk, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
 import { PageSection } from "../shared/ui/PageSection";
@@ -22,18 +22,33 @@ export function ChatPage() {
   const [parameterDrafts, setParameterDrafts] = useState<ParameterDrafts>({});
   const [dynamicOptions, setDynamicOptions] = useState<DynamicOptionMap>({});
   const [errorMessage, setErrorMessage] = useState("");
+  const [streamDeltas, setStreamDeltas] = useState<ChatStreamDelta[]>([]);
+  const [streamStatus, setStreamStatus] = useState<ChatResponse["status"] | "idle">("idle");
 
   const settingsQuery = useQuery({ queryKey: ["system-settings"], queryFn: fetchSystemSettings });
   const conversationsQuery = useQuery({ queryKey: ["conversations"], queryFn: fetchConversations });
   const conversationQuery = useQuery({ queryKey: ["conversation", activeConversationId], queryFn: () => fetchConversation(activeConversationId), enabled: Boolean(activeConversationId) });
 
   const sendMutation = useMutation({
-    mutationFn: sendChatMessage,
+    mutationFn: (payload: Parameters<typeof sendChatMessageStream>[0]) =>
+      sendChatMessageStream(payload, {
+        onEvent: (event) => {
+          if (event.delta?.length) {
+            setStreamDeltas((current) => current.concat(event.delta ?? []));
+          }
+          setStreamStatus(event.status);
+        },
+      }),
+    onMutate: () => {
+      setStreamDeltas([]);
+      setStreamStatus("running");
+    },
     onSuccess: async (response) => {
       setLatestResponse(response);
       setActiveConversationId(response.conversationId);
       setQuestion("");
       setErrorMessage("");
+      setStreamStatus(response.status);
       await queryClient.invalidateQueries({ queryKey: ["conversations"] });
       await queryClient.invalidateQueries({ queryKey: ["conversation", response.conversationId] });
     },
@@ -56,10 +71,10 @@ export function ChatPage() {
     },
   });
 
-  const currentAsk = latestResponse?.ask ?? null;
+  const currentAsk = latestResponse?.ask?.status === "pending" ? latestResponse.ask : null;
   const currentTemplateInstance = useMemo(() => {
-    if (currentAsk) {
-      return currentAsk.reportContext.templateInstance;
+    if (latestResponse?.ask) {
+      return latestResponse.ask.reportContext.templateInstance;
     }
     if (latestResponse?.answer?.answerType === "REPORT") {
       return latestResponse.answer.answer.templateInstance;
@@ -170,44 +185,48 @@ export function ChatPage() {
                       <article className="message-bubble message-bubble--assistant message-bubble--has-action">
                         <strong>{latestResponse.ask.title}</strong>
                         <p>{latestResponse.ask.text}</p>
-                        <AskPanel
-                          ask={latestResponse.ask}
-                          parameterDrafts={parameterDrafts}
-                          dynamicOptions={dynamicOptions}
-                          onChange={setParameterDrafts}
-                          onSubmitFill={() => {
-                            if (!latestResponse.ask) {
-                              return;
-                            }
-                            const mergedParameters = mergeAskParameters(latestResponse.ask.parameters, parameterDrafts, dynamicOptions);
-                            sendMutation.mutate({
-                              conversationId: latestResponse.conversationId,
-                              instruction: "generate_report",
-                              reply: {
-                                type: "fill_params",
-                                parameters: mergedParameters,
-                                reportContext: { templateInstance: mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters) },
-                              },
-                            });
-                          }}
-                          onSubmitConfirm={() => {
-                            if (!latestResponse.ask) {
-                              return;
-                            }
-                            const mergedParameters = mergeAskParameters(latestResponse.ask.parameters, parameterDrafts, dynamicOptions);
-                            const mergedTemplateInstance = mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters);
-                            sendMutation.mutate({
-                              conversationId: latestResponse.conversationId,
-                              instruction: "generate_report",
-                              reply: {
-                                type: "confirm_params",
-                                parameters: mergedParameters,
-                                reportContext: { templateInstance: mergedTemplateInstance },
-                              },
-                            });
-                          }}
-                          submitting={sendMutation.isPending}
-                        />
+                        {latestResponse.ask.status === "pending" ? (
+                          <AskPanel
+                            ask={latestResponse.ask}
+                            parameterDrafts={parameterDrafts}
+                            dynamicOptions={dynamicOptions}
+                            onChange={setParameterDrafts}
+                            onSubmitFill={() => {
+                              if (!latestResponse.ask) {
+                                return;
+                              }
+                              const mergedParameters = mergeAskParameters(latestResponse.ask.parameters, parameterDrafts, dynamicOptions);
+                              sendMutation.mutate({
+                                conversationId: latestResponse.conversationId,
+                                instruction: "generate_report",
+                                reply: {
+                                  type: "fill_params",
+                                  parameters: mergedParameters,
+                                  reportContext: { templateInstance: mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters) },
+                                },
+                              });
+                            }}
+                            onSubmitConfirm={() => {
+                              if (!latestResponse.ask) {
+                                return;
+                              }
+                              const mergedParameters = mergeAskParameters(latestResponse.ask.parameters, parameterDrafts, dynamicOptions);
+                              const mergedTemplateInstance = mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters);
+                              sendMutation.mutate({
+                                conversationId: latestResponse.conversationId,
+                                instruction: "generate_report",
+                                reply: {
+                                  type: "confirm_params",
+                                  parameters: mergedParameters,
+                                  reportContext: { templateInstance: mergedTemplateInstance },
+                                },
+                              });
+                            }}
+                            submitting={sendMutation.isPending}
+                          />
+                        ) : (
+                          <p>该追问已被后续回复消费，当前会话中不可继续修改。</p>
+                        )}
                       </article>
                     </div>
                   </div>
@@ -232,6 +251,23 @@ export function ChatPage() {
               <SurfaceCard>
                 <div className="list-header"><div><p className="section-kicker">Template Instance</p><h3>当前模板实例</h3></div></div>
                 <TemplateInstancePreview templateInstance={currentTemplateInstance} />
+              </SurfaceCard>
+            ) : null}
+
+            {streamDeltas.length ? (
+              <SurfaceCard>
+                <div className="list-header">
+                  <div>
+                    <p className="section-kicker">Stream Delta</p>
+                    <h3>增量生成进度</h3>
+                  </div>
+                  <span>{streamStatus === "running" ? "生成中" : "已完成"}</span>
+                </div>
+                <ul className="stack-list">
+                  {streamDeltas.map((delta, index) => (
+                    <li key={`${delta.action}-${index}`}>{describeDelta(delta)}</li>
+                  ))}
+                </ul>
               </SurfaceCard>
             ) : null}
 
@@ -401,7 +437,18 @@ function normalizeConversationMessages(conversation: ConversationDetail | undefi
   if (!conversation) {
     return [];
   }
-  return conversation.messages.map((item, index) => ({ key: `${item.chatId}-${index}`, role: item.role, createdAt: item.createdAt ?? undefined, text: extractMessageText(item.content) }));
+  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+  return messages.map((item, index) => ({ key: `${item.chatId}-${index}`, role: item.role, createdAt: item.createdAt ?? undefined, text: extractMessageText(item.content) }));
+}
+
+function describeDelta(delta: ChatStreamDelta) {
+  if (delta.action === "init_report") {
+    return `初始化报告：${delta.report.title}`;
+  }
+  if (delta.action === "add_catalog") {
+    return `新增目录：${delta.catalogs.map((item) => item.title).join("、")}`;
+  }
+  return `新增章节：${delta.sections.map((item) => item.requirement).join("、")}`;
 }
 
 function findLatestResponse(conversation: ConversationDetail | undefined): ChatResponse | null {

@@ -99,6 +99,7 @@ export type ReportAnswerPayload = {
 };
 
 export type ChatAsk = {
+  status: "pending" | "replied";
   mode: "form" | "natural_language";
   type: "fill_params" | "confirm_params";
   title: string;
@@ -133,6 +134,49 @@ export type ChatResponse = {
   requestId?: string;
   timestamp: number;
   apiVersion: string;
+};
+
+export type ChatStreamDelta =
+  | {
+      action: "init_report";
+      report: {
+        reportId: string;
+        title: string;
+      };
+    }
+  | {
+      action: "add_catalog";
+      parentCatalogId: string | null;
+      parentCatalog: number[] | null;
+      catalogs: Array<{
+        catalogId: string;
+        title: string;
+      }>;
+    }
+  | {
+      action: "add_section";
+      parentCatalogId: string | null;
+      parentCatalog: number[] | null;
+      sections: Array<{
+        sectionId: string;
+        status: string;
+        requirement: string;
+        components?: Array<Record<string, unknown>>;
+      }>;
+    };
+
+export type ChatStreamEvent = {
+  conversationId: string;
+  chatId: string;
+  eventType: "status" | "step_delta" | "ask" | "answer" | "error" | "done";
+  sequence: number;
+  timestamp: number;
+  status: "waiting_user" | "running" | "finished" | "failed";
+  steps?: unknown[];
+  ask?: ChatAsk | null;
+  answer?: ChatResponse["answer"];
+  error?: unknown;
+  delta?: ChatStreamDelta[];
 };
 
 export type ConversationSummary = {
