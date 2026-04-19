@@ -50,3 +50,26 @@
 - 风险与后续：
   - 当前仍未引入迁移框架，SQL 初始化稿与 ORM 的一致性需要在后续开发中显式维护。
   - 若其它设计文档仍引用已废弃的旧表或旧 `.db` 基线，需要继续按当前目标模型清理。
+
+## 2026-04-19 `/chat` 流式报告增量 `delta`
+
+- 变更动机：
+  - 现有 `/chat` 流式协议只有 `steps` 和最终 `answer`，缺少一条专门表达报告内容增量变更的正式通道。
+  - 前端若要边生成边渲染目录和章节，只依赖完整 `REPORT` 会造成载荷过重，且执行进度与内容 patch 语义混杂。
+- 设计决策：
+  - 在 `ChatStreamEvent` 顶层新增可选字段 `delta`，只用于流式报告内容 patch。
+  - `steps` 继续只表达执行进度；`answer` 继续只表达最终完整结果。
+  - 不新增 SSE 事件类型；`delta` 仍附着在现有统一事件包络上，生成过程通过顶层 `status=running` 判断。
+  - `delta.action` 当前先收敛为：`init_report`、`add_catalog`、`add_section`。
+  - `delta` 不进入非流式 `ChatResponse` 完成态，也不进入 `GET /reports/{reportId}`。
+- 影响范围：
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/08-相对ChatBI的扩展点.md](report_system/08-%E7%9B%B8%E5%AF%B9ChatBI%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9.md)
+  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
+  - [chatbi/03-运行时交互流程.md](chatbi/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E4%BA%A4%E4%BA%92%E6%B5%81%E7%A8%8B.md)
+  - [chatbi/05-报告系统扩展映射.md](chatbi/05-%E6%8A%A5%E5%91%8A%E7%B3%BB%E7%BB%9F%E6%89%A9%E5%B1%95%E6%98%A0%E5%B0%84.md)
+  - `design/openapi/reportsystem-openapi*.yaml|json`
+- 风险与后续：
+  - `delta` 当前只覆盖目录和章节新增；若后续需要章节替换、组件更新、目录删除等动作，需要继续扩充动作枚举。
+  - 前端必须明确区分 `steps`、`delta`、`answer` 三条通道，避免再次混淆。

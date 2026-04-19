@@ -659,6 +659,10 @@ components:
         sequence: { type: integer }
         timestamp: { type: integer }
         status: { type: string }
+        delta:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportDelta'
         step:
           $ref: '#/components/schemas/Step'
         ask:
@@ -702,6 +706,60 @@ components:
           then:
             required: [error]
       required: [conversationId, chatId, eventType, sequence, timestamp]
+    ReportDelta:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [init_report, add_catalog, add_section]
+        report:
+          $ref: '#/components/schemas/ReportDeltaReport'
+        parentCatalogId:
+          type: string
+          nullable: true
+        parentCatalog:
+          anyOf:
+            - type: 'null'
+            - type: array
+              items: { type: integer }
+        catalogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogDelta'
+        sections:
+          type: array
+          items:
+            $ref: '#/components/schemas/SectionDelta'
+      required: [action]
+    ReportDeltaReport:
+      type: object
+      properties:
+        reportId: { type: string }
+        title: { type: string }
+      required: [reportId, title]
+    CatalogDelta:
+      type: object
+      properties:
+        catalogId: { type: string }
+        title: { type: string }
+      required: [catalogId, title]
+    SectionDelta:
+      type: object
+      properties:
+        sectionId: { type: string }
+        status: { type: string }
+        requirement: { type: string }
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentSummary'
+      required: [sectionId, status, requirement]
+    ComponentSummary:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+      required: [id, type]
     ForkRequest:
       type: object
       properties:
