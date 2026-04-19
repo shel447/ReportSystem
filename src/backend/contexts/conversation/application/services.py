@@ -12,6 +12,8 @@ from ....infrastructure.ai.openai_compat import OpenAICompatGateway
 from ....infrastructure.settings.system_settings import build_completion_provider_config, build_embedding_provider_config
 from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 from ...report_runtime.domain.services import (
+    collect_instance_parameters,
+    collect_template_parameters,
     instantiate_template_instance,
     merge_parameter_values,
     parameters_to_value_map,
@@ -199,9 +201,14 @@ class ConversationService:
             # 不能在消息流上再派生旁路状态。
             template_id = current_instance["templateId"]
             template = self.template_catalog_service.get_template(template_id)
+            template_parameter_definitions = collect_template_parameters(template)
+            current_instance_parameters = collect_instance_parameters(
+                parameters=current_instance.get("parameters") or [],
+                catalogs=current_instance.get("catalogs") or [],
+            )
             merged_values = merge_parameter_values(
-                parameter_definitions=list(template.get("parameters") or []),
-                current_values=parameters_to_value_map(current_instance.get("parameters") or []),
+                parameter_definitions=template_parameter_definitions,
+                current_values=parameters_to_value_map(current_instance_parameters),
                 incoming_values=parameters_to_value_map((reply or {}).get("parameters") if isinstance((reply or {}).get("parameters"), list) else [])
                 if isinstance(reply, dict)
                 else self._extract_parameter_values(template, str(data.get("question") or "")),
@@ -215,7 +222,7 @@ class ConversationService:
                 capture_stage="fill_params",
                 revision=int(current_instance.get("revision") or 1) + 1,
                 parameter_values=merged_values,
-                current_parameters=current_instance.get("parameters") or [],
+                current_parameters=current_instance_parameters,
                 warnings=current_instance.get("warnings") or [],
                 created_at=_parse_datetime(current_instance.get("createdAt")),
             )
@@ -295,7 +302,7 @@ class ConversationService:
         """对用户文本执行轻量首轮参数抽取。"""
         parameter_values: dict[str, list[dict[str, Any]]] = {}
         question_text = question or ""
-        for parameter in list(template.get("parameters") or []):
+        for parameter in collect_template_parameters(template):
             param_id = str(parameter.get("id") or "").strip()
             input_type = str(parameter.get("inputType") or "")
             matched = None
@@ -338,11 +345,7 @@ class ConversationService:
 
             if matched:
                 parameter_values[param_id] = matched
-        return merge_parameter_values(
-            parameter_definitions=list(template.get("parameters") or []),
-            current_values={},
-            incoming_values=parameter_values,
-        )
+        return merge_parameter_values(parameter_definitions=collect_template_parameters(template), current_values={}, incoming_values=parameter_values)
 
     def _build_ask_response(self, *, conversation_id: str, chat_id: str, template: dict[str, Any], template_instance: dict[str, Any], request_id: str | None, api_version: str | None) -> dict[str, Any]:
         """根据模板实例当前完整度直接构造下一轮追问。"""
@@ -352,7 +355,10 @@ class ConversationService:
             next_parameter_state = next(
                 (
                     copy.deepcopy(parameter)
-                    for parameter in list(template_instance.get("parameters") or [])
+                    for parameter in collect_instance_parameters(
+                        parameters=template_instance.get("parameters") or [],
+                        catalogs=template_instance.get("catalogs") or [],
+                    )
                     if str(parameter.get("id") or "") == str(next_parameter.get("id") or "")
                 ),
                 copy.deepcopy(next_parameter),
@@ -371,7 +377,10 @@ class ConversationService:
                 "type": "confirm_params",
                 "title": "请确认报告诉求",
                 "text": "请确认报告诉求后开始生成。",
-                "parameters": copy.deepcopy(template_instance.get("parameters") or []),
+                "parameters": collect_instance_parameters(
+                    parameters=template_instance.get("parameters") or [],
+                    catalogs=template_instance.get("catalogs") or [],
+                ),
                 "reportContext": {"templateInstance": template_instance},
             }
         return _chat_response(
@@ -478,9 +487,14 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
 
 
 def _missing_required_parameters(*, template: dict[str, Any], template_instance: dict[str, Any]) -> list[dict[str, Any]]:
-    values = parameters_to_value_map(template_instance.get("parameters") or [])
+    values = parameters_to_value_map(
+        collect_instance_parameters(
+            parameters=template_instance.get("parameters") or [],
+            catalogs=template_instance.get("catalogs") or [],
+        )
+    )
     missing = []
-    for parameter in list(template.get("parameters") or []):
+    for parameter in collect_template_parameters(template):
         if not parameter.get("required"):
             continue
         if not list(values.get(parameter.get("id")) or []):

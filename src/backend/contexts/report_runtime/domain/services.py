@@ -74,20 +74,31 @@ def instantiate_template_instance(
 ) -> TemplateInstance:
     """基于模板与当前参数值创建标准运行时聚合。"""
     root_parameter_definitions = list(template.get("parameters") or [])
+    all_parameter_definitions = collect_template_parameters(template)
+    all_current_parameters = collect_instance_parameters(
+        parameters=current_parameters,
+        catalogs=None,
+    )
     effective_values = merge_parameter_values(
-        parameter_definitions=root_parameter_definitions,
-        current_values=parameters_to_value_map(current_parameters),
+        parameter_definitions=all_parameter_definitions,
+        current_values=parameters_to_value_map(all_current_parameters),
         incoming_values=parameter_values,
     )
     root_parameters = materialize_parameters(
         parameter_definitions=root_parameter_definitions,
         effective_values=effective_values,
-        current_parameters=current_parameters,
+        current_parameters=all_current_parameters,
     )
-    catalogs = build_catalog_instances(template=template, root_parameters=root_parameters)
+    catalogs = build_catalog_instances(
+        template=template,
+        root_parameters=root_parameters,
+        effective_values=effective_values,
+        current_parameters=all_current_parameters,
+    )
+    all_materialized_parameters = collect_instance_parameters(parameters=root_parameters, catalogs=catalogs)
     missing_parameter_ids = [
         str(parameter.get("id") or "")
-        for parameter in root_parameters
+        for parameter in all_materialized_parameters
         if parameter.get("required") and not list(parameter.get("values") or [])
     ]
     now = datetime.now(timezone.utc).replace(microsecond=0)
@@ -161,7 +172,13 @@ def materialize_parameters(
     return materialized
 
 
-def build_catalog_instances(*, template: dict[str, Any], root_parameters: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_catalog_instances(
+    *,
+    template: dict[str, Any],
+    root_parameters: list[dict[str, Any]],
+    effective_values: dict[str, list[dict[str, Any]]],
+    current_parameters: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
     catalogs: list[dict[str, Any]] = []
     inherited_values = parameters_to_value_map(root_parameters)
     for catalog in list(template.get("catalogs") or []):
@@ -169,15 +186,31 @@ def build_catalog_instances(*, template: dict[str, Any], root_parameters: list[d
             expand_catalog_instances(
                 catalog=catalog,
                 inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
             )
         )
     return catalogs
 
 
-def expand_catalog_instances(*, catalog: dict[str, Any], inherited_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+def expand_catalog_instances(
+    *,
+    catalog: dict[str, Any],
+    inherited_values: dict[str, list[dict[str, Any]]],
+    effective_values: dict[str, list[dict[str, Any]]],
+    current_parameters: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
     foreach = catalog.get("foreach") if isinstance(catalog.get("foreach"), dict) else None
     if not foreach:
-        return [build_catalog_instance(catalog=catalog, inherited_values=inherited_values, foreach_context=None)]
+        return [
+            build_catalog_instance(
+                catalog=catalog,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                foreach_context=None,
+            )
+        ]
 
     parameter_id = str(foreach.get("parameterId") or "").strip()
     values = list(inherited_values.get(parameter_id) or [])
@@ -192,6 +225,8 @@ def expand_catalog_instances(*, catalog: dict[str, Any], inherited_values: dict[
             build_catalog_instance(
                 catalog=catalog,
                 inherited_values=scoped_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
                 foreach_context={
                     "parameterId": parameter_id,
                     "itemValues": [_normalize_parameter_value(value)],
@@ -205,11 +240,14 @@ def build_catalog_instance(
     *,
     catalog: dict[str, Any],
     inherited_values: dict[str, list[dict[str, Any]]],
+    effective_values: dict[str, list[dict[str, Any]]],
+    current_parameters: list[dict[str, Any]] | None,
     foreach_context: dict[str, Any] | None,
 ) -> dict[str, Any]:
     catalog_parameters = materialize_parameters(
         parameter_definitions=list(catalog.get("parameters") or []),
-        effective_values=inherited_values,
+        effective_values=effective_values,
+        current_parameters=current_parameters,
     )
     visible_values = {**copy.deepcopy(inherited_values), **parameters_to_value_map(catalog_parameters)}
     built: dict[str, Any] = {
@@ -226,10 +264,24 @@ def build_catalog_instance(
 
     sub_catalogs = []
     for sub_catalog in list(catalog.get("subCatalogs") or []):
-        sub_catalogs.extend(expand_catalog_instances(catalog=sub_catalog, inherited_values=visible_values))
+        sub_catalogs.extend(
+            expand_catalog_instances(
+                catalog=sub_catalog,
+                inherited_values=visible_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+            )
+        )
     sections = []
     for section in list(catalog.get("sections") or []):
-        sections.extend(expand_section_instances(section=section, inherited_values=visible_values))
+        sections.extend(
+            expand_section_instances(
+                section=section,
+                inherited_values=visible_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+            )
+        )
     if sub_catalogs:
         built["subCatalogs"] = sub_catalogs
     if sections:
@@ -237,10 +289,24 @@ def build_catalog_instance(
     return built
 
 
-def expand_section_instances(*, section: dict[str, Any], inherited_values: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+def expand_section_instances(
+    *,
+    section: dict[str, Any],
+    inherited_values: dict[str, list[dict[str, Any]]],
+    effective_values: dict[str, list[dict[str, Any]]],
+    current_parameters: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
     foreach = section.get("foreach") if isinstance(section.get("foreach"), dict) else None
     if not foreach:
-        return [build_section_instance(section=section, inherited_values=inherited_values, foreach_context=None)]
+        return [
+            build_section_instance(
+                section=section,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                foreach_context=None,
+            )
+        ]
 
     parameter_id = str(foreach.get("parameterId") or "").strip()
     values = list(inherited_values.get(parameter_id) or [])
@@ -255,6 +321,8 @@ def expand_section_instances(*, section: dict[str, Any], inherited_values: dict[
             build_section_instance(
                 section=section,
                 inherited_values=scoped_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
                 foreach_context={
                     "parameterId": parameter_id,
                     "itemValues": [_normalize_parameter_value(value)],
@@ -268,11 +336,14 @@ def build_section_instance(
     *,
     section: dict[str, Any],
     inherited_values: dict[str, list[dict[str, Any]]],
+    effective_values: dict[str, list[dict[str, Any]]],
+    current_parameters: list[dict[str, Any]] | None,
     foreach_context: dict[str, Any] | None,
 ) -> dict[str, Any]:
     section_parameters = materialize_parameters(
         parameter_definitions=list(section.get("parameters") or []),
-        effective_values=inherited_values,
+        effective_values=effective_values,
+        current_parameters=current_parameters,
     )
     visible_values = {**copy.deepcopy(inherited_values), **parameters_to_value_map(section_parameters)}
     outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
@@ -383,6 +454,44 @@ def serialize_template_instance(instance: TemplateInstance) -> dict[str, Any]:
         "createdAt": _isoformat(instance.created_at),
         "updatedAt": _isoformat(instance.updated_at),
     }
+
+
+def collect_template_parameters(template: dict[str, Any]) -> list[dict[str, Any]]:
+    parameters: list[dict[str, Any]] = []
+    parameters.extend(copy.deepcopy(list(template.get("parameters") or [])))
+    for catalog in list(template.get("catalogs") or []):
+        parameters.extend(_collect_catalog_template_parameters(catalog))
+    return parameters
+
+
+def _collect_catalog_template_parameters(catalog: dict[str, Any]) -> list[dict[str, Any]]:
+    parameters: list[dict[str, Any]] = []
+    parameters.extend(copy.deepcopy(list(catalog.get("parameters") or [])))
+    for section in list(catalog.get("sections") or []):
+        parameters.extend(copy.deepcopy(list(section.get("parameters") or [])))
+    for sub_catalog in list(catalog.get("subCatalogs") or []):
+        parameters.extend(_collect_catalog_template_parameters(sub_catalog))
+    return parameters
+
+
+def collect_instance_parameters(
+    *,
+    parameters: list[dict[str, Any]] | None,
+    catalogs: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    collected = copy.deepcopy(list(parameters or []))
+    for catalog in list(catalogs or []):
+        collected.extend(_collect_catalog_instance_parameters(catalog))
+    return collected
+
+
+def _collect_catalog_instance_parameters(catalog: dict[str, Any]) -> list[dict[str, Any]]:
+    collected = copy.deepcopy(list(catalog.get("parameters") or []))
+    for section in list(catalog.get("sections") or []):
+        collected.extend(copy.deepcopy(list(section.get("parameters") or [])))
+    for sub_catalog in list(catalog.get("subCatalogs") or []):
+        collected.extend(_collect_catalog_instance_parameters(sub_catalog))
+    return collected
 
 
 def _render_item_placeholder(match: re.Match[str], item_lookup: dict[str, dict[str, Any]]) -> str:

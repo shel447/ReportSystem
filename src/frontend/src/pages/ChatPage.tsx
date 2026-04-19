@@ -279,7 +279,8 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
       {ask.parameters.map((parameter) => {
         const value = parameterDrafts[parameter.id] ?? parameter.values ?? [];
         const options = parameter.inputType === "dynamic" ? dynamicOptions[parameter.id] ?? parameter.options ?? [] : parameter.options ?? [];
-        const currentText = value[0]?.display ? String(value[0].display) : "";
+        const currentText = value.map((item) => String(item.display ?? "")).filter(Boolean).join("\n");
+        const selectedValues = value.map((item) => String(item.display));
 
         return (
           <div key={parameter.id} className="form-grid">
@@ -287,18 +288,35 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
               <span className="field-label">{parameter.label}</span>
               {parameter.inputType === "enum" || parameter.inputType === "dynamic" ? (
                 <select
-                  value={currentText}
+                  multiple={parameter.multi}
+                  value={parameter.multi ? selectedValues : (selectedValues[0] ?? "")}
                   onChange={(event) => {
-                    const selected = options.find((option) => String(option.display) === event.target.value) ?? null;
-                    onChange((current) => ({ ...current, [parameter.id]: selected ? [selected] : [] }));
+                    const selected = Array.from(event.currentTarget.selectedOptions)
+                      .map((optionElement) => options.find((option) => String(option.display) === optionElement.value) ?? null)
+                      .filter((option): option is ParameterValue => Boolean(option));
+                    onChange((current) => ({ ...current, [parameter.id]: parameter.multi ? selected : (selected[0] ? [selected[0]] : []) }));
                   }}
                 >
-                  <option value="">请选择</option>
+                  {!parameter.multi ? <option value="">请选择</option> : null}
                   {options.map((option) => <option key={`${parameter.id}-${option.value}`} value={String(option.display)}>{String(option.display)}</option>)}
                 </select>
+              ) : parameter.multi ? (
+                <textarea
+                  rows={4}
+                  value={currentText}
+                  onChange={(event) => {
+                    const values = event.target.value
+                      .split(/\r?\n/)
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+                      .map((item) => ({ display: item, value: item, query: item }));
+                    onChange((current) => ({ ...current, [parameter.id]: values }));
+                  }}
+                  placeholder={parameter.placeholder || parameter.description || `${parameter.label}（每行一个）`}
+                />
               ) : (
                 <input
-                  value={currentText}
+                  value={value[0]?.display ? String(value[0].display) : ""}
                   onChange={(event) => {
                     const text = event.target.value;
                     onChange((current) => ({ ...current, [parameter.id]: text ? [{ display: text, value: text, query: text }] : [] }));
@@ -342,7 +360,7 @@ function TemplateInstanceCatalogPreview({ catalog }: { catalog: TemplateInstance
   );
 }
 
-function mergeAskParameters(parameters: TemplateParameter[], parameterDrafts: ParameterDrafts, dynamicOptions: DynamicOptionMap): TemplateParameter[] {
+export function mergeAskParameters(parameters: TemplateParameter[], parameterDrafts: ParameterDrafts, dynamicOptions: DynamicOptionMap): TemplateParameter[] {
   return parameters.map((parameter) => ({
     ...parameter,
     values: parameterDrafts[parameter.id] ?? parameter.values ?? [],
@@ -350,12 +368,33 @@ function mergeAskParameters(parameters: TemplateParameter[], parameterDrafts: Pa
   }));
 }
 
-function mergeTemplateInstanceParameters(templateInstance: TemplateInstance, parameters: TemplateParameter[]): TemplateInstance {
-  return { ...templateInstance, parameters };
+export function mergeTemplateInstanceParameters(templateInstance: TemplateInstance, parameters: TemplateParameter[]): TemplateInstance {
+  const parameterMap = new Map(parameters.map((parameter) => [parameter.id, parameter]));
+  return {
+    ...templateInstance,
+    parameters: mergeParameterList(templateInstance.parameters, parameterMap),
+    catalogs: templateInstance.catalogs.map((catalog) => mergeCatalogParameters(catalog, parameterMap)),
+  };
 }
 
 function parametersToValueMap(parameters: TemplateParameter[]): Record<string, ParameterValue[]> {
   return Object.fromEntries(parameters.filter((parameter) => parameter.values?.length).map((parameter) => [parameter.id, parameter.values ?? []]));
+}
+
+function mergeCatalogParameters(catalog: TemplateInstance["catalogs"][number], parameterMap: Map<string, TemplateParameter>): TemplateInstance["catalogs"][number] {
+  return {
+    ...catalog,
+    parameters: catalog.parameters ? mergeParameterList(catalog.parameters, parameterMap) : catalog.parameters,
+    sections: catalog.sections?.map((section) => ({
+      ...section,
+      parameters: section.parameters ? mergeParameterList(section.parameters, parameterMap) : section.parameters,
+    })),
+    subCatalogs: catalog.subCatalogs?.map((subCatalog) => mergeCatalogParameters(subCatalog, parameterMap)),
+  };
+}
+
+function mergeParameterList(parameters: TemplateParameter[], parameterMap: Map<string, TemplateParameter>): TemplateParameter[] {
+  return parameters.map((parameter) => parameterMap.get(parameter.id) ?? parameter);
 }
 
 function normalizeConversationMessages(conversation: ConversationDetail | undefined) {
