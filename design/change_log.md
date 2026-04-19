@@ -8,6 +8,27 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-04-19 旧 `design/implementation/` 目录归档
+
+- 变更动机：
+  - 当前正式实现设计已经完全收敛到 `design/report_system/implementation/`，而 `design/implementation/` 仍作为旧入口残留在根阅读路径里，造成两套实现目录并存的误解。
+  - 继续保留该目录在正式入口中，会削弱主设计包“唯一权威设计源”的治理边界。
+- 设计决策：
+  - 将 `design/implementation/` 整体归档到 `design/archive/legacy-implementation/`。
+  - `design/README.md` 的正式实现入口统一切换为 `design/report_system/implementation/README.md`。
+  - 历史文档中仍需追溯旧实现映射时，统一从归档目录读取，不再把旧目录作为当前实现设计来源。
+- 影响范围：
+  - [README.md](README.md)
+  - [archive/README.md](archive/README.md)
+  - [archive/legacy-implementation/README.md](archive/legacy-implementation/README.md)
+  - [archive/legacy-entrypoints/README.md](archive/legacy-entrypoints/README.md)
+  - [report_system/README.md](report_system/README.md)
+  - [archive/legacy-entrypoints/design.md](archive/legacy-entrypoints/design.md)
+  - [biz_requirement.md](biz_requirement.md)
+- 风险与后续：
+  - 若仓库外仍有旧链接直接指向 `design/implementation/*`，需要后续按需补充跳转说明或继续清理引用。
+  - 后续新增实现设计只允许进入 `design/report_system/implementation/`，不得在根目录再恢复并行实现目录。
+
 ## 2026-04-19 scoped 参数补强
 
 - 关联提交：
@@ -43,7 +64,7 @@
   - `src/backend/report_system.db` 明确降级为本地运行时文件，不再纳入版本跟踪。
   - SQL 初始化稿必须按当前 ORM 目标模型维护，不能再从历史 `report_system.db` 倒推。
 - 影响范围：
-  - [implementation/database_schema.md](implementation/database_schema.md)
+  - [archive/legacy-implementation/database_schema.md](archive/legacy-implementation/database_schema.md)
   - [report_system/05-数据模型与持久化.md](report_system/05-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%8C%81%E4%B9%85%E5%8C%96.md)
   - [deployment_guide.md](deployment_guide.md)
   - `src/backend/infrastructure/persistence/schema_init.sql`
