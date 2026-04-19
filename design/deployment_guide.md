@@ -21,7 +21,8 @@
 
 - 后端：FastAPI
 - 前端：静态页面，由后端统一提供
-- 主业务库：`src/backend/report_system.db`
+- 主业务库：`src/backend/report_system.db`（本地自动生成，不纳入版本管理）
+- 主业务库 SQL 初始化稿：`src/backend/infrastructure/persistence/schema_init.sql`（受版本管理）
 - 电信样例分析库：`src/backend/telecom_demo.db`
 - 文档输出目录：`src/backend/contexts/report_runtime/infrastructure/generated_documents/`
 
@@ -60,7 +61,8 @@ ReportSystemV2/
 ├─ src/
 │  ├─ backend/
 │  │  ├─ main.py                   FastAPI 入口
-│  │  ├─ report_system.db          主业务库（自动生成）
+│  │  ├─ report_system.db          主业务库（自动生成，不受版本管理）
+│  │  ├─ infrastructure/persistence/schema_init.sql  主业务库 SQL 初始化稿
 │  │  ├─ telecom_demo.db           电信样例库（自动生成）
 │  │  ├─ contexts/report_runtime/infrastructure/generated_documents/  Markdown 导出目录
 │  │  └─ requirements.txt          Python 依赖
@@ -147,12 +149,14 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:8300/openapi.json'
 服务启动时会自动执行以下动作：
 
 1. 初始化主业务库 `report_system.db`
-2. 自动完成数据库模型建表与兼容迁移（`checkfirst`）
+2. 基于 SQLAlchemy ORM 自动完成数据库模型建表（`Base.metadata.create_all(...)`）
 3. 初始化电信样例库 `telecom_demo.db`
 4. 供前端页面统一访问 `/`（并按需挂载 `/assets/*`）
 
 说明：
 
+- `report_system.db` 是运行时生成文件，不作为版本管理中的表结构载体
+- 表定义审阅与初始化比对请使用 `src/backend/infrastructure/persistence/schema_init.sql`
 - `telecom_demo.db` 与 `report_system.db` 完全隔离
 - `telecom_demo.db` 不存在时会自动建库并灌入样例数据
 
@@ -449,6 +453,7 @@ A：
 - Python 版本正确
 - 依赖安装完成
 - `report_system.db` 已生成
+- `schema_init.sql` 已存在且与当前 ORM 模型一致
 - `telecom_demo.db` 已生成
 - `http://127.0.0.1:8300/openapi.json` 可访问
 - 首页 `http://127.0.0.1:8300` 可访问

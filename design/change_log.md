@@ -31,3 +31,22 @@
 - 风险与后续：
   - 运行时真实环境仍依赖 sqlite 本地表结构与当前 ORM 模型一致；若开发环境使用了旧库文件，仍可能出现“设计已更新、运行时报表缺列”的环境性故障。
   - 后续所有设计方案调整，统一继续追加到本文件，不再分散写入其它说明页。
+
+## 2026-04-19 表定义与运行时数据库分离
+
+- 变更动机：
+  - `src/backend/report_system.db` 此前被纳入 Git 跟踪，但它本质上是本地运行时自动生成的 SQLite 文件。
+  - 当前仓库中的 `report_system.db` 已明显落后于正式 ORM 模型与设计文档，继续把它当作表定义载体，会导致“ORM、设计、实际库文件”三套结构长期漂移。
+- 设计决策：
+  - 运行时唯一建表来源继续保持为 `src/backend/infrastructure/persistence/models.py` + `Base.metadata.create_all(...)`。
+  - 新增受版本管理的 SQL 初始化稿 `src/backend/infrastructure/persistence/schema_init.sql`，用于初始化、审阅与结构比对。
+  - `src/backend/report_system.db` 明确降级为本地运行时文件，不再纳入版本跟踪。
+  - SQL 初始化稿必须按当前 ORM 目标模型维护，不能再从历史 `report_system.db` 倒推。
+- 影响范围：
+  - [implementation/database_schema.md](implementation/database_schema.md)
+  - [report_system/05-数据模型与持久化.md](report_system/05-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%8C%81%E4%B9%85%E5%8C%96.md)
+  - [deployment_guide.md](deployment_guide.md)
+  - `src/backend/infrastructure/persistence/schema_init.sql`
+- 风险与后续：
+  - 当前仍未引入迁移框架，SQL 初始化稿与 ORM 的一致性需要在后续开发中显式维护。
+  - 若其它设计文档仍引用已废弃的旧表或旧 `.db` 基线，需要继续按当前目标模型清理。
