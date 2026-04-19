@@ -146,9 +146,8 @@ sequenceDiagram
 
 本篇主要涉及：
 
-- [system_settings](database_schema.md#system_settings)
-- [feedbacks](database_schema.md#feedbacks)
-- [template_semantic_indices](database_schema.md#template_semantic_indices)
+- [tbl_system_settings](database_schema.md#1-目标态核心表)
+- [tbl_feedbacks](database_schema.md#1-目标态核心表)
 
 其余业务表的主维护权归 4 个 bounded context 文档说明。
 
@@ -167,4 +166,3 @@ sequenceDiagram
 - 查询链路可替换为非 Ibis 方案
 - 样例数据可替换为其他演示库
 - 文档读取、反馈聚合和文件落盘都属于纯技术适配层
-

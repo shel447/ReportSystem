@@ -2,6 +2,19 @@
 
 > 权威来源：
 > - [数据模型与持久化](../report_system/05-数据模型与持久化.md)
+> - [schema_init.sql](../../src/backend/infrastructure/persistence/schema_init.sql)
+
+## 0. 表定义载体
+
+- 运行时唯一建表来源：`src/backend/infrastructure/persistence/models.py` + `Base.metadata.create_all(...)`
+- 受版本管理的 SQL 初始化稿：`src/backend/infrastructure/persistence/schema_init.sql`
+- 本地运行时数据库文件：`src/backend/report_system.db`
+
+说明：
+
+- `report_system.db` 只作为本地 SQLite 运行时文件，不再纳入版本跟踪
+- `schema_init.sql` 用于初始化、审阅和结构比对，不作为第二套运行时权威
+- 若 `schema_init.sql` 与 ORM 不一致，以当前 ORM 目标模型为准并同步修正 SQL 稿
 
 ## 1. 目标态核心表
 
@@ -13,7 +26,8 @@
 - `tbl_report_instances`
 - `tbl_report_documents`
 - `tbl_export_jobs`
-- `tbl_template_semantic_indices`
+- `tbl_system_settings`
+- `tbl_feedbacks`
 
 ## 2. 映射原则
 

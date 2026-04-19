@@ -56,7 +56,11 @@
 ## 6. 关联表
 
 - [tbl_report_templates](database_schema.md#tbl_report_templates)
-- [tbl_template_semantic_indices](database_schema.md#tbl_template_semantic_indices)
+
+说明：
+
+- 当前目标态未单列 `tbl_template_semantic_indices` 正式表
+- 模板语义匹配属于基础设施能力，其持久化策略以后端当前实现为准，不再把旧索引表当作正式结构
 
 ## 7. 可替换组件
 
