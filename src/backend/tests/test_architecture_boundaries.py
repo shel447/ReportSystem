@@ -22,7 +22,6 @@ CHECK_LAYERS = [ROOT / "contexts"]
 ALLOWED_BACKEND_ROOT_FILES = {
     "__init__.py",
     "main.py",
-    "report.schema.json",
     "requirements.txt",
 }
 
@@ -86,6 +85,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for path in ROOT.glob("*.py"):
             if path.name not in ALLOWED_BACKEND_ROOT_FILES:
                 violations.append(str(path.relative_to(ROOT)))
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_backend_root_contains_no_local_json_schema_mirrors(self):
+        violations = [str(path.relative_to(ROOT)) for path in ROOT.glob("*.json")]
         self.assertEqual([], violations, "\n".join(violations))
 
 

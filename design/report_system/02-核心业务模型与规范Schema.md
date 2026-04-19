@@ -22,8 +22,8 @@
 
 1. Schema 是正式约束，示例只是参考。
 2. 开发、测试、导入导出、文档生成都必须围绕这些 Schema 工作。
-3. 若 `/src/backend` 中的历史 Schema 与本目录冲突，以本目录为准；后续代码实现再回收旧定义。
-4. `Report DSL` 必须严格遵循 [src/backend/report.schema.json](E:/code/codex_projects/ReportSystemV2/src/backend/report.schema.json)；本目录中的 `report-dsl.schema.json` 只是该契约的镜像副本，供设计文档、校验脚本和开发联调直接引用。
+3. 代码实现如需引用 Schema，统一直接引用本目录下的正式文件，不再在 `src/backend` 维护镜像副本。
+4. `Report DSL` 必须严格遵循 [schemas/report-dsl.schema.json](schemas/report-dsl.schema.json)。
 
 ## 2. ReportTemplate
 
@@ -326,14 +326,14 @@
 关键要求：
 
 - `Report DSL` 直接收编仓库中的正式 DSL Schema，不再手写第二套相似定义
-- 其结构必须严格等于 [src/backend/report.schema.json](E:/code/codex_projects/ReportSystemV2/src/backend/report.schema.json)
+- 其结构必须严格等于 [schemas/report-dsl.schema.json](schemas/report-dsl.schema.json)
 - `catalogs -> (subCatalogs)* -> sections -> components` 是正式主体
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 
 当前业务 profile：
 
-- Schema 全量能力以 `report.schema.json` 为准
+- Schema 全量能力以 `report-dsl.schema.json` 为准
 - 但当前报告系统首版只启用其中一个正式子集：
   - 目录：`catalogs -> (subCatalogs)* -> sections`
   - 组件：优先使用 `text`、`table`、`chart`、`markdown`

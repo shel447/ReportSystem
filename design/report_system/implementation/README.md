@@ -16,6 +16,7 @@
 ## 落地约束
 
 - 以 `design/report_system/schemas/*.json` 为唯一结构约束。
+- `src/backend` 根目录不得再存放 schema 或示例 JSON 镜像；运行时代码如需校验，必须直接引用 `design/report_system/schemas/*.json`。
 - 后端公开接口只保留 `templates / chat / reports / parameter-options`；`/rest/dev/*` 属于支撑接口，不反向定义主业务模型。
 - 领域主线固定为 `ReportTemplate -> TemplateInstance -> Report DSL -> ReportInstance -> DocumentArtifact`。
 - `TemplateInstance` 是核心运行态聚合。参数收集、诉求实例化、delta 合并、报告生成都围绕同一份模板实例推进。

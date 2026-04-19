@@ -49,7 +49,7 @@
 
 - 不再维护模板双轨定义
 - 不再接受旧模板顶层字段
-- `report_template_schema_v2.json` 是唯一模板 schema 基线
+- `design/report_system/schemas/report-template.schema.json` 是唯一模板 schema 基线
 - 模板导出、详情、导入预解析都只使用唯一结构
 - 模板匹配文本只基于：`name/description/category/parameters/sections`
 

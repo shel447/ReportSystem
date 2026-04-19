@@ -99,3 +99,20 @@
 - 验证要求：
   - 新增测试锁住 `schema_init.sql` 对当前 ORM 表集合的覆盖
   - 新增测试锁住 `.gitignore` 对 `src/backend/report_system.db` 的忽略约束
+
+## 2026-04-19 后端本地 Schema 镜像清理
+
+- 背景问题：
+  - `src/backend` 根目录仍保留过期的模板 schema、模板示例和报告 DSL schema 镜像文件。
+  - 运行时代码与设计文档同时引用 `src/backend/*.json` 和 `design/report_system/schemas/*.json`，形成双轨定义。
+- 实现设计调整：
+  - 删除 `src/backend` 根目录下全部历史 JSON schema/示例镜像文件。
+  - 后端运行时如需校验 `Report DSL`，统一从 `design/report_system/schemas/report-dsl.schema.json` 读取。
+  - 实现文档与设计文档中的 schema 引用统一收口到 `design/report_system/schemas/*`，不再把 `src/backend/*.json` 作为正式契约来源。
+- 受影响的实现设计主题：
+  - [README.md](README.md)
+  - [报告运行时实现.md](报告运行时实现.md)
+  - [持久化与表结构实现.md](持久化与表结构实现.md)
+- 验证要求：
+  - 后端根目录不再保留任何本地 JSON schema 镜像文件。
+  - 架构测试锁住 `src/backend/*.json` 清零，防止后续再次引入双轨 schema。

@@ -20,7 +20,7 @@ from ...template_catalog.domain.models import ReportTemplate
 from ..domain.models import TemplateInstance
 from ..domain.services import serialize_template_instance
 
-REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[3] / "report.schema.json"
+REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[5] / "design" / "report_system" / "schemas" / "report-dsl.schema.json"
 REPORT_SCHEMA = json.loads(REPORT_SCHEMA_PATH.read_text(encoding="utf-8"))
 REPORT_VALIDATOR = Draft202012Validator(REPORT_SCHEMA)
 
