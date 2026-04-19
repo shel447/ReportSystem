@@ -201,6 +201,7 @@ export function ChatPage() {
                                 instruction: "generate_report",
                                 reply: {
                                   type: "fill_params",
+                                  sourceChatId: latestResponse.chatId,
                                   parameters: mergedParameters,
                                   reportContext: { templateInstance: mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters) },
                                 },
@@ -217,6 +218,7 @@ export function ChatPage() {
                                 instruction: "generate_report",
                                 reply: {
                                   type: "confirm_params",
+                                  sourceChatId: latestResponse.chatId,
                                   parameters: mergedParameters,
                                   reportContext: { templateInstance: mergedTemplateInstance },
                                 },

@@ -143,9 +143,9 @@ class _ChatRepository:
     def list_by_conversation(self, conversation_id: str, *, user_id: str):
         return [row for row in self.rows if row.conversation_id == conversation_id and row.user_id == user_id]
 
-    def mark_latest_pending_ask_replied(self, *, conversation_id: str, user_id: str) -> bool:
-        for row in reversed(self.rows):
-            if row.conversation_id != conversation_id or row.user_id != user_id or row.role != "assistant":
+    def mark_ask_replied(self, *, conversation_id: str, user_id: str, source_chat_id: str) -> bool:
+        for row in self.rows:
+            if row.id != source_chat_id or row.conversation_id != conversation_id or row.user_id != user_id or row.role != "assistant":
                 continue
             response = row.content.get("response") if isinstance(row.content, dict) else None
             ask = response.get("ask") if isinstance(response, dict) else None
@@ -225,11 +225,12 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             data={
                 "conversationId": first["conversationId"],
                 "instruction": "generate_report",
-                "reply": {
-                    "type": "fill_params",
-                    "parameters": [
-                        {
-                            "id": "report_date",
+                    "reply": {
+                        "type": "fill_params",
+                        "sourceChatId": first["chatId"],
+                        "parameters": [
+                            {
+                                "id": "report_date",
                             "label": "报告日期",
                             "inputType": "date",
                             "required": True,
@@ -248,6 +249,85 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
         self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
         self.assertEqual(assistant_messages[-1].content["response"]["ask"]["status"], "pending")
+
+    def test_reply_uses_source_chat_id_instead_of_latest_pending_guess(self):
+        template = {
+            "id": "tpl_network_daily",
+            "category": "network_operations",
+            "name": "网络运行日报",
+            "description": "面向网络运维中心的统一日报模板。",
+            "schemaVersion": "template.v3",
+            "parameters": [
+                {
+                    "id": "report_date",
+                    "label": "报告日期",
+                    "inputType": "date",
+                    "required": True,
+                    "multi": False,
+                    "interactionMode": "form",
+                }
+            ],
+            "catalogs": [],
+        }
+        conversation_repository = _ConversationRepository()
+        chat_repository = _ChatRepository()
+        runtime_service = _RuntimeService()
+        service = ConversationService(
+            conversation_repository=conversation_repository,
+            chat_repository=chat_repository,
+            template_catalog_service=SimpleNamespace(
+                get_template=lambda template_id: template,
+                serialize_detail=lambda item: item,
+            ),
+            template_repository=SimpleNamespace(list_all=lambda: [template]),
+            runtime_service=runtime_service,
+            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: {"options": []}),
+            db=None,
+        )
+
+        first = service.send_message(
+            data={"instruction": "generate_report", "question": "帮我生成 2026-04-18 网络运行日报"},
+            user_id="default",
+        )
+        second = service.send_message(
+            data={
+                "conversationId": first["conversationId"],
+                "instruction": "generate_report",
+                "question": "我还想再看一遍同一份日报",
+            },
+            user_id="default",
+        )
+
+        third = service.send_message(
+            data={
+                "conversationId": first["conversationId"],
+                "instruction": "generate_report",
+                "reply": {
+                    "type": "fill_params",
+                    "sourceChatId": first["chatId"],
+                    "parameters": [
+                        {
+                            "id": "report_date",
+                            "label": "报告日期",
+                            "inputType": "date",
+                            "required": True,
+                            "multi": False,
+                            "interactionMode": "form",
+                            "values": [{"display": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}],
+                        }
+                    ],
+                    "reportContext": {"templateInstance": runtime_service.instance},
+                },
+            },
+            user_id="default",
+        )
+
+        self.assertEqual(third["ask"]["status"], "pending")
+        assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
+        self.assertEqual(assistant_messages[0].id, first["chatId"])
+        self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
+        self.assertEqual(assistant_messages[1].id, second["chatId"])
+        self.assertEqual(assistant_messages[1].content["response"]["ask"]["status"], "pending")
 
 
 if __name__ == "__main__":

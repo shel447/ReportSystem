@@ -163,8 +163,16 @@ class ConversationService:
         current_instance = self.runtime_service.get_latest_template_instance(conversation_id=conversation.id, user_id=user_id)
 
         if reply and str(reply.get("type") or "") in {"fill_params", "confirm_params"}:
-            # 追问一旦被结构化 reply 消费，历史消息中的该追问就必须转为 replied。
-            self.chat_repository.mark_latest_pending_ask_replied(conversation_id=conversation.id, user_id=user_id)
+            # 结构化 reply 必须精确指向它所消费的 assistant 追问消息，不允许按最近一条 pending ask 猜测。
+            source_chat_id = str(reply.get("sourceChatId") or "").strip()
+            if not source_chat_id:
+                raise ValidationError("reply.sourceChatId is required")
+            if not self.chat_repository.mark_ask_replied(
+                conversation_id=conversation.id,
+                user_id=user_id,
+                source_chat_id=source_chat_id,
+            ):
+                raise ValidationError("reply.sourceChatId must reference a pending ask in the same conversation")
 
         if reply and str(reply.get("type") or "") == "confirm_params":
             # 只有确认参数分支允许把当前模板实例冻结成报告，
@@ -182,6 +190,7 @@ class ConversationService:
                 _template_instance_from_payload(template_instance_payload, chat_id=user_chat.id, status="confirmed", capture_stage="confirm_params"),
                 user_id=user_id,
             )
+            assistant_chat_id = _random_id("chat")
             answer = self.runtime_service.generate_report_from_template_instance(
                 template_instance_id=persisted["id"],
                 user_id=user_id,
@@ -190,14 +199,14 @@ class ConversationService:
             )
             response = _chat_response(
                 conversation_id=conversation.id,
-                chat_id=user_chat.id,
+                chat_id=assistant_chat_id,
                 status="finished",
                 ask=None,
                 answer={"answerType": "REPORT", "answer": answer},
                 request_id=data.get("requestId"),
                 api_version=data.get("apiVersion"),
             )
-            self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
+            self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, chat_id=assistant_chat_id, response=response)
             return response
 
         if current_instance:
@@ -231,8 +240,9 @@ class ConversationService:
                 created_at=_parse_datetime(current_instance.get("createdAt")),
             )
             persisted = self.runtime_service.persist_template_instance(instance, user_id=user_id)
-            response = self._build_ask_response(conversation_id=conversation.id, chat_id=user_chat.id, template=template, template_instance=persisted, request_id=data.get("requestId"), api_version=data.get("apiVersion"))
-            self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
+            assistant_chat_id = _random_id("chat")
+            response = self._build_ask_response(conversation_id=conversation.id, chat_id=assistant_chat_id, template=template, template_instance=persisted, request_id=data.get("requestId"), api_version=data.get("apiVersion"))
+            self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, chat_id=assistant_chat_id, response=response)
             return response
 
         # 首轮先完成模板匹配，再用抽取值和默认值初始化第一版模板实例。
@@ -252,15 +262,16 @@ class ConversationService:
         if not conversation.title:
             conversation.title = template["name"]
             self.conversation_repository.save(conversation)
+        assistant_chat_id = _random_id("chat")
         response = self._build_ask_response(
             conversation_id=conversation.id,
-            chat_id=user_chat.id,
+            chat_id=assistant_chat_id,
             template=template,
             template_instance=persisted,
             request_id=data.get("requestId"),
             api_version=data.get("apiVersion"),
         )
-        self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, response=response)
+        self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, chat_id=assistant_chat_id, response=response)
         return response
 
     def _ensure_conversation(self, *, data: dict[str, Any], user_id: str):
@@ -399,7 +410,7 @@ class ConversationService:
             api_version=api_version,
         )
 
-    def _append_assistant_message(self, *, conversation_id: str, user_id: str, response: dict[str, Any]) -> None:
+    def _append_assistant_message(self, *, conversation_id: str, user_id: str, chat_id: str, response: dict[str, Any]) -> None:
         """持久化统一聊天响应，确保聊天与报告视图都可重放。"""
         self.chat_repository.append_message(
             conversation_id=conversation_id,
@@ -408,6 +419,7 @@ class ConversationService:
             content={"response": response},
             action={"type": "chat_response"},
             meta={"status": response.get("status")},
+            chat_id=chat_id,
         )
 
 

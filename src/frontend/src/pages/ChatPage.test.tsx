@@ -365,6 +365,7 @@ describe("ChatPage", () => {
             },
           ]));
         }
+        expect(payload.reply.sourceChatId).toBeTruthy();
         return Promise.resolve(createSseResponse([
           {
             conversationId: "conv_multi",

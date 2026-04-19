@@ -208,6 +208,7 @@ export type ChatRequest = {
   instruction?: "generate_report" | "extract_report_template";
   reply?: {
     type: "fill_params" | "confirm_params";
+    sourceChatId: string;
     parameters?: TemplateParameter[];
     reportContext?: {
       templateInstance: TemplateInstance;

@@ -165,6 +165,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "instruction": "generate_report",
                     "reply": {
                         "type": "confirm_params",
+                        "sourceChatId": "chat_001",
                         "parameters": _sample_template_instance()["parameters"],
                         "reportContext": {"templateInstance": _sample_template_instance()},
                     },
@@ -198,6 +199,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "instruction": "generate_report",
                     "reply": {
                         "type": "confirm_params",
+                        "sourceChatId": "chat_ask_001",
                         "parameters": [],
                         "reportContext": {"templateInstance": {"id": "ti_001", "templateId": "tpl_network_daily"}},
                     },
@@ -274,6 +276,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "instruction": "generate_report",
                     "reply": {
                         "type": "confirm_params",
+                        "sourceChatId": "chat_ask_009",
                         "parameters": _sample_template_instance()["parameters"],
                         "reportContext": {"templateInstance": _sample_template_instance()},
                     },
@@ -289,6 +292,27 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertIn('"action": "add_catalog"', body)
         self.assertIn('"action": "add_section"', body)
         self.assertIn('"reportId": "rpt_001"', body)
+
+    def test_post_chat_reply_requires_source_chat_id(self):
+        fake_service = type("FakeConversationService", (), {"send_message": lambda self, data, user_id: data})()
+
+        with patch("backend.routers.chat.build_conversation_service", return_value=fake_service):
+            response = self.client.post(
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default"},
+                json={
+                    "conversationId": "conv_001",
+                    "chatId": "chat_003",
+                    "instruction": "generate_report",
+                    "reply": {
+                        "type": "fill_params",
+                        "parameters": [],
+                        "reportContext": {"templateInstance": {"id": "ti_001", "templateId": "tpl_network_daily"}},
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":

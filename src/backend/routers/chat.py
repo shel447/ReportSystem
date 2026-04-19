@@ -19,6 +19,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 class ReplyPayload(BaseModel):
     type: str
+    sourceChatId: str
     parameters: Optional[list[dict[str, Any]]] = None
     reportContext: Optional[dict[str, Any]] = None
 

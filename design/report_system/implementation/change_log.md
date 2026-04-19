@@ -116,3 +116,20 @@
 - 验证要求：
   - 后端根目录不再保留任何本地 JSON schema 镜像文件。
   - 架构测试锁住 `src/backend/*.json` 清零，防止后续再次引入双轨 schema。
+
+## 2026-04-19 `reply.sourceChatId` 精确回写
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中 `reply.sourceChatId` 要求
+- 实现设计调整：
+  - `chat` 路由的 `ReplyPayload` 正式增加必填 `sourceChatId`
+  - `ConversationService` 不再按“最近一条待回复 ask”做隐式猜测，而是要求 `fill_params`、`confirm_params` 都显式携带 `sourceChatId`
+  - 聊天仓储按 `conversation_id + user_id + source_chat_id` 精确定位 assistant 追问消息，并仅在该消息仍为 `ask.status = pending` 时回写为 `replied`
+  - 前端聊天页提交 `reply` 时，固定使用当前追问消息自身的 `chatId` 回填 `sourceChatId`
+- 受影响的实现设计主题：
+  - [统一对话实现.md](统一对话实现.md)
+  - [前端实现.md](前端实现.md)
+- 验证要求：
+  - 后端接口测试锁住 `reply.sourceChatId` 为必填
+  - 后端会话测试锁住：只回写 `sourceChatId` 指向的那条追问消息
+  - 前端测试锁住：提交 `reply` 时必须带上 `sourceChatId`
