@@ -10,6 +10,7 @@
    - `ReportTemplate`
    - `TemplateInstance`
    - `Report DSL`
+   - `ReportDelta`
    - `DocumentGeneration`
 
 ## 2. 关键扩展点
@@ -38,6 +39,12 @@
 - `generationProgress`
 
 其中进度主指标固定按 section 统计；多层目录只作为辅助上下文返回 `currentCatalogPath/currentSectionId` 等字段。
+
+同时，报告系统在流式事件顶层新增：
+
+- `delta`
+
+其职责固定为“报告内容增量变更”，与 `steps` 的执行进度语义分离；`delta` 不进入完成态资源接口。
 
 同时，报告系统把 `REPORT_TEMPLATE` 收紧为结构化模板提取结果，而不是直接裸返回 `ReportTemplate`：
 
