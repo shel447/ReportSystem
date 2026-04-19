@@ -94,3 +94,22 @@
 - 风险与后续：
   - 当前只定义了 `pending | replied`，若后续出现“过期”“被替换”等场景，需要扩展状态枚举。
   - 历史消息回显若仍使用极简消息模型，需要继续把 `ask` 结构纳入正式消息对象。
+
+## 2026-04-19 `reply.sourceChatId` 原始追问定位
+
+- 变更动机：
+  - 仅靠 `ask.status` 还不足以让服务端稳定回写“哪一条追问消息已被消费”。
+  - 若继续依赖“最近一条待回复 ask”做隐式匹配，在多轮并发交互或历史回放场景下会产生歧义。
+- 设计决策：
+  - 在结构化 `reply` 上新增 `sourceChatId`，指向被回复的原始 assistant 追问消息。
+  - 服务端必须基于 `sourceChatId` 回写对应消息的 `ask.status = replied`。
+  - `sourceChatId` 对 `fill_params`、`confirm_params` 都是必填字段，不再允许隐式猜测。
+- 影响范围：
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/08-相对ChatBI的扩展点.md](report_system/08-%E7%9B%B8%E5%AF%B9ChatBI%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9.md)
+  - [report_system/implementation/统一对话实现.md](report_system/implementation/%E7%BB%9F%E4%B8%80%E5%AF%B9%E8%AF%9D%E5%AE%9E%E7%8E%B0.md)
+  - [report_system/implementation/前端实现.md](report_system/implementation/%E5%89%8D%E7%AB%AF%E5%AE%9E%E7%8E%B0.md)
+  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
+  - `design/openapi/reportsystem-openapi*.yaml|json`
+- 风险与后续：
+  - 若未来允许一条 `reply` 同时消费多条历史追问，需要把单值 `sourceChatId` 扩展为数组或更通用的 source 引用模型。
