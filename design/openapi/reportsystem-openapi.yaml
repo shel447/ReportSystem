@@ -409,6 +409,8 @@ components:
         conversationId: { type: string }
         role: { type: string, enum: [user, assistant, system] }
         content: { type: string }
+        ask:
+          $ref: '#/components/schemas/Ask'
         createdAt: { type: string, format: date-time }
       required: [chatId, conversationId, role, content]
     ChatRequest:
@@ -520,6 +522,7 @@ components:
     Ask:
       type: object
       properties:
+        status: { type: string, enum: [pending, replied] }
         mode: { type: string, enum: [form, natural_language] }
         type: { type: string, enum: [fill_params, confirm_params] }
         title: { type: string }
@@ -533,7 +536,7 @@ components:
           properties:
             templateInstance:
               $ref: '#/components/schemas/TemplateInstance'
-      required: [mode, type, title, text]
+      required: [status, mode, type, title, text]
     Parameter:
       $ref: ../report_system/schemas/report-template.schema.json#/$defs/Parameter
     AnswerEnvelope:

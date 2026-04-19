@@ -73,3 +73,24 @@
 - 风险与后续：
   - `delta` 当前只覆盖目录和章节新增；若后续需要章节替换、组件更新、目录删除等动作，需要继续扩充动作枚举。
   - 前端必须明确区分 `steps`、`delta`、`answer` 三条通道，避免再次混淆。
+
+## 2026-04-19 `ask.status` 对话级锁定标识
+
+- 变更动机：
+  - 参数确认后的“本轮不可继续修改”属于多轮对话里的消息级语义，不应继续下沉到参数对象自身。
+  - 未来不止参数确认，其它类型的追问消息也需要统一表达“已回复、不可继续修改”。
+- 设计决策：
+  - 在 `Ask` 上新增正式字段 `status`，当前只支持 `pending | replied`。
+  - `pending` 表示该追问仍可编辑、可提交；`replied` 表示该追问已经被后续回复消费。
+  - `ask.status` 同时进入当前轮 `ChatResponse.ask` 与对话历史消息回显。
+  - 保持 `TemplateInstance.parameterConfirmation.confirmed` 原有业务语义，不把参数确认态改造成消息级锁定态。
+- 影响范围：
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/08-相对ChatBI的扩展点.md](report_system/08-%E7%9B%B8%E5%AF%B9ChatBI%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9.md)
+  - [report_system/implementation/统一对话实现.md](report_system/implementation/%E7%BB%9F%E4%B8%80%E5%AF%B9%E8%AF%9D%E5%AE%9E%E7%8E%B0.md)
+  - [report_system/implementation/前端实现.md](report_system/implementation/%E5%89%8D%E7%AB%AF%E5%AE%9E%E7%8E%B0.md)
+  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
+  - `design/openapi/reportsystem-openapi*.yaml|json`
+- 风险与后续：
+  - 当前只定义了 `pending | replied`，若后续出现“过期”“被替换”等场景，需要扩展状态枚举。
+  - 历史消息回显若仍使用极简消息模型，需要继续把 `ask` 结构纳入正式消息对象。

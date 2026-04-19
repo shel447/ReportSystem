@@ -746,6 +746,9 @@
           "content": {
             "type": "string"
           },
+          "ask": {
+            "$ref": "#/components/schemas/Ask"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -1048,6 +1051,13 @@
       "Ask": {
         "type": "object",
         "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "replied"
+            ]
+          },
           "mode": {
             "type": "string",
             "enum": [
@@ -1084,6 +1094,7 @@
           }
         },
         "required": [
+          "status",
           "mode",
           "type",
           "title",
