@@ -2,6 +2,11 @@
 
 本目录存放已归档、已被替代或只保留历史输入价值的文档。
 
+当前归档子目录包括：
+
+- [legacy-entrypoints/README.md](legacy-entrypoints/README.md)：历史根目录入口文档
+- [legacy-implementation/README.md](legacy-implementation/README.md)：已废弃的旧实现映射目录
+
 使用规则：
 
 - 归档文档不得再作为当前设计的权威来源。

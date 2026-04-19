@@ -8,7 +8,7 @@
 
 1. `design/report_system/README.md`
 2. `design/chatbi/README.md`
-3. `design/implementation/index.md`
+3. `design/report_system/implementation/README.md`
 
 保留这些文档的原因：
 

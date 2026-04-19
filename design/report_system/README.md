@@ -24,7 +24,7 @@
 
 1. 本目录是唯一权威设计源。
 2. `design/README.md` 是 `design/` 根目录的唯一总入口。
-3. `design/implementation/*.md` 是目标态实现映射，不得再混入偶然实现事实。
+3. `design/report_system/implementation/*.md` 是目标态实现设计，不得再混入偶然实现事实。
 4. `design/chatbi/*.md` 只整理统一对话协议基线及扩展映射，不再反向定义报告系统主设计。
 5. `design/openapi/*` 必须从本目录的接口契约投影生成。
 6. 历史入口文档、原始输入和已替代文档统一进入 `design/archive/`。
