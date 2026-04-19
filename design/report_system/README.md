@@ -44,6 +44,7 @@
 - [examples/report-template.example.json](examples/report-template.example.json)
 - [examples/template-instance.example.json](examples/template-instance.example.json)
 - [examples/report-dsl.example.json](examples/report-dsl.example.json)
+- [implementation/change_log.md](implementation/change_log.md)
 
 ## 4. 阅读顺序
 
