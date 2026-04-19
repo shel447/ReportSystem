@@ -22,12 +22,17 @@
 - `status`
 - `reportContext.templateInstance`
 
+统一对话里的 `reply` 额外新增：
+
+- `sourceChatId`
+
 作用：
 
 - 前端可直接判断这条追问是否已被回复消费
 - 前端可直接展示当前模板实例
 - 用户修改诉求后可整棵树回传
 - 后台据此判定模板骨架是否被破坏
+- 后台可精确定位需要回写为 `replied` 的原始追问消息，而不是依赖最近一条待回复 ask 的隐式约定
 - `Ask.parameters[*].parameter` 与模板参数定义保持字段兼容，避免前后端维护两套参数对象
 
 ### 2.2 Answer 扩展

@@ -857,6 +857,9 @@
               "confirm_params"
             ]
           },
+          "sourceChatId": {
+            "type": "string"
+          },
           "parameters": {
             "type": "array",
             "items": {
@@ -883,6 +886,7 @@
             },
             "then": {
               "required": [
+                "sourceChatId",
                 "parameters"
               ]
             }
@@ -897,6 +901,7 @@
             },
             "then": {
               "required": [
+                "sourceChatId",
                 "parameters",
                 "reportContext"
               ]
@@ -904,7 +909,8 @@
           }
         ],
         "required": [
-          "type"
+          "type",
+          "sourceChatId"
         ]
       },
       "ChatResponse": {

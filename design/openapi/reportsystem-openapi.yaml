@@ -452,6 +452,7 @@ components:
       type: object
       properties:
         type: { type: string, enum: [fill_params, confirm_params] }
+        sourceChatId: { type: string }
         parameters:
           type: array
           items:
@@ -467,14 +468,14 @@ components:
               type:
                 const: fill_params
           then:
-            required: [parameters]
+            required: [sourceChatId, parameters]
         - if:
             properties:
               type:
                 const: confirm_params
           then:
-            required: [parameters, reportContext]
-      required: [type]
+            required: [sourceChatId, parameters, reportContext]
+      required: [type, sourceChatId]
     ChatResponse:
       type: object
       properties:
