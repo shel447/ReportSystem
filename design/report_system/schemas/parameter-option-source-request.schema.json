@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./parameter-option-source-request.schema.json",
   "title": "ParameterOptionSourceRequest",
-  "description": "动态参数候选项外部数据源的统一请求体。键名为参数 id，值为 ParameterValue 数组。",
+  "description": "动态参数候选项外部数据源的统一请求体。键名为参数 id，值为 ParameterValue 数组；进入公开接口时参数 id 必须使用 lowerCamelCase。",
   "type": "object",
   "patternProperties": {
-    "^[A-Za-z0-9_\\-]+$": {
+    "^[a-z][A-Za-z0-9]*$": {
       "type": "array",
       "items": {
         "$ref": "./report-template.schema.json#/$defs/ParameterValue"

@@ -461,6 +461,7 @@ components:
         sourceChatId: { type: string }
         parameters:
           type: object
+          description: Map of parameter ids to submitted values. Fixed field names and dynamic parameter keys in public interfaces must use lowerCamelCase.
           additionalProperties:
             type: array
             items:

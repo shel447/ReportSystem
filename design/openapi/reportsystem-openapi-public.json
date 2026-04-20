@@ -883,7 +883,8 @@
               "items": {
                 "$ref": "#/components/schemas/Scalar"
               }
-            }
+            },
+            "description": "Map of parameter ids to submitted values. Fixed field names and dynamic parameter keys in public interfaces must use lowerCamelCase."
           },
           "reportContext": {
             "type": "object",
