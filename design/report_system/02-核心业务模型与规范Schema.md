@@ -411,7 +411,7 @@
       "query": "scope_id = 'hq-network'"
     }
   ],
-  "report_date": [
+  "reportDate": [
     {
       "label": "2026-04-18",
       "value": "2026-04-18",
@@ -423,7 +423,7 @@
 
 约束：
 
-- 键名是参数 id
+- 键名是参数 id，且进入公开接口时必须使用 lowerCamelCase
 - 值是三元组数组
 - 统一采用 `POST`
 - 单次返回上限、超时、鉴权等运行约束由系统统一治理，不再写入模板

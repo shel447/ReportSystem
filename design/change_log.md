@@ -178,6 +178,22 @@
   - 当前仅完成设计层收敛，后续实现阶段需要同步补齐模板编译器，把 `composite_table` block 真正编译为 DSL `CompositeTable.tables[]`。
   - `summary part` 目前固定为无表头两列表，若后续要支持更复杂的总结表骨架，需要再扩展 `summarySpec`。
 
+## 2026-04-20 接口字段命名统一为 lowerCamelCase
+
+- 变更动机：
+  - 公开接口中的字段命名必须保持单一规范，避免固定字段、动态参数键和示例载荷混用蛇形与小驼峰。
+- 设计决策：
+  - 所有公开接口 JSON 中的固定字段名统一使用 lowerCamelCase。
+  - `reply.parameters`、动态参数源请求体这类 map 结构中的参数键，进入公开接口时也必须使用 lowerCamelCase 参数 id。
+  - 错误码、枚举值、模板内部引用 id 不因本次调整而改名。
+- 影响范围：
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/schemas/parameter-option-source-request.schema.json](report_system/schemas/parameter-option-source-request.schema.json)
+  - `design/openapi/reportsystem-openapi*.yaml|json`
+- 风险与后续：
+  - 若后续把参数 id 直接暴露到更多公开接口对象中，应继续沿用 lowerCamelCase 口径。
+
 ## 2026-04-20 `TemplateInstance` 正式承载 `CompositeTable` 实例态
 
 - 变更动机：
