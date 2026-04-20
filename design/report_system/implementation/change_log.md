@@ -218,6 +218,23 @@
 - 受影响的实现设计主题：
   - [README.md](README.md)
   - [模板目录实现.md](模板目录实现.md)
+
+## 2026-04-20 公开字段 lowerCamelCase 统一改为 dataclass alias 驱动
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-04-20 接口字段命名统一为 lowerCamelCase”
+- 实现设计调整：
+  - `ReportTemplate`、`TemplateInstance`、`ReportDsl` 及其递归属性在后端领域层继续保持 `snake_case` 属性名，避免把 Python 实现细节强行改成小驼峰。
+  - 所有公开 JSON 固定字段名统一通过 `dataclasses.field(metadata={"alias": "lowerCamelCase"})` 声明，不再依赖散落的手写键名字符串作为唯一真相来源。
+  - `template_catalog.domain.models`、`report_runtime.domain.models` 的 `to_dict/from_dict` 统一通过 alias 工具读取 field metadata，完成 `snake_case <-> lowerCamelCase` 转换。
+  - 仓储、路由、导出边界继续消费公开 JSON 契约，但其字段名来源必须回溯到 dataclass field alias，而不是重复定义第二套映射表。
+- 受影响的实现设计主题：
+  - [README.md](README.md)
+  - [模板目录实现.md](模板目录实现.md)
+  - [报告运行时实现.md](报告运行时实现.md)
+- 验证要求：
+  - 新增后端测试，锁住关键 dataclass 字段的 `metadata.alias`
+  - 新增后端测试，锁住模板、模板实例、报告 DSL 的公开序列化结果仍为 lowerCamelCase
   - [统一对话实现.md](统一对话实现.md)
   - [报告运行时实现.md](报告运行时实现.md)
 - 验证要求：

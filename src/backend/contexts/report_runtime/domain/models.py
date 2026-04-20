@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from ....shared.kernel.dataclass_aliases import get_alias, get_value, set_value
 from ...template_catalog.domain.models import (
     CatalogDefinition,
     CompositeTableColumn,
@@ -28,21 +29,29 @@ from ...template_catalog.domain.models import (
 )
 
 
+def _alias_field(alias: str, **kwargs: Any):
+    """为运行时 dataclass 字段声明公开 JSON 别名。"""
+
+    metadata = dict(kwargs.pop("metadata", {}))
+    metadata["alias"] = alias
+    return field(metadata=metadata, **kwargs)
+
+
 @dataclass(slots=True)
 class ParameterConfirmation:
     """模板实例参数确认状态。"""
 
-    missing_parameter_ids: list[str] = field(default_factory=list)
+    missing_parameter_ids: list[str] = _alias_field("missingParameterIds", default_factory=list)
     confirmed: bool = False
-    confirmed_at: str | None = None
+    confirmed_at: str | None = _alias_field("confirmedAt", default=None)
 
 
 @dataclass(slots=True)
 class ForeachContext:
     """实例态 foreach 展开上下文。"""
 
-    parameter_id: str
-    item_values: list[ParameterValue] = field(default_factory=list)
+    parameter_id: str = _alias_field("parameterId")
+    item_values: list[ParameterValue] = _alias_field("itemValues", default_factory=list)
 
 
 @dataclass(slots=True)
@@ -50,12 +59,12 @@ class ExecutionBinding:
     """章节执行绑定。"""
 
     id: str
-    binding_type: str
-    source_type: str
-    target_ref: str
-    multi_value_query_mode: str | None = None
-    query_template: str | None = None
-    resolved_query: str | None = None
+    binding_type: str = _alias_field("bindingType")
+    source_type: str = _alias_field("sourceType")
+    target_ref: str = _alias_field("targetRef")
+    multi_value_query_mode: str | None = _alias_field("multiValueQueryMode", default=None)
+    query_template: str | None = _alias_field("queryTemplate", default=None)
+    resolved_query: str | None = _alias_field("resolvedQuery", default=None)
     notes: str | None = None
 
 
@@ -65,7 +74,7 @@ class WarningItem:
 
     code: str
     message: str
-    target_id: str | None = None
+    target_id: str | None = _alias_field("targetId", default=None)
 
 
 @dataclass(slots=True)
@@ -73,9 +82,9 @@ class PartRuntimeContext:
     """复合表分片运行时上下文。"""
 
     status: str
-    resolved_dataset_id: str | None = None
-    resolved_query: str | None = None
-    resolved_part_ids: list[str] = field(default_factory=list)
+    resolved_dataset_id: str | None = _alias_field("resolvedDatasetId", default=None)
+    resolved_query: str | None = _alias_field("resolvedQuery", default=None)
+    resolved_part_ids: list[str] = _alias_field("resolvedPartIds", default_factory=list)
     prompt: str | None = None
     warnings: list[WarningItem] = field(default_factory=list)
 
@@ -86,12 +95,12 @@ class TemplateInstanceCompositeTablePart:
 
     id: str
     title: str
-    source_type: str
-    runtime_context: PartRuntimeContext
+    source_type: str = _alias_field("sourceType")
+    runtime_context: PartRuntimeContext = _alias_field("runtimeContext")
     description: str | None = None
-    dataset_id: str | None = None
-    summary_spec: SummaryTableSpec | None = None
-    table_layout: CompositeTablePartLayout | None = None
+    dataset_id: str | None = _alias_field("datasetId", default=None)
+    summary_spec: SummaryTableSpec | None = _alias_field("summarySpec", default=None)
+    table_layout: CompositeTablePartLayout | None = _alias_field("tableLayout", default=None)
 
 
 @dataclass(slots=True)
@@ -101,7 +110,7 @@ class TemplateInstancePresentationBlock:
     id: str
     type: str
     title: str | None = None
-    dataset_id: str | None = None
+    dataset_id: str | None = _alias_field("datasetId", default=None)
     description: str | None = None
     parts: list[TemplateInstanceCompositeTablePart] = field(default_factory=list)
 
@@ -137,13 +146,13 @@ class TemplateInstanceSection:
     id: str
     outline: OutlineDefinition
     content: TemplateInstanceSectionContent
-    runtime_context: SectionRuntimeContext
-    skeleton_status: str
-    user_edited: bool
+    runtime_context: SectionRuntimeContext = _alias_field("runtimeContext")
+    skeleton_status: str = _alias_field("skeletonStatus")
+    user_edited: bool = _alias_field("userEdited")
     description: str | None = None
     order: int | None = None
     parameters: list[Parameter] = field(default_factory=list)
-    foreach_context: ForeachContext | None = None
+    foreach_context: ForeachContext | None = _alias_field("foreachContext", default=None)
 
 
 @dataclass(slots=True)
@@ -152,12 +161,12 @@ class TemplateInstanceCatalog:
 
     id: str
     title: str
-    rendered_title: str
+    rendered_title: str = _alias_field("renderedTitle")
     description: str | None = None
     order: int | None = None
     parameters: list[Parameter] = field(default_factory=list)
-    foreach_context: ForeachContext | None = None
-    sub_catalogs: list["TemplateInstanceCatalog"] = field(default_factory=list)
+    foreach_context: ForeachContext | None = _alias_field("foreachContext", default=None)
+    sub_catalogs: list["TemplateInstanceCatalog"] = _alias_field("subCatalogs", default_factory=list)
     sections: list[TemplateInstanceSection] = field(default_factory=list)
 
 
@@ -166,20 +175,20 @@ class TemplateInstance:
     """运行时聚合，持续维护一条报告对话对应的模板实例状态。"""
 
     id: str
-    schema_version: str
-    template_id: str
+    schema_version: str = _alias_field("schemaVersion")
+    template_id: str = _alias_field("templateId")
     template: ReportTemplate
-    conversation_id: str
-    chat_id: str | None
+    conversation_id: str = _alias_field("conversationId")
+    chat_id: str | None = _alias_field("chatId")
     status: str
-    capture_stage: str
+    capture_stage: str = _alias_field("captureStage")
     revision: int
     parameters: list[Parameter] = field(default_factory=list)
-    parameter_confirmation: ParameterConfirmation = field(default_factory=ParameterConfirmation)
+    parameter_confirmation: ParameterConfirmation = _alias_field("parameterConfirmation", default_factory=ParameterConfirmation)
     catalogs: list[TemplateInstanceCatalog] = field(default_factory=list)
     warnings: list[WarningItem] = field(default_factory=list)
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: datetime | None = _alias_field("createdAt", default=None)
+    updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
 
 @dataclass(slots=True)
@@ -187,17 +196,17 @@ class ReportBasicInfo:
     """报告 DSL 基础信息。"""
 
     id: str
-    schema_version: str
+    schema_version: str = _alias_field("schemaVersion")
     mode: str
     status: str
     name: str | None = None
-    sub_title: str | None = None
+    sub_title: str | None = _alias_field("subTitle", default=None)
     description: str | None = None
-    template_id: str | None = None
-    template_name: str | None = None
+    template_id: str | None = _alias_field("templateId", default=None)
+    template_name: str | None = _alias_field("templateName", default=None)
     version: str | None = None
-    create_date: str | None = None
-    modify_date: str | None = None
+    create_date: str | None = _alias_field("createDate", default=None)
+    modify_date: str | None = _alias_field("modifyDate", default=None)
     creator: str | None = None
     modifier: str | None = None
     category: str | None = None
@@ -227,7 +236,7 @@ class ReportGenerateMeta:
 
     status: str
     question: str
-    additional_infos: list[ReportAdditionalInfo] = field(default_factory=list)
+    additional_infos: list[ReportAdditionalInfo] = _alias_field("additionalInfos", default_factory=list)
 
 
 @dataclass(slots=True)
@@ -235,7 +244,7 @@ class GridDefinition:
     """页面网格。"""
 
     cols: int
-    row_height: int
+    row_height: int = _alias_field("rowHeight")
     gap: int | None = None
 
 
@@ -251,7 +260,7 @@ class ReportLayout:
 class MarkdownDataProperties:
     """Markdown 组件数据属性。"""
 
-    data_type: str
+    data_type: str = _alias_field("dataType")
     content: str
 
 
@@ -270,8 +279,8 @@ class ReportColumn:
 class TableDataProperties:
     """表格组件数据属性。"""
 
-    data_type: str
-    source_id: str | None = None
+    data_type: str = _alias_field("dataType")
+    source_id: str | None = _alias_field("sourceId", default=None)
     title: str | None = None
     columns: list[ReportColumn] = field(default_factory=list)
     data: list[dict[str, Any]] = field(default_factory=list)
@@ -281,7 +290,7 @@ class TableDataProperties:
 class CompositeTableDataProperties:
     """复合表组件数据属性。"""
 
-    data_type: str
+    data_type: str = _alias_field("dataType")
     title: str | None = None
 
 
@@ -291,7 +300,7 @@ class MarkdownComponent:
 
     id: str
     type: str
-    data_properties: MarkdownDataProperties
+    data_properties: MarkdownDataProperties = _alias_field("dataProperties")
 
 
 @dataclass(slots=True)
@@ -300,7 +309,7 @@ class TableComponent:
 
     id: str
     type: str
-    data_properties: TableDataProperties
+    data_properties: TableDataProperties = _alias_field("dataProperties")
 
 
 @dataclass(slots=True)
@@ -310,7 +319,9 @@ class CompositeTableComponent:
     id: str
     type: str
     tables: list[TableComponent] = field(default_factory=list)
-    data_properties: CompositeTableDataProperties = field(default_factory=lambda: CompositeTableDataProperties(data_type="static"))
+    data_properties: CompositeTableDataProperties = _alias_field(
+        "dataProperties", default_factory=lambda: CompositeTableDataProperties(data_type="static")
+    )
 
 
 ReportComponent = MarkdownComponent | TableComponent | CompositeTableComponent
@@ -334,7 +345,7 @@ class ReportCatalog:
     id: str
     name: str
     order: int | None = None
-    sub_catalogs: list["ReportCatalog"] = field(default_factory=list)
+    sub_catalogs: list["ReportCatalog"] = _alias_field("subCatalogs", default_factory=list)
     sections: list[ReportSection] = field(default_factory=list)
 
 
@@ -342,11 +353,11 @@ class ReportCatalog:
 class ReportDsl:
     """正式报告 DSL 聚合。"""
 
-    basic_info: ReportBasicInfo
+    basic_info: ReportBasicInfo = _alias_field("basicInfo")
     catalogs: list[ReportCatalog] = field(default_factory=list)
     layout: ReportLayout = field(default_factory=lambda: ReportLayout(type="grid"))
     summary: ReportSummary | None = None
-    report_meta: dict[str, ReportGenerateMeta] = field(default_factory=dict)
+    report_meta: dict[str, ReportGenerateMeta] = _alias_field("reportMeta", default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -354,16 +365,16 @@ class ReportInstance:
     """冻结后的报告资源，内部承载最终报告结构。"""
 
     id: str
-    template_id: str
-    template_instance_id: str
-    user_id: str
-    source_conversation_id: str | None
-    source_chat_id: str | None
+    template_id: str = _alias_field("templateId")
+    template_instance_id: str = _alias_field("templateInstanceId")
+    user_id: str = _alias_field("userId")
+    source_conversation_id: str | None = _alias_field("sourceConversationId")
+    source_chat_id: str | None = _alias_field("sourceChatId")
     status: str
-    schema_version: str
+    schema_version: str = _alias_field("schemaVersion")
     report: ReportDsl
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: datetime | None = _alias_field("createdAt", default=None)
+    updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
 
 @dataclass(slots=True)
@@ -371,16 +382,16 @@ class DocumentArtifact:
     """报告作用域下的导出文件元数据。"""
 
     id: str
-    report_instance_id: str
-    artifact_kind: str
-    source_format: str | None
-    generation_mode: str
-    mime_type: str
-    storage_key: str
+    report_instance_id: str = _alias_field("reportInstanceId")
+    artifact_kind: str = _alias_field("artifactKind")
+    source_format: str | None = _alias_field("sourceFormat")
+    generation_mode: str = _alias_field("generationMode")
+    mime_type: str = _alias_field("mimeType")
+    storage_key: str = _alias_field("storageKey")
     status: str
-    error_message: str | None = None
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    error_message: str | None = _alias_field("errorMessage", default=None)
+    created_at: datetime | None = _alias_field("createdAt", default=None)
+    updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
 
 @dataclass(slots=True)
@@ -388,65 +399,64 @@ class ExportJob:
     """文档导出流水线中单一格式的一次执行记录。"""
 
     id: str
-    report_instance_id: str
-    current_format: str
+    report_instance_id: str = _alias_field("reportInstanceId")
+    current_format: str = _alias_field("currentFormat")
     status: str
-    dependency_job_id: str | None = None
-    exporter_backend: str = "local"
-    request_payload_hash: str = ""
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    error_code: str | None = None
-    error_message: str | None = None
+    dependency_job_id: str | None = _alias_field("dependencyJobId", default=None)
+    exporter_backend: str = _alias_field("exporterBackend", default="local")
+    request_payload_hash: str = _alias_field("requestPayloadHash", default="")
+    started_at: datetime | None = _alias_field("startedAt", default=None)
+    finished_at: datetime | None = _alias_field("finishedAt", default=None)
+    error_code: str | None = _alias_field("errorCode", default=None)
+    error_message: str | None = _alias_field("errorMessage", default=None)
 
 
 def template_instance_to_dict(instance: TemplateInstance) -> dict[str, Any]:
-    return {
-        "id": instance.id,
-        "schemaVersion": instance.schema_version,
-        "templateId": instance.template_id,
-        "template": report_template_to_dict(instance.template),
-        "conversationId": instance.conversation_id,
-        "chatId": instance.chat_id,
-        "status": instance.status,
-        "captureStage": instance.capture_stage,
-        "revision": instance.revision,
-        "parameters": [parameter_to_dict(item) for item in instance.parameters],
-        "parameterConfirmation": parameter_confirmation_to_dict(instance.parameter_confirmation),
-        "catalogs": [template_instance_catalog_to_dict(item) for item in instance.catalogs],
-        "warnings": [warning_item_to_dict(item) for item in instance.warnings],
-        "createdAt": _isoformat(instance.created_at),
-        "updatedAt": _isoformat(instance.updated_at),
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, TemplateInstance, "id", instance.id)
+    set_value(payload, TemplateInstance, "schema_version", instance.schema_version)
+    set_value(payload, TemplateInstance, "template_id", instance.template_id)
+    set_value(payload, TemplateInstance, "template", report_template_to_dict(instance.template))
+    set_value(payload, TemplateInstance, "conversation_id", instance.conversation_id)
+    set_value(payload, TemplateInstance, "chat_id", instance.chat_id)
+    set_value(payload, TemplateInstance, "status", instance.status)
+    set_value(payload, TemplateInstance, "capture_stage", instance.capture_stage)
+    set_value(payload, TemplateInstance, "revision", instance.revision)
+    set_value(payload, TemplateInstance, "parameters", [parameter_to_dict(item) for item in instance.parameters])
+    set_value(payload, TemplateInstance, "parameter_confirmation", parameter_confirmation_to_dict(instance.parameter_confirmation))
+    set_value(payload, TemplateInstance, "catalogs", [template_instance_catalog_to_dict(item) for item in instance.catalogs])
+    set_value(payload, TemplateInstance, "warnings", [warning_item_to_dict(item) for item in instance.warnings])
+    set_value(payload, TemplateInstance, "created_at", _isoformat(instance.created_at))
+    set_value(payload, TemplateInstance, "updated_at", _isoformat(instance.updated_at))
+    return payload
 
 
 def template_instance_from_dict(payload: dict[str, Any]) -> TemplateInstance:
     return TemplateInstance(
-        id=str(payload.get("id") or ""),
-        schema_version=str(payload.get("schemaVersion") or ""),
-        template_id=str(payload.get("templateId") or ""),
-        template=report_template_from_dict(payload.get("template") or {}),
-        conversation_id=str(payload.get("conversationId") or ""),
-        chat_id=_as_optional_str(payload.get("chatId")),
-        status=str(payload.get("status") or ""),
-        capture_stage=str(payload.get("captureStage") or ""),
-        revision=int(payload.get("revision") or 1),
-        parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
-        parameter_confirmation=parameter_confirmation_from_dict(payload.get("parameterConfirmation")),
-        catalogs=[template_instance_catalog_from_dict(item) for item in list(payload.get("catalogs") or [])],
-        warnings=[warning_item_from_dict(item) for item in list(payload.get("warnings") or [])],
-        created_at=_as_datetime(payload.get("createdAt")),
-        updated_at=_as_datetime(payload.get("updatedAt")),
+        id=str(get_value(payload, TemplateInstance, "id") or ""),
+        schema_version=str(get_value(payload, TemplateInstance, "schema_version") or ""),
+        template_id=str(get_value(payload, TemplateInstance, "template_id") or ""),
+        template=report_template_from_dict(get_value(payload, TemplateInstance, "template") or {}),
+        conversation_id=str(get_value(payload, TemplateInstance, "conversation_id") or ""),
+        chat_id=_as_optional_str(get_value(payload, TemplateInstance, "chat_id")),
+        status=str(get_value(payload, TemplateInstance, "status") or ""),
+        capture_stage=str(get_value(payload, TemplateInstance, "capture_stage") or ""),
+        revision=int(get_value(payload, TemplateInstance, "revision") or 1),
+        parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstance, "parameters") or [])],
+        parameter_confirmation=parameter_confirmation_from_dict(get_value(payload, TemplateInstance, "parameter_confirmation")),
+        catalogs=[template_instance_catalog_from_dict(item) for item in list(get_value(payload, TemplateInstance, "catalogs") or [])],
+        warnings=[warning_item_from_dict(item) for item in list(get_value(payload, TemplateInstance, "warnings") or [])],
+        created_at=_as_datetime(get_value(payload, TemplateInstance, "created_at")),
+        updated_at=_as_datetime(get_value(payload, TemplateInstance, "updated_at")),
     )
 
 
 def parameter_confirmation_to_dict(item: ParameterConfirmation) -> dict[str, Any]:
-    payload = {
-        "missingParameterIds": list(item.missing_parameter_ids),
-        "confirmed": item.confirmed,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, ParameterConfirmation, "missing_parameter_ids", list(item.missing_parameter_ids))
+    set_value(payload, ParameterConfirmation, "confirmed", item.confirmed)
     if item.confirmed_at is not None:
-        payload["confirmedAt"] = item.confirmed_at
+        set_value(payload, ParameterConfirmation, "confirmed_at", item.confirmed_at)
     return payload
 
 
@@ -454,164 +464,160 @@ def parameter_confirmation_from_dict(payload: Any) -> ParameterConfirmation:
     if not isinstance(payload, dict):
         return ParameterConfirmation()
     return ParameterConfirmation(
-        missing_parameter_ids=[str(item) for item in list(payload.get("missingParameterIds") or [])],
-        confirmed=bool(payload.get("confirmed")),
-        confirmed_at=_as_optional_str(payload.get("confirmedAt")),
+        missing_parameter_ids=[str(item) for item in list(get_value(payload, ParameterConfirmation, "missing_parameter_ids") or [])],
+        confirmed=bool(get_value(payload, ParameterConfirmation, "confirmed")),
+        confirmed_at=_as_optional_str(get_value(payload, ParameterConfirmation, "confirmed_at")),
     )
 
 
 def foreach_context_to_dict(item: ForeachContext) -> dict[str, Any]:
-    return {
-        "parameterId": item.parameter_id,
-        "itemValues": [parameter_value_to_dict(value) for value in item.item_values],
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, ForeachContext, "parameter_id", item.parameter_id)
+    set_value(payload, ForeachContext, "item_values", [parameter_value_to_dict(value) for value in item.item_values])
+    return payload
 
 
 def foreach_context_from_dict(payload: Any) -> ForeachContext | None:
     if not isinstance(payload, dict):
         return None
     return ForeachContext(
-        parameter_id=str(payload.get("parameterId") or ""),
-        item_values=[parameter_value_from_dict(item) for item in list(payload.get("itemValues") or [])],
+        parameter_id=str(get_value(payload, ForeachContext, "parameter_id") or ""),
+        item_values=[parameter_value_from_dict(item) for item in list(get_value(payload, ForeachContext, "item_values") or [])],
     )
 
 
 def execution_binding_to_dict(binding: ExecutionBinding) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": binding.id,
-        "bindingType": binding.binding_type,
-        "sourceType": binding.source_type,
-        "targetRef": binding.target_ref,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, ExecutionBinding, "id", binding.id)
+    set_value(payload, ExecutionBinding, "binding_type", binding.binding_type)
+    set_value(payload, ExecutionBinding, "source_type", binding.source_type)
+    set_value(payload, ExecutionBinding, "target_ref", binding.target_ref)
     if binding.multi_value_query_mode is not None:
-        payload["multiValueQueryMode"] = binding.multi_value_query_mode
+        set_value(payload, ExecutionBinding, "multi_value_query_mode", binding.multi_value_query_mode)
     if binding.query_template is not None:
-        payload["queryTemplate"] = binding.query_template
+        set_value(payload, ExecutionBinding, "query_template", binding.query_template)
     if binding.resolved_query is not None:
-        payload["resolvedQuery"] = binding.resolved_query
+        set_value(payload, ExecutionBinding, "resolved_query", binding.resolved_query)
     if binding.notes is not None:
-        payload["notes"] = binding.notes
+        set_value(payload, ExecutionBinding, "notes", binding.notes)
     return payload
 
 
 def execution_binding_from_dict(payload: dict[str, Any]) -> ExecutionBinding:
     return ExecutionBinding(
-        id=str(payload.get("id") or ""),
-        binding_type=str(payload.get("bindingType") or ""),
-        source_type=str(payload.get("sourceType") or ""),
-        target_ref=str(payload.get("targetRef") or ""),
-        multi_value_query_mode=_as_optional_str(payload.get("multiValueQueryMode")),
-        query_template=_as_optional_str(payload.get("queryTemplate")),
-        resolved_query=_as_optional_str(payload.get("resolvedQuery")),
-        notes=_as_optional_str(payload.get("notes")),
+        id=str(get_value(payload, ExecutionBinding, "id") or ""),
+        binding_type=str(get_value(payload, ExecutionBinding, "binding_type") or ""),
+        source_type=str(get_value(payload, ExecutionBinding, "source_type") or ""),
+        target_ref=str(get_value(payload, ExecutionBinding, "target_ref") or ""),
+        multi_value_query_mode=_as_optional_str(get_value(payload, ExecutionBinding, "multi_value_query_mode")),
+        query_template=_as_optional_str(get_value(payload, ExecutionBinding, "query_template")),
+        resolved_query=_as_optional_str(get_value(payload, ExecutionBinding, "resolved_query")),
+        notes=_as_optional_str(get_value(payload, ExecutionBinding, "notes")),
     )
 
 
 def warning_item_to_dict(item: WarningItem) -> dict[str, Any]:
-    payload = {
-        "code": item.code,
-        "message": item.message,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, WarningItem, "code", item.code)
+    set_value(payload, WarningItem, "message", item.message)
     if item.target_id is not None:
-        payload["targetId"] = item.target_id
+        set_value(payload, WarningItem, "target_id", item.target_id)
     return payload
 
 
 def warning_item_from_dict(payload: dict[str, Any]) -> WarningItem:
     return WarningItem(
-        code=str(payload.get("code") or ""),
-        message=str(payload.get("message") or ""),
-        target_id=_as_optional_str(payload.get("targetId")),
+        code=str(get_value(payload, WarningItem, "code") or ""),
+        message=str(get_value(payload, WarningItem, "message") or ""),
+        target_id=_as_optional_str(get_value(payload, WarningItem, "target_id")),
     )
 
 
 def part_runtime_context_to_dict(context: PartRuntimeContext) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "status": context.status,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, PartRuntimeContext, "status", context.status)
     if context.resolved_dataset_id is not None:
-        payload["resolvedDatasetId"] = context.resolved_dataset_id
+        set_value(payload, PartRuntimeContext, "resolved_dataset_id", context.resolved_dataset_id)
     if context.resolved_query is not None:
-        payload["resolvedQuery"] = context.resolved_query
+        set_value(payload, PartRuntimeContext, "resolved_query", context.resolved_query)
     if context.resolved_part_ids:
-        payload["resolvedPartIds"] = list(context.resolved_part_ids)
+        set_value(payload, PartRuntimeContext, "resolved_part_ids", list(context.resolved_part_ids))
     if context.prompt is not None:
-        payload["prompt"] = context.prompt
+        set_value(payload, PartRuntimeContext, "prompt", context.prompt)
     if context.warnings:
-        payload["warnings"] = [warning_item_to_dict(item) for item in context.warnings]
+        set_value(payload, PartRuntimeContext, "warnings", [warning_item_to_dict(item) for item in context.warnings])
     return payload
 
 
 def part_runtime_context_from_dict(payload: dict[str, Any]) -> PartRuntimeContext:
     return PartRuntimeContext(
-        status=str(payload.get("status") or ""),
-        resolved_dataset_id=_as_optional_str(payload.get("resolvedDatasetId")),
-        resolved_query=_as_optional_str(payload.get("resolvedQuery")),
-        resolved_part_ids=[str(item) for item in list(payload.get("resolvedPartIds") or [])],
-        prompt=_as_optional_str(payload.get("prompt")),
-        warnings=[warning_item_from_dict(item) for item in list(payload.get("warnings") or [])],
+        status=str(get_value(payload, PartRuntimeContext, "status") or ""),
+        resolved_dataset_id=_as_optional_str(get_value(payload, PartRuntimeContext, "resolved_dataset_id")),
+        resolved_query=_as_optional_str(get_value(payload, PartRuntimeContext, "resolved_query")),
+        resolved_part_ids=[str(item) for item in list(get_value(payload, PartRuntimeContext, "resolved_part_ids") or [])],
+        prompt=_as_optional_str(get_value(payload, PartRuntimeContext, "prompt")),
+        warnings=[warning_item_from_dict(item) for item in list(get_value(payload, PartRuntimeContext, "warnings") or [])],
     )
 
 
 def template_instance_composite_table_part_to_dict(part: TemplateInstanceCompositeTablePart) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": part.id,
-        "title": part.title,
-        "sourceType": part.source_type,
-        "runtimeContext": part_runtime_context_to_dict(part.runtime_context),
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, TemplateInstanceCompositeTablePart, "id", part.id)
+    set_value(payload, TemplateInstanceCompositeTablePart, "title", part.title)
+    set_value(payload, TemplateInstanceCompositeTablePart, "source_type", part.source_type)
+    set_value(payload, TemplateInstanceCompositeTablePart, "runtime_context", part_runtime_context_to_dict(part.runtime_context))
     if part.description is not None:
-        payload["description"] = part.description
+        set_value(payload, TemplateInstanceCompositeTablePart, "description", part.description)
     if part.dataset_id is not None:
-        payload["datasetId"] = part.dataset_id
+        set_value(payload, TemplateInstanceCompositeTablePart, "dataset_id", part.dataset_id)
     if part.summary_spec is not None:
         from ...template_catalog.domain.models import summary_table_spec_to_dict
 
-        payload["summarySpec"] = summary_table_spec_to_dict(part.summary_spec)
+        set_value(payload, TemplateInstanceCompositeTablePart, "summary_spec", summary_table_spec_to_dict(part.summary_spec))
     if part.table_layout is not None:
         from ...template_catalog.domain.models import composite_table_part_layout_to_dict
 
-        payload["tableLayout"] = composite_table_part_layout_to_dict(part.table_layout)
+        set_value(payload, TemplateInstanceCompositeTablePart, "table_layout", composite_table_part_layout_to_dict(part.table_layout))
     return payload
 
 
 def template_instance_composite_table_part_from_dict(payload: dict[str, Any]) -> TemplateInstanceCompositeTablePart:
     return TemplateInstanceCompositeTablePart(
-        id=str(payload.get("id") or ""),
-        title=str(payload.get("title") or ""),
-        source_type=str(payload.get("sourceType") or ""),
-        runtime_context=part_runtime_context_from_dict(payload.get("runtimeContext") or {}),
-        description=_as_optional_str(payload.get("description")),
-        dataset_id=_as_optional_str(payload.get("datasetId")),
-        summary_spec=_summary_spec_from_any(payload.get("summarySpec")),
-        table_layout=_table_layout_from_any(payload.get("tableLayout")),
+        id=str(get_value(payload, TemplateInstanceCompositeTablePart, "id") or ""),
+        title=str(get_value(payload, TemplateInstanceCompositeTablePart, "title") or ""),
+        source_type=str(get_value(payload, TemplateInstanceCompositeTablePart, "source_type") or ""),
+        runtime_context=part_runtime_context_from_dict(get_value(payload, TemplateInstanceCompositeTablePart, "runtime_context") or {}),
+        description=_as_optional_str(get_value(payload, TemplateInstanceCompositeTablePart, "description")),
+        dataset_id=_as_optional_str(get_value(payload, TemplateInstanceCompositeTablePart, "dataset_id")),
+        summary_spec=_summary_spec_from_any(get_value(payload, TemplateInstanceCompositeTablePart, "summary_spec")),
+        table_layout=_table_layout_from_any(get_value(payload, TemplateInstanceCompositeTablePart, "table_layout")),
     )
 
 
 def template_instance_presentation_block_to_dict(block: TemplateInstancePresentationBlock) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "id": block.id,
-        "type": block.type,
+        get_alias(TemplateInstancePresentationBlock, "id"): block.id,
+        get_alias(TemplateInstancePresentationBlock, "type"): block.type,
     }
     if block.title is not None:
-        payload["title"] = block.title
+        set_value(payload, TemplateInstancePresentationBlock, "title", block.title)
     if block.dataset_id is not None:
-        payload["datasetId"] = block.dataset_id
+        set_value(payload, TemplateInstancePresentationBlock, "dataset_id", block.dataset_id)
     if block.description is not None:
-        payload["description"] = block.description
+        set_value(payload, TemplateInstancePresentationBlock, "description", block.description)
     if block.parts:
-        payload["parts"] = [template_instance_composite_table_part_to_dict(item) for item in block.parts]
+        set_value(payload, TemplateInstancePresentationBlock, "parts", [template_instance_composite_table_part_to_dict(item) for item in block.parts])
     return payload
 
 
 def template_instance_presentation_block_from_dict(payload: dict[str, Any]) -> TemplateInstancePresentationBlock:
     return TemplateInstancePresentationBlock(
-        id=str(payload.get("id") or ""),
-        type=str(payload.get("type") or ""),
-        title=_as_optional_str(payload.get("title")),
-        dataset_id=_as_optional_str(payload.get("datasetId")),
-        description=_as_optional_str(payload.get("description")),
-        parts=[template_instance_composite_table_part_from_dict(item) for item in list(payload.get("parts") or [])],
+        id=str(get_value(payload, TemplateInstancePresentationBlock, "id") or ""),
+        type=str(get_value(payload, TemplateInstancePresentationBlock, "type") or ""),
+        title=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "title")),
+        dataset_id=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "dataset_id")),
+        description=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "description")),
+        parts=[template_instance_composite_table_part_from_dict(item) for item in list(get_value(payload, TemplateInstancePresentationBlock, "parts") or [])],
     )
 
 
@@ -648,156 +654,151 @@ def template_instance_section_content_from_dict(payload: dict[str, Any]) -> Temp
 
 
 def section_runtime_context_to_dict(context: SectionRuntimeContext) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "bindings": [execution_binding_to_dict(item) for item in context.bindings],
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, SectionRuntimeContext, "bindings", [execution_binding_to_dict(item) for item in context.bindings])
     if context.notes is not None:
-        payload["notes"] = context.notes
+        set_value(payload, SectionRuntimeContext, "notes", context.notes)
     return payload
 
 
 def section_runtime_context_from_dict(payload: dict[str, Any]) -> SectionRuntimeContext:
     return SectionRuntimeContext(
-        bindings=[execution_binding_from_dict(item) for item in list(payload.get("bindings") or [])],
-        notes=_as_optional_str(payload.get("notes")),
+        bindings=[execution_binding_from_dict(item) for item in list(get_value(payload, SectionRuntimeContext, "bindings") or [])],
+        notes=_as_optional_str(get_value(payload, SectionRuntimeContext, "notes")),
     )
 
 
 def template_instance_section_to_dict(section: TemplateInstanceSection) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": section.id,
-        "outline": outline_definition_to_dict(section.outline),
-        "content": template_instance_section_content_to_dict(section.content),
-        "runtimeContext": section_runtime_context_to_dict(section.runtime_context),
-        "skeletonStatus": section.skeleton_status,
-        "userEdited": section.user_edited,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, TemplateInstanceSection, "id", section.id)
+    set_value(payload, TemplateInstanceSection, "outline", outline_definition_to_dict(section.outline))
+    set_value(payload, TemplateInstanceSection, "content", template_instance_section_content_to_dict(section.content))
+    set_value(payload, TemplateInstanceSection, "runtime_context", section_runtime_context_to_dict(section.runtime_context))
+    set_value(payload, TemplateInstanceSection, "skeleton_status", section.skeleton_status)
+    set_value(payload, TemplateInstanceSection, "user_edited", section.user_edited)
     if section.description is not None:
-        payload["description"] = section.description
+        set_value(payload, TemplateInstanceSection, "description", section.description)
     if section.order is not None:
-        payload["order"] = section.order
+        set_value(payload, TemplateInstanceSection, "order", section.order)
     if section.parameters:
-        payload["parameters"] = [parameter_to_dict(item) for item in section.parameters]
+        set_value(payload, TemplateInstanceSection, "parameters", [parameter_to_dict(item) for item in section.parameters])
     if section.foreach_context is not None:
-        payload["foreachContext"] = foreach_context_to_dict(section.foreach_context)
+        set_value(payload, TemplateInstanceSection, "foreach_context", foreach_context_to_dict(section.foreach_context))
     return payload
 
 
 def template_instance_section_from_dict(payload: dict[str, Any]) -> TemplateInstanceSection:
     return TemplateInstanceSection(
-        id=str(payload.get("id") or ""),
-        outline=_outline_from_any(payload.get("outline")),
-        content=template_instance_section_content_from_dict(payload.get("content") or {}),
-        runtime_context=section_runtime_context_from_dict(payload.get("runtimeContext") or {}),
-        skeleton_status=str(payload.get("skeletonStatus") or ""),
-        user_edited=bool(payload.get("userEdited")),
-        description=_as_optional_str(payload.get("description")),
-        order=_as_optional_int(payload.get("order")),
-        parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
-        foreach_context=foreach_context_from_dict(payload.get("foreachContext")),
+        id=str(get_value(payload, TemplateInstanceSection, "id") or ""),
+        outline=_outline_from_any(get_value(payload, TemplateInstanceSection, "outline")),
+        content=template_instance_section_content_from_dict(get_value(payload, TemplateInstanceSection, "content") or {}),
+        runtime_context=section_runtime_context_from_dict(get_value(payload, TemplateInstanceSection, "runtime_context") or {}),
+        skeleton_status=str(get_value(payload, TemplateInstanceSection, "skeleton_status") or ""),
+        user_edited=bool(get_value(payload, TemplateInstanceSection, "user_edited")),
+        description=_as_optional_str(get_value(payload, TemplateInstanceSection, "description")),
+        order=_as_optional_int(get_value(payload, TemplateInstanceSection, "order")),
+        parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstanceSection, "parameters") or [])],
+        foreach_context=foreach_context_from_dict(get_value(payload, TemplateInstanceSection, "foreach_context")),
     )
 
 
 def template_instance_catalog_to_dict(catalog: TemplateInstanceCatalog) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": catalog.id,
-        "title": catalog.title,
-        "renderedTitle": catalog.rendered_title,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, TemplateInstanceCatalog, "id", catalog.id)
+    set_value(payload, TemplateInstanceCatalog, "title", catalog.title)
+    set_value(payload, TemplateInstanceCatalog, "rendered_title", catalog.rendered_title)
     if catalog.description is not None:
-        payload["description"] = catalog.description
+        set_value(payload, TemplateInstanceCatalog, "description", catalog.description)
     if catalog.order is not None:
-        payload["order"] = catalog.order
+        set_value(payload, TemplateInstanceCatalog, "order", catalog.order)
     if catalog.parameters:
-        payload["parameters"] = [parameter_to_dict(item) for item in catalog.parameters]
+        set_value(payload, TemplateInstanceCatalog, "parameters", [parameter_to_dict(item) for item in catalog.parameters])
     if catalog.foreach_context is not None:
-        payload["foreachContext"] = foreach_context_to_dict(catalog.foreach_context)
+        set_value(payload, TemplateInstanceCatalog, "foreach_context", foreach_context_to_dict(catalog.foreach_context))
     if catalog.sub_catalogs:
-        payload["subCatalogs"] = [template_instance_catalog_to_dict(item) for item in catalog.sub_catalogs]
+        set_value(payload, TemplateInstanceCatalog, "sub_catalogs", [template_instance_catalog_to_dict(item) for item in catalog.sub_catalogs])
     if catalog.sections:
-        payload["sections"] = [template_instance_section_to_dict(item) for item in catalog.sections]
+        set_value(payload, TemplateInstanceCatalog, "sections", [template_instance_section_to_dict(item) for item in catalog.sections])
     return payload
 
 
 def template_instance_catalog_from_dict(payload: dict[str, Any]) -> TemplateInstanceCatalog:
     return TemplateInstanceCatalog(
-        id=str(payload.get("id") or ""),
-        title=str(payload.get("title") or ""),
-        rendered_title=str(payload.get("renderedTitle") or ""),
-        description=_as_optional_str(payload.get("description")),
-        order=_as_optional_int(payload.get("order")),
-        parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
-        foreach_context=foreach_context_from_dict(payload.get("foreachContext")),
-        sub_catalogs=[template_instance_catalog_from_dict(item) for item in list(payload.get("subCatalogs") or [])],
-        sections=[template_instance_section_from_dict(item) for item in list(payload.get("sections") or [])],
+        id=str(get_value(payload, TemplateInstanceCatalog, "id") or ""),
+        title=str(get_value(payload, TemplateInstanceCatalog, "title") or ""),
+        rendered_title=str(get_value(payload, TemplateInstanceCatalog, "rendered_title") or ""),
+        description=_as_optional_str(get_value(payload, TemplateInstanceCatalog, "description")),
+        order=_as_optional_int(get_value(payload, TemplateInstanceCatalog, "order")),
+        parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "parameters") or [])],
+        foreach_context=foreach_context_from_dict(get_value(payload, TemplateInstanceCatalog, "foreach_context")),
+        sub_catalogs=[template_instance_catalog_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "sub_catalogs") or [])],
+        sections=[template_instance_section_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "sections") or [])],
     )
 
 
 def report_dsl_to_dict(report: ReportDsl) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "basicInfo": report_basic_info_to_dict(report.basic_info),
-        "catalogs": [report_catalog_to_dict(item) for item in report.catalogs],
-        "layout": report_layout_to_dict(report.layout),
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportDsl, "basic_info", report_basic_info_to_dict(report.basic_info))
+    set_value(payload, ReportDsl, "catalogs", [report_catalog_to_dict(item) for item in report.catalogs])
+    set_value(payload, ReportDsl, "layout", report_layout_to_dict(report.layout))
     if report.summary is not None:
-        payload["summary"] = report_summary_to_dict(report.summary)
+        set_value(payload, ReportDsl, "summary", report_summary_to_dict(report.summary))
     if report.report_meta:
-        payload["reportMeta"] = {key: report_generate_meta_to_dict(value) for key, value in report.report_meta.items()}
+        set_value(payload, ReportDsl, "report_meta", {key: report_generate_meta_to_dict(value) for key, value in report.report_meta.items()})
     return payload
 
 
 def report_dsl_from_dict(payload: dict[str, Any]) -> ReportDsl:
     return ReportDsl(
-        basic_info=report_basic_info_from_dict(payload.get("basicInfo") or {}),
-        catalogs=[report_catalog_from_dict(item) for item in list(payload.get("catalogs") or [])],
-        layout=report_layout_from_dict(payload.get("layout") or {}),
-        summary=report_summary_from_dict(payload.get("summary")) if isinstance(payload.get("summary"), dict) else None,
+        basic_info=report_basic_info_from_dict(get_value(payload, ReportDsl, "basic_info") or {}),
+        catalogs=[report_catalog_from_dict(item) for item in list(get_value(payload, ReportDsl, "catalogs") or [])],
+        layout=report_layout_from_dict(get_value(payload, ReportDsl, "layout") or {}),
+        summary=report_summary_from_dict(get_value(payload, ReportDsl, "summary")) if isinstance(get_value(payload, ReportDsl, "summary"), dict) else None,
         report_meta={
             str(key): report_generate_meta_from_dict(value)
-            for key, value in dict(payload.get("reportMeta") or {}).items()
+            for key, value in dict(get_value(payload, ReportDsl, "report_meta") or {}).items()
             if isinstance(value, dict)
         },
     )
 
 
 def report_basic_info_to_dict(info: ReportBasicInfo) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": info.id,
-        "schemaVersion": info.schema_version,
-        "mode": info.mode,
-        "status": info.status,
-    }
-    _set_if(payload, "name", info.name)
-    _set_if(payload, "subTitle", info.sub_title)
-    _set_if(payload, "description", info.description)
-    _set_if(payload, "templateId", info.template_id)
-    _set_if(payload, "templateName", info.template_name)
-    _set_if(payload, "version", info.version)
-    _set_if(payload, "createDate", info.create_date)
-    _set_if(payload, "modifyDate", info.modify_date)
-    _set_if(payload, "creator", info.creator)
-    _set_if(payload, "modifier", info.modifier)
-    _set_if(payload, "category", info.category)
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportBasicInfo, "id", info.id)
+    set_value(payload, ReportBasicInfo, "schema_version", info.schema_version)
+    set_value(payload, ReportBasicInfo, "mode", info.mode)
+    set_value(payload, ReportBasicInfo, "status", info.status)
+    _set_if(payload, ReportBasicInfo, "name", info.name)
+    _set_if(payload, ReportBasicInfo, "sub_title", info.sub_title)
+    _set_if(payload, ReportBasicInfo, "description", info.description)
+    _set_if(payload, ReportBasicInfo, "template_id", info.template_id)
+    _set_if(payload, ReportBasicInfo, "template_name", info.template_name)
+    _set_if(payload, ReportBasicInfo, "version", info.version)
+    _set_if(payload, ReportBasicInfo, "create_date", info.create_date)
+    _set_if(payload, ReportBasicInfo, "modify_date", info.modify_date)
+    _set_if(payload, ReportBasicInfo, "creator", info.creator)
+    _set_if(payload, ReportBasicInfo, "modifier", info.modifier)
+    _set_if(payload, ReportBasicInfo, "category", info.category)
     return payload
 
 
 def report_basic_info_from_dict(payload: dict[str, Any]) -> ReportBasicInfo:
     return ReportBasicInfo(
-        id=str(payload.get("id") or ""),
-        schema_version=str(payload.get("schemaVersion") or ""),
-        mode=str(payload.get("mode") or ""),
-        status=str(payload.get("status") or ""),
-        name=_as_optional_str(payload.get("name")),
-        sub_title=_as_optional_str(payload.get("subTitle")),
-        description=_as_optional_str(payload.get("description")),
-        template_id=_as_optional_str(payload.get("templateId")),
-        template_name=_as_optional_str(payload.get("templateName")),
-        version=_as_optional_str(payload.get("version")),
-        create_date=_as_optional_str(payload.get("createDate")),
-        modify_date=_as_optional_str(payload.get("modifyDate")),
-        creator=_as_optional_str(payload.get("creator")),
-        modifier=_as_optional_str(payload.get("modifier")),
-        category=_as_optional_str(payload.get("category")),
+        id=str(get_value(payload, ReportBasicInfo, "id") or ""),
+        schema_version=str(get_value(payload, ReportBasicInfo, "schema_version") or ""),
+        mode=str(get_value(payload, ReportBasicInfo, "mode") or ""),
+        status=str(get_value(payload, ReportBasicInfo, "status") or ""),
+        name=_as_optional_str(get_value(payload, ReportBasicInfo, "name")),
+        sub_title=_as_optional_str(get_value(payload, ReportBasicInfo, "sub_title")),
+        description=_as_optional_str(get_value(payload, ReportBasicInfo, "description")),
+        template_id=_as_optional_str(get_value(payload, ReportBasicInfo, "template_id")),
+        template_name=_as_optional_str(get_value(payload, ReportBasicInfo, "template_name")),
+        version=_as_optional_str(get_value(payload, ReportBasicInfo, "version")),
+        create_date=_as_optional_str(get_value(payload, ReportBasicInfo, "create_date")),
+        modify_date=_as_optional_str(get_value(payload, ReportBasicInfo, "modify_date")),
+        creator=_as_optional_str(get_value(payload, ReportBasicInfo, "creator")),
+        modifier=_as_optional_str(get_value(payload, ReportBasicInfo, "modifier")),
+        category=_as_optional_str(get_value(payload, ReportBasicInfo, "category")),
     )
 
 
@@ -810,9 +811,11 @@ def report_summary_from_dict(payload: dict[str, Any]) -> ReportSummary:
 
 
 def report_additional_info_to_dict(item: ReportAdditionalInfo) -> dict[str, Any]:
-    payload = {"type": item.type, "value": item.value}
-    _set_if(payload, "name", item.name)
-    _set_if(payload, "appendix", item.appendix)
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportAdditionalInfo, "type", item.type)
+    set_value(payload, ReportAdditionalInfo, "value", item.value)
+    _set_if(payload, ReportAdditionalInfo, "name", item.name)
+    _set_if(payload, ReportAdditionalInfo, "appendix", item.appendix)
     return payload
 
 
@@ -826,24 +829,27 @@ def report_additional_info_from_dict(payload: dict[str, Any]) -> ReportAdditiona
 
 
 def report_generate_meta_to_dict(meta: ReportGenerateMeta) -> dict[str, Any]:
-    payload = {"status": meta.status, "question": meta.question}
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportGenerateMeta, "status", meta.status)
+    set_value(payload, ReportGenerateMeta, "question", meta.question)
     if meta.additional_infos:
-        payload["additionalInfos"] = [report_additional_info_to_dict(item) for item in meta.additional_infos]
+        set_value(payload, ReportGenerateMeta, "additional_infos", [report_additional_info_to_dict(item) for item in meta.additional_infos])
     return payload
 
 
 def report_generate_meta_from_dict(payload: dict[str, Any]) -> ReportGenerateMeta:
     return ReportGenerateMeta(
-        status=str(payload.get("status") or ""),
-        question=str(payload.get("question") or ""),
-        additional_infos=[report_additional_info_from_dict(item) for item in list(payload.get("additionalInfos") or [])],
+        status=str(get_value(payload, ReportGenerateMeta, "status") or ""),
+        question=str(get_value(payload, ReportGenerateMeta, "question") or ""),
+        additional_infos=[report_additional_info_from_dict(item) for item in list(get_value(payload, ReportGenerateMeta, "additional_infos") or [])],
     )
 
 
 def report_layout_to_dict(layout: ReportLayout) -> dict[str, Any]:
-    payload = {"type": layout.type}
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportLayout, "type", layout.type)
     if layout.grid is not None:
-        grid = {"cols": layout.grid.cols, "rowHeight": layout.grid.row_height}
+        grid = {"cols": layout.grid.cols, get_alias(GridDefinition, "row_height"): layout.grid.row_height}
         if layout.grid.gap is not None:
             grid["gap"] = layout.grid.gap
         payload["grid"] = grid
@@ -856,18 +862,20 @@ def report_layout_from_dict(payload: dict[str, Any]) -> ReportLayout:
     if grid_payload is not None:
         grid = GridDefinition(
             cols=int(grid_payload.get("cols") or 0),
-            row_height=int(grid_payload.get("rowHeight") or 0),
+            row_height=int(grid_payload.get(get_alias(GridDefinition, "row_height")) or 0),
             gap=_as_optional_int(grid_payload.get("gap")),
         )
-    return ReportLayout(type=str(payload.get("type") or ""), grid=grid)
+    return ReportLayout(type=str(get_value(payload, ReportLayout, "type") or ""), grid=grid)
 
 
 def report_column_to_dict(column: ReportColumn) -> dict[str, Any]:
-    payload = {"key": column.key, "title": column.title}
-    _set_if(payload, "width", column.width)
-    _set_if(payload, "align", column.align)
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportColumn, "key", column.key)
+    set_value(payload, ReportColumn, "title", column.title)
+    _set_if(payload, ReportColumn, "width", column.width)
+    _set_if(payload, ReportColumn, "align", column.align)
     if column.children:
-        payload["children"] = [report_column_to_dict(item) for item in column.children]
+        set_value(payload, ReportColumn, "children", [report_column_to_dict(item) for item in column.children])
     return payload
 
 
@@ -883,22 +891,22 @@ def report_column_from_dict(payload: dict[str, Any]) -> ReportColumn:
 
 def markdown_component_to_dict(component: MarkdownComponent) -> dict[str, Any]:
     return {
-        "id": component.id,
-        "type": component.type,
-        "dataProperties": {
-            "dataType": component.data_properties.data_type,
+        get_alias(MarkdownComponent, "id"): component.id,
+        get_alias(MarkdownComponent, "type"): component.type,
+        get_alias(MarkdownComponent, "data_properties"): {
+            get_alias(MarkdownDataProperties, "data_type"): component.data_properties.data_type,
             "content": component.data_properties.content,
         },
     }
 
 
 def markdown_component_from_dict(payload: dict[str, Any]) -> MarkdownComponent:
-    data = payload.get("dataProperties") if isinstance(payload.get("dataProperties"), dict) else {}
+    data = get_value(payload, MarkdownComponent, "data_properties") if isinstance(get_value(payload, MarkdownComponent, "data_properties"), dict) else {}
     return MarkdownComponent(
-        id=str(payload.get("id") or ""),
-        type=str(payload.get("type") or ""),
+        id=str(get_value(payload, MarkdownComponent, "id") or ""),
+        type=str(get_value(payload, MarkdownComponent, "type") or ""),
         data_properties=MarkdownDataProperties(
-            data_type=str(data.get("dataType") or ""),
+            data_type=str(data.get(get_alias(MarkdownDataProperties, "data_type")) or ""),
             content=str(data.get("content") or ""),
         ),
     )
@@ -906,15 +914,15 @@ def markdown_component_from_dict(payload: dict[str, Any]) -> MarkdownComponent:
 
 def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
     payload = {
-        "id": component.id,
-        "type": component.type,
-        "dataProperties": {
-            "dataType": component.data_properties.data_type,
+        get_alias(TableComponent, "id"): component.id,
+        get_alias(TableComponent, "type"): component.type,
+        get_alias(TableComponent, "data_properties"): {
+            get_alias(TableDataProperties, "data_type"): component.data_properties.data_type,
         },
     }
-    data_properties = payload["dataProperties"]
-    _set_if(data_properties, "sourceId", component.data_properties.source_id)
-    _set_if(data_properties, "title", component.data_properties.title)
+    data_properties = payload[get_alias(TableComponent, "data_properties")]
+    _set_if(data_properties, TableDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, TableDataProperties, "title", component.data_properties.title)
     if component.data_properties.columns:
         data_properties["columns"] = [report_column_to_dict(item) for item in component.data_properties.columns]
     if component.data_properties.data:
@@ -923,14 +931,14 @@ def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
 
 
 def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
-    data = payload.get("dataProperties") if isinstance(payload.get("dataProperties"), dict) else {}
+    data = get_value(payload, TableComponent, "data_properties") if isinstance(get_value(payload, TableComponent, "data_properties"), dict) else {}
     return TableComponent(
-        id=str(payload.get("id") or ""),
-        type=str(payload.get("type") or ""),
+        id=str(get_value(payload, TableComponent, "id") or ""),
+        type=str(get_value(payload, TableComponent, "type") or ""),
         data_properties=TableDataProperties(
-            data_type=str(data.get("dataType") or ""),
-            source_id=_as_optional_str(data.get("sourceId")),
-            title=_as_optional_str(data.get("title")),
+            data_type=str(data.get(get_alias(TableDataProperties, "data_type")) or ""),
+            source_id=_as_optional_str(data.get(get_alias(TableDataProperties, "source_id"))),
+            title=_as_optional_str(data.get(get_alias(TableDataProperties, "title"))),
             columns=[report_column_from_dict(item) for item in list(data.get("columns") or [])],
             data=list(data.get("data") or []),
         ),
@@ -939,26 +947,26 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
 
 def composite_table_component_to_dict(component: CompositeTableComponent) -> dict[str, Any]:
     payload = {
-        "id": component.id,
-        "type": component.type,
+        get_alias(CompositeTableComponent, "id"): component.id,
+        get_alias(CompositeTableComponent, "type"): component.type,
         "tables": [table_component_to_dict(item) for item in component.tables],
     }
-    payload["dataProperties"] = {
-        "dataType": component.data_properties.data_type,
+    payload[get_alias(CompositeTableComponent, "data_properties")] = {
+        get_alias(CompositeTableDataProperties, "data_type"): component.data_properties.data_type,
     }
-    _set_if(payload["dataProperties"], "title", component.data_properties.title)
+    _set_if(payload[get_alias(CompositeTableComponent, "data_properties")], CompositeTableDataProperties, "title", component.data_properties.title)
     return payload
 
 
 def composite_table_component_from_dict(payload: dict[str, Any]) -> CompositeTableComponent:
-    data = payload.get("dataProperties") if isinstance(payload.get("dataProperties"), dict) else {}
+    data = get_value(payload, CompositeTableComponent, "data_properties") if isinstance(get_value(payload, CompositeTableComponent, "data_properties"), dict) else {}
     return CompositeTableComponent(
-        id=str(payload.get("id") or ""),
-        type=str(payload.get("type") or ""),
+        id=str(get_value(payload, CompositeTableComponent, "id") or ""),
+        type=str(get_value(payload, CompositeTableComponent, "type") or ""),
         tables=[table_component_from_dict(item) for item in list(payload.get("tables") or [])],
         data_properties=CompositeTableDataProperties(
-            data_type=str(data.get("dataType") or ""),
-            title=_as_optional_str(data.get("title")),
+            data_type=str(data.get(get_alias(CompositeTableDataProperties, "data_type")) or ""),
+            title=_as_optional_str(data.get(get_alias(CompositeTableDataProperties, "title"))),
         ),
     )
 
@@ -981,15 +989,14 @@ def report_component_from_dict(payload: dict[str, Any]) -> ReportComponent:
 
 
 def report_section_to_dict(section: ReportSection) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": section.id,
-        "components": [report_component_to_dict(item) for item in section.components],
-    }
-    _set_if(payload, "title", section.title)
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportSection, "id", section.id)
+    set_value(payload, ReportSection, "components", [report_component_to_dict(item) for item in section.components])
+    _set_if(payload, ReportSection, "title", section.title)
     if section.order is not None:
-        payload["order"] = section.order
+        set_value(payload, ReportSection, "order", section.order)
     if section.summary is not None:
-        payload["summary"] = report_summary_to_dict(section.summary)
+        set_value(payload, ReportSection, "summary", report_summary_to_dict(section.summary))
     return payload
 
 
@@ -1005,25 +1012,25 @@ def report_section_from_dict(payload: dict[str, Any]) -> ReportSection:
 
 def report_catalog_to_dict(catalog: ReportCatalog) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "id": catalog.id,
-        "name": catalog.name,
+        get_alias(ReportCatalog, "id"): catalog.id,
+        get_alias(ReportCatalog, "name"): catalog.name,
     }
     if catalog.order is not None:
-        payload["order"] = catalog.order
+        set_value(payload, ReportCatalog, "order", catalog.order)
     if catalog.sub_catalogs:
-        payload["subCatalogs"] = [report_catalog_to_dict(item) for item in catalog.sub_catalogs]
+        set_value(payload, ReportCatalog, "sub_catalogs", [report_catalog_to_dict(item) for item in catalog.sub_catalogs])
     if catalog.sections:
-        payload["sections"] = [report_section_to_dict(item) for item in catalog.sections]
+        set_value(payload, ReportCatalog, "sections", [report_section_to_dict(item) for item in catalog.sections])
     return payload
 
 
 def report_catalog_from_dict(payload: dict[str, Any]) -> ReportCatalog:
     return ReportCatalog(
-        id=str(payload.get("id") or ""),
-        name=str(payload.get("name") or ""),
-        order=_as_optional_int(payload.get("order")),
-        sub_catalogs=[report_catalog_from_dict(item) for item in list(payload.get("subCatalogs") or [])],
-        sections=[report_section_from_dict(item) for item in list(payload.get("sections") or [])],
+        id=str(get_value(payload, ReportCatalog, "id") or ""),
+        name=str(get_value(payload, ReportCatalog, "name") or ""),
+        order=_as_optional_int(get_value(payload, ReportCatalog, "order")),
+        sub_catalogs=[report_catalog_from_dict(item) for item in list(get_value(payload, ReportCatalog, "sub_catalogs") or [])],
+        sections=[report_section_from_dict(item) for item in list(get_value(payload, ReportCatalog, "sections") or [])],
     )
 
 
@@ -1067,9 +1074,9 @@ def _table_layout_from_any(payload: Any) -> CompositeTablePartLayout | None:
     return None
 
 
-def _set_if(payload: dict[str, Any], key: str, value: Any) -> None:
+def _set_if(payload: dict[str, Any], model_type: type, field_name: str, value: Any) -> None:
     if value is not None:
-        payload[key] = value
+        set_value(payload, model_type, field_name, value)
 
 
 def _isoformat(value: datetime | None) -> str | None:

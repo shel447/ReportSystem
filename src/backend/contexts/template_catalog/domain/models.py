@@ -6,7 +6,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, TypeVar
 
+from ....shared.kernel.dataclass_aliases import get_alias, get_value, set_value
+
 Scalar = str | int | float | bool
+
+
+def _alias_field(alias: str, **kwargs: Any):
+    """为 dataclass 字段声明公开 JSON 别名。"""
+
+    metadata = dict(kwargs.pop("metadata", {}))
+    metadata["alias"] = alias
+    return field(metadata=metadata, **kwargs)
 
 
 @dataclass(slots=True)
@@ -22,12 +32,12 @@ class ParameterValue:
 class ParameterRuntimeContext:
     """参数运行时上下文。"""
 
-    value_source: str | None = None
-    query_context: dict[str, Any] | None = None
+    value_source: str | None = _alias_field("valueSource", default=None)
+    query_context: dict[str, Any] | None = _alias_field("queryContext", default=None)
     confirmed: bool | None = None
-    confirmed_at: str | None = None
-    option_source: str | None = None
-    options_fetched_at: str | None = None
+    confirmed_at: str | None = _alias_field("confirmedAt", default=None)
+    option_source: str | None = _alias_field("optionSource", default=None)
+    options_fetched_at: str | None = _alias_field("optionsFetchedAt", default=None)
 
 
 @dataclass(slots=True)
@@ -36,16 +46,16 @@ class Parameter:
 
     id: str
     label: str
-    input_type: str
+    input_type: str = _alias_field("inputType")
     required: bool
     multi: bool
-    interaction_mode: str
+    interaction_mode: str = _alias_field("interactionMode")
     description: str | None = None
     placeholder: str | None = None
-    default_value: list[ParameterValue] = field(default_factory=list)
+    default_value: list[ParameterValue] = _alias_field("defaultValue", default_factory=list)
     options: list[ParameterValue] = field(default_factory=list)
     values: list[ParameterValue] = field(default_factory=list)
-    runtime_context: ParameterRuntimeContext | None = None
+    runtime_context: ParameterRuntimeContext | None = _alias_field("runtimeContext", default=None)
     source: str | None = None
 
 
@@ -59,11 +69,11 @@ class RequirementItem:
     required: bool
     multi: bool = False
     description: str | None = None
-    source_parameter_id: str | None = None
+    source_parameter_id: str | None = _alias_field("sourceParameterId", default=None)
     widget: str | None = None
-    default_value: list[ParameterValue] = field(default_factory=list)
+    default_value: list[ParameterValue] = _alias_field("defaultValue", default_factory=list)
     values: list[ParameterValue] = field(default_factory=list)
-    value_source: str | None = None
+    value_source: str | None = _alias_field("valueSource", default=None)
 
 
 @dataclass(slots=True)
@@ -72,15 +82,15 @@ class OutlineDefinition:
 
     requirement: str
     items: list[RequirementItem] = field(default_factory=list)
-    rendered_requirement: str | None = None
+    rendered_requirement: str | None = _alias_field("renderedRequirement", default=None)
 
 
 @dataclass(slots=True)
 class ForeachDefinition:
     """模板级 foreach 定义。"""
 
-    parameter_id: str
-    alias: str
+    parameter_id: str = _alias_field("parameterId")
+    alias: str = _alias_field("as")
 
 
 @dataclass(slots=True)
@@ -88,10 +98,10 @@ class DatasetDefinition:
     """章节数据集定义。"""
 
     id: str
-    source_type: str
-    source_ref: str
+    source_type: str = _alias_field("sourceType")
+    source_ref: str = _alias_field("sourceRef")
     name: str | None = None
-    depends_on: list[str] = field(default_factory=list)
+    depends_on: list[str] = _alias_field("dependsOn", default_factory=list)
     description: str | None = None
 
 
@@ -110,7 +120,7 @@ class CompositeTablePartLayout:
     """复合表分片布局定义。"""
 
     kind: str
-    show_header: bool | None = None
+    show_header: bool | None = _alias_field("showHeader", default=None)
     columns: list[CompositeTableColumn] = field(default_factory=list)
 
 
@@ -126,7 +136,7 @@ class SummaryRowDef:
 class SummaryTableSpec:
     """摘要分片定义。"""
 
-    part_ids: list[str] = field(default_factory=list)
+    part_ids: list[str] = _alias_field("partIds", default_factory=list)
     rows: list[SummaryRowDef] = field(default_factory=list)
     prompt: str | None = None
 
@@ -137,11 +147,11 @@ class CompositeTablePart:
 
     id: str
     title: str
-    source_type: str
+    source_type: str = _alias_field("sourceType")
     description: str | None = None
-    dataset_id: str | None = None
-    summary_spec: SummaryTableSpec | None = None
-    table_layout: CompositeTablePartLayout | None = None
+    dataset_id: str | None = _alias_field("datasetId", default=None)
+    summary_spec: SummaryTableSpec | None = _alias_field("summarySpec", default=None)
+    table_layout: CompositeTablePartLayout | None = _alias_field("tableLayout", default=None)
 
 
 @dataclass(slots=True)
@@ -151,7 +161,7 @@ class PresentationBlock:
     id: str
     type: str
     title: str | None = None
-    dataset_id: str | None = None
+    dataset_id: str | None = _alias_field("datasetId", default=None)
     description: str | None = None
     parts: list[CompositeTablePart] = field(default_factory=list)
 
@@ -193,7 +203,7 @@ class CatalogDefinition:
     description: str | None = None
     parameters: list[Parameter] = field(default_factory=list)
     foreach: ForeachDefinition | None = None
-    sub_catalogs: list["CatalogDefinition"] = field(default_factory=list)
+    sub_catalogs: list["CatalogDefinition"] = _alias_field("subCatalogs", default_factory=list)
     sections: list[SectionDefinition] = field(default_factory=list)
 
 
@@ -205,12 +215,12 @@ class ReportTemplate:
     category: str
     name: str
     description: str
-    schema_version: str
+    schema_version: str = _alias_field("schemaVersion")
     parameters: list[Parameter] = field(default_factory=list)
     catalogs: list[CatalogDefinition] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
+    created_at: datetime | None = _alias_field("createdAt", default=None)
+    updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
 
 @dataclass(slots=True)
@@ -221,16 +231,16 @@ class TemplateSummary:
     category: str
     name: str
     description: str
-    schema_version: str
-    updated_at: datetime | None = None
+    schema_version: str = _alias_field("schemaVersion")
+    updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
 
 @dataclass(slots=True)
 class TemplateMatchCandidate:
     """当模板排序外置时使用的语义匹配候选投影。"""
 
-    template_id: str
-    template_name: str
+    template_id: str = _alias_field("templateId")
+    template_name: str = _alias_field("templateName")
     category: str
     description: str
     score: float
@@ -243,76 +253,76 @@ T = TypeVar("T")
 def report_template_from_dict(payload: dict[str, Any]) -> ReportTemplate:
     """把模板 JSON 契约转换为领域 dataclass。"""
     return ReportTemplate(
-        id=str(payload.get("id") or ""),
-        category=str(payload.get("category") or ""),
-        name=str(payload.get("name") or ""),
-        description=str(payload.get("description") or ""),
-        schema_version=str(payload.get("schemaVersion") or ""),
-        parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
-        catalogs=[catalog_definition_from_dict(item) for item in list(payload.get("catalogs") or [])],
-        tags=[str(item) for item in list(payload.get("tags") or [])],
-        created_at=_as_datetime(payload.get("createdAt")),
-        updated_at=_as_datetime(payload.get("updatedAt")),
+        id=str(get_value(payload, ReportTemplate, "id") or ""),
+        category=str(get_value(payload, ReportTemplate, "category") or ""),
+        name=str(get_value(payload, ReportTemplate, "name") or ""),
+        description=str(get_value(payload, ReportTemplate, "description") or ""),
+        schema_version=str(get_value(payload, ReportTemplate, "schema_version") or ""),
+        parameters=[parameter_from_dict(item) for item in list(get_value(payload, ReportTemplate, "parameters") or [])],
+        catalogs=[catalog_definition_from_dict(item) for item in list(get_value(payload, ReportTemplate, "catalogs") or [])],
+        tags=[str(item) for item in list(get_value(payload, ReportTemplate, "tags") or [])],
+        created_at=_as_datetime(get_value(payload, ReportTemplate, "created_at")),
+        updated_at=_as_datetime(get_value(payload, ReportTemplate, "updated_at")),
     )
 
 
 def report_template_to_dict(template: ReportTemplate) -> dict[str, Any]:
     """把模板领域对象投影为公开 JSON 契约。"""
-    return {
-        "id": template.id,
-        "category": template.category,
-        "name": template.name,
-        "description": template.description,
-        "schemaVersion": template.schema_version,
-        "tags": list(template.tags),
-        "parameters": [parameter_to_dict(item) for item in template.parameters],
-        "catalogs": [catalog_definition_to_dict(item) for item in template.catalogs],
-        "createdAt": _isoformat(template.created_at),
-        "updatedAt": _isoformat(template.updated_at),
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportTemplate, "id", template.id)
+    set_value(payload, ReportTemplate, "category", template.category)
+    set_value(payload, ReportTemplate, "name", template.name)
+    set_value(payload, ReportTemplate, "description", template.description)
+    set_value(payload, ReportTemplate, "schema_version", template.schema_version)
+    set_value(payload, ReportTemplate, "tags", list(template.tags))
+    set_value(payload, ReportTemplate, "parameters", [parameter_to_dict(item) for item in template.parameters])
+    set_value(payload, ReportTemplate, "catalogs", [catalog_definition_to_dict(item) for item in template.catalogs])
+    set_value(payload, ReportTemplate, "created_at", _isoformat(template.created_at))
+    set_value(payload, ReportTemplate, "updated_at", _isoformat(template.updated_at))
+    return payload
 
 
 def parameter_from_dict(payload: dict[str, Any]) -> Parameter:
     return Parameter(
-        id=str(payload.get("id") or ""),
-        label=str(payload.get("label") or ""),
-        input_type=str(payload.get("inputType") or ""),
-        required=bool(payload.get("required")),
-        multi=bool(payload.get("multi")),
-        interaction_mode=str(payload.get("interactionMode") or ""),
-        description=_as_optional_str(payload.get("description")),
-        placeholder=_as_optional_str(payload.get("placeholder")),
-        default_value=[parameter_value_from_dict(item) for item in list(payload.get("defaultValue") or [])],
-        options=[parameter_value_from_dict(item) for item in list(payload.get("options") or [])],
-        values=[parameter_value_from_dict(item) for item in list(payload.get("values") or [])],
-        runtime_context=parameter_runtime_context_from_dict(payload.get("runtimeContext")),
-        source=_as_optional_str(payload.get("source")),
+        id=str(get_value(payload, Parameter, "id") or ""),
+        label=str(get_value(payload, Parameter, "label") or ""),
+        input_type=str(get_value(payload, Parameter, "input_type") or ""),
+        required=bool(get_value(payload, Parameter, "required")),
+        multi=bool(get_value(payload, Parameter, "multi")),
+        interaction_mode=str(get_value(payload, Parameter, "interaction_mode") or ""),
+        description=_as_optional_str(get_value(payload, Parameter, "description")),
+        placeholder=_as_optional_str(get_value(payload, Parameter, "placeholder")),
+        default_value=[parameter_value_from_dict(item) for item in list(get_value(payload, Parameter, "default_value") or [])],
+        options=[parameter_value_from_dict(item) for item in list(get_value(payload, Parameter, "options") or [])],
+        values=[parameter_value_from_dict(item) for item in list(get_value(payload, Parameter, "values") or [])],
+        runtime_context=parameter_runtime_context_from_dict(get_value(payload, Parameter, "runtime_context")),
+        source=_as_optional_str(get_value(payload, Parameter, "source")),
     )
 
 
 def parameter_to_dict(parameter: Parameter) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "id": parameter.id,
-        "label": parameter.label,
-        "inputType": parameter.input_type,
-        "required": parameter.required,
-        "multi": parameter.multi,
-        "interactionMode": parameter.interaction_mode,
+        get_alias(Parameter, "id"): parameter.id,
+        get_alias(Parameter, "label"): parameter.label,
     }
+    set_value(payload, Parameter, "input_type", parameter.input_type)
+    set_value(payload, Parameter, "required", parameter.required)
+    set_value(payload, Parameter, "multi", parameter.multi)
+    set_value(payload, Parameter, "interaction_mode", parameter.interaction_mode)
     if parameter.description is not None:
-        payload["description"] = parameter.description
+        set_value(payload, Parameter, "description", parameter.description)
     if parameter.placeholder is not None:
-        payload["placeholder"] = parameter.placeholder
+        set_value(payload, Parameter, "placeholder", parameter.placeholder)
     if parameter.default_value:
-        payload["defaultValue"] = [parameter_value_to_dict(item) for item in parameter.default_value]
+        set_value(payload, Parameter, "default_value", [parameter_value_to_dict(item) for item in parameter.default_value])
     if parameter.options or parameter.input_type == "enum":
-        payload["options"] = [parameter_value_to_dict(item) for item in parameter.options]
+        set_value(payload, Parameter, "options", [parameter_value_to_dict(item) for item in parameter.options])
     if parameter.values:
-        payload["values"] = [parameter_value_to_dict(item) for item in parameter.values]
+        set_value(payload, Parameter, "values", [parameter_value_to_dict(item) for item in parameter.values])
     if parameter.runtime_context is not None:
-        payload["runtimeContext"] = parameter_runtime_context_to_dict(parameter.runtime_context)
+        set_value(payload, Parameter, "runtime_context", parameter_runtime_context_to_dict(parameter.runtime_context))
     if parameter.source is not None:
-        payload["source"] = parameter.source
+        set_value(payload, Parameter, "source", parameter.source)
     return payload
 
 
@@ -336,29 +346,29 @@ def parameter_runtime_context_from_dict(payload: Any) -> ParameterRuntimeContext
     if not isinstance(payload, dict):
         return None
     return ParameterRuntimeContext(
-        value_source=_as_optional_str(payload.get("valueSource")),
-        query_context=dict(payload.get("queryContext") or {}) or None,
-        confirmed=_as_optional_bool(payload.get("confirmed")),
-        confirmed_at=_as_optional_str(payload.get("confirmedAt")),
-        option_source=_as_optional_str(payload.get("optionSource")),
-        options_fetched_at=_as_optional_str(payload.get("optionsFetchedAt")),
+        value_source=_as_optional_str(get_value(payload, ParameterRuntimeContext, "value_source")),
+        query_context=dict(get_value(payload, ParameterRuntimeContext, "query_context") or {}) or None,
+        confirmed=_as_optional_bool(get_value(payload, ParameterRuntimeContext, "confirmed")),
+        confirmed_at=_as_optional_str(get_value(payload, ParameterRuntimeContext, "confirmed_at")),
+        option_source=_as_optional_str(get_value(payload, ParameterRuntimeContext, "option_source")),
+        options_fetched_at=_as_optional_str(get_value(payload, ParameterRuntimeContext, "options_fetched_at")),
     )
 
 
 def parameter_runtime_context_to_dict(context: ParameterRuntimeContext) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     if context.value_source is not None:
-        payload["valueSource"] = context.value_source
+        set_value(payload, ParameterRuntimeContext, "value_source", context.value_source)
     if context.query_context is not None:
-        payload["queryContext"] = dict(context.query_context)
+        set_value(payload, ParameterRuntimeContext, "query_context", dict(context.query_context))
     if context.confirmed is not None:
-        payload["confirmed"] = context.confirmed
+        set_value(payload, ParameterRuntimeContext, "confirmed", context.confirmed)
     if context.confirmed_at is not None:
-        payload["confirmedAt"] = context.confirmed_at
+        set_value(payload, ParameterRuntimeContext, "confirmed_at", context.confirmed_at)
     if context.option_source is not None:
-        payload["optionSource"] = context.option_source
+        set_value(payload, ParameterRuntimeContext, "option_source", context.option_source)
     if context.options_fetched_at is not None:
-        payload["optionsFetchedAt"] = context.options_fetched_at
+        set_value(payload, ParameterRuntimeContext, "options_fetched_at", context.options_fetched_at)
     return payload
 
 
@@ -370,11 +380,11 @@ def requirement_item_from_dict(payload: dict[str, Any]) -> RequirementItem:
         required=bool(payload.get("required")),
         multi=bool(payload.get("multi")) if payload.get("multi") is not None else False,
         description=_as_optional_str(payload.get("description")),
-        source_parameter_id=_as_optional_str(payload.get("sourceParameterId")),
+        source_parameter_id=_as_optional_str(get_value(payload, RequirementItem, "source_parameter_id")),
         widget=_as_optional_str(payload.get("widget")),
-        default_value=[parameter_value_from_dict(item) for item in list(payload.get("defaultValue") or [])],
+        default_value=[parameter_value_from_dict(item) for item in list(get_value(payload, RequirementItem, "default_value") or [])],
         values=[parameter_value_from_dict(item) for item in list(payload.get("values") or [])],
-        value_source=_as_optional_str(payload.get("valueSource")),
+        value_source=_as_optional_str(get_value(payload, RequirementItem, "value_source")),
     )
 
 
@@ -390,22 +400,22 @@ def requirement_item_to_dict(item: RequirementItem) -> dict[str, Any]:
     if item.description is not None:
         payload["description"] = item.description
     if item.source_parameter_id is not None:
-        payload["sourceParameterId"] = item.source_parameter_id
+        set_value(payload, RequirementItem, "source_parameter_id", item.source_parameter_id)
     if item.widget is not None:
         payload["widget"] = item.widget
     if item.default_value:
-        payload["defaultValue"] = [parameter_value_to_dict(value) for value in item.default_value]
+        set_value(payload, RequirementItem, "default_value", [parameter_value_to_dict(value) for value in item.default_value])
     if item.values:
         payload["values"] = [parameter_value_to_dict(value) for value in item.values]
     if item.value_source is not None:
-        payload["valueSource"] = item.value_source
+        set_value(payload, RequirementItem, "value_source", item.value_source)
     return payload
 
 
 def outline_definition_from_dict(payload: dict[str, Any]) -> OutlineDefinition:
     return OutlineDefinition(
         requirement=str(payload.get("requirement") or ""),
-        rendered_requirement=_as_optional_str(payload.get("renderedRequirement")),
+        rendered_requirement=_as_optional_str(get_value(payload, OutlineDefinition, "rendered_requirement")),
         items=[requirement_item_from_dict(item) for item in list(payload.get("items") or [])],
     )
 
@@ -416,7 +426,7 @@ def outline_definition_to_dict(outline: OutlineDefinition) -> dict[str, Any]:
         "items": [requirement_item_to_dict(item) for item in outline.items],
     }
     if outline.rendered_requirement is not None:
-        payload["renderedRequirement"] = outline.rendered_requirement
+        set_value(payload, OutlineDefinition, "rendered_requirement", outline.rendered_requirement)
     return payload
 
 
@@ -424,25 +434,25 @@ def foreach_definition_from_dict(payload: Any) -> ForeachDefinition | None:
     if not isinstance(payload, dict):
         return None
     return ForeachDefinition(
-        parameter_id=str(payload.get("parameterId") or ""),
-        alias=str(payload.get("as") or ""),
+        parameter_id=str(get_value(payload, ForeachDefinition, "parameter_id") or ""),
+        alias=str(get_value(payload, ForeachDefinition, "alias") or ""),
     )
 
 
 def foreach_definition_to_dict(foreach: ForeachDefinition) -> dict[str, Any]:
-    return {
-        "parameterId": foreach.parameter_id,
-        "as": foreach.alias,
-    }
+    payload: dict[str, Any] = {}
+    set_value(payload, ForeachDefinition, "parameter_id", foreach.parameter_id)
+    set_value(payload, ForeachDefinition, "alias", foreach.alias)
+    return payload
 
 
 def dataset_definition_from_dict(payload: dict[str, Any]) -> DatasetDefinition:
     return DatasetDefinition(
         id=str(payload.get("id") or ""),
-        source_type=str(payload.get("sourceType") or ""),
-        source_ref=str(payload.get("sourceRef") or ""),
+        source_type=str(get_value(payload, DatasetDefinition, "source_type") or ""),
+        source_ref=str(get_value(payload, DatasetDefinition, "source_ref") or ""),
         name=_as_optional_str(payload.get("name")),
-        depends_on=[str(item) for item in list(payload.get("dependsOn") or [])],
+        depends_on=[str(item) for item in list(get_value(payload, DatasetDefinition, "depends_on") or [])],
         description=_as_optional_str(payload.get("description")),
     )
 
@@ -450,13 +460,13 @@ def dataset_definition_from_dict(payload: dict[str, Any]) -> DatasetDefinition:
 def dataset_definition_to_dict(dataset: DatasetDefinition) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": dataset.id,
-        "sourceType": dataset.source_type,
-        "sourceRef": dataset.source_ref,
     }
+    set_value(payload, DatasetDefinition, "source_type", dataset.source_type)
+    set_value(payload, DatasetDefinition, "source_ref", dataset.source_ref)
     if dataset.name is not None:
         payload["name"] = dataset.name
     if dataset.depends_on:
-        payload["dependsOn"] = list(dataset.depends_on)
+        set_value(payload, DatasetDefinition, "depends_on", list(dataset.depends_on))
     if dataset.description is not None:
         payload["description"] = dataset.description
     return payload
@@ -488,7 +498,7 @@ def composite_table_part_layout_from_dict(payload: Any) -> CompositeTablePartLay
         return None
     return CompositeTablePartLayout(
         kind=str(payload.get("kind") or ""),
-        show_header=_as_optional_bool(payload.get("showHeader")),
+        show_header=_as_optional_bool(get_value(payload, CompositeTablePartLayout, "show_header")),
         columns=[composite_table_column_from_dict(item) for item in list(payload.get("columns") or [])],
     )
 
@@ -498,7 +508,7 @@ def composite_table_part_layout_to_dict(layout: CompositeTablePartLayout) -> dic
         "kind": layout.kind,
     }
     if layout.show_header is not None:
-        payload["showHeader"] = layout.show_header
+        set_value(payload, CompositeTablePartLayout, "show_header", layout.show_header)
     if layout.columns:
         payload["columns"] = [composite_table_column_to_dict(item) for item in layout.columns]
     return payload
@@ -522,7 +532,7 @@ def summary_table_spec_from_dict(payload: Any) -> SummaryTableSpec | None:
     if not isinstance(payload, dict):
         return None
     return SummaryTableSpec(
-        part_ids=[str(item) for item in list(payload.get("partIds") or [])],
+        part_ids=[str(item) for item in list(get_value(payload, SummaryTableSpec, "part_ids") or [])],
         rows=[summary_row_def_from_dict(item) for item in list(payload.get("rows") or [])],
         prompt=_as_optional_str(payload.get("prompt")),
     )
@@ -530,9 +540,9 @@ def summary_table_spec_from_dict(payload: Any) -> SummaryTableSpec | None:
 
 def summary_table_spec_to_dict(spec: SummaryTableSpec) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "partIds": list(spec.part_ids),
         "rows": [summary_row_def_to_dict(item) for item in spec.rows],
     }
+    set_value(payload, SummaryTableSpec, "part_ids", list(spec.part_ids))
     if spec.prompt is not None:
         payload["prompt"] = spec.prompt
     return payload
@@ -542,11 +552,11 @@ def composite_table_part_from_dict(payload: dict[str, Any]) -> CompositeTablePar
     return CompositeTablePart(
         id=str(payload.get("id") or ""),
         title=str(payload.get("title") or ""),
-        source_type=str(payload.get("sourceType") or ""),
+        source_type=str(get_value(payload, CompositeTablePart, "source_type") or ""),
         description=_as_optional_str(payload.get("description")),
-        dataset_id=_as_optional_str(payload.get("datasetId")),
-        summary_spec=summary_table_spec_from_dict(payload.get("summarySpec")),
-        table_layout=composite_table_part_layout_from_dict(payload.get("tableLayout")),
+        dataset_id=_as_optional_str(get_value(payload, CompositeTablePart, "dataset_id")),
+        summary_spec=summary_table_spec_from_dict(get_value(payload, CompositeTablePart, "summary_spec")),
+        table_layout=composite_table_part_layout_from_dict(get_value(payload, CompositeTablePart, "table_layout")),
     )
 
 
@@ -554,16 +564,16 @@ def composite_table_part_to_dict(part: CompositeTablePart) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": part.id,
         "title": part.title,
-        "sourceType": part.source_type,
     }
+    set_value(payload, CompositeTablePart, "source_type", part.source_type)
     if part.description is not None:
         payload["description"] = part.description
     if part.dataset_id is not None:
-        payload["datasetId"] = part.dataset_id
+        set_value(payload, CompositeTablePart, "dataset_id", part.dataset_id)
     if part.summary_spec is not None:
-        payload["summarySpec"] = summary_table_spec_to_dict(part.summary_spec)
+        set_value(payload, CompositeTablePart, "summary_spec", summary_table_spec_to_dict(part.summary_spec))
     if part.table_layout is not None:
-        payload["tableLayout"] = composite_table_part_layout_to_dict(part.table_layout)
+        set_value(payload, CompositeTablePart, "table_layout", composite_table_part_layout_to_dict(part.table_layout))
     return payload
 
 
@@ -572,7 +582,7 @@ def presentation_block_from_dict(payload: dict[str, Any]) -> PresentationBlock:
         id=str(payload.get("id") or ""),
         type=str(payload.get("type") or ""),
         title=_as_optional_str(payload.get("title")),
-        dataset_id=_as_optional_str(payload.get("datasetId")),
+        dataset_id=_as_optional_str(get_value(payload, PresentationBlock, "dataset_id")),
         description=_as_optional_str(payload.get("description")),
         parts=[composite_table_part_from_dict(item) for item in list(payload.get("parts") or [])],
     )
@@ -586,7 +596,7 @@ def presentation_block_to_dict(block: PresentationBlock) -> dict[str, Any]:
     if block.title is not None:
         payload["title"] = block.title
     if block.dataset_id is not None:
-        payload["datasetId"] = block.dataset_id
+        set_value(payload, PresentationBlock, "dataset_id", block.dataset_id)
     if block.description is not None:
         payload["description"] = block.description
     if block.parts:
@@ -657,7 +667,7 @@ def catalog_definition_from_dict(payload: dict[str, Any]) -> CatalogDefinition:
         description=_as_optional_str(payload.get("description")),
         parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
         foreach=foreach_definition_from_dict(payload.get("foreach")),
-        sub_catalogs=[catalog_definition_from_dict(item) for item in list(payload.get("subCatalogs") or [])],
+        sub_catalogs=[catalog_definition_from_dict(item) for item in list(get_value(payload, CatalogDefinition, "sub_catalogs") or [])],
         sections=[section_definition_from_dict(item) for item in list(payload.get("sections") or [])],
     )
 
@@ -674,7 +684,7 @@ def catalog_definition_to_dict(catalog: CatalogDefinition) -> dict[str, Any]:
     if catalog.foreach is not None:
         payload["foreach"] = foreach_definition_to_dict(catalog.foreach)
     if catalog.sub_catalogs:
-        payload["subCatalogs"] = [catalog_definition_to_dict(item) for item in catalog.sub_catalogs]
+        set_value(payload, CatalogDefinition, "sub_catalogs", [catalog_definition_to_dict(item) for item in catalog.sub_catalogs])
     if catalog.sections:
         payload["sections"] = [section_definition_to_dict(item) for item in catalog.sections]
     return payload
