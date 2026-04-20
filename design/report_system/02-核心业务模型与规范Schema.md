@@ -78,7 +78,7 @@
 | `TemplateInstance.parameters` | `Parameter[]` |
 | `catalog.parameters / section.parameters` | `Parameter[]` |
 | `Ask.parameters` | `Parameter[]` |
-| `Reply.parameters` | `Parameter[]` |
+| `Reply.parameters` | `Record<parameterId, Scalar[]>` |
 | 报告详情页再编辑 | `Parameter[]` |
 
 硬规则：
@@ -211,7 +211,8 @@
 - 主体保持 `catalogs -> (subCatalogs)* -> sections`
 - 模板实例根部、目录、章节中的 `parameters` 都统一复用同一套参数模型
 - 若用户未显式赋值，则先取参数 `defaultValue` 后再写入对应参数对象的 `values`
-- `TemplateInstance.parameters` 与接口层 `Ask.parameters/Reply.parameters` 使用完全相同的数据形状
+- `TemplateInstance.parameters` 与接口层 `Ask.parameters` 使用完全相同的数据形状
+- `Reply.parameters` 只保留参数值映射，不再回传参数定义
 - 模板实例中的目录、章节也保留各自定义的 `parameters`
 - 动态参数候选项写入参数对象的 `options`
 - 参数确认聚合态写入 `parameterConfirmation`
@@ -337,8 +338,18 @@
 - 但当前报告系统首版只启用其中一个正式子集：
   - 目录：`catalogs -> (subCatalogs)* -> sections`
   - 组件：优先使用 `text`、`table`、`chart`、`markdown`
-  - `CompositeTable` 属于保留能力，首版不作为模板编译目标
+  - `CompositeTable` 已作为正式模板能力启用，但只通过 `presentation.blocks[].type = composite_table` 产出
   - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成
+
+`CompositeTable` 的模板支持规则：
+
+- `CompositeTable` 只作为 `section.content.presentation.blocks[]` 的一种 block 类型出现
+- 一个 `composite_table` block 由 `parts[]` 组成
+- 每个 `part` 只支持两类来源：
+  - `query`：与普通表格一致，由 `datasetId` 生成子表
+  - `summary`：模板定义固定总结行，模型只填每行内容，最终仍落成无表头二维表
+- 基础信息也归为 `query part`，不单独引入第三类 part
+- 不在 `part` 内再做 group；若业务上需要多个分区，就拆成多个顺序 `part`
 
 报告 DSL 顶层示例：
 
@@ -374,14 +385,14 @@
 {
   "scope": [
     {
-      "display": "总部网络",
+      "label": "总部网络",
       "value": "hq-network",
       "query": "scope_id = 'hq-network'"
     }
   ],
   "report_date": [
     {
-      "display": "2026-04-18",
+      "label": "2026-04-18",
       "value": "2026-04-18",
       "query": "2026-04-18"
     }
@@ -409,7 +420,7 @@
 {
   "options": [
     {
-      "display": "总部网络",
+      "label": "总部网络",
       "value": "hq-network",
       "query": "scope_id = 'hq-network'"
     }
@@ -424,6 +435,6 @@
 2. API 契约和持久化结构要投影这些模型，不得反向定义第二套对象。
 3. 模板定义中的动态候选项数据源协议已经标准化，模板里不再声明方法和报文结构。
 4. 模板层与实例层统一复用 `outline.requirement + outline.items`；实例态只额外补 `renderedRequirement/values/valueSource`。
-5. 多值参数与多值诉求项在运行态统一保留 `ParameterValue` 数组；展示层默认用 `、` 拼接 `display`，执行层默认由 `runtimeContext.bindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。
+5. 多值参数与多值诉求项在运行态统一保留 `ParameterValue` 数组；展示层默认用 `、` 拼接 `label`，执行层默认由 `runtimeContext.bindings` 按 `multiValueQueryMode = in` 生成最终查询表达式。
 6. 参数作用域采用“节点定义、向下继承可见”：章节可见自身参数，目录可见自身及祖先参数，模板根参数全局可见。
 7. `section.id` 在单份模板内必须全局唯一；`catalog.id` 也建议全局唯一。`reportMeta` 和流式进度都依赖这一点维持稳定定位。

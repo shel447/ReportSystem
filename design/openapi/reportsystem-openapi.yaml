@@ -324,6 +324,12 @@ components:
       required: true
       schema: { type: string }
   schemas:
+    Scalar:
+      oneOf:
+        - type: string
+        - type: number
+        - type: integer
+        - type: boolean
     ReportTemplate:
       $ref: ../report_system/schemas/report-template.schema.json
     TemplateInstance:
@@ -454,9 +460,11 @@ components:
         type: { type: string, enum: [fill_params, confirm_params] }
         sourceChatId: { type: string }
         parameters:
-          type: array
-          items:
-            $ref: '#/components/schemas/Parameter'
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/Scalar'
         reportContext:
           type: object
           properties:

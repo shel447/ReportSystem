@@ -22,7 +22,7 @@
       "interactionMode": "form",
       "defaultValue": [
         {
-          "display": "2026-04-18",
+          "label": "2026-04-18",
           "value": "2026-04-18",
           "query": "2026-04-18"
         }
@@ -74,6 +74,24 @@
                 "name": "运行概览数据集",
                 "sourceType": "sql",
                 "sourceRef": "sql.network.daily_summary"
+              },
+              {
+                "id": "dataset_device_basic",
+                "name": "核心设备基础信息数据集",
+                "sourceType": "sql",
+                "sourceRef": "sql.network.device_basic"
+              },
+              {
+                "id": "dataset_interface_checks",
+                "name": "接口检查结果数据集",
+                "sourceType": "sql",
+                "sourceRef": "sql.network.interface_checks"
+              },
+              {
+                "id": "dataset_board_checks",
+                "name": "板卡检查结果数据集",
+                "sourceType": "sql",
+                "sourceRef": "sql.network.board_checks"
               }
             ],
             "presentation": {
@@ -90,6 +108,97 @@
                   "type": "chart",
                   "title": "关键指标趋势",
                   "datasetId": "dataset_daily_summary"
+                },
+                {
+                  "id": "block_device_inspection",
+                  "type": "composite_table",
+                  "title": "核心设备巡检信息",
+                  "parts": [
+                    {
+                      "id": "part_basic_info",
+                      "title": "基础信息",
+                      "sourceType": "query",
+                      "datasetId": "dataset_device_basic",
+                      "tableLayout": {
+                        "kind": "table",
+                        "showHeader": true
+                      }
+                    },
+                    {
+                      "id": "part_interface_checks",
+                      "title": "接口检查结果",
+                      "sourceType": "query",
+                      "datasetId": "dataset_interface_checks",
+                      "tableLayout": {
+                        "kind": "table",
+                        "showHeader": true,
+                        "columns": [
+                          {
+                            "key": "item",
+                            "title": "检查项"
+                          },
+                          {
+                            "key": "result",
+                            "title": "结果"
+                          },
+                          {
+                            "key": "remark",
+                            "title": "备注"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "part_board_checks",
+                      "title": "板卡检查结果",
+                      "sourceType": "query",
+                      "datasetId": "dataset_board_checks",
+                      "tableLayout": {
+                        "kind": "table",
+                        "showHeader": true,
+                        "columns": [
+                          {
+                            "key": "item",
+                            "title": "检查项"
+                          },
+                          {
+                            "key": "result",
+                            "title": "结果"
+                          },
+                          {
+                            "key": "remark",
+                            "title": "备注"
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "id": "part_inspection_summary",
+                      "title": "巡检问题及建议",
+                      "sourceType": "summary",
+                      "summarySpec": {
+                        "partIds": [
+                          "part_interface_checks",
+                          "part_board_checks"
+                        ],
+                        "rows": [
+                          {
+                            "id": "major_issue",
+                            "title": "主要问题"
+                          },
+                          {
+                            "id": "risk_assessment",
+                            "title": "影响评估"
+                          },
+                          {
+                            "id": "action_advice",
+                            "title": "处理建议"
+                          }
+                        ],
+                        "prompt": "基于前序检查结果，从各行对应角度填写总结。"
+                      }
+                    }
+                  ]
                 }
               ]
             }
@@ -115,19 +224,19 @@
           "interactionMode": "form",
           "options": [
             {
-              "display": "小时",
+              "label": "小时",
               "value": "hour",
               "query": "hour"
             },
             {
-              "display": "天",
+              "label": "天",
               "value": "day",
               "query": "day"
             }
           ],
           "defaultValue": [
             {
-              "display": "天",
+              "label": "天",
               "value": "day",
               "query": "day"
             }
@@ -151,19 +260,19 @@
                   "interactionMode": "form",
                   "options": [
                     {
-                      "display": "最近7天",
+                      "label": "最近7天",
                       "value": "7d",
                       "query": "7d"
                     },
                     {
-                      "display": "最近30天",
+                      "label": "最近30天",
                       "value": "30d",
                       "query": "30d"
                     }
                   ],
                   "defaultValue": [
                     {
-                      "display": "最近7天",
+                      "label": "最近7天",
                       "value": "7d",
                       "query": "7d"
                     }
