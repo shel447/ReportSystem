@@ -460,7 +460,7 @@
         },
         "title": {
           "type": "string",
-          "description": "目录标题模板。可直接在句子中使用 {$parameterId} 引用当前层级及父层级可见参数的 display 值。"
+          "description": "目录标题模板。可直接在句子中使用 {$parameterId} 引用当前层级及父层级可见参数的 label 值。"
         },
         "renderedTitle": {
           "type": "string",
@@ -531,12 +531,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "display",
+        "label",
         "value",
         "query"
       ],
       "properties": {
-        "display": {
+        "label": {
           "$ref": "#/$defs/Scalar"
         },
         "value": {

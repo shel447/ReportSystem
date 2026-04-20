@@ -18,14 +18,14 @@
       "interactionMode": "form",
       "defaultValue": [
         {
-          "display": "2026-04-18",
+          "label": "2026-04-18",
           "value": "2026-04-18",
           "query": "2026-04-18"
         }
       ],
       "values": [
         {
-          "display": "2026-04-18",
+          "label": "2026-04-18",
           "value": "2026-04-18",
           "query": "2026-04-18"
         }
@@ -46,12 +46,12 @@
       "interactionMode": "natural_language",
       "values": [
         {
-          "display": "总部网络",
+          "label": "总部网络",
           "value": "hq-network",
           "query": "scope_id = 'hq-network'"
         },
         {
-          "display": "分支网络",
+          "label": "分支网络",
           "value": "branch-network",
           "query": "scope_id = 'branch-network'"
         }
@@ -59,17 +59,17 @@
       "source": "https://example.internal/api/network/scopes/options",
       "options": [
         {
-          "display": "总部网络",
+          "label": "总部网络",
           "value": "hq-network",
           "query": "scope_id = 'hq-network'"
         },
         {
-          "display": "分支网络",
+          "label": "分支网络",
           "value": "branch-network",
           "query": "scope_id = 'branch-network'"
         },
         {
-          "display": "核心承载网",
+          "label": "核心承载网",
           "value": "core-network",
           "query": "scope_id = 'core-network'"
         }
@@ -113,12 +113,12 @@
                 "widget": "multi_select",
                 "values": [
                   {
-                    "display": "总部网络",
+                    "label": "总部网络",
                     "value": "hq-network",
                     "query": "scope_id = 'hq-network'"
                   },
                   {
-                    "display": "分支网络",
+                    "label": "分支网络",
                     "value": "branch-network",
                     "query": "scope_id = 'branch-network'"
                   }
@@ -134,7 +134,7 @@
                 "widget": "date",
                 "values": [
                   {
-                    "display": "2026-04-18",
+                    "label": "2026-04-18",
                     "value": "2026-04-18",
                     "query": "2026-04-18"
                   }
@@ -169,7 +169,7 @@
         "parameterId": "scope",
         "itemValues": [
           {
-            "display": "总部网络",
+            "label": "总部网络",
             "value": "hq-network",
             "query": "scope_id = 'hq-network'"
           }
@@ -186,26 +186,26 @@
           "interactionMode": "form",
           "options": [
             {
-              "display": "小时",
+              "label": "小时",
               "value": "hour",
               "query": "hour"
             },
             {
-              "display": "天",
+              "label": "天",
               "value": "day",
               "query": "day"
             }
           ],
           "defaultValue": [
             {
-              "display": "天",
+              "label": "天",
               "value": "day",
               "query": "day"
             }
           ],
           "values": [
             {
-              "display": "天",
+              "label": "天",
               "value": "day",
               "query": "day"
             }
@@ -236,26 +236,26 @@
                   "interactionMode": "form",
                   "options": [
                     {
-                      "display": "最近7天",
+                      "label": "最近7天",
                       "value": "7d",
                       "query": "7d"
                     },
                     {
-                      "display": "最近30天",
+                      "label": "最近30天",
                       "value": "30d",
                       "query": "30d"
                     }
                   ],
                   "defaultValue": [
                     {
-                      "display": "最近7天",
+                      "label": "最近7天",
                       "value": "7d",
                       "query": "7d"
                     }
                   ],
                   "values": [
                     {
-                      "display": "最近7天",
+                      "label": "最近7天",
                       "value": "7d",
                       "query": "7d"
                     }
@@ -280,7 +280,7 @@
                     "widget": "select",
                     "values": [
                       {
-                        "display": "总部网络",
+                        "label": "总部网络",
                         "value": "hq-network",
                         "query": "scope_id = 'hq-network'"
                       }
@@ -296,7 +296,7 @@
                     "widget": "date",
                     "values": [
                       {
-                        "display": "2026-04-18",
+                        "label": "2026-04-18",
                         "value": "2026-04-18",
                         "query": "2026-04-18"
                       }
@@ -362,7 +362,7 @@
         "interactionMode": "form",
         "defaultValue": [
           {
-            "display": "2026-04-18",
+            "label": "2026-04-18",
             "value": "2026-04-18",
             "query": "2026-04-18"
           }
@@ -455,19 +455,19 @@
             "interactionMode": "form",
             "options": [
               {
-                "display": "小时",
+                "label": "小时",
                 "value": "hour",
                 "query": "hour"
               },
               {
-                "display": "天",
+                "label": "天",
                 "value": "day",
                 "query": "day"
               }
             ],
             "defaultValue": [
               {
-                "display": "天",
+                "label": "天",
                 "value": "day",
                 "query": "day"
               }
@@ -491,19 +491,19 @@
                     "interactionMode": "form",
                     "options": [
                       {
-                        "display": "最近7天",
+                        "label": "最近7天",
                         "value": "7d",
                         "query": "7d"
                       },
                       {
-                        "display": "最近30天",
+                        "label": "最近30天",
                         "value": "30d",
                         "query": "30d"
                       }
                     ],
                     "defaultValue": [
                       {
-                        "display": "最近7天",
+                        "label": "最近7天",
                         "value": "7d",
                         "query": "7d"
                       }

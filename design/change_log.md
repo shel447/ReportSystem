@@ -134,3 +134,46 @@
   - `design/openapi/reportsystem-openapi*.yaml|json`
 - 风险与后续：
   - 若未来允许一条 `reply` 同时消费多条历史追问，需要把单值 `sourceChatId` 扩展为数组或更通用的 source 引用模型。
+
+## 2026-04-20 `ParameterValue.label` 与 `Reply.parameters` 精简回填
+
+- 变更动机：
+  - 原三元组字段名 `display` 与参数定义中的 `label` 并列存在，语义重复且容易引起实现歧义。
+  - `Reply.parameters` 继续回传完整参数定义，会让前端重复提交静态结构，放大请求体，并模糊 `ask/templateInstance/reply` 三者的职责边界。
+- 设计决策：
+  - 正式将 `ParameterValue` 从 `{display, value, query}` 改为 `{label, value, query}`。
+  - 模板、模板实例、外部候选值接口、诉求实例化继续复用完整 `ParameterValue` 三元组。
+  - `Reply.parameters` 保留字段名，但语义收敛为参数值映射：`Record<parameterId, Scalar[]>`。
+  - `fill_params` 允许只提交本轮修改子集；`confirm_params` 必须提交完整已生效值集。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
+  - `design/report_system/schemas/*.json`
+  - `design/openapi/reportsystem-openapi*.yaml|json`
+- 风险与后续：
+  - 运行时如果仍按旧 `display` 字段取值，实现阶段必须同步切到 `label`。
+  - `Reply.parameters` 既然已经与 `Ask.parameters` 脱钩，后续实现中不得再把两者视为同构 DTO。
+
+## 2026-04-20 `CompositeTable` 模板正式支持
+
+- 变更动机：
+  - `Report DSL` 早已支持 `CompositeTable`，但模板定义与编译规则长期只覆盖 `paragraph/table/chart/markdown`，导致 DSL 侧有能力、模板侧没有正式入口。
+  - 当前业务已明确需要“设备档案式复合表”，其中基础信息、多个检查结果区块和总结区块都属于同一个复合表组件。
+- 设计决策：
+  - 在模板 `section.content.presentation.blocks[]` 中正式新增 `type = composite_table`。
+  - `composite_table` 采用通用 `parts[]` 结构，不引入业务语义化的固定区块名。
+  - `part` 只支持两类来源：
+    - `query`：由 `datasetId` 生成普通子表
+    - `summary`：模板定义固定总结行，模型只填每行内容，并生成无表头二维表
+  - 基础信息也按 `query part` 处理，不再引入第三类 part。
+  - 不允许在 `part` 内再嵌套 group；若业务上存在多个分区，直接拆成多个顺序 `part`。
+- 影响范围：
+  - [report_system/schemas/report-template.schema.json](report_system/schemas/report-template.schema.json)
+  - [report_system/examples/report-template.example.json](report_system/examples/report-template.example.json)
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+- 风险与后续：
+  - 当前仅完成设计层收敛，后续实现阶段需要同步补齐模板编译器，把 `composite_table` block 真正编译为 DSL `CompositeTable.tables[]`。
+  - `summary part` 目前固定为无表头两列表，若后续要支持更复杂的总结表骨架，需要再扩展 `summarySpec`。

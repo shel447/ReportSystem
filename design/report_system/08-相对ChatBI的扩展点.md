@@ -25,6 +25,7 @@
 统一对话里的 `reply` 额外新增：
 
 - `sourceChatId`
+- `parameters: Record<parameterId, Scalar[]>`
 
 作用：
 
