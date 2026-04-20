@@ -13,7 +13,7 @@ class ParameterOptionsRouterTests(unittest.TestCase):
             (),
             {
                 "resolve": lambda self, **_kwargs: {
-                    "options": [{"display": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
+                    "options": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
                     "defaultValue": [],
                 }
             },
@@ -26,7 +26,7 @@ class ParameterOptionsRouterTests(unittest.TestCase):
                         source="https://example.internal/api/network/scopes/options",
                     contextValues={
                         "report_date": [
-                            {"display": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}
+                            {"label": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}
                         ]
                     },
                 ),
@@ -34,7 +34,7 @@ class ParameterOptionsRouterTests(unittest.TestCase):
                 user_id="default",
             )
 
-        self.assertEqual(payload["options"][0]["display"], "总部网络")
+        self.assertEqual(payload["options"][0]["label"], "总部网络")
         self.assertEqual(payload["options"][0]["query"], "scope_id = 'hq-network'")
 
     def test_resolve_parameter_options_maps_validation_error_to_http_400(self):

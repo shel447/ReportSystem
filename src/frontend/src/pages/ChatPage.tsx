@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 
 import { deleteConversation, fetchConversation, fetchConversations, sendChatMessageStream } from "../entities/chat/api";
 import type { ChatAsk, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
+import type { ParameterScalar } from "../entities/templates/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
 import { PageSection } from "../shared/ui/PageSection";
@@ -202,7 +203,7 @@ export function ChatPage() {
                                 reply: {
                                   type: "fill_params",
                                   sourceChatId: latestResponse.chatId,
-                                  parameters: mergedParameters,
+                                  parameters: parameterValuesToReplyMap(mergedParameters),
                                   reportContext: { templateInstance: mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters) },
                                 },
                               });
@@ -219,7 +220,7 @@ export function ChatPage() {
                                 reply: {
                                   type: "confirm_params",
                                   sourceChatId: latestResponse.chatId,
-                                  parameters: mergedParameters,
+                                  parameters: parameterValuesToReplyMap(mergedParameters),
                                   reportContext: { templateInstance: mergedTemplateInstance },
                                 },
                               });
@@ -317,8 +318,8 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
       {ask.parameters.map((parameter) => {
         const value = parameterDrafts[parameter.id] ?? parameter.values ?? [];
         const options = parameter.inputType === "dynamic" ? dynamicOptions[parameter.id] ?? parameter.options ?? [] : parameter.options ?? [];
-        const currentText = value.map((item) => String(item.display ?? "")).filter(Boolean).join("\n");
-        const selectedValues = value.map((item) => String(item.display));
+        const currentText = value.map((item) => String(item.label ?? "")).filter(Boolean).join("\n");
+        const selectedValues = value.map((item) => String(item.label));
 
         return (
           <div key={parameter.id} className="form-grid">
@@ -330,13 +331,13 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
                   value={parameter.multi ? selectedValues : (selectedValues[0] ?? "")}
                   onChange={(event) => {
                     const selected = Array.from(event.currentTarget.selectedOptions)
-                      .map((optionElement) => options.find((option) => String(option.display) === optionElement.value) ?? null)
+                      .map((optionElement) => options.find((option) => String(option.label) === optionElement.value) ?? null)
                       .filter((option): option is ParameterValue => Boolean(option));
                     onChange((current) => ({ ...current, [parameter.id]: parameter.multi ? selected : (selected[0] ? [selected[0]] : []) }));
                   }}
                 >
                   {!parameter.multi ? <option value="">请选择</option> : null}
-                  {options.map((option) => <option key={`${parameter.id}-${option.value}`} value={String(option.display)}>{String(option.display)}</option>)}
+                  {options.map((option) => <option key={`${parameter.id}-${option.value}`} value={String(option.label)}>{String(option.label)}</option>)}
                 </select>
               ) : parameter.multi ? (
                 <textarea
@@ -347,17 +348,17 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
                       .split(/\r?\n/)
                       .map((item) => item.trim())
                       .filter(Boolean)
-                      .map((item) => ({ display: item, value: item, query: item }));
+                      .map((item) => ({ label: item, value: item, query: item }));
                     onChange((current) => ({ ...current, [parameter.id]: values }));
                   }}
                   placeholder={parameter.placeholder || parameter.description || `${parameter.label}（每行一个）`}
                 />
               ) : (
                 <input
-                  value={value[0]?.display ? String(value[0].display) : ""}
+                  value={value[0]?.label ? String(value[0].label) : ""}
                   onChange={(event) => {
                     const text = event.target.value;
-                    onChange((current) => ({ ...current, [parameter.id]: text ? [{ display: text, value: text, query: text }] : [] }));
+                    onChange((current) => ({ ...current, [parameter.id]: text ? [{ label: text, value: text, query: text }] : [] }));
                   }}
                   placeholder={parameter.placeholder || parameter.description || parameter.label}
                 />
@@ -417,6 +418,14 @@ export function mergeTemplateInstanceParameters(templateInstance: TemplateInstan
 
 function parametersToValueMap(parameters: TemplateParameter[]): Record<string, ParameterValue[]> {
   return Object.fromEntries(parameters.filter((parameter) => parameter.values?.length).map((parameter) => [parameter.id, parameter.values ?? []]));
+}
+
+function parameterValuesToReplyMap(parameters: TemplateParameter[]): Record<string, ParameterScalar[]> {
+  return Object.fromEntries(
+    parameters
+      .filter((parameter) => parameter.values?.length)
+      .map((parameter) => [parameter.id, (parameter.values ?? []).map((value) => value.value)]),
+  );
 }
 
 function mergeCatalogParameters(catalog: TemplateInstance["catalogs"][number], parameterMap: Map<string, TemplateParameter>): TemplateInstance["catalogs"][number] {

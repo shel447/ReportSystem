@@ -339,7 +339,7 @@ describe("ChatPage", () => {
                               },
                             ],
                             outline: {
-                              requirement: "分析{$scope.display}的总体运行态势。",
+                              requirement: "分析{$scope.label}的总体运行态势。",
                               items: [],
                             },
                             runtimeContext: { bindings: [] },
@@ -366,6 +366,7 @@ describe("ChatPage", () => {
           ]));
         }
         expect(payload.reply.sourceChatId).toBeTruthy();
+        expect(payload.reply.parameters.scope).toEqual(["华东", "华北"]);
         return Promise.resolve(createSseResponse([
           {
             conversationId: "conv_multi",
@@ -460,7 +461,7 @@ describe("ChatPage", () => {
                                     },
                                   ],
                                   outline: {
-                                    requirement: "分析{$scope.display}的总体运行态势。",
+                                    requirement: "分析{$scope.label}的总体运行态势。",
                                     items: [],
                                   },
                                   runtimeContext: { bindings: [] },
@@ -539,7 +540,7 @@ describe("ChatPage", () => {
                   },
                 ],
                 outline: {
-                  requirement: "分析{$scope.display}的总体运行态势。",
+                  requirement: "分析{$scope.label}的总体运行态势。",
                   items: [],
                 },
                 runtimeContext: { bindings: [] },
@@ -560,15 +561,15 @@ describe("ChatPage", () => {
         multi: true,
         interactionMode: "form",
         values: [
-          { display: "华东", value: "华东", query: "华东" },
-          { display: "华北", value: "华北", query: "华北" },
+          { label: "华东", value: "华东", query: "华东" },
+          { label: "华北", value: "华北", query: "华北" },
         ],
       }],
     );
 
     expect(updatedInstance.catalogs[0].sections?.[0].parameters?.[0].values).toEqual([
-      { display: "华东", value: "华东", query: "华东" },
-      { display: "华北", value: "华北", query: "华北" },
+      { label: "华东", value: "华东", query: "华东" },
+      { label: "华北", value: "华北", query: "华北" },
     ]);
   });
 

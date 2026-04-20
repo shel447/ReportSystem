@@ -235,7 +235,7 @@ export function ReportDetailPage() {
                       {report.answer.templateInstance.parameters.map((parameter) => (
                         <div key={parameter.id} className="template-inline-row template-inline-row--wide">
                           <strong>{parameter.label}</strong>
-                          <span>{(parameter.values ?? []).map((item) => String(item.display)).join("、") || "未设置"}</span>
+                          <span>{(parameter.values ?? []).map((item) => String(item.label)).join("、") || "未设置"}</span>
                         </div>
                       ))}
                     </div>

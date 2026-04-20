@@ -43,7 +43,7 @@ def _scoped_template():
                             }
                         ],
                         "outline": {
-                            "requirement": "分析{$scope.display}的总体运行态势。",
+                            "requirement": "分析{$scope.label}的总体运行态势。",
                             "items": [],
                         },
                         "content": {
@@ -64,7 +64,7 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
         values = service._extract_parameter_values(_scoped_template(), "请分析华东、华北的运行态势")
 
         self.assertIn("scope", values)
-        self.assertEqual(values["scope"][0]["display"], "请分析华东、华北的运行态势")
+        self.assertEqual(values["scope"][0]["label"], "请分析华东、华北的运行态势")
 
     def test_missing_required_parameters_includes_section_scoped_parameters(self):
         template = _scoped_template()
@@ -228,17 +228,9 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
                     "reply": {
                         "type": "fill_params",
                         "sourceChatId": first["chatId"],
-                        "parameters": [
-                            {
-                                "id": "report_date",
-                            "label": "报告日期",
-                            "inputType": "date",
-                            "required": True,
-                            "multi": False,
-                            "interactionMode": "form",
-                            "values": [{"display": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}],
-                        }
-                    ],
+                        "parameters": {
+                            "report_date": ["2026-04-18"],
+                        },
                     "reportContext": {"templateInstance": runtime_service.instance},
                 },
             },
@@ -305,17 +297,9 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
                 "reply": {
                     "type": "fill_params",
                     "sourceChatId": first["chatId"],
-                    "parameters": [
-                        {
-                            "id": "report_date",
-                            "label": "报告日期",
-                            "inputType": "date",
-                            "required": True,
-                            "multi": False,
-                            "interactionMode": "form",
-                            "values": [{"display": "2026-04-18", "value": "2026-04-18", "query": "2026-04-18"}],
-                        }
-                    ],
+                    "parameters": {
+                        "report_date": ["2026-04-18"],
+                    },
                     "reportContext": {"templateInstance": runtime_service.instance},
                 },
             },

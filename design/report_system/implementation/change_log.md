@@ -133,3 +133,40 @@
   - 后端接口测试锁住 `reply.sourceChatId` 为必填
   - 后端会话测试锁住：只回写 `sourceChatId` 指向的那条追问消息
   - 前端测试锁住：提交 `reply` 时必须带上 `sourceChatId`
+
+## 2026-04-20 `ParameterValue.label` 与 `Reply.parameters` 精简回填
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-04-20 `ParameterValue.label` 与 `Reply.parameters` 精简回填”
+- 实现设计调整：
+  - `TemplateParameter.values`、动态参数候选值、模板实例参数值三元组统一收敛为 `{label, value, query}`
+  - 运行时不再读取或生成 `display` 字段；占位符默认展示通道也从 `display` 切到 `label`
+  - `chat` 路由的 `ReplyPayload.parameters` 正式改为 `Record<parameterId, Scalar[]>`
+  - 前端提交 `fill_params / confirm_params` 时，只回传参数值映射；服务端基于当前 `TemplateInstance` 中的参数定义与现值，重建新的参数运行态
+  - `fill_params` 允许只提交本轮修改子集；`confirm_params` 仍要求 `reportContext.templateInstance` 中体现完整有效参数集
+- 受影响的实现设计主题：
+  - [统一对话实现.md](统一对话实现.md)
+  - [报告运行时实现.md](报告运行时实现.md)
+  - [前端实现.md](前端实现.md)
+  - [模板目录实现.md](模板目录实现.md)
+- 验证要求：
+  - 后端测试锁住参数抽取、动态参数解析、`reply.parameters` 路由契约
+  - 前端测试锁住 `fill_params` 提交的值映射载荷
+  - 搜索确认生产代码不再依赖 `display` 作为正式参数值字段
+
+## 2026-04-20 `composite_table` 模板正式落地
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-04-20 `CompositeTable` 模板正式支持”
+- 实现设计调整：
+  - 模板前端类型和后端运行时正式接受 `section.content.presentation.blocks[].type = composite_table`
+  - `report_runtime` 在 `BuildReportDslService` 中新增 `composite_table -> CompositeTable` 编译规则
+  - `query part` 编译为普通数据子表；`summary part` 编译为无表头的静态总结子表
+  - `CompositeTable` 只作为 `Report DSL` 组件出现，不单独写回模板实例外的旁路结构
+- 受影响的实现设计主题：
+  - [模板目录实现.md](模板目录实现.md)
+  - [报告运行时实现.md](报告运行时实现.md)
+  - [前端实现.md](前端实现.md)
+- 验证要求：
+  - 后端测试锁住 `composite_table` 模板块成功编译为 DSL `compositeTable`
+  - 前端类型与编辑态允许保留 `parts[]` 结构，不再把该 block 视为非法类型

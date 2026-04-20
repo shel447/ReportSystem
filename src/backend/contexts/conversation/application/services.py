@@ -17,6 +17,7 @@ from ...report_runtime.domain.services import (
     instantiate_template_instance,
     merge_parameter_values,
     parameters_to_value_map,
+    parameters_by_id,
     serialize_template_instance,
 )
 
@@ -222,7 +223,11 @@ class ConversationService:
             merged_values = merge_parameter_values(
                 parameter_definitions=template_parameter_definitions,
                 current_values=parameters_to_value_map(current_instance_parameters),
-                incoming_values=parameters_to_value_map((reply or {}).get("parameters") if isinstance((reply or {}).get("parameters"), list) else [])
+                incoming_values=_reply_parameter_values_to_value_map(
+                    (reply or {}).get("parameters"),
+                    parameter_definitions=template_parameter_definitions,
+                    current_parameters=current_instance_parameters,
+                )
                 if isinstance(reply, dict)
                 else self._extract_parameter_values(template, str(data.get("question") or "")),
             )
@@ -325,12 +330,12 @@ class ConversationService:
                 date_match = DATE_PATTERN.search(question_text)
                 if date_match:
                     value = date_match.group(0)
-                    matched = [{"display": value, "value": value, "query": value}]
+                    matched = [{"label": value, "value": value, "query": value}]
             elif input_type == "enum":
                 for option in list(parameter.get("options") or []):
-                    display = str(option.get("display") or "")
+                    label = str(option.get("label") or "")
                     value = str(option.get("value") or "")
-                    if display and display in question_text or value and value in question_text:
+                    if label and label in question_text or value and value in question_text:
                         matched = [copy_option(option)]
                         break
             elif input_type == "dynamic":
@@ -346,9 +351,9 @@ class ConversationService:
                     resolved = {"options": []}
                 choices = []
                 for option in list(resolved.get("options") or []):
-                    display = str(option.get("display") or "")
+                    label = str(option.get("label") or "")
                     value = str(option.get("value") or "")
-                    if display and display in question_text or value and value in question_text:
+                    if label and label in question_text or value and value in question_text:
                         choices.append(copy_option(option))
                         if not parameter.get("multi"):
                             break
@@ -356,7 +361,7 @@ class ConversationService:
                     matched = choices
             elif input_type == "free_text":
                 if question_text.strip():
-                    matched = [{"display": question_text.strip(), "value": question_text.strip(), "query": question_text.strip()}]
+                    matched = [{"label": question_text.strip(), "value": question_text.strip(), "query": question_text.strip()}]
 
             if matched:
                 parameter_values[param_id] = matched
@@ -553,10 +558,48 @@ def _template_instance_from_payload(payload: dict[str, Any], *, chat_id: str, st
 
 def copy_option(option: dict[str, Any]) -> dict[str, Any]:
     return {
-        "display": option.get("display"),
+        "label": option.get("label"),
         "value": option.get("value"),
         "query": option.get("query"),
     }
+
+
+def _reply_parameter_values_to_value_map(
+    payload: Any,
+    *,
+    parameter_definitions: list[dict[str, Any]],
+    current_parameters: list[dict[str, Any]] | None,
+) -> dict[str, list[dict[str, Any]]]:
+    if not isinstance(payload, dict):
+        return {}
+
+    definition_by_id = parameters_by_id(parameter_definitions)
+    current_by_id = parameters_by_id(current_parameters)
+    resolved: dict[str, list[dict[str, Any]]] = {}
+    for param_id, raw_values in payload.items():
+        normalized_id = str(param_id or "").strip()
+        if not normalized_id:
+            continue
+        definition = current_by_id.get(normalized_id) or definition_by_id.get(normalized_id)
+        if definition is None:
+            raise ValidationError(f"reply.parameters contains unknown parameter id: {normalized_id}")
+        if not isinstance(raw_values, list):
+            raise ValidationError(f"reply.parameters.{normalized_id} must be an array")
+        resolved[normalized_id] = [_scalar_to_parameter_value(item, definition=definition) for item in raw_values]
+    return resolved
+
+
+def _scalar_to_parameter_value(raw_value: Any, *, definition: dict[str, Any]) -> dict[str, Any]:
+    candidates = []
+    for field in ("options", "values", "defaultValue"):
+        if isinstance(definition.get(field), list):
+            candidates.extend(list(definition.get(field) or []))
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        if raw_value in {candidate.get("label"), candidate.get("value"), candidate.get("query")}:
+            return copy_option(candidate)
+    return {"label": raw_value, "value": raw_value, "query": raw_value}
 
 
 def _random_id(prefix: str) -> str:

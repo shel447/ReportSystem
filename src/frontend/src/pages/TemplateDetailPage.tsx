@@ -25,7 +25,7 @@ type LocationState = {
   importWarnings?: WarningItem[];
 };
 
-const EMPTY_PARAMETER_VALUE: ParameterValue = { display: "", value: "", query: "" };
+const EMPTY_PARAMETER_VALUE: ParameterValue = { label: "", value: "", query: "" };
 
 export function TemplateDetailPage() {
   const { templateId } = useParams();

@@ -177,3 +177,26 @@
 - 风险与后续：
   - 当前仅完成设计层收敛，后续实现阶段需要同步补齐模板编译器，把 `composite_table` block 真正编译为 DSL `CompositeTable.tables[]`。
   - `summary part` 目前固定为无表头两列表，若后续要支持更复杂的总结表骨架，需要再扩展 `summarySpec`。
+
+## 2026-04-20 `TemplateInstance` 正式承载 `CompositeTable` 实例态
+
+- 变更动机：
+  - 仅调整模板 schema 不足以支撑复杂二次编辑；`TemplateInstance` 若不显式保存 `composite_table.parts[]` 的实例态，前端无法稳定读取复合表内部结构，重新生成也只能回退到模板快照现算。
+  - `TemplateInstance` 本身就是“生成前”和“再生成前”的正式上下文，章节内容结构不能只留在模板快照里。
+- 设计决策：
+  - 在 `TemplateInstance.section` 上正式补 `content` 字段，并保持与模板 `section.content` 同构。
+  - `TemplateInstance.section.content.presentation.blocks[]` 正式支持 `type = composite_table`。
+  - `composite_table.parts[]` 在实例态保留与模板相同的顺序和结构；每个 `part` 新增 `runtimeContext`。
+  - `query part` 通过 `runtimeContext.status/resolvedDatasetId/resolvedQuery/warnings` 记录最小运行态。
+  - `summary part` 通过 `runtimeContext.status/resolvedPartIds/prompt/warnings` 记录最小运行态。
+  - `section.runtimeContext` 继续只保留章节级执行上下文，不承载复合表结构本身。
+- 影响范围：
+  - [report_system/schemas/template-instance.schema.json](report_system/schemas/template-instance.schema.json)
+  - [report_system/examples/template-instance.example.json](report_system/examples/template-instance.example.json)
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [chatbi/05-报告系统扩展映射.md](chatbi/05-%E6%8A%A5%E5%91%8A%E7%B3%BB%E7%BB%9F%E6%89%A9%E5%B1%95%E6%98%A0%E5%B0%84.md)
+- 风险与后续：
+  - 当前只补到 `part` 级运行态，不继续缓存子表单元格结果或最终生成内容。
+  - 实现阶段需要保证参数或诉求变化时，只重算受影响 `part.runtimeContext`，而不是破坏整个 `composite_table` 结构。

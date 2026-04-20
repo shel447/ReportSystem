@@ -1,4 +1,4 @@
-import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition } from "../templates/types";
+import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition, ParameterScalar } from "../templates/types";
 
 export type TemplateInstanceRequirementItem = RequirementItemDefinition;
 
@@ -209,7 +209,7 @@ export type ChatRequest = {
   reply?: {
     type: "fill_params" | "confirm_params";
     sourceChatId: string;
-    parameters?: TemplateParameter[];
+    parameters?: Record<string, ParameterScalar[]>;
     reportContext?: {
       templateInstance: TemplateInstance;
     };

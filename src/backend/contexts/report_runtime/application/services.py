@@ -340,6 +340,7 @@ def _build_section_components(section: dict[str, Any]) -> tuple[list[dict[str, A
             },
         }
     ]
+    components.extend(_build_presentation_components(section))
     summary = requirement_text or str(section.get("id") or "")
     return components, summary[:160], additional_infos
 
@@ -351,7 +352,7 @@ def _build_markdown_content(section: dict[str, Any], requirement_text: str) -> s
         lines.append("### 诉求要素")
         lines.append("")
         for item in items:
-            values = [str(value.get("display") or value.get("value") or "") for value in item.get("values") or []]
+            values = [str(value.get("label") or value.get("value") or "") for value in item.get("values") or []]
             rendered = "、".join([value for value in values if value]) or "未设置"
             lines.append(f"- {item.get('label')}: {rendered}")
         lines.append("")
@@ -374,7 +375,7 @@ def _build_report_name(*, template: ReportTemplate, template_instance: TemplateI
     for parameter in template_instance.parameters:
         values = parameter.get("values") or []
         if values:
-            first_values.append(str(values[0].get("display") or values[0].get("value") or ""))
+            first_values.append(str(values[0].get("label") or values[0].get("value") or ""))
         if len(first_values) >= 2:
             break
     suffix = " ".join([value for value in first_values if value])
@@ -388,6 +389,59 @@ def _build_report_summary(catalogs: list[dict[str, Any]]) -> str:
     if not section_titles:
         return "报告已生成。"
     return f"报告已生成，共包含 {len(section_titles)} 个章节：{'、'.join(section_titles[:5])}"
+
+
+def _build_presentation_components(section: dict[str, Any]) -> list[dict[str, Any]]:
+    presentation = (((section.get("content") or {}).get("presentation")) or {}) if isinstance(section.get("content"), dict) else {}
+    blocks = list(presentation.get("blocks") or [])
+    components: list[dict[str, Any]] = []
+    for block in blocks:
+        if str(block.get("type") or "") != "composite_table":
+            continue
+        components.append(_build_composite_table_component(block))
+    return components
+
+
+def _build_composite_table_component(block: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(block.get("id") or ""),
+        "type": "compositeTable",
+        "tables": [_build_composite_table_part(block, part) for part in list(block.get("parts") or [])],
+        "dataProperties": {
+            "dataType": "static",
+            "title": str(block.get("title") or ""),
+        },
+    }
+
+
+def _build_composite_table_part(block: dict[str, Any], part: dict[str, Any]) -> dict[str, Any]:
+    if str(part.get("sourceType") or "") == "summary":
+        rows = []
+        for row in list(((part.get("summarySpec") or {}).get("rows")) or []):
+            rows.append({"title": str(row.get("title") or ""), "content": "待补充"})
+        return {
+            "id": str(part.get("id") or ""),
+            "type": "table",
+            "dataProperties": {
+                "dataType": "static",
+                "title": str(part.get("title") or ""),
+                "columns": [
+                    {"key": "title", "title": "项目"},
+                    {"key": "content", "title": "结论"},
+                ],
+                "data": rows,
+            },
+        }
+    return {
+        "id": str(part.get("id") or ""),
+        "type": "table",
+        "dataProperties": {
+            "dataType": "datasource",
+            "sourceId": str(part.get("datasetId") or ""),
+            "title": str(part.get("title") or ""),
+            "columns": list(((part.get("tableLayout") or {}).get("columns")) or []),
+        },
+    }
 
 
 def _collect_section_titles(catalogs: list[dict[str, Any]]) -> list[str]:

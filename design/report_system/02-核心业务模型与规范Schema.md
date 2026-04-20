@@ -274,6 +274,9 @@
 5. 章节模板只读回溯能力
    - 当前不单独落 `sectionTemplateSnapshots`
    - 通过 `template + 全局唯一 section.id + 稳定目录树` 回溯实例当时使用的章节模板定义
+6. `section.content`
+   - 实例态必须保留章节内容结构视图，不能只依赖模板快照里的原始定义
+   - `composite_table` 至少落到 `parts[] + part.runtimeContext`，保证复合表可二次编辑和稳定重生成
 
 不建议直接回归为正式领域模型主体的历史对象：
 
@@ -296,10 +299,15 @@
   - 稳定记录缺失参数、确认状态、确认时间
 - `catalogs -> (subCatalogs)* -> sections -> outline`
   - 树状主体既服务编辑，也服务重新生成
+- `section.content`
+  - 章节内容结构在实例态必须可直接读取，尤其是 `presentation.blocks[]`
+- `composite_table.parts[].runtimeContext`
+  - 复合表子区块的最小运行态必须持久化到实例，而不是只在内存里临时计算
 
 设计原则：
 
 - `TemplateInstance` 仍以树状主体为核心
+- `TemplateInstance.section.content` 是正式实例化视图，不是可随意省略的派生缓存
 - `template` 与运行态补强字段是为了保证可编辑性和可复现性，不是把旧版镜像结构原样搬回来
 - `Report DSL` 仍然是正式报告内容主体；`TemplateInstance` 只负责“生成前”和“再生成前”的完整编辑上下文
 
@@ -350,6 +358,19 @@
   - `summary`：模板定义固定总结行，模型只填每行内容，最终仍落成无表头二维表
 - 基础信息也归为 `query part`，不单独引入第三类 part
 - 不在 `part` 内再做 group；若业务上需要多个分区，就拆成多个顺序 `part`
+
+`TemplateInstance` 对 `CompositeTable` 的正式承载规则：
+
+- `TemplateInstance.section.content.presentation.blocks[]` 也必须支持 `type = composite_table`
+- 实例态 `composite_table` block 保留模板定义字段：`id/type/title/description/parts[]`
+- `parts[]` 在实例态继续保留同样的顺序和结构，不做运行时重排
+- `query part`
+  - 保留模板定义：`id/title/sourceType/datasetId/tableLayout`
+  - 通过 `part.runtimeContext` 记录最小运行态：`status/resolvedDatasetId/resolvedQuery/warnings`
+- `summary part`
+  - 保留模板定义：`id/title/sourceType/summarySpec`
+  - 通过 `part.runtimeContext` 记录最小运行态：`status/resolvedPartIds/prompt/warnings`
+- `section.runtimeContext` 只保留章节级执行上下文，不承载复合表结构本身
 
 报告 DSL 顶层示例：
 

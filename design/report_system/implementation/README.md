@@ -21,6 +21,8 @@
 - 领域主线固定为 `ReportTemplate -> TemplateInstance -> Report DSL -> ReportInstance -> DocumentArtifact`。
 - `TemplateInstance` 是核心运行态聚合。参数收集、诉求实例化、delta 合并、报告生成都围绕同一份模板实例推进。
 - `/chat` 流式协议按 `steps / delta / answer` 三条通道实现；`delta` 只属于流式事件，不进入持久化聚合。
+- 参数值三元组正式使用 `{label, value, query}`；`reply.parameters` 只回传 `Record<parameterId, Scalar[]>`。
+- 模板 `presentation.blocks[]` 已正式支持 `composite_table`，运行时必须编译为 DSL `compositeTable`。
 - 数据库允许删表重建，因此实现中不得保留任何旧结构向新结构的转换映射。
 
 ## Application Service 导航

@@ -166,7 +166,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "reply": {
                         "type": "confirm_params",
                         "sourceChatId": "chat_001",
-                        "parameters": _sample_template_instance()["parameters"],
+                        "parameters": {"scope": ["hq-network"]},
                         "reportContext": {"templateInstance": _sample_template_instance()},
                     },
                 },
@@ -200,7 +200,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "reply": {
                         "type": "confirm_params",
                         "sourceChatId": "chat_ask_001",
-                        "parameters": [],
+                        "parameters": {},
                         "reportContext": {"templateInstance": {"id": "ti_001", "templateId": "tpl_network_daily"}},
                     },
                 },
@@ -277,7 +277,7 @@ class ChatContractApiTests(unittest.TestCase):
                     "reply": {
                         "type": "confirm_params",
                         "sourceChatId": "chat_ask_009",
-                        "parameters": _sample_template_instance()["parameters"],
+                        "parameters": {"scope": ["hq-network"]},
                         "reportContext": {"templateInstance": _sample_template_instance()},
                     },
                 },
@@ -306,13 +306,55 @@ class ChatContractApiTests(unittest.TestCase):
                     "instruction": "generate_report",
                     "reply": {
                         "type": "fill_params",
-                        "parameters": [],
+                        "parameters": {},
                         "reportContext": {"templateInstance": {"id": "ti_001", "templateId": "tpl_network_daily"}},
                     },
                 },
             )
 
         self.assertEqual(response.status_code, 422)
+
+    def test_post_chat_reply_accepts_parameter_value_mapping(self):
+        captured = {}
+
+        class FakeConversationService:
+            def send_message(self, data, user_id):
+                captured["data"] = data
+                return {
+                    "conversationId": "conv_001",
+                    "chatId": "chat_003",
+                    "status": "waiting_user",
+                    "steps": [],
+                    "ask": None,
+                    "answer": None,
+                    "errors": [],
+                    "requestId": "req_003",
+                    "timestamp": 1713427200000,
+                    "apiVersion": "v1",
+                }
+
+        with patch("backend.routers.chat.build_conversation_service", return_value=FakeConversationService()):
+            response = self.client.post(
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default"},
+                json={
+                    "conversationId": "conv_001",
+                    "chatId": "chat_003",
+                    "instruction": "generate_report",
+                    "reply": {
+                        "type": "fill_params",
+                        "sourceChatId": "chat_ask_003",
+                        "parameters": {
+                            "report_date": ["2026-04-18"],
+                            "scope": ["hq-network", "bj-network"],
+                        },
+                        "reportContext": {"templateInstance": {"id": "ti_001", "templateId": "tpl_network_daily"}},
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["data"]["reply"]["parameters"]["scope"], ["hq-network", "bj-network"])
 
 
 if __name__ == "__main__":

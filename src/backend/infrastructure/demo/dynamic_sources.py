@@ -7,7 +7,7 @@ from . import telecom
 
 
 def get_dynamic_options(source: str) -> List[str]:
-    return [str(item["display"]) for item in get_dynamic_option_items(source)]
+    return [str(item["label"]) for item in get_dynamic_option_items(source)]
 
 
 def get_dynamic_option_items(source: str) -> List[dict[str, Any]]:
@@ -29,7 +29,7 @@ def get_dynamic_option_items(source: str) -> List[dict[str, Any]]:
         )
         rows = [
             {
-                "display": str(row["value"]),
+                "label": str(row["value"]),
                 "value": str(row["value"]),
                 "query": str(row["value"]),
             }

@@ -1,7 +1,7 @@
 export type ParameterScalar = string | number | boolean;
 
 export type ParameterValue = {
-  display: ParameterScalar;
+  label: ParameterScalar;
   value: ParameterScalar;
   query: ParameterScalar;
 };
@@ -81,10 +81,27 @@ export type DatasetDefinition = {
 
 export type PresentationBlock = {
   id: string;
-  type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown";
+  type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown" | "composite_table";
   title?: string;
   datasetId?: string;
   description?: string;
+  parts?: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    sourceType: "query" | "summary";
+    datasetId?: string;
+    summarySpec?: {
+      partIds: string[];
+      rows: Array<{ id: string; title: string }>;
+      prompt?: string;
+    };
+    tableLayout?: {
+      kind: "table";
+      showHeader?: boolean;
+      columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
+    };
+  }>;
 };
 
 export type SectionDefinition = {

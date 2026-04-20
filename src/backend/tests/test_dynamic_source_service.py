@@ -26,7 +26,7 @@ class DynamicSourceServiceTests(unittest.TestCase):
     def test_known_source_returns_formal_trio_values(self):
         result = get_dynamic_option_items("api:/sites/list")
         self.assertTrue(result)
-        self.assertIn("display", result[0])
+        self.assertIn("label", result[0])
         self.assertIn("value", result[0])
         self.assertIn("query", result[0])
 
@@ -38,7 +38,7 @@ class DynamicSourceServiceTests(unittest.TestCase):
             context_values={},
         )
         self.assertTrue(payload["options"])
-        self.assertIn("display", payload["options"][0])
+        self.assertIn("label", payload["options"][0])
         self.assertIn("value", payload["options"][0])
         self.assertIn("query", payload["options"][0])
 

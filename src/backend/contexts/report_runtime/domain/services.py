@@ -9,8 +9,8 @@ from typing import Any
 
 from .models import TemplateInstance
 
-ITEM_PLACEHOLDER_PATTERN = re.compile(r"\{@([A-Za-z0-9_\-]+)(?:\.(display|value|query))?\}")
-PARAMETER_PLACEHOLDER_PATTERN = re.compile(r"\{\$([A-Za-z0-9_\-]+)(?:\.(display|value|query))?\}")
+ITEM_PLACEHOLDER_PATTERN = re.compile(r"\{@([A-Za-z0-9_\-]+)(?:\.(label|value|query))?\}")
+PARAMETER_PLACEHOLDER_PATTERN = re.compile(r"\{\$([A-Za-z0-9_\-]+)(?:\.(label|value|query))?\}")
 SQL_EQUALS_PATTERN = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=\s*(.+?)\s*$")
 
 
@@ -496,7 +496,7 @@ def _collect_catalog_instance_parameters(catalog: dict[str, Any]) -> list[dict[s
 
 def _render_item_placeholder(match: re.Match[str], item_lookup: dict[str, dict[str, Any]]) -> str:
     item_id = match.group(1)
-    channel = match.group(2) or "display"
+    channel = match.group(2) or "label"
     item = item_lookup.get(item_id)
     if not item:
         return ""
@@ -506,13 +506,13 @@ def _render_item_placeholder(match: re.Match[str], item_lookup: dict[str, dict[s
 
 def _render_parameter_placeholder(match: re.Match[str], parameter_values: dict[str, list[dict[str, Any]]]) -> str:
     parameter_id = match.group(1)
-    channel = match.group(2) or "display"
+    channel = match.group(2) or "label"
     values = _normalize_parameter_value_list(parameter_values.get(parameter_id) or [])
     return _render_value_channel(values, channel)
 
 
 def _render_value_channel(values: list[dict[str, Any]], channel: str) -> str:
-    rendered = [str(value.get(channel) or value.get("display") or "") for value in values]
+    rendered = [str(value.get(channel) or value.get("label") or "") for value in values]
     return "、".join([text for text in rendered if text])
 
 
@@ -562,10 +562,10 @@ def _normalize_parameter_value_list(values: Any) -> list[dict[str, Any]]:
 def _normalize_parameter_value(value: Any) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         return None
-    if not {"display", "value", "query"}.issubset(value.keys()):
+    if not {"label", "value", "query"}.issubset(value.keys()):
         return None
     return {
-        "display": value.get("display"),
+        "label": value.get("label"),
         "value": value.get("value"),
         "query": value.get("query"),
     }
