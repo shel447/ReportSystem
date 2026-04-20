@@ -81,7 +81,60 @@ describe("ReportDetailPage", () => {
                 revision: 3,
                 parameters: [],
                 parameterConfirmation: { missingParameterIds: [], confirmed: true },
-                catalogs: [],
+                catalogs: [
+                  {
+                    id: "catalog_overview",
+                    title: "运行概览",
+                    renderedTitle: "运行概览",
+                    sections: [
+                      {
+                        id: "section_device_profile",
+                        outline: {
+                          requirement: "分析总部网络的设备巡检结果。",
+                          renderedRequirement: "分析总部网络的设备巡检结果。",
+                          items: [],
+                        },
+                        runtimeContext: { bindings: [] },
+                        skeletonStatus: "reusable",
+                        userEdited: false,
+                        content: {
+                          datasets: [
+                            {
+                              id: "dataset_device_basic",
+                              name: "设备基础信息",
+                              sourceType: "sql",
+                              sourceRef: "sql.network.device_basic",
+                            },
+                          ],
+                          presentation: {
+                            kind: "mixed",
+                            blocks: [
+                              {
+                                id: "block_device_inspection",
+                                type: "composite_table",
+                                title: "核心设备巡检信息",
+                                parts: [
+                                  {
+                                    id: "part_basic_info",
+                                    title: "基础信息",
+                                    sourceType: "query",
+                                    datasetId: "dataset_device_basic",
+                                    tableLayout: { kind: "table", showHeader: true },
+                                    runtimeContext: {
+                                      status: "pending",
+                                      resolvedDatasetId: "dataset_device_basic",
+                                      resolvedQuery: "scope_id = 'hq-network'",
+                                    },
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        },
+                      },
+                    ],
+                  },
+                ],
                 documents: [],
                 createdAt: "2026-04-18T09:00:00Z",
                 updatedAt: "2026-04-18T09:00:00Z",
@@ -104,5 +157,6 @@ describe("ReportDetailPage", () => {
     expect(screen.getByText("模板实例快照")).toBeInTheDocument();
     expect(screen.getByText("正式报告内容")).toBeInTheDocument();
     expect(screen.getAllByText(/总览/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("核心设备巡检信息")).toBeInTheDocument();
   });
 });

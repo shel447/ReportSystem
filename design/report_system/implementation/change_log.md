@@ -170,3 +170,22 @@
 - 验证要求：
   - 后端测试锁住 `composite_table` 模板块成功编译为 DSL `compositeTable`
   - 前端类型与编辑态允许保留 `parts[]` 结构，不再把该 block 视为非法类型
+
+## 2026-04-20 `TemplateInstance.section.content` 与复合表 part 运行态
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-04-20 `TemplateInstance` 正式承载 `CompositeTable` 实例态”
+- 实现设计调整：
+  - `TemplateInstance.section` 正式补齐 `content`，并保持与模板 `section.content` 同构
+  - `instantiate_template_instance` 在实例化章节时，不再只构造 `outline + runtimeContext`，而是同步物化 `section.content.datasets/presentation.blocks`
+  - `composite_table.parts[]` 在实例态保留原顺序与结构；`query part`、`summary part` 统一补最小 `runtimeContext`
+  - 前端 `TemplateInstance` 类型与报告详情页同步接受并展示 `section.content`
+  - `template-instance.schema.json` 与 `template-instance.example.json` 同步收口，保证设计资料包内部自洽
+- 受影响的实现设计主题：
+  - [统一对话实现.md](统一对话实现.md)
+  - [报告运行时实现.md](报告运行时实现.md)
+  - [前端实现.md](前端实现.md)
+- 验证要求：
+  - 后端测试锁住 `TemplateInstance.section.content` 不丢失
+  - 后端测试锁住 `query/summary part.runtimeContext` 最小字段
+  - 前端测试锁住报告详情页能读取模板实例中的内容块信息

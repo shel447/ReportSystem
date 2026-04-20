@@ -1,6 +1,41 @@
-import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition, ParameterScalar } from "../templates/types";
+import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition, ParameterScalar, DatasetDefinition } from "../templates/types";
 
 export type TemplateInstanceRequirementItem = RequirementItemDefinition;
+
+export type TemplateInstanceCompositeTablePart = {
+  id: string;
+  title: string;
+  description?: string;
+  sourceType: "query" | "summary";
+  datasetId?: string;
+  summarySpec?: {
+    partIds: string[];
+    rows: Array<{ id: string; title: string }>;
+    prompt?: string;
+  };
+  tableLayout?: {
+    kind: "table";
+    showHeader?: boolean;
+    columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
+  };
+  runtimeContext: {
+    status: "pending" | "running" | "finished" | "failed";
+    resolvedDatasetId?: string;
+    resolvedQuery?: string;
+    resolvedPartIds?: string[];
+    prompt?: string;
+    warnings?: Array<{ code: string; message: string; targetId?: string }>;
+  };
+};
+
+export type TemplateInstancePresentationBlock = {
+  id: string;
+  type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown" | "composite_table";
+  title?: string;
+  datasetId?: string;
+  description?: string;
+  parts?: TemplateInstanceCompositeTablePart[];
+};
 
 export type TemplateInstanceSection = {
   id: string;
@@ -14,6 +49,13 @@ export type TemplateInstanceSection = {
     requirement: string;
     renderedRequirement?: string;
     items: TemplateInstanceRequirementItem[];
+  };
+  content: {
+    datasets?: DatasetDefinition[];
+    presentation: {
+      kind: "narrative" | "table" | "chart" | "mixed";
+      blocks: TemplateInstancePresentationBlock[];
+    };
   };
   runtimeContext: {
     bindings: Array<{

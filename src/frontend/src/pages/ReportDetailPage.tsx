@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 
+import type { TemplateInstanceCatalog, TemplateInstanceSection } from "../entities/chat/types";
 import { fetchReport, generateReportDocuments } from "../entities/reports/api";
 import type { DocumentGenerationResponse } from "../entities/reports/types";
 import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
@@ -298,23 +299,37 @@ function readCatalogs(report: Record<string, unknown>): ReportCatalogView[] {
   });
 }
 
-function TemplateInstanceCatalogDetail({ catalog }: { catalog: any }) {
+function TemplateInstanceCatalogDetail({ catalog }: { catalog: TemplateInstanceCatalog }) {
   return (
     <div className="template-editor-subcard">
       <div className="template-inline-group__header">
         <strong>{catalog.renderedTitle}</strong>
         <span>{(catalog.sections ?? []).length} 个章节</span>
       </div>
-      {(catalog.sections ?? []).map((section: any) => (
-        <div key={section.id} className="template-inline-group">
-          <div className="template-inline-group__header">
-            <strong>{section.id}</strong>
-            <span>{section.skeletonStatus}</span>
-          </div>
-          <p>{section.outline?.renderedRequirement ?? section.outline?.requirement ?? "无诉求"}</p>
+      {(catalog.sections ?? []).map((section) => <TemplateInstanceSectionDetail key={section.id} section={section} />)}
+      {(catalog.subCatalogs ?? []).map((subCatalog) => <TemplateInstanceCatalogDetail key={subCatalog.id} catalog={subCatalog} />)}
+    </div>
+  );
+}
+
+function TemplateInstanceSectionDetail({ section }: { section: TemplateInstanceSection }) {
+  return (
+    <div className="template-inline-group">
+      <div className="template-inline-group__header">
+        <strong>{section.id}</strong>
+        <span>{section.skeletonStatus}</span>
+      </div>
+      <p>{section.outline?.renderedRequirement ?? section.outline?.requirement ?? "无诉求"}</p>
+      {section.content.presentation.blocks.length ? (
+        <div className="stack-list">
+          {section.content.presentation.blocks.map((block) => (
+            <div key={block.id} className="template-inline-row template-inline-row--wide">
+              <strong>{block.title ?? block.id}</strong>
+              <span>{block.type === "composite_table" ? `composite_table / ${(block.parts ?? []).length} 个 part` : block.type}</span>
+            </div>
+          ))}
         </div>
-      ))}
-      {(catalog.subCatalogs ?? []).map((subCatalog: any) => <TemplateInstanceCatalogDetail key={subCatalog.id} catalog={subCatalog} />)}
+      ) : null}
     </div>
   );
 }

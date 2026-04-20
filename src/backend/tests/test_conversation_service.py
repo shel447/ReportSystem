@@ -86,6 +86,119 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
 
         self.assertEqual([item["id"] for item in missing], ["scope"])
 
+    def test_instantiate_template_instance_preserves_section_content_and_part_runtime_context(self):
+        template = {
+            "id": "tpl_composite_instance",
+            "category": "network_operations",
+            "name": "复合表实例模板",
+            "description": "验证模板实例保留 section.content。",
+            "schemaVersion": "template.v3",
+            "parameters": [
+                {
+                    "id": "scope",
+                    "label": "分析对象",
+                    "inputType": "dynamic",
+                    "required": True,
+                    "multi": False,
+                    "interactionMode": "form",
+                }
+            ],
+            "catalogs": [
+                {
+                    "id": "catalog_overview",
+                    "title": "运行概览",
+                    "sections": [
+                        {
+                            "id": "section_device_profile",
+                            "outline": {
+                                "requirement": "分析{@scope_item}的设备巡检结果。",
+                                "items": [
+                                    {
+                                        "id": "scope_item",
+                                        "label": "分析对象",
+                                        "kind": "search_target",
+                                        "required": True,
+                                        "sourceParameterId": "scope",
+                                    }
+                                ],
+                            },
+                            "content": {
+                                "datasets": [
+                                    {
+                                        "id": "dataset_device_basic",
+                                        "name": "设备基础信息",
+                                        "sourceType": "sql",
+                                        "sourceRef": "sql.network.device_basic",
+                                    }
+                                ],
+                                "presentation": {
+                                    "kind": "mixed",
+                                    "blocks": [
+                                        {
+                                            "id": "block_device_inspection",
+                                            "type": "composite_table",
+                                            "title": "核心设备巡检信息",
+                                            "parts": [
+                                                {
+                                                    "id": "part_basic_info",
+                                                    "title": "基础信息",
+                                                    "sourceType": "query",
+                                                    "datasetId": "dataset_device_basic",
+                                                    "tableLayout": {"kind": "table", "showHeader": True},
+                                                },
+                                                {
+                                                    "id": "part_inspection_summary",
+                                                    "title": "巡检问题及建议",
+                                                    "sourceType": "summary",
+                                                    "summarySpec": {
+                                                        "partIds": ["part_basic_info"],
+                                                        "rows": [{"id": "major_issue", "title": "主要问题"}],
+                                                        "prompt": "总结问题。",
+                                                    },
+                                                },
+                                            ],
+                                        }
+                                    ],
+                                },
+                            },
+                        }
+                    ],
+                }
+            ],
+        }
+
+        instance = instantiate_template_instance(
+            instance_id="ti_002",
+            template=template,
+            conversation_id="conv_001",
+            chat_id="chat_001",
+            status="collecting_parameters",
+            capture_stage="fill_params",
+            revision=1,
+            parameter_values={
+                "scope": [
+                    {
+                        "label": "总部网络",
+                        "value": "hq-network",
+                        "query": "scope_id = 'hq-network'",
+                    }
+                ]
+            },
+        )
+
+        section = instance.catalogs[0]["sections"][0]
+        composite_block = section["content"]["presentation"]["blocks"][0]
+        query_part = composite_block["parts"][0]
+        summary_part = composite_block["parts"][1]
+
+        self.assertEqual(section["content"]["datasets"][0]["id"], "dataset_device_basic")
+        self.assertEqual(query_part["runtimeContext"]["status"], "pending")
+        self.assertEqual(query_part["runtimeContext"]["resolvedDatasetId"], "dataset_device_basic")
+        self.assertEqual(query_part["runtimeContext"]["resolvedQuery"], "scope_id = 'hq-network'")
+        self.assertEqual(summary_part["runtimeContext"]["status"], "pending")
+        self.assertEqual(summary_part["runtimeContext"]["resolvedPartIds"], ["part_basic_info"])
+        self.assertEqual(summary_part["runtimeContext"]["prompt"], "总结问题。")
+
 
 class _InMemoryConversation:
     def __init__(self, conversation_id: str, user_id: str) -> None:

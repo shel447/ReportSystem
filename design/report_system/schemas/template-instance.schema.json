@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./template-instance.schema.json",
   "title": "TemplateInstance",
-  "description": "模板实例正式定义。模板实例是对话运行态对象，主体保持 catalogs -> (subCatalogs)* -> sections 层级；参数与诉求统一复用渐进式核心模型。",
+  "description": "模板实例正式定义。模板实例是对话运行态对象，主体保持 catalogs -> (subCatalogs)* -> sections 层级；参数与诉求统一复用渐进式核心模型。section.content 保留实例化后的内容视图，复合表在 block/part 级维护运行态。",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -394,6 +394,132 @@
         }
       }
     },
+    "DatasetDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceType",
+        "sourceRef"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "sourceType": {
+          "type": "string",
+          "enum": ["sql", "api", "llm", "compose"]
+        },
+        "sourceRef": { "type": "string" },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "description": { "type": "string" }
+      }
+    },
+    "TemplateInstanceSectionContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presentation"],
+      "properties": {
+        "datasets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DatasetDefinition" }
+        },
+        "presentation": { "$ref": "#/$defs/TemplateInstancePresentationDefinition" }
+      }
+    },
+    "TemplateInstancePresentationDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "blocks"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["narrative", "table", "chart", "mixed"]
+        },
+        "blocks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TemplateInstancePresentationBlock" }
+        }
+      }
+    },
+    "TemplateInstancePresentationBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["paragraph", "bullet", "kpi", "table", "chart", "markdown", "composite_table"]
+        },
+        "title": { "type": "string" },
+        "datasetId": { "type": "string" },
+        "description": { "type": "string" },
+        "parts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/TemplateInstanceCompositeTablePart" },
+          "minItems": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "composite_table" } } },
+          "then": { "required": ["parts"] }
+        }
+      ]
+    },
+    "TemplateInstanceCompositeTablePart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "sourceType", "runtimeContext"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "sourceType": {
+          "type": "string",
+          "enum": ["query", "summary"]
+        },
+        "datasetId": { "type": "string" },
+        "summarySpec": { "$ref": "./report-template.schema.json#/$defs/SummaryTableSpec" },
+        "tableLayout": { "$ref": "./report-template.schema.json#/$defs/CompositeTablePartLayout" },
+        "runtimeContext": { "$ref": "#/$defs/PartRuntimeContext" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "sourceType": { "const": "query" } } },
+          "then": { "required": ["datasetId"] }
+        },
+        {
+          "if": { "properties": { "sourceType": { "const": "summary" } } },
+          "then": { "required": ["summarySpec"] }
+        }
+      ]
+    },
+    "PartRuntimeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "finished", "failed"]
+        },
+        "resolvedDatasetId": { "type": "string" },
+        "resolvedQuery": { "type": "string" },
+        "resolvedPartIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "prompt": { "type": "string" },
+        "warnings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/WarningItem" }
+        }
+      }
+    },
     "SectionSkeletonStatus": {
       "type": "string",
       "enum": [
@@ -408,6 +534,7 @@
       "required": [
         "id",
         "outline",
+        "content",
         "runtimeContext",
         "skeletonStatus",
         "userEdited"
@@ -434,6 +561,9 @@
         },
         "outline": {
           "$ref": "#/$defs/Outline"
+        },
+        "content": {
+          "$ref": "#/$defs/TemplateInstanceSectionContent"
         },
         "skeletonStatus": {
           "$ref": "#/$defs/SectionSkeletonStatus"

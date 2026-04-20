@@ -143,6 +143,33 @@
               }
             ]
           },
+          "content": {
+            "datasets": [
+              {
+                "id": "dataset_daily_summary",
+                "name": "运行概览数据集",
+                "sourceType": "sql",
+                "sourceRef": "sql.network.daily_summary"
+              }
+            ],
+            "presentation": {
+              "kind": "mixed",
+              "blocks": [
+                {
+                  "id": "block_summary_text",
+                  "type": "paragraph",
+                  "title": "态势综述",
+                  "datasetId": "dataset_daily_summary"
+                },
+                {
+                  "id": "block_summary_chart",
+                  "type": "chart",
+                  "title": "关键指标趋势",
+                  "datasetId": "dataset_daily_summary"
+                }
+              ]
+            }
+          },
           "skeletonStatus": "reusable",
           "userEdited": false,
           "runtimeContext": {
@@ -304,6 +331,33 @@
                     "valueSource": "parameter_ref"
                   }
                 ]
+              },
+              "content": {
+                "datasets": [
+                  {
+                    "id": "dataset_scope_trend",
+                    "name": "对象趋势数据集",
+                    "sourceType": "sql",
+                    "sourceRef": "sql.network.scope_trend"
+                  }
+                ],
+                "presentation": {
+                  "kind": "mixed",
+                  "blocks": [
+                    {
+                      "id": "block_scope_trend_chart",
+                      "type": "chart",
+                      "title": "趋势图",
+                      "datasetId": "dataset_scope_trend"
+                    },
+                    {
+                      "id": "block_scope_trend_text",
+                      "type": "paragraph",
+                      "title": "趋势结论",
+                      "datasetId": "dataset_scope_trend"
+                    }
+                  ]
+                }
               },
               "skeletonStatus": "reusable",
               "userEdited": false,

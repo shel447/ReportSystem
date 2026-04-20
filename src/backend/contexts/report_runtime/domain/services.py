@@ -353,6 +353,7 @@ def build_section_instance(
     ]
     item_lookup = {item["id"]: item for item in item_instances}
     rendered_requirement = render_requirement_text(str(outline.get("requirement") or ""), item_lookup, visible_values)
+    runtime_bindings = build_execution_bindings(section=section, item_instances=item_instances)
     built: dict[str, Any] = {
         "id": section.get("id"),
         "outline": {
@@ -360,8 +361,9 @@ def build_section_instance(
             "renderedRequirement": rendered_requirement,
             "items": item_instances,
         },
+        "content": materialize_section_content(section=section, runtime_bindings=runtime_bindings),
         "runtimeContext": {
-            "bindings": build_execution_bindings(section=section, item_instances=item_instances),
+            "bindings": runtime_bindings,
         },
         "skeletonStatus": "reusable",
         "userEdited": False,
@@ -373,6 +375,81 @@ def build_section_instance(
     if foreach_context:
         built["foreachContext"] = foreach_context
     return built
+
+
+def materialize_section_content(*, section: dict[str, Any], runtime_bindings: list[dict[str, Any]]) -> dict[str, Any]:
+    content = section.get("content") if isinstance(section.get("content"), dict) else {}
+    datasets = copy.deepcopy(list(content.get("datasets") or []))
+    presentation = content.get("presentation") if isinstance(content.get("presentation"), dict) else {}
+    blocks = [_materialize_presentation_block(block, runtime_bindings=runtime_bindings) for block in list(presentation.get("blocks") or [])]
+    return {
+        "datasets": datasets,
+        "presentation": {
+            "kind": presentation.get("kind") or "mixed",
+            "blocks": blocks,
+        },
+    }
+
+
+def _materialize_presentation_block(block: dict[str, Any], *, runtime_bindings: list[dict[str, Any]]) -> dict[str, Any]:
+    if str(block.get("type") or "") != "composite_table":
+        return copy.deepcopy(block)
+
+    built = {
+        "id": block.get("id"),
+        "type": block.get("type"),
+        "parts": [_materialize_composite_table_part(part, runtime_bindings=runtime_bindings) for part in list(block.get("parts") or [])],
+    }
+    if block.get("title") is not None:
+        built["title"] = block.get("title")
+    if block.get("description") is not None:
+        built["description"] = block.get("description")
+    return built
+
+
+def _materialize_composite_table_part(part: dict[str, Any], *, runtime_bindings: list[dict[str, Any]]) -> dict[str, Any]:
+    built = {
+        "id": part.get("id"),
+        "title": part.get("title"),
+        "sourceType": part.get("sourceType"),
+        "runtimeContext": _build_part_runtime_context(part=part, runtime_bindings=runtime_bindings),
+    }
+    if part.get("description") is not None:
+        built["description"] = part.get("description")
+    if part.get("datasetId") is not None:
+        built["datasetId"] = part.get("datasetId")
+    if isinstance(part.get("summarySpec"), dict):
+        built["summarySpec"] = copy.deepcopy(part.get("summarySpec"))
+    if isinstance(part.get("tableLayout"), dict):
+        built["tableLayout"] = copy.deepcopy(part.get("tableLayout"))
+    return built
+
+
+def _build_part_runtime_context(*, part: dict[str, Any], runtime_bindings: list[dict[str, Any]]) -> dict[str, Any]:
+    source_type = str(part.get("sourceType") or "")
+    if source_type == "summary":
+        runtime_context = {
+            "status": "pending",
+            "resolvedPartIds": list(((part.get("summarySpec") or {}).get("partIds")) or []),
+        }
+        prompt = str(((part.get("summarySpec") or {}).get("prompt")) or "").strip()
+        if prompt:
+            runtime_context["prompt"] = prompt
+        return runtime_context
+
+    dataset_id = str(part.get("datasetId") or "")
+    resolved_queries = [
+        str(binding.get("resolvedQuery") or "").strip()
+        for binding in runtime_bindings
+        if str(binding.get("targetRef") or "").startswith(f"{dataset_id}.") and str(binding.get("resolvedQuery") or "").strip()
+    ]
+    runtime_context = {
+        "status": "pending",
+        "resolvedDatasetId": dataset_id,
+    }
+    if resolved_queries:
+        runtime_context["resolvedQuery"] = " AND ".join(f"({query})" for query in resolved_queries) if len(resolved_queries) > 1 else resolved_queries[0]
+    return runtime_context
 
 
 def build_requirement_item_instance(*, item: dict[str, Any], visible_values: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
