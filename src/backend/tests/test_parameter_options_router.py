@@ -3,6 +3,8 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
+from backend.contexts.template_catalog.application.models import ParameterOptionsResult
+from backend.contexts.template_catalog.domain.models import ParameterValue
 from backend.routers.parameter_options import ParameterOptionsResolveRequest, resolve_parameter_options
 
 
@@ -12,10 +14,10 @@ class ParameterOptionsRouterTests(unittest.TestCase):
             "FakeService",
             (),
             {
-                "resolve": lambda self, **_kwargs: {
-                    "options": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
-                    "defaultValue": [],
-                }
+                "resolve": lambda self, **_kwargs: ParameterOptionsResult(
+                    options=[ParameterValue(label="总部网络", value="hq-network", query="scope_id = 'hq-network'")],
+                    default_value=[],
+                )
             },
         )()
 

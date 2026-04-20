@@ -9,6 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..contexts.template_catalog.application.models import (
+    template_import_preview_to_dict,
+    template_summary_to_dict,
+)
+from ..contexts.template_catalog.domain.models import report_template_from_dict, report_template_to_dict
 from ..infrastructure.dependencies import build_template_catalog_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
@@ -35,7 +40,7 @@ class TemplateImportPreviewRequest(BaseModel):
 def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
     service = build_template_catalog_service(db)
     try:
-        return service.create_template(data.model_dump())
+        return report_template_to_dict(service.create_template(report_template_from_dict(data.model_dump())))
     except ConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValidationError as exc:
@@ -44,13 +49,13 @@ def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
 
 @router.get("")
 def list_templates(db: Session = Depends(get_db)):
-    return build_template_catalog_service(db).list_templates()
+    return [template_summary_to_dict(item) for item in build_template_catalog_service(db).list_templates()]
 
 
 @router.get("/{template_id}")
 def get_template(template_id: str, db: Session = Depends(get_db)):
     try:
-        return build_template_catalog_service(db).get_template(template_id)
+        return report_template_to_dict(build_template_catalog_service(db).get_template(template_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -59,7 +64,7 @@ def get_template(template_id: str, db: Session = Depends(get_db)):
 def update_template(template_id: str, data: TemplateUpsertRequest, db: Session = Depends(get_db)):
     service = build_template_catalog_service(db)
     try:
-        return service.update_template(template_id, data.model_dump())
+        return report_template_to_dict(service.update_template(template_id, report_template_from_dict(data.model_dump())))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConflictError as exc:
@@ -80,7 +85,7 @@ def delete_template(template_id: str, db: Session = Depends(get_db)):
 @router.post("/import/preview")
 def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
     try:
-        return build_template_catalog_service(db).preview_import_template(data.content)
+        return template_import_preview_to_dict(build_template_catalog_service(db).preview_import_template(data.content))
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -92,7 +97,7 @@ def export_template_definition(template_id: str, db: Session = Depends(get_db)):
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return Response(
-        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        content=json.dumps(report_template_to_dict(payload), ensure_ascii=False, indent=2),
         media_type="application/json",
         headers={"Content-Disposition": _build_download_header(filename)},
     )

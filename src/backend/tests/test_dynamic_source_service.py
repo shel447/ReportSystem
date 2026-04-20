@@ -37,10 +37,10 @@ class DynamicSourceServiceTests(unittest.TestCase):
             source="api:/sites/list",
             context_values={},
         )
-        self.assertTrue(payload["options"])
-        self.assertIn("label", payload["options"][0])
-        self.assertIn("value", payload["options"][0])
-        self.assertIn("query", payload["options"][0])
+        self.assertTrue(payload.options)
+        self.assertTrue(hasattr(payload.options[0], "label"))
+        self.assertTrue(hasattr(payload.options[0], "value"))
+        self.assertTrue(hasattr(payload.options[0], "query"))
 
 
 if __name__ == "__main__":

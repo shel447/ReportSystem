@@ -37,6 +37,7 @@ from .models import (
     TemplateInstancePresentationDefinition,
     TemplateInstanceSection,
     TemplateInstanceSectionContent,
+    WarningItem,
     template_instance_to_dict,
 )
 
@@ -85,21 +86,21 @@ def parameters_by_id(parameters: list[Parameter] | None) -> dict[str, Parameter]
 def instantiate_template_instance(
     *,
     instance_id: str,
-    template: ReportTemplate | dict[str, Any],
+    template: ReportTemplate,
     conversation_id: str,
     chat_id: str | None,
     status: str,
     capture_stage: str,
     revision: int,
-    parameter_values: dict[str, list[ParameterValue] | list[dict[str, Any]]],
-    current_parameters: list[Parameter] | list[dict[str, Any]] | None = None,
-    warnings: list[dict[str, Any]] | None = None,
+    parameter_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None = None,
+    warnings: list[WarningItem] | None = None,
     created_at: datetime | None = None,
     updated_at: datetime | None = None,
 ) -> TemplateInstance:
     """基于模板与当前参数值创建标准运行时聚合。"""
-    template_model = _ensure_template(template)
-    current_parameter_models = [_ensure_parameter(item) for item in list(current_parameters or [])]
+    template_model = copy.deepcopy(template)
+    current_parameter_models = [copy.deepcopy(item) for item in list(current_parameters or [])]
     root_parameter_definitions = list(template_model.parameters)
     all_parameter_definitions = collect_template_parameters(template_model)
     all_current_parameters = collect_instance_parameters(parameters=current_parameter_models, catalogs=None)
@@ -144,7 +145,7 @@ def instantiate_template_instance(
         parameters=root_parameters,
         parameter_confirmation=confirmation,
         catalogs=catalogs,
-        warnings=[] if warnings is None else [copy.deepcopy(item) for item in warnings],
+        warnings=[copy.deepcopy(item) for item in list(warnings or [])],
         created_at=created_at or now,
         updated_at=updated_at or now,
     )
@@ -554,8 +555,8 @@ def serialize_template_instance(instance: TemplateInstance) -> dict[str, Any]:
     return template_instance_to_dict(instance)
 
 
-def collect_template_parameters(template: ReportTemplate | dict[str, Any]) -> list[Parameter]:
-    template_model = _ensure_template(template)
+def collect_template_parameters(template: ReportTemplate) -> list[Parameter]:
+    template_model = copy.deepcopy(template)
     parameters: list[Parameter] = [copy.deepcopy(item) for item in template_model.parameters]
     for catalog in template_model.catalogs:
         parameters.extend(_collect_catalog_template_parameters(catalog))
@@ -663,18 +664,6 @@ def _normalize_parameter_value(value: Any) -> ParameterValue | None:
             query=value.get("query"),
         )
     return None
-
-
-def _ensure_template(template: ReportTemplate | dict[str, Any]) -> ReportTemplate:
-    if isinstance(template, ReportTemplate):
-        return copy.deepcopy(template)
-    return report_template_from_dict(template)
-
-
-def _ensure_parameter(parameter: Parameter | dict[str, Any]) -> Parameter:
-    if isinstance(parameter, Parameter):
-        return copy.deepcopy(parameter)
-    return parameter_from_dict(parameter)
 
 
 def _isoformat(value: datetime | None) -> str | None:

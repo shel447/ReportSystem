@@ -4,46 +4,77 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from backend.contexts.conversation.application.models import (
+    ChatAnswerEnvelope,
+    ChatAsk,
+    ChatCommand,
+    ChatResponse,
+)
+from backend.contexts.report_runtime.application.models import GenerationProgressView, ReportAnswerView
+from backend.contexts.report_runtime.domain.models import (
+    MarkdownComponent,
+    MarkdownDataProperties,
+    ParameterConfirmation,
+    ReportBasicInfo,
+    ReportCatalog,
+    ReportDsl,
+    ReportLayout,
+    ReportSection,
+    TemplateInstance,
+    GridDefinition,
+    template_instance_to_dict,
+)
+from backend.contexts.template_catalog.domain.models import Parameter, ReportTemplate
 from backend.infrastructure.persistence.database import get_db
 from backend.routers.chat import router as chat_router
 from backend.shared.kernel.errors import ValidationError
 
 
 def _sample_template_instance(status: str = "ready_for_confirmation", capture_stage: str = "confirm_params"):
-    return {
-        "id": "ti_001",
-        "schemaVersion": "template-instance.vNext-draft",
-        "templateId": "tpl_network_daily",
-        "template": {
-            "id": "tpl_network_daily",
-            "category": "network_operations",
-            "name": "网络运行日报",
-            "description": "面向网络运维中心的统一日报模板。",
-            "schemaVersion": "template.v3",
-            "parameters": [],
-            "catalogs": [],
-        },
-        "conversationId": "conv_001",
-        "status": status,
-        "captureStage": capture_stage,
-        "revision": 2,
-        "parameters": [
-            {
-                "id": "scope",
-                "label": "分析对象",
-                "inputType": "dynamic",
-                "required": True,
-                "multi": True,
-                "interactionMode": "natural_language",
-                "source": "https://example.internal/api/network/scopes/options",
-                "values": [],
-            }
+    return TemplateInstance(
+        id="ti_001",
+        schema_version="template-instance.vNext-draft",
+        template_id="tpl_network_daily",
+        template=ReportTemplate(
+            id="tpl_network_daily",
+            category="network_operations",
+            name="网络运行日报",
+            description="面向网络运维中心的统一日报模板。",
+            schema_version="template.v3",
+        ),
+        conversation_id="conv_001",
+        chat_id="chat_003",
+        status=status,
+        capture_stage=capture_stage,
+        revision=2,
+        parameters=[
+            Parameter(
+                id="scope",
+                label="分析对象",
+                input_type="dynamic",
+                required=True,
+                multi=True,
+                interaction_mode="natural_language",
+                source="https://example.internal/api/network/scopes/options",
+            )
         ],
-        "parameterConfirmation": {"missingParameterIds": ["scope"], "confirmed": False},
-        "catalogs": [],
-        "createdAt": "2026-04-18T09:00:00Z",
-        "updatedAt": "2026-04-18T09:01:00Z",
-    }
+        parameter_confirmation=ParameterConfirmation(missing_parameter_ids=["scope"], confirmed=False),
+        catalogs=[],
+    )
+
+
+def _sample_report_dsl() -> ReportDsl:
+    return ReportDsl(
+        basic_info=ReportBasicInfo(
+            id="rpt_001",
+            schema_version="1.0.0",
+            mode="published",
+            status="Success",
+            name="网络运行日报",
+        ),
+        catalogs=[],
+        layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+    )
 
 
 class ChatContractApiTests(unittest.TestCase):
@@ -63,37 +94,26 @@ class ChatContractApiTests(unittest.TestCase):
             (),
             {
                 "list_sessions": lambda self, user_id: [],
-                "send_message": lambda self, data, user_id: {
-                    "conversationId": "conv_001",
-                    "chatId": "chat_001",
-                    "status": "waiting_user",
-                    "steps": [],
-                    "ask": {
-                        "status": "pending",
-                        "mode": "form",
-                        "type": "confirm_params",
-                        "title": "请确认报告诉求",
-                        "text": "请确认报告诉求后开始生成。",
-                        "parameters": [
-                            {
-                                "id": "scope",
-                                "label": "分析对象",
-                                "inputType": "dynamic",
-                                "required": True,
-                                "multi": True,
-                                "interactionMode": "natural_language",
-                                "source": "https://example.internal/api/network/scopes/options",
-                                "values": [],
-                            }
-                        ],
-                        "reportContext": {"templateInstance": _sample_template_instance()},
-                    },
-                    "answer": None,
-                    "errors": [],
-                    "requestId": "req_001",
-                    "timestamp": 1713427200000,
-                    "apiVersion": "v1",
-                }
+                "send_message": lambda self, data, user_id: ChatResponse(
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    status="waiting_user",
+                    steps=[],
+                    ask=ChatAsk(
+                        status="pending",
+                        mode="form",
+                        type="confirm_params",
+                        title="请确认报告诉求",
+                        text="请确认报告诉求后开始生成。",
+                        parameters=_sample_template_instance().parameters,
+                        template_instance=_sample_template_instance(),
+                    ),
+                    answer=None,
+                    errors=[],
+                    request_id="req_001",
+                    timestamp=1713427200000,
+                    api_version="v1",
+                )
             },
         )()
 
@@ -121,37 +141,37 @@ class ChatContractApiTests(unittest.TestCase):
             "FakeConversationService",
             (),
             {
-                "send_message": lambda self, data, user_id: {
-                    "conversationId": "conv_001",
-                    "chatId": "chat_002",
-                    "status": "finished",
-                    "steps": [],
-                    "ask": None,
-                    "answer": {
-                        "answerType": "REPORT",
-                        "answer": {
-                            "reportId": "rpt_001",
-                            "status": "generating",
-                            "report": {
-                                "basicInfo": {
-                                    "id": "rpt_001",
-                                    "schemaVersion": "1.0.0",
-                                    "mode": "draft",
-                                    "status": "Running",
-                                },
-                                "catalogs": [],
-                                "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
-                            },
-                            "templateInstance": _sample_template_instance(status="generating", capture_stage="generate_report"),
-                            "documents": [],
-                            "generationProgress": {"totalSections": 8, "completedSections": 2},
-                        },
-                    },
-                    "errors": [],
-                    "requestId": "req_002",
-                    "timestamp": 1713427200001,
-                    "apiVersion": "v1",
-                }
+                "send_message": lambda self, data, user_id: ChatResponse(
+                    conversation_id="conv_001",
+                    chat_id="chat_002",
+                    status="finished",
+                    steps=[],
+                    ask=None,
+                    answer=ChatAnswerEnvelope(
+                        answer_type="REPORT",
+                        report=ReportAnswerView(
+                            report_id="rpt_001",
+                            status="generating",
+                            report=ReportDsl(
+                                basic_info=ReportBasicInfo(
+                                    id="rpt_001",
+                                    schema_version="1.0.0",
+                                    mode="draft",
+                                    status="Running",
+                                ),
+                                catalogs=[],
+                                layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+                            ),
+                            template_instance=_sample_template_instance(status="generating", capture_stage="generate_report"),
+                            documents=[],
+                            generation_progress=GenerationProgressView(total_sections=8, completed_sections=2, total_catalogs=0, completed_catalogs=0),
+                        ),
+                    ),
+                    errors=[],
+                    request_id="req_002",
+                    timestamp=1713427200001,
+                    api_version="v1",
+                )
             },
         )()
 
@@ -167,7 +187,7 @@ class ChatContractApiTests(unittest.TestCase):
                         "type": "confirm_params",
                         "sourceChatId": "chat_001",
                         "parameters": {"scope": ["hq-network"]},
-                        "reportContext": {"templateInstance": _sample_template_instance()},
+                        "reportContext": {"templateInstance": template_instance_to_dict(_sample_template_instance())},
                     },
                 },
             )
@@ -213,55 +233,61 @@ class ChatContractApiTests(unittest.TestCase):
             "FakeConversationService",
             (),
             {
-                "send_message": lambda self, data, user_id: {
-                    "conversationId": "conv_001",
-                    "chatId": "chat_010",
-                    "status": "finished",
-                    "steps": [{"code": "generate_report", "status": "running"}],
-                    "ask": None,
-                    "answer": {
-                        "answerType": "REPORT",
-                        "answer": {
-                            "reportId": "rpt_001",
-                            "status": "available",
-                            "report": {
-                                "basicInfo": {
-                                    "id": "rpt_001",
-                                    "schemaVersion": "1.0.0",
-                                    "mode": "published",
-                                    "status": "Success",
-                                    "name": "网络运行日报",
-                                },
-                                "catalogs": [
-                                    {
-                                        "id": "catalog_1",
-                                        "name": "总览",
-                                        "sections": [
-                                            {
-                                                "id": "section_1",
-                                                "title": "总体运行态势",
-                                                "components": [{"id": "component_1", "type": "markdown"}],
-                                            }
+                "send_message": lambda self, data, user_id: ChatResponse(
+                    conversation_id="conv_001",
+                    chat_id="chat_010",
+                    status="finished",
+                    steps=[],
+                    ask=None,
+                    answer=ChatAnswerEnvelope(
+                        answer_type="REPORT",
+                        report=ReportAnswerView(
+                            report_id="rpt_001",
+                            status="available",
+                            report=ReportDsl(
+                                basic_info=ReportBasicInfo(
+                                    id="rpt_001",
+                                    schema_version="1.0.0",
+                                    mode="published",
+                                    status="Success",
+                                    name="网络运行日报",
+                                ),
+                                catalogs=[
+                                    ReportCatalog(
+                                        id="catalog_1",
+                                        name="总览",
+                                        sections=[
+                                            ReportSection(
+                                                id="section_1",
+                                                title="总体运行态势",
+                                                components=[
+                                                    MarkdownComponent(
+                                                        id="component_1",
+                                                        type="markdown",
+                                                        data_properties=MarkdownDataProperties(data_type="static", content="内容"),
+                                                    )
+                                                ],
+                                            )
                                         ],
-                                    }
+                                    )
                                 ],
-                                "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
-                            },
-                            "templateInstance": _sample_template_instance(status="completed", capture_stage="report_ready"),
-                            "documents": [],
-                            "generationProgress": {
-                                "totalSections": 1,
-                                "completedSections": 1,
-                                "totalCatalogs": 1,
-                                "completedCatalogs": 1,
-                            },
-                        },
-                    },
-                    "errors": [],
-                    "requestId": "req_stream",
-                    "timestamp": 1713427200200,
-                    "apiVersion": "v1",
-                }
+                                layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+                            ),
+                            template_instance=_sample_template_instance(status="completed", capture_stage="report_ready"),
+                            documents=[],
+                            generation_progress=GenerationProgressView(
+                                total_sections=1,
+                                completed_sections=1,
+                                total_catalogs=1,
+                                completed_catalogs=1,
+                            ),
+                        ),
+                    ),
+                    errors=[],
+                    request_id="req_stream",
+                    timestamp=1713427200200,
+                    api_version="v1",
+                )
             },
         )()
 
@@ -278,7 +304,7 @@ class ChatContractApiTests(unittest.TestCase):
                         "type": "confirm_params",
                         "sourceChatId": "chat_ask_009",
                         "parameters": {"scope": ["hq-network"]},
-                        "reportContext": {"templateInstance": _sample_template_instance()},
+                        "reportContext": {"templateInstance": template_instance_to_dict(_sample_template_instance())},
                     },
                 },
             ) as response:
@@ -295,6 +321,7 @@ class ChatContractApiTests(unittest.TestCase):
 
     def test_post_chat_reply_requires_source_chat_id(self):
         fake_service = type("FakeConversationService", (), {"send_message": lambda self, data, user_id: data})()
+        # 这里保持 422 路径，服务不会被真正执行。
 
         with patch("backend.routers.chat.build_conversation_service", return_value=fake_service):
             response = self.client.post(
@@ -320,18 +347,18 @@ class ChatContractApiTests(unittest.TestCase):
         class FakeConversationService:
             def send_message(self, data, user_id):
                 captured["data"] = data
-                return {
-                    "conversationId": "conv_001",
-                    "chatId": "chat_003",
-                    "status": "waiting_user",
-                    "steps": [],
-                    "ask": None,
-                    "answer": None,
-                    "errors": [],
-                    "requestId": "req_003",
-                    "timestamp": 1713427200000,
-                    "apiVersion": "v1",
-                }
+                return ChatResponse(
+                    conversation_id="conv_001",
+                    chat_id="chat_003",
+                    status="waiting_user",
+                    steps=[],
+                    ask=None,
+                    answer=None,
+                    errors=[],
+                    request_id="req_003",
+                    timestamp=1713427200000,
+                    api_version="v1",
+                )
 
         with patch("backend.routers.chat.build_conversation_service", return_value=FakeConversationService()):
             response = self.client.post(
@@ -354,7 +381,7 @@ class ChatContractApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(captured["data"]["reply"]["parameters"]["scope"], ["hq-network", "bj-network"])
+        self.assertEqual(captured["data"].reply.parameters["scope"], ["hq-network", "bj-network"])
 
 
 if __name__ == "__main__":

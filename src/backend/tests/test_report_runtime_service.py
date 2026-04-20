@@ -132,11 +132,12 @@ class ReportRuntimeServiceTests(unittest.TestCase):
 
         report = build_report_dsl(
             report_id="rpt_001",
-            template=SimpleNamespace(
-                name="网络运行日报",
-                description="面向网络运维中心的统一日报模板。",
+            template=ReportTemplate(
                 id="tpl_network_daily",
                 category="network_ops",
+                name="网络运行日报",
+                description="面向网络运维中心的统一日报模板。",
+                schema_version="template.v3",
             ),
             template_instance=instance,
         )

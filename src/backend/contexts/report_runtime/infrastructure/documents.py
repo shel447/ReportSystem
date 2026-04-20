@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from ....infrastructure.exporter.java_office import JavaOfficeExporterGateway
+from ..application.models import DownloadResolution, DocumentView, GeneratedArtifact, document_view_from_artifact
 from ..domain.models import DocumentArtifact, ReportDsl, report_dsl_to_dict
 
 DOCUMENTS_DIR = Path(__file__).resolve().parent / "generated_documents"
@@ -39,7 +39,7 @@ class ReportDocumentGateway:
         theme: str,
         strict_validation: bool = True,
         pdf_source: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> GeneratedArtifact:
         # 文稿格式直接由已冻结的报告结构在本地生成；办公文档格式则委托给
         # 导出服务，以便把渲染细节隔离在应用层之外。
         normalized_format = str(format_name or "").strip().lower()
@@ -56,32 +56,25 @@ class ReportDocumentGateway:
             pdf_source=pdf_source,
         )
 
-    def resolve_download(self, document: DocumentArtifact) -> tuple[dict[str, Any], str]:
+    def resolve_download(self, document: DocumentArtifact) -> DownloadResolution:
         path = Path(document.storage_key)
         if not path.exists():
             raise FileNotFoundError("Document file not found")
-        return self.serialize_document(document), str(path)
+        return DownloadResolution(document=self.serialize_document(document), absolute_path=str(path))
 
-    def serialize_document(self, document: DocumentArtifact) -> dict[str, Any]:
-        return {
-            "id": document.id,
-            "format": document.artifact_kind,
-            "mimeType": document.mime_type,
-            "fileName": Path(document.storage_key).name,
-            "downloadUrl": f"/rest/chatbi/v1/reports/{document.report_instance_id}/documents/{document.id}/download",
-            "status": document.status,
-        }
+    def serialize_document(self, document: DocumentArtifact) -> DocumentView:
+        return document_view_from_artifact(document)
 
-    def _generate_markdown(self, *, report: dict[str, Any], report_id: str, theme: str) -> dict[str, Any]:
+    def _generate_markdown(self, *, report: ReportDsl, report_id: str, theme: str) -> GeneratedArtifact:
         DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
         file_name = f"{report_id}-markdown{EXTENSIONS['markdown']}"
         file_path = DOCUMENTS_DIR / file_name
         file_path.write_text(_serialize_report_payload(report, theme=theme, format_name="markdown"), encoding="utf-8")
-        return {
-            "fileName": file_name,
-            "storageKey": str(file_path),
-            "mimeType": MIME_TYPES["markdown"],
-        }
+        return GeneratedArtifact(
+            file_name=file_name,
+            storage_key=str(file_path),
+            mime_type=MIME_TYPES["markdown"],
+        )
 
 
 def _serialize_report_payload(report: ReportDsl, *, theme: str, format_name: str) -> str:

@@ -8,6 +8,38 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-04-20 application/domain/infrastructure 函数签名类型收口
+
+- 背景问题：
+  - 模板、模板实例、报告 DSL 已经收口为 dataclass，但 `application/domain/infrastructure` 的不少函数参数和返回值仍然沿用 `dict[str, Any]`。
+  - 这会让业务阅读者无法仅凭函数签名判断输入输出模型，代码语义仍然依赖字符串 key 和记忆。
+- 实现设计调整：
+  - 收口原则固定为：
+    - 业务函数优先使用正式类型对象
+    - 原始 JSON 只留在 HTTP 路由、schema 校验、开放型上下文和表格行数据等边界位置
+  - `template_catalog.application`：
+    - `create_template/update_template/get_template/export_template/preview_import_template` 统一围绕 `ReportTemplate`、`TemplateImportPreview`、`TemplateSummary`
+    - 仓储 `create/update` 不再接受 `dict | ReportTemplate` 双轨输入
+  - `report_runtime.application`：
+    - `get_report_view/serialize_report_answer/generate_documents/resolve_download` 统一围绕 `ReportView`、`ReportAnswerView`、`DocumentGenerationResult`、`DownloadResolution`
+    - `build_report_dsl` 正式要求 `ReportTemplate`，不再在应用层做临时 `dict -> ReportTemplate` 兜底
+  - `conversation.application`：
+    - `send_message` 正式接收 `ChatCommand`，返回 `ChatResponse`
+    - 会话列表/详情/删除/派生统一围绕 `SessionSummary`、`SessionDetail`、`DeleteResult`、`ForkSessionResult`
+    - 聊天消息持久化边界统一围绕 `ConversationMessageContent/Action/Meta`
+  - `report_runtime.domain.services`：
+    - `instantiate_template_instance/collect_template_parameters` 等核心领域函数只接收正式 dataclass，不再接受 `dict | dataclass` 联合输入
+  - 路由层职责保持不变：
+    - 负责 `JSON <-> dataclass` 转换
+    - 不把裸字典继续传入业务服务
+- 验证要求：
+  - 新增后端测试锁住关键 service/repository 签名必须使用正式类型对象
+  - 路由测试和应用服务测试同步改为以正式 dataclass 作为 fake service 输入输出
+  - 全量验证基线维持：
+    - `python -m pytest src/backend/tests -q`
+    - `npm test`
+    - `npm run build`
+
 ## 2026-04-19 scoped 参数运行时修复
 
 - 关联提交：

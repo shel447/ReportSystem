@@ -1,11 +1,34 @@
 import unittest
+from copy import deepcopy
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 
+from backend.contexts.conversation.application.models import (
+    ChatAnswerEnvelope,
+    ChatAsk,
+    ChatCommand,
+    ChatReply,
+    ChatResponse,
+    ConversationMessageAction,
+    ConversationMessageContent,
+    ConversationMessageMeta,
+    conversation_message_action_to_dict,
+    conversation_message_content_to_dict,
+    conversation_message_meta_to_dict,
+)
+from backend.contexts.report_runtime.application.models import GenerationProgressView, ReportAnswerView
 from backend.contexts.conversation.application.services import ConversationService, _missing_required_parameters
-from backend.contexts.report_runtime.domain.models import template_instance_to_dict
+from backend.contexts.report_runtime.domain.models import (
+    ParameterConfirmation,
+    ReportBasicInfo,
+    ReportDsl,
+    ReportLayout,
+    TemplateInstance,
+    GridDefinition,
+)
 from backend.contexts.report_runtime.domain.services import instantiate_template_instance
-from backend.contexts.template_catalog.domain.models import report_template_from_dict
+from backend.contexts.template_catalog.application.models import ParameterOptionsResult
+from backend.contexts.template_catalog.domain.models import ParameterValue, report_template_from_dict
 
 
 def _service():
@@ -15,7 +38,7 @@ def _service():
         template_catalog_service=SimpleNamespace(),
         template_repository=SimpleNamespace(),
         runtime_service=SimpleNamespace(),
-        parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: {"options": []}),
+        parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
         db=None,
     )
 
@@ -64,7 +87,7 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
     def test_extract_parameter_values_reads_section_scoped_parameters(self):
         service = _service()
 
-        values = service._extract_parameter_values(_scoped_template(), "请分析华东、华北的运行态势")
+        values = service._extract_parameter_values(report_template_from_dict(_scoped_template()), "请分析华东、华北的运行态势")
 
         self.assertIn("scope", values)
         self.assertEqual(values["scope"][0].label, "请分析华东、华北的运行态势")
@@ -87,7 +110,7 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
         self.assertEqual([item.id for item in missing], ["scope"])
 
     def test_instantiate_template_instance_preserves_section_content_and_part_runtime_context(self):
-        template = {
+        template = report_template_from_dict({
             "id": "tpl_composite_instance",
             "category": "network_operations",
             "name": "复合表实例模板",
@@ -165,7 +188,7 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
                     ],
                 }
             ],
-        }
+        })
 
         instance = instantiate_template_instance(
             instance_id="ti_002",
@@ -177,11 +200,7 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
             revision=1,
             parameter_values={
                 "scope": [
-                    {
-                        "label": "总部网络",
-                        "value": "hq-network",
-                        "query": "scope_id = 'hq-network'",
-                    }
+                    ParameterValue(label="总部网络", value="hq-network", query="scope_id = 'hq-network'")
                 ]
             },
         )
@@ -253,8 +272,26 @@ class _ChatRepository:
     def __init__(self) -> None:
         self.rows: list[_InMemoryChat] = []
 
-    def append_message(self, *, conversation_id: str, user_id: str, role: str, content: dict, action=None, meta=None, chat_id=None):
-        row = _InMemoryChat(chat_id or f"chat_{len(self.rows) + 1}", conversation_id, user_id, role, content, action, meta)
+    def append_message(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        role: str,
+        content: ConversationMessageContent,
+        action: ConversationMessageAction | None = None,
+        meta: ConversationMessageMeta | None = None,
+        chat_id=None,
+    ):
+        row = _InMemoryChat(
+            chat_id or f"chat_{len(self.rows) + 1}",
+            conversation_id,
+            user_id,
+            role,
+            conversation_message_content_to_dict(content),
+            conversation_message_action_to_dict(action),
+            conversation_message_meta_to_dict(meta),
+        )
         self.rows.append(row)
         return row
 
@@ -281,25 +318,37 @@ class _RuntimeService:
         return self.instance
 
     def persist_template_instance(self, instance, *, user_id: str):
-        from backend.contexts.report_runtime.domain.services import serialize_template_instance
-
-        self.instance = serialize_template_instance(instance)
+        self.instance = deepcopy(instance)
         return self.instance
 
     def generate_report_from_template_instance(self, **kwargs):
-        return {
-            "reportId": "rpt_001",
-            "status": "available",
-            "report": {"basicInfo": {"id": "rpt_001", "schemaVersion": "1.0.0", "mode": "published", "status": "Success"}, "catalogs": [], "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}}},
-            "templateInstance": self.instance,
-            "documents": [],
-            "generationProgress": {"totalSections": 0, "completedSections": 0},
-        }
+        return ReportAnswerView(
+            report_id="rpt_001",
+            status="available",
+            report=ReportDsl(
+                basic_info=ReportBasicInfo(
+                    id="rpt_001",
+                    schema_version="1.0.0",
+                    mode="published",
+                    status="Success",
+                ),
+                catalogs=[],
+                layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+            ),
+            template_instance=deepcopy(self.instance),
+            documents=[],
+            generation_progress=GenerationProgressView(
+                total_sections=0,
+                completed_sections=0,
+                total_catalogs=0,
+                completed_catalogs=0,
+            ),
+        )
 
 
 class ConversationServiceAskStatusTests(unittest.TestCase):
     def test_reply_marks_previous_ask_as_replied(self):
-        template = {
+        template = report_template_from_dict({
             "id": "tpl_network_daily",
             "category": "network_operations",
             "name": "网络运行日报",
@@ -316,7 +365,7 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
                 }
             ],
             "catalogs": [],
-        }
+        })
         conversation_repository = _ConversationRepository()
         chat_repository = _ChatRepository()
         runtime_service = _RuntimeService()
@@ -325,43 +374,40 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             chat_repository=chat_repository,
             template_catalog_service=SimpleNamespace(
                 get_template=lambda template_id: template,
-                serialize_detail=lambda item: item,
             ),
             template_repository=SimpleNamespace(list_all=lambda: [template]),
             runtime_service=runtime_service,
-            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: {"options": []}),
+            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
             db=None,
         )
 
         first = service.send_message(
-            data={"instruction": "generate_report", "question": "帮我生成 2026-04-18 网络运行日报"},
+            data=ChatCommand(instruction="generate_report", question="帮我生成 2026-04-18 网络运行日报"),
             user_id="default",
         )
-        self.assertEqual(first["ask"]["status"], "pending")
+        self.assertEqual(first.ask.status, "pending")
 
         second = service.send_message(
-            data={
-                "conversationId": first["conversationId"],
-                "instruction": "generate_report",
-                    "reply": {
-                        "type": "fill_params",
-                        "sourceChatId": first["chatId"],
-                        "parameters": {
-                            "report_date": ["2026-04-18"],
-                        },
-                    "reportContext": {"templateInstance": runtime_service.instance},
-                },
-            },
+            data=ChatCommand(
+                conversation_id=first.conversation_id,
+                instruction="generate_report",
+                reply=ChatReply(
+                    type="fill_params",
+                    source_chat_id=first.chat_id,
+                    parameters={"report_date": ["2026-04-18"]},
+                    template_instance=runtime_service.instance,
+                ),
+            ),
             user_id="default",
         )
 
-        self.assertEqual(second["ask"]["status"], "pending")
+        self.assertEqual(second.ask.status, "pending")
         assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
         self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
         self.assertEqual(assistant_messages[-1].content["response"]["ask"]["status"], "pending")
 
     def test_reply_uses_source_chat_id_instead_of_latest_pending_guess(self):
-        template = {
+        template = report_template_from_dict({
             "id": "tpl_network_daily",
             "category": "network_operations",
             "name": "网络运行日报",
@@ -378,7 +424,7 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
                 }
             ],
             "catalogs": [],
-        }
+        })
         conversation_repository = _ConversationRepository()
         chat_repository = _ChatRepository()
         runtime_service = _RuntimeService()
@@ -387,48 +433,45 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             chat_repository=chat_repository,
             template_catalog_service=SimpleNamespace(
                 get_template=lambda template_id: template,
-                serialize_detail=lambda item: item,
             ),
             template_repository=SimpleNamespace(list_all=lambda: [template]),
             runtime_service=runtime_service,
-            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: {"options": []}),
+            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
             db=None,
         )
 
         first = service.send_message(
-            data={"instruction": "generate_report", "question": "帮我生成 2026-04-18 网络运行日报"},
+            data=ChatCommand(instruction="generate_report", question="帮我生成 2026-04-18 网络运行日报"),
             user_id="default",
         )
         second = service.send_message(
-            data={
-                "conversationId": first["conversationId"],
-                "instruction": "generate_report",
-                "question": "我还想再看一遍同一份日报",
-            },
+            data=ChatCommand(
+                conversation_id=first.conversation_id,
+                instruction="generate_report",
+                question="我还想再看一遍同一份日报",
+            ),
             user_id="default",
         )
 
         third = service.send_message(
-            data={
-                "conversationId": first["conversationId"],
-                "instruction": "generate_report",
-                "reply": {
-                    "type": "fill_params",
-                    "sourceChatId": first["chatId"],
-                    "parameters": {
-                        "report_date": ["2026-04-18"],
-                    },
-                    "reportContext": {"templateInstance": runtime_service.instance},
-                },
-            },
+            data=ChatCommand(
+                conversation_id=first.conversation_id,
+                instruction="generate_report",
+                reply=ChatReply(
+                    type="fill_params",
+                    source_chat_id=first.chat_id,
+                    parameters={"report_date": ["2026-04-18"]},
+                    template_instance=runtime_service.instance,
+                ),
+            ),
             user_id="default",
         )
 
-        self.assertEqual(third["ask"]["status"], "pending")
+        self.assertEqual(third.ask.status, "pending")
         assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
-        self.assertEqual(assistant_messages[0].id, first["chatId"])
+        self.assertEqual(assistant_messages[0].id, first.chat_id)
         self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
-        self.assertEqual(assistant_messages[1].id, second["chatId"])
+        self.assertEqual(assistant_messages[1].id, second.chat_id)
         self.assertEqual(assistant_messages[1].content["response"]["ask"]["status"], "pending")
 
 

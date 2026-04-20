@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
+from backend.contexts.template_catalog.application.models import TemplateImportPreview
+from backend.contexts.template_catalog.domain.models import TemplateSummary, report_template_from_dict
 from backend.routers.templates import (
     TemplateImportPreviewRequest,
     TemplateUpsertRequest,
@@ -39,14 +41,13 @@ class TemplatesRouterTests(unittest.TestCase):
     def test_list_templates_returns_template_summary_only(self):
         fake_service = SimpleNamespace(
             list_templates=lambda: [
-                {
-                    "id": "tpl_network_daily",
-                    "category": "network_operations",
-                    "name": "网络运行日报",
-                    "description": "面向网络运维中心的统一日报模板。",
-                    "schemaVersion": "template.v3",
-                    "updatedAt": "2026-04-18T09:00:00Z",
-                }
+                TemplateSummary(
+                    id="tpl_network_daily",
+                    category="network_operations",
+                    name="网络运行日报",
+                    description="面向网络运维中心的统一日报模板。",
+                    schema_version="template.v3",
+                )
             ]
         )
 
@@ -80,7 +81,7 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertEqual(ctx.exception.detail, "Template id mismatch")
 
     def test_export_template_definition_returns_formal_template_json(self):
-        template = _sample_template()
+        template = report_template_from_dict(_sample_template())
         fake_service = SimpleNamespace(
             export_template=lambda template_id: (template, "网络运行日报-20260418-120000.json")
         )
@@ -94,12 +95,9 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertNotIn("sections", payload)
 
     def test_preview_import_template_uses_content_only(self):
-        normalized = _sample_template()
+        normalized = report_template_from_dict(_sample_template())
         fake_service = SimpleNamespace(
-            preview_import_template=lambda raw_content: {
-                "normalizedTemplate": normalized,
-                "warnings": [],
-            }
+            preview_import_template=lambda raw_content: TemplateImportPreview(normalized_template=normalized, warnings=[])
         )
 
         with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):

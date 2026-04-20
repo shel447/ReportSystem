@@ -6,10 +6,10 @@ import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any
 
 import httpx
 
+from ...contexts.report_runtime.application.models import GeneratedArtifact
 from ...contexts.report_runtime.domain.models import ReportDsl, report_dsl_to_dict
 
 EXPORTER_BASE_URL = os.environ.get("REPORT_EXPORTER_BASE_URL", "http://127.0.0.1:18500").rstrip("/")
@@ -37,7 +37,7 @@ class JavaOfficeExporterGateway:
         theme: str,
         strict_validation: bool,
         pdf_source: str | None,
-    ) -> dict[str, Any]:
+    ) -> GeneratedArtifact:
         self._ensure_service()
         report_payload = report_dsl_to_dict(report)
         payload = {
@@ -56,11 +56,11 @@ class JavaOfficeExporterGateway:
             response.raise_for_status()
             data = response.json()
         artifact = data.get("artifact") or {}
-        return {
-            "fileName": str(artifact.get("fileName") or f"{report_id}-{format_name}"),
-            "storageKey": str(artifact.get("storageKey") or ""),
-            "mimeType": str(artifact.get("contentType") or "application/octet-stream"),
-        }
+        return GeneratedArtifact(
+            file_name=str(artifact.get("fileName") or f"{report_id}-{format_name}"),
+            storage_key=str(artifact.get("storageKey") or ""),
+            mime_type=str(artifact.get("contentType") or "application/octet-stream"),
+        )
 
     def _ensure_service(self) -> None:
         if self._is_healthy():

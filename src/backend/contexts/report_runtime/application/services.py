@@ -18,7 +18,14 @@ from ....shared.kernel.errors import NotFoundError, ValidationError
 from ...template_catalog.infrastructure.schema import validate_template_instance
 from ...template_catalog.domain.models import (
     ReportTemplate,
-    report_template_from_dict,
+)
+from .models import (
+    DocumentGenerationJobView,
+    DocumentGenerationResult,
+    DownloadResolution,
+    GenerationProgressView,
+    ReportAnswerView,
+    ReportView,
 )
 from ..domain.models import (
     CompositeTableComponent,
@@ -37,6 +44,7 @@ from ..domain.models import (
     TableDataProperties,
     TemplateInstance,
     GridDefinition,
+    ReportInstance,
     report_dsl_to_dict,
 )
 from ..domain.services import serialize_template_instance
@@ -66,7 +74,7 @@ class ReportRuntimeService:
         self.export_job_repository = export_job_repository
         self.document_gateway = document_gateway
 
-    def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> dict[str, Any]:
+    def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> TemplateInstance:
         """创建或更新流程中唯一被跟踪的模板实例。"""
         serialized = serialize_template_instance(instance)
         try:
@@ -79,13 +87,11 @@ class ReportRuntimeService:
             if existing
             else self.template_instance_repository.create(instance, user_id=user_id)
         )
-        return serialize_template_instance(saved)
+        return saved
 
-    def get_latest_template_instance(self, *, conversation_id: str, user_id: str) -> dict[str, Any] | None:
+    def get_latest_template_instance(self, *, conversation_id: str, user_id: str) -> TemplateInstance | None:
         instance = self.template_instance_repository.get_latest_for_conversation(conversation_id, user_id=user_id)
-        if instance is None:
-            return None
-        return serialize_template_instance(instance)
+        return instance
 
     def generate_report_from_template_instance(
         self,
@@ -94,7 +100,7 @@ class ReportRuntimeService:
         user_id: str,
         source_conversation_id: str | None,
         source_chat_id: str | None,
-    ) -> dict[str, Any]:
+    ) -> ReportAnswerView:
         """将已确认的模板实例冻结为正式报告结构与报告资源。"""
         template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
         if template_instance is None:
@@ -127,7 +133,7 @@ class ReportRuntimeService:
         updated_template_instance = self.template_instance_repository.update(template_instance, user_id=user_id)
         return self.serialize_report_answer(instance=instance, template_instance=updated_template_instance)
 
-    def get_report_view(self, report_id: str, *, user_id: str) -> dict[str, Any]:
+    def get_report_view(self, report_id: str, *, user_id: str) -> ReportView:
         """返回公开的报告聚合视图。"""
         instance = self.report_instance_repository.get(report_id, user_id=user_id)
         if instance is None:
@@ -135,12 +141,12 @@ class ReportRuntimeService:
         template_instance = self.template_instance_repository.get(instance.template_instance_id, user_id=user_id)
         if template_instance is None:
             raise NotFoundError("Template instance not found")
-        return {
-            "reportId": instance.id,
-            "status": instance.status,
-            "answerType": "REPORT",
-            "answer": self.serialize_report_answer(instance=instance, template_instance=template_instance),
-        }
+        return ReportView(
+            report_id=instance.id,
+            status=instance.status,
+            answer_type="REPORT",
+            answer=self.serialize_report_answer(instance=instance, template_instance=template_instance),
+        )
 
     def generate_documents(
         self,
@@ -152,13 +158,13 @@ class ReportRuntimeService:
         theme: str,
         strict_validation: bool,
         regenerate_if_exists: bool,
-    ) -> dict[str, Any]:
+    ) -> DocumentGenerationResult:
         """生成报告作用域下的文档产物及对应导出任务。"""
         report_view = self.get_report_view(report_id, user_id=user_id)
-        answer = report_view["answer"]
+        answer = report_view.answer
         existing_documents = self.document_repository.list_by_report(report_id)
         reusable_documents = [] if regenerate_if_exists else [self.document_gateway.serialize_document(item) for item in existing_documents]
-        jobs = []
+        jobs: list[DocumentGenerationJobView] = []
         new_documents = []
 
         request_hash = hashlib.sha1(
@@ -186,15 +192,15 @@ class ReportRuntimeService:
                 request_payload_hash=request_hash,
             )
             jobs.append(
-                {
-                    "jobId": job.id,
-                    "format": format_name,
-                    "status": "queued" if dependency_job_id is None else "blocked_by_dependency",
-                    "dependsOn": dependency_job_id,
-                }
+                DocumentGenerationJobView(
+                    job_id=job.id,
+                    format=format_name,
+                    status="queued" if dependency_job_id is None else "blocked_by_dependency",
+                    depends_on=dependency_job_id,
+                )
             )
             artifact = self.document_gateway.generate_document(
-                report=answer["report"],
+                report=answer.report,
                 report_id=report_id,
                 format_name=format_name,
                 theme=theme,
@@ -206,39 +212,34 @@ class ReportRuntimeService:
                 artifact_kind=format_name,
                 source_format=pdf_source if format_name == "pdf" else None,
                 generation_mode="sync",
-                mime_type=artifact["mimeType"],
-                storage_key=artifact["storageKey"],
+                mime_type=artifact.mime_type,
+                storage_key=artifact.storage_key,
                 status="ready",
             )
             new_documents.append(self.document_gateway.serialize_document(document))
             dependency_job_id = job.id if format_name in {"word", "ppt"} else dependency_job_id
 
-        return {
-            "reportId": report_id,
-            "jobs": jobs,
-            "documents": reusable_documents + new_documents,
-        }
+        return DocumentGenerationResult(report_id=report_id, jobs=jobs, documents=reusable_documents + new_documents)
 
-    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> tuple[dict[str, Any], str]:
+    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> DownloadResolution:
         """在不暴露独立文档资源的前提下解析报告范围下载。"""
         self.get_report_view(report_id, user_id=user_id)
         document = self.document_repository.get_for_report(report_id, document_id)
         if document is None:
             raise NotFoundError("Document not found")
-        metadata, absolute_path = self.document_gateway.resolve_download(document)
-        return metadata, absolute_path
+        return self.document_gateway.resolve_download(document)
 
-    def serialize_report_answer(self, *, instance, template_instance: TemplateInstance) -> dict[str, Any]:
+    def serialize_report_answer(self, *, instance: ReportInstance, template_instance: TemplateInstance) -> ReportAnswerView:
         """保持聊天报告响应与报告详情载荷结构一致。"""
         documents = [self.document_gateway.serialize_document(item) for item in self.document_repository.list_by_report(instance.id)]
-        return {
-            "reportId": instance.id,
-            "status": instance.status,
-            "report": report_dsl_to_dict(instance.report),
-            "templateInstance": serialize_template_instance(template_instance),
-            "documents": documents,
-            "generationProgress": _build_generation_progress(instance.report),
-        }
+        return ReportAnswerView(
+            report_id=instance.id,
+            status=instance.status,
+            report=instance.report,
+            template_instance=template_instance,
+            documents=documents,
+            generation_progress=_build_generation_progress(instance.report),
+        )
 
 
 class ReportDocumentService:
@@ -247,24 +248,12 @@ class ReportDocumentService:
     def __init__(self, *, runtime_service: ReportRuntimeService) -> None:
         self.runtime_service = runtime_service
 
-    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> tuple[dict[str, Any], str]:
+    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> DownloadResolution:
         return self.runtime_service.resolve_download(report_id=report_id, document_id=document_id, user_id=user_id)
 
 
-def build_report_dsl(*, report_id: str, template: ReportTemplate | Any, template_instance: TemplateInstance) -> ReportDsl:
+def build_report_dsl(*, report_id: str, template: ReportTemplate, template_instance: TemplateInstance) -> ReportDsl:
     """把已确认的模板实例编译成正式报告载荷。"""
-    if not isinstance(template, ReportTemplate):
-        template = report_template_from_dict(
-            {
-                "id": getattr(template, "id", ""),
-                "category": getattr(template, "category", ""),
-                "name": getattr(template, "name", ""),
-                "description": getattr(template, "description", ""),
-                "schemaVersion": getattr(template, "schema_version", "template.v3"),
-                "parameters": [],
-                "catalogs": [],
-            }
-        )
     catalogs: list[ReportCatalog] = []
     report_meta: dict[str, ReportGenerateMeta] = {}
     init_telecom_demo_db()
@@ -475,15 +464,15 @@ def _resource_status_from_dsl(report: ReportDsl) -> str:
     return "available"
 
 
-def _build_generation_progress(report: ReportDsl) -> dict[str, int]:
+def _build_generation_progress(report: ReportDsl) -> GenerationProgressView:
     total_sections = len(_collect_section_titles(list(report.catalogs or [])))
     total_catalogs = _count_catalogs(list(report.catalogs or []))
-    return {
-        "totalSections": total_sections,
-        "completedSections": total_sections,
-        "totalCatalogs": total_catalogs,
-        "completedCatalogs": total_catalogs,
-    }
+    return GenerationProgressView(
+        total_sections=total_sections,
+        completed_sections=total_sections,
+        total_catalogs=total_catalogs,
+        completed_catalogs=total_catalogs,
+    )
 
 
 def _validate_report_dsl(report: dict[str, Any]) -> None:

@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from sqlalchemy.orm import Session
 
 from ....infrastructure.persistence.models import Chat as ChatRow
 from ....infrastructure.persistence.models import Conversation as ConversationRow
 from ....infrastructure.persistence.models import gen_id, utc_now
+from .models import (
+    ConversationMessageAction,
+    ConversationMessageContent,
+    ConversationMessageMeta,
+    conversation_message_action_to_dict,
+    conversation_message_content_to_dict,
+    conversation_message_meta_to_dict,
+)
 
 
 class SqlAlchemyConversationRepository:
@@ -71,9 +77,9 @@ class SqlAlchemyChatRepository:
         conversation_id: str,
         user_id: str,
         role: str,
-        content: dict[str, Any],
-        action: dict[str, Any] | None = None,
-        meta: dict[str, Any] | None = None,
+        content: ConversationMessageContent,
+        action: ConversationMessageAction | None = None,
+        meta: ConversationMessageMeta | None = None,
         chat_id: str | None = None,
     ) -> ChatRow:
         # 序号字段是单条会话消息流的权威排序键。
@@ -83,9 +89,9 @@ class SqlAlchemyChatRepository:
             conversation_id=conversation_id,
             user_id=user_id,
             role=role,
-            content=content,
-            action=action,
-            meta=meta or {},
+            content=conversation_message_content_to_dict(content),
+            action=conversation_message_action_to_dict(action),
+            meta=conversation_message_meta_to_dict(meta) or {},
             seq_no=seq_no,
             created_at=utc_now(),
         )

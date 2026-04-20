@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from backend.contexts.report_runtime.application.models import GeneratedArtifact
 from backend.contexts.report_runtime.infrastructure.documents import ReportDocumentGateway
 from backend.contexts.report_runtime.domain.models import DocumentArtifact, report_dsl_from_dict
 
@@ -12,11 +13,11 @@ class _FakeOfficeExporter:
 
     def export(self, **kwargs):
         self.calls.append(kwargs)
-        return {
-            "fileName": "demo.docx",
-            "storageKey": "C:/tmp/demo.docx",
-            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        }
+        return GeneratedArtifact(
+            file_name="demo.docx",
+            storage_key="C:/tmp/demo.docx",
+            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
 
 
 class ReportDocumentGatewayTests(unittest.TestCase):
@@ -40,7 +41,7 @@ class ReportDocumentGatewayTests(unittest.TestCase):
             pdf_source="word",
         )
 
-        self.assertEqual(result["fileName"], "demo.docx")
+        self.assertEqual(result.file_name, "demo.docx")
         self.assertEqual(len(exporter.calls), 1)
         self.assertEqual(exporter.calls[0]["format_name"], "word")
 
@@ -64,9 +65,9 @@ class ReportDocumentGatewayTests(unittest.TestCase):
             pdf_source=None,
         )
 
-        self.assertTrue(result["storageKey"].endswith(".md"))
+        self.assertTrue(result.storage_key.endswith(".md"))
         self.assertEqual(exporter.calls, [])
-        self.assertTrue(Path(result["storageKey"]).exists())
+        self.assertTrue(Path(result.storage_key).exists())
 
     def test_resolve_download_returns_file_metadata(self):
         with TemporaryDirectory() as temp_dir:
@@ -84,10 +85,10 @@ class ReportDocumentGatewayTests(unittest.TestCase):
                 status="ready",
             )
 
-            metadata, absolute_path = gateway.resolve_download(document)
+            resolution = gateway.resolve_download(document)
 
-        self.assertEqual(metadata["id"], "doc_001")
-        self.assertEqual(absolute_path, str(target))
+        self.assertEqual(resolution.document.id, "doc_001")
+        self.assertEqual(resolution.absolute_path, str(target))
 
 
 if __name__ == "__main__":
