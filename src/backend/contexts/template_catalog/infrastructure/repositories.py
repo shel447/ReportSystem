@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ....infrastructure.persistence.models import ReportTemplate as ReportTemplateRow
 from ....shared.kernel.errors import ConflictError, NotFoundError
-from ..domain.models import ReportTemplate, TemplateSummary
+from ..domain.models import ReportTemplate, TemplateSummary, report_template_from_dict, report_template_to_dict
 from .schema import validate_report_template
 
 
@@ -18,31 +18,35 @@ class SqlAlchemyTemplateCatalogRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def create(self, template: dict[str, Any]) -> ReportTemplate:
-        if self.exists(template["id"]):
+    def create(self, template: dict[str, Any] | ReportTemplate) -> ReportTemplate:
+        template_model = report_template_from_dict(template) if isinstance(template, dict) else template
+        payload = report_template_to_dict(template_model)
+        if self.exists(template_model.id):
             raise ConflictError("Template already exists")
         row = ReportTemplateRow(
-            id=template["id"],
-            category=template["category"],
-            name=template["name"],
-            description=template["description"],
-            schema_version=template["schemaVersion"],
-            content=template,
+            id=template_model.id,
+            category=template_model.category,
+            name=template_model.name,
+            description=template_model.description,
+            schema_version=template_model.schema_version,
+            content=payload,
         )
         self.db.add(row)
         self.db.commit()
         self.db.refresh(row)
         return _to_template(row)
 
-    def update(self, template_id: str, template: dict[str, Any]) -> ReportTemplate:
+    def update(self, template_id: str, template: dict[str, Any] | ReportTemplate) -> ReportTemplate:
+        template_model = report_template_from_dict(template) if isinstance(template, dict) else template
+        payload = report_template_to_dict(template_model)
         row = self.db.get(ReportTemplateRow, template_id)
         if row is None:
             raise NotFoundError("Template not found")
-        row.category = template["category"]
-        row.name = template["name"]
-        row.description = template["description"]
-        row.schema_version = template["schemaVersion"]
-        row.content = template
+        row.category = template_model.category
+        row.name = template_model.name
+        row.description = template_model.description
+        row.schema_version = template_model.schema_version
+        row.content = payload
         self.db.commit()
         self.db.refresh(row)
         return _to_template(row)
@@ -78,18 +82,10 @@ class TemplateSchemaGateway:
 
 def _to_template(row: ReportTemplateRow) -> ReportTemplate:
     payload = dict(row.content or {})
-    return ReportTemplate(
-        id=row.id,
-        category=row.category,
-        name=row.name,
-        description=row.description or "",
-        schema_version=row.schema_version,
-        parameters=list(payload.get("parameters") or []),
-        catalogs=list(payload.get("catalogs") or []),
-        tags=list(payload.get("tags") or []),
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
+    template = report_template_from_dict(payload)
+    template.created_at = row.created_at
+    template.updated_at = row.updated_at
+    return template
 
 
 def _to_summary(row: ReportTemplateRow) -> TemplateSummary:

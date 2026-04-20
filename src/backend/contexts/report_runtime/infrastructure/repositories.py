@@ -15,7 +15,16 @@ from ....infrastructure.persistence.models import ReportTemplate as ReportTempla
 from ....infrastructure.persistence.models import TemplateInstance as TemplateInstanceRow
 from ....shared.kernel.errors import NotFoundError
 from ...template_catalog.domain.models import ReportTemplate
-from ..domain.models import DocumentArtifact, ExportJob, ReportInstance, TemplateInstance
+from ...template_catalog.domain.models import report_template_from_dict
+from ..domain.models import (
+    DocumentArtifact,
+    ExportJob,
+    ReportInstance,
+    TemplateInstance,
+    report_dsl_from_dict,
+    report_dsl_to_dict,
+    template_instance_from_dict,
+)
 from ..domain.services import serialize_template_instance
 
 
@@ -30,18 +39,10 @@ class SqlAlchemyRuntimeTemplateRepository:
         if row is None:
             return None
         payload = dict(row.content or {})
-        return ReportTemplate(
-            id=row.id,
-            category=row.category,
-            name=row.name,
-            description=row.description or "",
-            schema_version=row.schema_version,
-            parameters=list(payload.get("parameters") or []),
-            catalogs=list(payload.get("catalogs") or []),
-            tags=list(payload.get("tags") or []),
-            created_at=row.created_at,
-            updated_at=row.updated_at,
-        )
+        template = report_template_from_dict(payload)
+        template.created_at = row.created_at
+        template.updated_at = row.updated_at
+        return template
 
 
 class SqlAlchemyTemplateInstanceRepository:
@@ -120,8 +121,9 @@ class SqlAlchemyReportInstanceRepository:
         source_chat_id: str | None,
         status: str,
         schema_version: str,
-        report: dict[str, Any],
+        report,
     ) -> ReportInstance:
+        report_payload = report_dsl_to_dict(report)
         row = ReportInstanceRow(
             id=report_id,
             template_id=template_id,
@@ -131,7 +133,7 @@ class SqlAlchemyReportInstanceRepository:
             source_chat_id=source_chat_id,
             status=status,
             schema_version=schema_version,
-            content=report,
+            content=report_payload,
         )
         self.db.add(row)
         self.db.commit()
@@ -144,13 +146,13 @@ class SqlAlchemyReportInstanceRepository:
             return None
         return _to_report_instance(row)
 
-    def update_status(self, report_id: str, *, user_id: str, status: str, report: dict[str, Any] | None = None) -> ReportInstance:
+    def update_status(self, report_id: str, *, user_id: str, status: str, report=None) -> ReportInstance:
         row = self.db.get(ReportInstanceRow, report_id)
         if row is None or row.user_id != user_id:
             raise NotFoundError("Report not found")
         row.status = status
         if report is not None:
-            row.content = report
+            row.content = report_dsl_to_dict(report)
         row.updated_at = datetime.now(timezone.utc).replace(microsecond=0)
         self.db.commit()
         self.db.refresh(row)
@@ -244,23 +246,18 @@ class SqlAlchemyExportJobRepository:
 def _to_template_instance(row: TemplateInstanceRow) -> TemplateInstance:
     # 内容字段是运行时树结构的事实来源；顶层列只保留仓储查询需要的索引字段。
     payload = copy.deepcopy(row.content or {})
-    return TemplateInstance(
-        id=row.id,
-        schema_version=str(payload.get("schemaVersion") or row.schema_version),
-        template_id=row.template_id,
-        template=copy.deepcopy(payload.get("template") or {}),
-        conversation_id=row.conversation_id,
-        chat_id=row.chat_id,
-        status=row.status,
-        capture_stage=row.capture_stage,
-        revision=int(row.revision or 1),
-        parameters=copy.deepcopy(payload.get("parameters") or []),
-        parameter_confirmation=copy.deepcopy(payload.get("parameterConfirmation") or {}),
-        catalogs=copy.deepcopy(payload.get("catalogs") or []),
-        warnings=copy.deepcopy(payload.get("warnings") or []),
-        created_at=row.created_at,
-        updated_at=row.updated_at,
-    )
+    instance = template_instance_from_dict(payload)
+    instance.id = row.id
+    instance.template_id = row.template_id
+    instance.conversation_id = row.conversation_id
+    instance.chat_id = row.chat_id
+    instance.status = row.status
+    instance.capture_stage = row.capture_stage
+    instance.revision = int(row.revision or 1)
+    instance.schema_version = str(payload.get("schemaVersion") or row.schema_version)
+    instance.created_at = row.created_at
+    instance.updated_at = row.updated_at
+    return instance
 
 
 def _to_report_instance(row: ReportInstanceRow) -> ReportInstance:
@@ -273,7 +270,7 @@ def _to_report_instance(row: ReportInstanceRow) -> ReportInstance:
         source_chat_id=row.source_chat_id,
         status=row.status,
         schema_version=row.schema_version,
-        report=copy.deepcopy(row.content or {}),
+        report=report_dsl_from_dict(copy.deepcopy(row.content or {})),
         created_at=row.created_at,
         updated_at=row.updated_at,
     )

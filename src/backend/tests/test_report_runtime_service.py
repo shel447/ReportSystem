@@ -1,8 +1,23 @@
 import unittest
+from dataclasses import is_dataclass
 from types import SimpleNamespace
 
 from backend.contexts.report_runtime.application.services import ReportRuntimeService, build_report_dsl
-from backend.contexts.report_runtime.domain.models import TemplateInstance
+from backend.contexts.report_runtime.domain.models import (
+    CompositeTableComponent,
+    ParameterConfirmation,
+    ReportDsl,
+    TemplateInstance,
+    TemplateInstanceCatalog,
+    TemplateInstancePresentationBlock,
+    TemplateInstancePresentationDefinition,
+    TemplateInstanceSection,
+    TemplateInstanceSectionContent,
+    TemplateInstanceCompositeTablePart,
+    PartRuntimeContext,
+    SectionRuntimeContext,
+)
+from backend.contexts.template_catalog.domain.models import OutlineDefinition, ReportTemplate, SummaryRowDef, SummaryTableSpec, CompositeTablePartLayout
 from backend.shared.kernel.errors import ValidationError
 
 
@@ -26,22 +41,20 @@ def _valid_template_instance():
         id="ti_001",
         schema_version="template-instance.vNext-draft",
         template_id="tpl_network_daily",
-        template={
-            "id": "tpl_network_daily",
-            "category": "network_operations",
-            "name": "网络运行日报",
-            "description": "面向网络运维中心的统一日报模板。",
-            "schemaVersion": "template.v3",
-            "parameters": [],
-            "catalogs": [],
-        },
+        template=ReportTemplate(
+            id="tpl_network_daily",
+            category="network_operations",
+            name="网络运行日报",
+            description="面向网络运维中心的统一日报模板。",
+            schema_version="template.v3",
+        ),
         conversation_id="conv_001",
         chat_id="chat_001",
         status="ready_for_confirmation",
         capture_stage="confirm_params",
         revision=1,
         parameters=[],
-        parameter_confirmation={"missingParameterIds": [], "confirmed": True},
+        parameter_confirmation=ParameterConfirmation(missing_parameter_ids=[], confirmed=True),
         catalogs=[],
         warnings=[],
     )
@@ -62,57 +75,59 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         service = _build_runtime_service()
         instance = _valid_template_instance()
         instance.catalogs = [
-            {
-                "id": "catalog_overview",
-                "title": "运行概览",
-                "renderedTitle": "运行概览",
-                "sections": [
-                    {
-                        "id": "section_overview",
-                        "outline": {
-                            "requirement": "分析核心设备巡检信息。",
-                            "renderedRequirement": "分析核心设备巡检信息。",
-                            "items": [],
-                        },
-                        "runtimeContext": {"bindings": []},
-                        "content": {
-                            "presentation": {
-                                "kind": "mixed",
-                                "blocks": [
-                                    {
-                                        "id": "block_device_inspection",
-                                        "type": "composite_table",
-                                        "title": "核心设备巡检信息",
-                                        "parts": [
-                                            {
-                                                "id": "part_basic_info",
-                                                "title": "基础信息",
-                                                "sourceType": "query",
-                                                "datasetId": "dataset_device_basic",
-                                                "tableLayout": {"kind": "table", "showHeader": True},
-                                            },
-                                            {
-                                                "id": "part_inspection_summary",
-                                                "title": "巡检问题及建议",
-                                                "sourceType": "summary",
-                                                "summarySpec": {
-                                                    "partIds": ["part_basic_info"],
-                                                    "rows": [
-                                                        {"id": "major_issue", "title": "主要问题"},
-                                                        {"id": "action_advice", "title": "处理建议"},
+            TemplateInstanceCatalog(
+                id="catalog_overview",
+                title="运行概览",
+                rendered_title="运行概览",
+                sections=[
+                    TemplateInstanceSection(
+                        id="section_overview",
+                        outline=OutlineDefinition(
+                            requirement="分析核心设备巡检信息。",
+                            rendered_requirement="分析核心设备巡检信息。",
+                            items=[],
+                        ),
+                        runtime_context=SectionRuntimeContext(bindings=[]),
+                        content=TemplateInstanceSectionContent(
+                            presentation=TemplateInstancePresentationDefinition(
+                                kind="mixed",
+                                blocks=[
+                                    TemplateInstancePresentationBlock(
+                                        id="block_device_inspection",
+                                        type="composite_table",
+                                        title="核心设备巡检信息",
+                                        parts=[
+                                            TemplateInstanceCompositeTablePart(
+                                                id="part_basic_info",
+                                                title="基础信息",
+                                                source_type="query",
+                                                dataset_id="dataset_device_basic",
+                                                table_layout=CompositeTablePartLayout(kind="table", show_header=True),
+                                                runtime_context=PartRuntimeContext(status="pending"),
+                                            ),
+                                            TemplateInstanceCompositeTablePart(
+                                                id="part_inspection_summary",
+                                                title="巡检问题及建议",
+                                                source_type="summary",
+                                                summary_spec=SummaryTableSpec(
+                                                    part_ids=["part_basic_info"],
+                                                    rows=[
+                                                        SummaryRowDef(id="major_issue", title="主要问题"),
+                                                        SummaryRowDef(id="action_advice", title="处理建议"),
                                                     ],
-                                                },
-                                            },
+                                                ),
+                                                runtime_context=PartRuntimeContext(status="pending"),
+                                            ),
                                         ],
-                                    }
+                                    )
                                 ],
-                            }
-                        },
-                        "skeletonStatus": "reusable",
-                        "userEdited": False,
-                    }
+                            )
+                        ),
+                        skeleton_status="reusable",
+                        user_edited=False,
+                    )
                 ],
-            }
+            )
         ]
 
         report = build_report_dsl(
@@ -125,14 +140,16 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             ),
             template_instance=instance,
         )
-        components = report["catalogs"][0]["sections"][0]["components"]
-        composite_table = next(component for component in components if component["type"] == "compositeTable")
+        self.assertTrue(is_dataclass(report))
+        self.assertIsInstance(report, ReportDsl)
+        components = report.catalogs[0].sections[0].components
+        composite_table = next(component for component in components if isinstance(component, CompositeTableComponent))
 
-        self.assertEqual(composite_table["id"], "block_device_inspection")
-        self.assertEqual(composite_table["dataProperties"]["title"], "核心设备巡检信息")
-        self.assertEqual(len(composite_table["tables"]), 2)
-        self.assertEqual(composite_table["tables"][0]["dataProperties"]["sourceId"], "dataset_device_basic")
-        self.assertEqual(composite_table["tables"][1]["dataProperties"]["data"][0]["title"], "主要问题")
+        self.assertEqual(composite_table.id, "block_device_inspection")
+        self.assertEqual(composite_table.data_properties.title, "核心设备巡检信息")
+        self.assertEqual(len(composite_table.tables), 2)
+        self.assertEqual(composite_table.tables[0].data_properties.source_id, "dataset_device_basic")
+        self.assertEqual(composite_table.tables[1].data_properties.data[0]["title"], "主要问题")
 
 
 if __name__ == "__main__":

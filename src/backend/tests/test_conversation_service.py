@@ -1,8 +1,11 @@
 import unittest
+from dataclasses import is_dataclass
 from types import SimpleNamespace
 
 from backend.contexts.conversation.application.services import ConversationService, _missing_required_parameters
+from backend.contexts.report_runtime.domain.models import template_instance_to_dict
 from backend.contexts.report_runtime.domain.services import instantiate_template_instance
+from backend.contexts.template_catalog.domain.models import report_template_from_dict
 
 
 def _service():
@@ -64,10 +67,10 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
         values = service._extract_parameter_values(_scoped_template(), "请分析华东、华北的运行态势")
 
         self.assertIn("scope", values)
-        self.assertEqual(values["scope"][0]["label"], "请分析华东、华北的运行态势")
+        self.assertEqual(values["scope"][0].label, "请分析华东、华北的运行态势")
 
     def test_missing_required_parameters_includes_section_scoped_parameters(self):
-        template = _scoped_template()
+        template = report_template_from_dict(_scoped_template())
         instance = instantiate_template_instance(
             instance_id="ti_001",
             template=template,
@@ -79,12 +82,9 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
             parameter_values={},
         )
 
-        missing = _missing_required_parameters(template=template, template_instance={
-            "parameters": instance.parameters,
-            "catalogs": instance.catalogs,
-        })
+        missing = _missing_required_parameters(template=template, template_instance=instance)
 
-        self.assertEqual([item["id"] for item in missing], ["scope"])
+        self.assertEqual([item.id for item in missing], ["scope"])
 
     def test_instantiate_template_instance_preserves_section_content_and_part_runtime_context(self):
         template = {
@@ -186,18 +186,23 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
             },
         )
 
-        section = instance.catalogs[0]["sections"][0]
-        composite_block = section["content"]["presentation"]["blocks"][0]
-        query_part = composite_block["parts"][0]
-        summary_part = composite_block["parts"][1]
+        section = instance.catalogs[0].sections[0]
+        composite_block = section.content.presentation.blocks[0]
+        query_part = composite_block.parts[0]
+        summary_part = composite_block.parts[1]
 
-        self.assertEqual(section["content"]["datasets"][0]["id"], "dataset_device_basic")
-        self.assertEqual(query_part["runtimeContext"]["status"], "pending")
-        self.assertEqual(query_part["runtimeContext"]["resolvedDatasetId"], "dataset_device_basic")
-        self.assertEqual(query_part["runtimeContext"]["resolvedQuery"], "scope_id = 'hq-network'")
-        self.assertEqual(summary_part["runtimeContext"]["status"], "pending")
-        self.assertEqual(summary_part["runtimeContext"]["resolvedPartIds"], ["part_basic_info"])
-        self.assertEqual(summary_part["runtimeContext"]["prompt"], "总结问题。")
+        self.assertTrue(is_dataclass(instance.template))
+        self.assertTrue(is_dataclass(instance.catalogs[0]))
+        self.assertTrue(is_dataclass(section))
+        self.assertTrue(is_dataclass(composite_block))
+        self.assertTrue(is_dataclass(query_part))
+        self.assertEqual(section.content.datasets[0].id, "dataset_device_basic")
+        self.assertEqual(query_part.runtime_context.status, "pending")
+        self.assertEqual(query_part.runtime_context.resolved_dataset_id, "dataset_device_basic")
+        self.assertEqual(query_part.runtime_context.resolved_query, "scope_id = 'hq-network'")
+        self.assertEqual(summary_part.runtime_context.status, "pending")
+        self.assertEqual(summary_part.runtime_context.resolved_part_ids, ["part_basic_info"])
+        self.assertEqual(summary_part.runtime_context.prompt, "总结问题。")
 
 
 class _InMemoryConversation:

@@ -10,6 +10,8 @@ from typing import Any
 
 import httpx
 
+from ...contexts.report_runtime.domain.models import ReportDsl, report_dsl_to_dict
+
 EXPORTER_BASE_URL = os.environ.get("REPORT_EXPORTER_BASE_URL", "http://127.0.0.1:18500").rstrip("/")
 EXPORTER_HOST = os.environ.get("REPORT_EXPORTER_HOST", "127.0.0.1")
 EXPORTER_PORT = int(os.environ.get("REPORT_EXPORTER_PORT", "18500"))
@@ -29,7 +31,7 @@ class JavaOfficeExporterGateway:
     def export(
         self,
         *,
-        report: dict[str, Any],
+        report: ReportDsl,
         report_id: str,
         format_name: str,
         theme: str,
@@ -37,11 +39,12 @@ class JavaOfficeExporterGateway:
         pdf_source: str | None,
     ) -> dict[str, Any]:
         self._ensure_service()
+        report_payload = report_dsl_to_dict(report)
         payload = {
             "requestId": f"req_export_{uuid.uuid4().hex[:12]}",
             "reportId": report_id,
-            "dslSchemaVersion": str(((report.get("basicInfo") or {}).get("schemaVersion") or "")),
-            "reportDsl": report,
+            "dslSchemaVersion": str(report.basic_info.schema_version or ""),
+            "reportDsl": report_payload,
             "options": {
                 "theme": theme,
                 "strictValidation": strict_validation,

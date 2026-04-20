@@ -189,3 +189,41 @@
   - 后端测试锁住 `TemplateInstance.section.content` 不丢失
   - 后端测试锁住 `query/summary part.runtimeContext` 最小字段
   - 前端测试锁住报告详情页能读取模板实例中的内容块信息
+
+## 2026-04-20 模板、模板实例、报告 DSL 递归 dataclass 化
+
+- 背景问题：
+  - 代码虽然已经引入 `ReportTemplate`、`TemplateInstance`、`ReportInstance` 顶层 dataclass，但其 `parameters/catalogs/sections/report` 等递归属性仍大量以 `dict/list[dict]` 传播。
+  - 这会导致业务层继续依赖字符串 key，领域模型名义上存在，实际上没有真正接管业务结构。
+- 实现设计调整：
+  - `template_catalog.domain.models` 重写为递归 dataclass 树：
+    - `ReportTemplate`
+    - `Parameter/ParameterValue/ParameterRuntimeContext`
+    - `CatalogDefinition/SectionDefinition/OutlineDefinition/RequirementItem`
+    - `DatasetDefinition/PresentationDefinition/PresentationBlock`
+    - `CompositeTablePart/SummaryTableSpec/CompositeTablePartLayout`
+  - `report_runtime.domain.models` 重写为递归 dataclass 树：
+    - `TemplateInstance/TemplateInstanceCatalog/TemplateInstanceSection`
+    - `ParameterConfirmation/ForeachContext/ExecutionBinding`
+    - `TemplateInstanceSectionContent/TemplateInstancePresentationBlock`
+    - `PartRuntimeContext`
+    - `ReportDsl/ReportCatalog/ReportSection/ReportBasicInfo`
+    - `MarkdownComponent/TableComponent/CompositeTableComponent`
+  - 领域层与应用层的正式约束更新为：
+    - 业务逻辑只操作 dataclass
+    - 仓储负责 `JSON <-> dataclass` 映射
+    - 路由层仍保持 JSON 契约，不把 dataclass 直接泄漏到 HTTP 边界
+  - `conversation`、`report_runtime`、`template_catalog` 的核心服务全部改为围绕 dataclass 运转，不再把模板、模板实例、报告 DSL 当作裸字典树传递
+  - 文档与导出适配器在调用外部系统前统一把 `ReportDsl` 序列化为 JSON，不反向影响领域模型
+- 受影响的实现设计主题：
+  - [README.md](README.md)
+  - [模板目录实现.md](模板目录实现.md)
+  - [统一对话实现.md](统一对话实现.md)
+  - [报告运行时实现.md](报告运行时实现.md)
+- 验证要求：
+  - 新增或更新测试，锁住：
+    - `TemplateInstance` 子节点为 dataclass，而不是 `dict`
+    - `build_report_dsl` 返回 `ReportDsl` dataclass
+    - 仓储与导出边界继续输出合法 JSON 契约
+  - 全量验证基线：
+    - `python -m pytest src/backend/tests -q`

@@ -20,6 +20,8 @@
 - 后端公开接口只保留 `templates / chat / reports / parameter-options`；`/rest/dev/*` 属于支撑接口，不反向定义主业务模型。
 - 领域主线固定为 `ReportTemplate -> TemplateInstance -> Report DSL -> ReportInstance -> DocumentArtifact`。
 - `TemplateInstance` 是核心运行态聚合。参数收集、诉求实例化、delta 合并、报告生成都围绕同一份模板实例推进。
+- 后端领域模型必须使用递归 `dataclass`，而不是“顶层 dataclass + 子树 dict”的半结构化形态。
+- 仓储和外部集成边界负责 `dataclass <-> JSON` 转换；领域层和应用层不得继续传播模板、模板实例、报告 DSL 的裸字典树。
 - `TemplateInstance.section.content` 属于正式实例化视图，不能在对话层、仓储层或前端类型层被裁剪。
 - `/chat` 流式协议按 `steps / delta / answer` 三条通道实现；`delta` 只属于流式事件，不进入持久化聚合。
 - 参数值三元组正式使用 `{label, value, query}`；`reply.parameters` 只回传 `Record<parameterId, Scalar[]>`。

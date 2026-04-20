@@ -10,7 +10,8 @@ from typing import Any
 
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
 from ....infrastructure.settings.system_settings import build_completion_provider_config, build_embedding_provider_config
-from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+from ....shared.kernel.errors import NotFoundError, ValidationError
+from ...template_catalog.domain.models import Parameter, ReportTemplate, parameter_to_dict, report_template_from_dict
 from ...report_runtime.domain.services import (
     collect_instance_parameters,
     collect_template_parameters,
@@ -20,6 +21,7 @@ from ...report_runtime.domain.services import (
     parameters_by_id,
     serialize_template_instance,
 )
+from ...report_runtime.domain.models import TemplateInstance, template_instance_from_dict
 
 
 DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -182,10 +184,10 @@ class ConversationService:
             if not isinstance(template_instance_payload, dict):
                 raise ValidationError("confirm_params requires reportContext.templateInstance")
             template_id = str(template_instance_payload.get("templateId") or "").strip()
-            template = self.template_catalog_service.get_template(template_id)
-            missing = _missing_required_parameters(template=template, template_instance=template_instance_payload)
+            template = report_template_from_dict(self.template_catalog_service.get_template(template_id))
+            missing = _missing_required_parameters(template=template, template_instance=template_instance_from_dict(template_instance_payload))
             if missing:
-                missing_ids = ", ".join(str(item.get("id") or "") for item in missing)
+                missing_ids = ", ".join(item.id for item in missing)
                 raise ValidationError(f"confirm_params requires all required parameters: {missing_ids}")
             persisted = self.runtime_service.persist_template_instance(
                 _template_instance_from_payload(template_instance_payload, chat_id=user_chat.id, status="confirmed", capture_stage="confirm_params"),
@@ -213,12 +215,13 @@ class ConversationService:
         if current_instance:
             # 一旦模板实例已存在，后续每轮都必须更新同一个聚合，
             # 不能在消息流上再派生旁路状态。
-            template_id = current_instance["templateId"]
-            template = self.template_catalog_service.get_template(template_id)
+            current_instance_model = template_instance_from_dict(current_instance)
+            template_id = current_instance_model.template_id
+            template = report_template_from_dict(self.template_catalog_service.get_template(template_id))
             template_parameter_definitions = collect_template_parameters(template)
             current_instance_parameters = collect_instance_parameters(
-                parameters=current_instance.get("parameters") or [],
-                catalogs=current_instance.get("catalogs") or [],
+                parameters=current_instance_model.parameters,
+                catalogs=current_instance_model.catalogs,
             )
             merged_values = merge_parameter_values(
                 parameter_definitions=template_parameter_definitions,
@@ -232,17 +235,17 @@ class ConversationService:
                 else self._extract_parameter_values(template, str(data.get("question") or "")),
             )
             instance = instantiate_template_instance(
-                instance_id=current_instance["id"],
+                instance_id=current_instance_model.id,
                 template=template,
                 conversation_id=conversation.id,
                 chat_id=user_chat.id,
                 status="ready_for_confirmation",
                 capture_stage="fill_params",
-                revision=int(current_instance.get("revision") or 1) + 1,
+                revision=int(current_instance_model.revision or 1) + 1,
                 parameter_values=merged_values,
                 current_parameters=current_instance_parameters,
-                warnings=current_instance.get("warnings") or [],
-                created_at=_parse_datetime(current_instance.get("createdAt")),
+                warnings=[{"code": item.code, "message": item.message, "targetId": item.target_id} for item in current_instance_model.warnings],
+                created_at=current_instance_model.created_at,
             )
             persisted = self.runtime_service.persist_template_instance(instance, user_id=user_id)
             assistant_chat_id = _random_id("chat")
@@ -265,7 +268,7 @@ class ConversationService:
         )
         persisted = self.runtime_service.persist_template_instance(instance, user_id=user_id)
         if not conversation.title:
-            conversation.title = template["name"]
+            conversation.title = template.name
             self.conversation_repository.save(conversation)
         assistant_chat_id = _random_id("chat")
         response = self._build_ask_response(
@@ -288,9 +291,12 @@ class ConversationService:
             return existing
         return self.conversation_repository.create(conversation_id=None, user_id=user_id)
 
-    def _match_template(self, question: str) -> dict[str, Any]:
+    def _match_template(self, question: str) -> ReportTemplate:
         """结合词法与向量信号选择最匹配的正式模板。"""
-        templates = [self.template_catalog_service.serialize_detail(item) for item in self.template_repository.list_all()]
+        templates = [
+            template if isinstance(template, ReportTemplate) else report_template_from_dict(template)
+            for template in list(self.template_repository.list_all())
+        ]
         if not templates:
             raise ValidationError("No report templates available")
         query_text = question.strip()
@@ -318,13 +324,14 @@ class ConversationService:
         except Exception:
             return []
 
-    def _extract_parameter_values(self, template: dict[str, Any], question: str) -> dict[str, list[dict[str, Any]]]:
+    def _extract_parameter_values(self, template: ReportTemplate | dict[str, Any], question: str) -> dict[str, list[dict[str, Any]]]:
         """对用户文本执行轻量首轮参数抽取。"""
+        template_model = template if isinstance(template, ReportTemplate) else report_template_from_dict(template)
         parameter_values: dict[str, list[dict[str, Any]]] = {}
         question_text = question or ""
-        for parameter in collect_template_parameters(template):
-            param_id = str(parameter.get("id") or "").strip()
-            input_type = str(parameter.get("inputType") or "")
+        for parameter in collect_template_parameters(template_model):
+            param_id = str(parameter.id or "").strip()
+            input_type = str(parameter.input_type or "")
             matched = None
             if input_type == "date":
                 date_match = DATE_PATTERN.search(question_text)
@@ -332,14 +339,14 @@ class ConversationService:
                     value = date_match.group(0)
                     matched = [{"label": value, "value": value, "query": value}]
             elif input_type == "enum":
-                for option in list(parameter.get("options") or []):
-                    label = str(option.get("label") or "")
-                    value = str(option.get("value") or "")
+                for option in list(parameter.options or []):
+                    label = str(option.label or "")
+                    value = str(option.value or "")
                     if label and label in question_text or value and value in question_text:
-                        matched = [copy_option(option)]
+                        matched = [copy_option({"label": option.label, "value": option.value, "query": option.query})]
                         break
             elif input_type == "dynamic":
-                source = str(parameter.get("source") or "").strip()
+                source = str(parameter.source or "").strip()
                 try:
                     resolved = self.parameter_option_service.resolve(
                         user_id="default",
@@ -355,7 +362,7 @@ class ConversationService:
                     value = str(option.get("value") or "")
                     if label and label in question_text or value and value in question_text:
                         choices.append(copy_option(option))
-                        if not parameter.get("multi"):
+                        if not parameter.multi:
                             break
                 if choices:
                     matched = choices
@@ -365,31 +372,33 @@ class ConversationService:
 
             if matched:
                 parameter_values[param_id] = matched
-        return merge_parameter_values(parameter_definitions=collect_template_parameters(template), current_values={}, incoming_values=parameter_values)
+        return merge_parameter_values(parameter_definitions=collect_template_parameters(template_model), current_values={}, incoming_values=parameter_values)
 
-    def _build_ask_response(self, *, conversation_id: str, chat_id: str, template: dict[str, Any], template_instance: dict[str, Any], request_id: str | None, api_version: str | None) -> dict[str, Any]:
+    def _build_ask_response(self, *, conversation_id: str, chat_id: str, template: ReportTemplate | dict[str, Any], template_instance: dict[str, Any], request_id: str | None, api_version: str | None) -> dict[str, Any]:
         """根据模板实例当前完整度直接构造下一轮追问。"""
-        missing = _missing_required_parameters(template=template, template_instance=template_instance)
+        template_model = template if isinstance(template, ReportTemplate) else report_template_from_dict(template)
+        template_instance_model = template_instance_from_dict(template_instance)
+        missing = _missing_required_parameters(template=template_model, template_instance=template_instance_model)
         if missing:
             next_parameter = missing[0]
             next_parameter_state = next(
                 (
                     copy.deepcopy(parameter)
                     for parameter in collect_instance_parameters(
-                        parameters=template_instance.get("parameters") or [],
-                        catalogs=template_instance.get("catalogs") or [],
+                        parameters=template_instance_model.parameters,
+                        catalogs=template_instance_model.catalogs,
                     )
-                    if str(parameter.get("id") or "") == str(next_parameter.get("id") or "")
+                    if parameter.id == next_parameter.id
                 ),
                 copy.deepcopy(next_parameter),
             )
             ask = {
                 "status": "pending",
-                "mode": "natural_language" if next_parameter.get("interactionMode") == "natural_language" else "form",
+                "mode": "natural_language" if next_parameter.interaction_mode == "natural_language" else "form",
                 "type": "fill_params",
                 "title": "请补充报告参数",
-                "text": f"请补充参数：{next_parameter.get('label')}",
-                "parameters": [next_parameter_state],
+                "text": f"请补充参数：{next_parameter.label}",
+                "parameters": [parameter_to_dict(next_parameter_state)],
                 "reportContext": {"templateInstance": template_instance},
             }
         else:
@@ -399,10 +408,7 @@ class ConversationService:
                 "type": "confirm_params",
                 "title": "请确认报告诉求",
                 "text": "请确认报告诉求后开始生成。",
-                "parameters": collect_instance_parameters(
-                    parameters=template_instance.get("parameters") or [],
-                    catalogs=template_instance.get("catalogs") or [],
-                ),
+                "parameters": [parameter_to_dict(parameter) for parameter in collect_instance_parameters(parameters=template_instance_model.parameters, catalogs=template_instance_model.catalogs)],
                 "reportContext": {"templateInstance": template_instance},
             }
         return _chat_response(
@@ -465,36 +471,35 @@ def _chat_response(
     }
 
 
-def _template_match_text(template: dict[str, Any]) -> str:
+def _template_match_text(template: ReportTemplate) -> str:
     parts = [
-        str(template.get("name") or ""),
-        str(template.get("description") or ""),
-        str(template.get("category") or ""),
+        str(template.name or ""),
+        str(template.description or ""),
+        str(template.category or ""),
     ]
-    for parameter in list(template.get("parameters") or []):
-        parts.append(str(parameter.get("label") or parameter.get("id") or ""))
-    for catalog in list(template.get("catalogs") or []):
+    for parameter in list(template.parameters or []):
+        parts.append(str(parameter.label or parameter.id or ""))
+    for catalog in list(template.catalogs or []):
         parts.extend(_catalog_match_text(catalog))
     return "\n".join([part for part in parts if part])
 
 
-def _lexical_score(question: str, template: dict[str, Any]) -> float:
+def _lexical_score(question: str, template: ReportTemplate) -> float:
     lowered = question.lower()
     score = 0.0
-    for part in [template.get("name"), template.get("category"), template.get("description")]:
+    for part in [template.name, template.category, template.description]:
         text = str(part or "").lower()
         if text and text in lowered:
             score += 1.0
     return score
 
 
-def _catalog_match_text(catalog: dict[str, Any]) -> list[str]:
-    parts = [str(catalog.get("title") or "")]
-    for sub_catalog in list(catalog.get("subCatalogs") or []):
+def _catalog_match_text(catalog) -> list[str]:
+    parts = [str(catalog.title or "")]
+    for sub_catalog in list(catalog.sub_catalogs or []):
         parts.extend(_catalog_match_text(sub_catalog))
-    for section in list(catalog.get("sections") or []):
-        outline = section.get("outline") or {}
-        parts.append(str(outline.get("requirement") or ""))
+    for section in list(catalog.sections or []):
+        parts.append(str(section.outline.requirement or ""))
     return [part for part in parts if part]
 
 
@@ -509,51 +514,32 @@ def _cosine_similarity(left: list[float], right: list[float]) -> float:
     return dot / (left_norm * right_norm)
 
 
-def _missing_required_parameters(*, template: dict[str, Any], template_instance: dict[str, Any]) -> list[dict[str, Any]]:
+def _missing_required_parameters(*, template: ReportTemplate, template_instance: TemplateInstance) -> list[Parameter]:
     values = parameters_to_value_map(
         collect_instance_parameters(
-            parameters=template_instance.get("parameters") or [],
-            catalogs=template_instance.get("catalogs") or [],
+            parameters=template_instance.parameters,
+            catalogs=template_instance.catalogs,
         )
     )
     missing = []
     for parameter in collect_template_parameters(template):
-        if not parameter.get("required"):
+        if not parameter.required:
             continue
-        if not list(values.get(parameter.get("id")) or []):
+        if not list(values.get(parameter.id) or []):
             missing.append(parameter)
     return missing
 
 
 def _template_instance_from_payload(payload: dict[str, Any], *, chat_id: str, status: str, capture_stage: str):
-    from ...report_runtime.domain.models import TemplateInstance
-
-    parameter_confirmation = payload.get("parameterConfirmation") or {"missingParameterIds": [], "confirmed": False}
+    instance = template_instance_from_dict(payload)
+    instance.chat_id = chat_id
+    instance.status = status
+    instance.capture_stage = capture_stage
     if capture_stage in {"confirm_params", "generate_report", "report_ready"}:
-        parameter_confirmation = {
-            **parameter_confirmation,
-            "missingParameterIds": [],
-            "confirmed": True,
-            "confirmedAt": parameter_confirmation.get("confirmedAt") or _iso_timestamp(),
-        }
-
-    return TemplateInstance(
-        id=str(payload.get("id") or ""),
-        schema_version=str(payload.get("schemaVersion") or "template-instance.vNext-draft"),
-        template_id=str(payload.get("templateId") or ""),
-        template=copy.deepcopy(payload.get("template") or {}),
-        conversation_id=str(payload.get("conversationId") or ""),
-        chat_id=chat_id,
-        status=status,
-        capture_stage=capture_stage,
-        revision=int(payload.get("revision") or 1),
-        parameters=payload.get("parameters") or [],
-        parameter_confirmation=parameter_confirmation,
-        catalogs=payload.get("catalogs") or [],
-        warnings=payload.get("warnings") or [],
-        created_at=_parse_datetime(payload.get("createdAt")),
-        updated_at=_parse_datetime(payload.get("updatedAt")),
-    )
+        instance.parameter_confirmation.missing_parameter_ids = []
+        instance.parameter_confirmation.confirmed = True
+        instance.parameter_confirmation.confirmed_at = instance.parameter_confirmation.confirmed_at or _iso_timestamp()
+    return instance
 
 
 def copy_option(option: dict[str, Any]) -> dict[str, Any]:
@@ -567,8 +553,8 @@ def copy_option(option: dict[str, Any]) -> dict[str, Any]:
 def _reply_parameter_values_to_value_map(
     payload: Any,
     *,
-    parameter_definitions: list[dict[str, Any]],
-    current_parameters: list[dict[str, Any]] | None,
+    parameter_definitions: list[Parameter],
+    current_parameters: list[Parameter] | None,
 ) -> dict[str, list[dict[str, Any]]]:
     if not isinstance(payload, dict):
         return {}
@@ -589,16 +575,13 @@ def _reply_parameter_values_to_value_map(
     return resolved
 
 
-def _scalar_to_parameter_value(raw_value: Any, *, definition: dict[str, Any]) -> dict[str, Any]:
+def _scalar_to_parameter_value(raw_value: Any, *, definition: Parameter) -> dict[str, Any]:
     candidates = []
-    for field in ("options", "values", "defaultValue"):
-        if isinstance(definition.get(field), list):
-            candidates.extend(list(definition.get(field) or []))
+    for field in (definition.options, definition.values, definition.default_value):
+        candidates.extend(list(field or []))
     for candidate in candidates:
-        if not isinstance(candidate, dict):
-            continue
-        if raw_value in {candidate.get("label"), candidate.get("value"), candidate.get("query")}:
-            return copy_option(candidate)
+        if raw_value in {candidate.label, candidate.value, candidate.query}:
+            return copy_option({"label": candidate.label, "value": candidate.value, "query": candidate.query})
     return {"label": raw_value, "value": raw_value, "query": raw_value}
 
 

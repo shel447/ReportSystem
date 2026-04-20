@@ -16,8 +16,29 @@ from jsonschema import Draft202012Validator
 from ....infrastructure.demo.telecom import get_demo_db_path, init_telecom_demo_db
 from ....shared.kernel.errors import NotFoundError, ValidationError
 from ...template_catalog.infrastructure.schema import validate_template_instance
-from ...template_catalog.domain.models import ReportTemplate
-from ..domain.models import TemplateInstance
+from ...template_catalog.domain.models import (
+    ReportTemplate,
+    report_template_from_dict,
+)
+from ..domain.models import (
+    CompositeTableComponent,
+    CompositeTableDataProperties,
+    MarkdownComponent,
+    MarkdownDataProperties,
+    ReportAdditionalInfo,
+    ReportBasicInfo,
+    ReportCatalog,
+    ReportDsl,
+    ReportGenerateMeta,
+    ReportLayout,
+    ReportSection,
+    ReportSummary,
+    TableComponent,
+    TableDataProperties,
+    TemplateInstance,
+    GridDefinition,
+    report_dsl_to_dict,
+)
 from ..domain.services import serialize_template_instance
 
 REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[5] / "design" / "report_system" / "schemas" / "report-dsl.schema.json"
@@ -78,45 +99,27 @@ class ReportRuntimeService:
         template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
         if template_instance is None:
             raise NotFoundError("Template instance not found")
-        template_payload = copy.deepcopy(template_instance.template or {})
-        if not template_payload:
+        template_model = copy.deepcopy(template_instance.template)
+        if not template_model.id:
             template = self.template_repository.get_by_id(template_instance.template_id)
             if template is None:
                 raise NotFoundError("Template not found")
-            template_payload = {
-                "id": template.id,
-                "category": template.category,
-                "name": template.name,
-                "description": template.description,
-                "schemaVersion": template.schema_version,
-                "parameters": copy.deepcopy(template.parameters),
-                "catalogs": copy.deepcopy(template.catalogs),
-                "tags": copy.deepcopy(template.tags),
-            }
-        template = ReportTemplate(
-            id=str(template_payload.get("id") or template_instance.template_id),
-            category=str(template_payload.get("category") or ""),
-            name=str(template_payload.get("name") or ""),
-            description=str(template_payload.get("description") or ""),
-            schema_version=str(template_payload.get("schemaVersion") or "template.v3"),
-            parameters=list(template_payload.get("parameters") or []),
-            catalogs=list(template_payload.get("catalogs") or []),
-            tags=list(template_payload.get("tags") or []),
-        )
+            template_model = copy.deepcopy(template)
 
         report_id = f"rpt_{uuid.uuid4().hex[:12]}"
-        report = build_report_dsl(report_id=report_id, template=template, template_instance=template_instance)
-        _validate_report_dsl(report)
+        report = build_report_dsl(report_id=report_id, template=template_model, template_instance=template_instance)
+        report_payload = report_dsl_to_dict(report)
+        _validate_report_dsl(report_payload)
         resource_status = _resource_status_from_dsl(report)
         instance = self.report_instance_repository.create(
             report_id=report_id,
-            template_id=template.id,
+            template_id=template_model.id,
             template_instance_id=template_instance.id,
             user_id=user_id,
             source_conversation_id=source_conversation_id,
             source_chat_id=source_chat_id,
             status=resource_status,
-            schema_version=report["basicInfo"]["schemaVersion"],
+            schema_version=report.basic_info.schema_version,
             report=report,
         )
         template_instance.status = "completed"
@@ -231,7 +234,7 @@ class ReportRuntimeService:
         return {
             "reportId": instance.id,
             "status": instance.status,
-            "report": copy.deepcopy(instance.report),
+            "report": report_dsl_to_dict(instance.report),
             "templateInstance": serialize_template_instance(template_instance),
             "documents": documents,
             "generationProgress": _build_generation_progress(instance.report),
@@ -248,10 +251,22 @@ class ReportDocumentService:
         return self.runtime_service.resolve_download(report_id=report_id, document_id=document_id, user_id=user_id)
 
 
-def build_report_dsl(*, report_id: str, template: ReportTemplate, template_instance: TemplateInstance) -> dict[str, Any]:
+def build_report_dsl(*, report_id: str, template: ReportTemplate | Any, template_instance: TemplateInstance) -> ReportDsl:
     """把已确认的模板实例编译成正式报告载荷。"""
-    catalogs = []
-    report_meta: dict[str, Any] = {}
+    if not isinstance(template, ReportTemplate):
+        template = report_template_from_dict(
+            {
+                "id": getattr(template, "id", ""),
+                "category": getattr(template, "category", ""),
+                "name": getattr(template, "name", ""),
+                "description": getattr(template, "description", ""),
+                "schemaVersion": getattr(template, "schema_version", "template.v3"),
+                "parameters": [],
+                "catalogs": [],
+            }
+        )
+    catalogs: list[ReportCatalog] = []
+    report_meta: dict[str, ReportGenerateMeta] = {}
     init_telecom_demo_db()
 
     for catalog in template_instance.catalogs:
@@ -259,102 +274,95 @@ def build_report_dsl(*, report_id: str, template: ReportTemplate, template_insta
 
     report_name = _build_report_name(template=template, template_instance=template_instance)
     today = datetime.now(timezone.utc).date().isoformat()
-    report = {
-        "basicInfo": {
-            "id": report_id,
-            "schemaVersion": "1.0.0",
-            "mode": "published",
-            "status": "Success",
-            "name": report_name,
-            "subTitle": today,
-            "description": template.description,
-            "templateId": template.id,
-            "templateName": template.name,
-            "version": "1.0.0",
-            "createDate": today,
-            "modifyDate": today,
-            "creator": "report-system",
-            "modifier": "report-system",
-            "category": template.category,
-        },
-        "catalogs": catalogs,
-        "summary": {
-            "id": "summary_report",
-            "overview": _build_report_summary(catalogs),
-        },
-        "reportMeta": report_meta,
-        "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
-    }
-    return report
+    return ReportDsl(
+        basic_info=ReportBasicInfo(
+            id=report_id,
+            schema_version="1.0.0",
+            mode="published",
+            status="Success",
+            name=report_name,
+            sub_title=today,
+            description=template.description,
+            template_id=template.id,
+            template_name=template.name,
+            version="1.0.0",
+            create_date=today,
+            modify_date=today,
+            creator="report-system",
+            modifier="report-system",
+            category=template.category,
+        ),
+        catalogs=catalogs,
+        summary=ReportSummary(id="summary_report", overview=_build_report_summary(catalogs)),
+        report_meta=report_meta,
+        layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+    )
 
 
-def _build_report_catalog(catalog: dict[str, Any], report_meta: dict[str, Any]) -> dict[str, Any]:
-    built = {
-        "id": catalog.get("id"),
-        "name": catalog.get("renderedTitle") or catalog.get("title") or catalog.get("id"),
-    }
-    sub_catalogs = [_build_report_catalog(sub_catalog, report_meta) for sub_catalog in list(catalog.get("subCatalogs") or [])]
-    sections = []
-    for section in list(catalog.get("sections") or []):
+def _build_report_catalog(catalog, report_meta: dict[str, ReportGenerateMeta]) -> ReportCatalog:
+    sub_catalogs = [_build_report_catalog(sub_catalog, report_meta) for sub_catalog in list(catalog.sub_catalogs or [])]
+    sections: list[ReportSection] = []
+    for section in list(catalog.sections or []):
         components, summary, additional_infos = _build_section_components(section)
-        section_payload = {
-            "id": section.get("id"),
-            "title": _section_title(section),
-            "components": components,
-            "summary": {
-                "id": f"summary_{section.get('id')}",
-                "overview": summary,
-            },
-        }
-        sections.append(section_payload)
-        report_meta[str(section.get("id"))] = {
-            "status": "Success",
-            "question": str(((section.get("outline") or {}).get("renderedRequirement")) or ((section.get("outline") or {}).get("requirement")) or ""),
-            "additionalInfos": additional_infos,
-        }
-    if sub_catalogs:
-        built["subCatalogs"] = sub_catalogs
-    if sections:
-        built["sections"] = sections
-    return built
+        sections.append(
+            ReportSection(
+                id=section.id,
+                title=_section_title(section),
+                components=components,
+                summary=ReportSummary(
+                    id=f"summary_{section.id}",
+                    overview=summary,
+                ),
+            )
+        )
+        report_meta[section.id] = ReportGenerateMeta(
+            status="Success",
+            question=section.outline.rendered_requirement or section.outline.requirement or "",
+            additional_infos=additional_infos,
+        )
+    return ReportCatalog(
+        id=catalog.id,
+        name=catalog.rendered_title or catalog.title or catalog.id,
+        sub_catalogs=sub_catalogs,
+        sections=sections,
+    )
 
 
-def _build_section_components(section: dict[str, Any]) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]]]:
-    outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
-    requirement_text = str(outline.get("renderedRequirement") or outline.get("requirement") or "")
-    additional_infos = []
-    for binding in list((((section.get("runtimeContext") or {}).get("bindings")) or [])):
-        resolved_query = str(binding.get("resolvedQuery") or "").strip()
+def _build_section_components(section) -> tuple[list[Any], str, list[ReportAdditionalInfo]]:
+    requirement_text = str(section.outline.rendered_requirement or section.outline.requirement or "")
+    additional_infos: list[ReportAdditionalInfo] = []
+    for binding in list(section.runtime_context.bindings or []):
+        resolved_query = str(binding.resolved_query or "").strip()
         if resolved_query:
-            additional_infos.append({"type": "SQL", "value": resolved_query})
+            additional_infos.append(ReportAdditionalInfo(type="SQL", value=resolved_query))
 
     # 当前运行时保持确定性生成：把正式诉求状态编译成文稿区块，
     # 并把已解析的执行绑定作为证据写入附加信息。
     components = [
-        {
-            "id": f"component_{section.get('id')}_markdown",
-            "type": "markdown",
-            "dataProperties": {
-                "dataType": "static",
-                "content": _build_markdown_content(section, requirement_text),
-            },
-        }
+        MarkdownComponent(
+            id=f"component_{section.id}_markdown",
+            type="markdown",
+            data_properties=MarkdownDataProperties(
+                data_type="static",
+                content=_build_markdown_content(section, requirement_text),
+            ),
+        )
     ]
     components.extend(_build_presentation_components(section))
-    summary = requirement_text or str(section.get("id") or "")
+    summary = requirement_text or str(section.id or "")
     return components, summary[:160], additional_infos
 
 
-def _build_markdown_content(section: dict[str, Any], requirement_text: str) -> str:
+def _build_markdown_content(section, requirement_text: str) -> str:
     lines = [f"## {_section_title(section)}".strip(), "", requirement_text or "本章节基于模板诉求自动生成。", ""]
-    items = ((section.get("outline") or {}).get("items") or [])
+    items = section.outline.items or []
     if items:
         lines.append("### 诉求要素")
         lines.append("")
         for item in items:
-            values = [str(value.get("label") or value.get("value") or "") for value in item.get("values") or []]
+            values = [str(value.label or value.value or "") for value in item.values or []]
             rendered = "、".join([value for value in values if value]) or "未设置"
-            lines.append(f"- {item.get('label')}: {rendered}")
+            lines.append(f"- {item.label}: {rendered}")
         lines.append("")
     lines.append("### 生成说明")
     lines.append("")
@@ -362,20 +370,19 @@ def _build_markdown_content(section: dict[str, Any], requirement_text: str) -> s
     return "\n".join(lines).strip()
 
 
-def _section_title(section: dict[str, Any]) -> str:
-    outline = section.get("outline") if isinstance(section.get("outline"), dict) else {}
-    rendered_requirement = str(outline.get("renderedRequirement") or outline.get("requirement") or "").strip()
+def _section_title(section) -> str:
+    rendered_requirement = str(section.outline.rendered_requirement or section.outline.requirement or "").strip()
     if not rendered_requirement:
-        return str(section.get("id") or "")
+        return str(section.id or "")
     return rendered_requirement[:80]
 
 
 def _build_report_name(*, template: ReportTemplate, template_instance: TemplateInstance) -> str:
     first_values = []
     for parameter in template_instance.parameters:
-        values = parameter.get("values") or []
+        values = parameter.values or []
         if values:
-            first_values.append(str(values[0].get("label") or values[0].get("value") or ""))
+            first_values.append(str(values[0].label or values[0].value or ""))
         if len(first_values) >= 2:
             break
     suffix = " ".join([value for value in first_values if value])
@@ -384,87 +391,83 @@ def _build_report_name(*, template: ReportTemplate, template_instance: TemplateI
     return template.name
 
 
-def _build_report_summary(catalogs: list[dict[str, Any]]) -> str:
+def _build_report_summary(catalogs: list[ReportCatalog]) -> str:
     section_titles = _collect_section_titles(catalogs)
     if not section_titles:
         return "报告已生成。"
     return f"报告已生成，共包含 {len(section_titles)} 个章节：{'、'.join(section_titles[:5])}"
 
 
-def _build_presentation_components(section: dict[str, Any]) -> list[dict[str, Any]]:
-    presentation = (((section.get("content") or {}).get("presentation")) or {}) if isinstance(section.get("content"), dict) else {}
-    blocks = list(presentation.get("blocks") or [])
-    components: list[dict[str, Any]] = []
+def _build_presentation_components(section) -> list[Any]:
+    blocks = list(section.content.presentation.blocks or [])
+    components: list[Any] = []
     for block in blocks:
-        if str(block.get("type") or "") != "composite_table":
+        if str(block.type or "") != "composite_table":
             continue
         components.append(_build_composite_table_component(block))
     return components
 
 
-def _build_composite_table_component(block: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "id": str(block.get("id") or ""),
-        "type": "compositeTable",
-        "tables": [_build_composite_table_part(block, part) for part in list(block.get("parts") or [])],
-        "dataProperties": {
-            "dataType": "static",
-            "title": str(block.get("title") or ""),
-        },
-    }
+def _build_composite_table_component(block) -> CompositeTableComponent:
+    return CompositeTableComponent(
+        id=str(block.id or ""),
+        type="compositeTable",
+        tables=[_build_composite_table_part(block, part) for part in list(block.parts or [])],
+        data_properties=CompositeTableDataProperties(
+            data_type="static",
+            title=str(block.title or ""),
+        ),
+    )
 
 
-def _build_composite_table_part(block: dict[str, Any], part: dict[str, Any]) -> dict[str, Any]:
-    if str(part.get("sourceType") or "") == "summary":
+def _build_composite_table_part(block, part) -> TableComponent:
+    if str(part.source_type or "") == "summary":
         rows = []
-        for row in list(((part.get("summarySpec") or {}).get("rows")) or []):
-            rows.append({"title": str(row.get("title") or ""), "content": "待补充"})
-        return {
-            "id": str(part.get("id") or ""),
-            "type": "table",
-            "dataProperties": {
-                "dataType": "static",
-                "title": str(part.get("title") or ""),
-                "columns": [
-                    {"key": "title", "title": "项目"},
-                    {"key": "content", "title": "结论"},
-                ],
-                "data": rows,
-            },
-        }
-    return {
-        "id": str(part.get("id") or ""),
-        "type": "table",
-        "dataProperties": {
-            "dataType": "datasource",
-            "sourceId": str(part.get("datasetId") or ""),
-            "title": str(part.get("title") or ""),
-            "columns": list(((part.get("tableLayout") or {}).get("columns")) or []),
-        },
-    }
+        for row in list((part.summary_spec.rows if part.summary_spec else []) or []):
+            rows.append({"title": str(row.title or ""), "content": "待补充"})
+        return TableComponent(
+            id=str(part.id or ""),
+            type="table",
+            data_properties=TableDataProperties(
+                data_type="static",
+                title=str(part.title or ""),
+                columns=[],
+                data=rows,
+            ),
+        )
+    return TableComponent(
+        id=str(part.id or ""),
+        type="table",
+        data_properties=TableDataProperties(
+            data_type="datasource",
+            source_id=str(part.dataset_id or ""),
+            title=str(part.title or ""),
+            columns=list(part.table_layout.columns or []) if part.table_layout else [],
+        ),
+    )
 
 
-def _collect_section_titles(catalogs: list[dict[str, Any]]) -> list[str]:
+def _collect_section_titles(catalogs: list[ReportCatalog]) -> list[str]:
     titles: list[str] = []
     for catalog in catalogs:
-        for section in list(catalog.get("sections") or []):
-            title = str(section.get("title") or "").strip()
+        for section in list(catalog.sections or []):
+            title = str(section.title or "").strip()
             if title:
                 titles.append(title)
-        titles.extend(_collect_section_titles(list(catalog.get("subCatalogs") or [])))
+        titles.extend(_collect_section_titles(list(catalog.sub_catalogs or [])))
     return titles
 
 
-def _count_catalogs(catalogs: list[dict[str, Any]]) -> int:
+def _count_catalogs(catalogs: list[ReportCatalog]) -> int:
     total = 0
     for catalog in catalogs:
         total += 1
-        total += _count_catalogs(list(catalog.get("subCatalogs") or []))
+        total += _count_catalogs(list(catalog.sub_catalogs or []))
     return total
 
 
-def _resource_status_from_dsl(report: dict[str, Any]) -> str:
-    status = str((((report.get("basicInfo") or {}).get("status")) or "")).strip()
+def _resource_status_from_dsl(report: ReportDsl) -> str:
+    status = str(report.basic_info.status or "").strip()
     if status == "Running":
         return "generating"
     if status == "Failed":
@@ -472,9 +475,9 @@ def _resource_status_from_dsl(report: dict[str, Any]) -> str:
     return "available"
 
 
-def _build_generation_progress(report: dict[str, Any]) -> dict[str, int]:
-    total_sections = len(_collect_section_titles(list(report.get("catalogs") or [])))
-    total_catalogs = _count_catalogs(list(report.get("catalogs") or []))
+def _build_generation_progress(report: ReportDsl) -> dict[str, int]:
+    total_sections = len(_collect_section_titles(list(report.catalogs or [])))
+    total_catalogs = _count_catalogs(list(report.catalogs or []))
     return {
         "totalSections": total_sections,
         "completedSections": total_sections,

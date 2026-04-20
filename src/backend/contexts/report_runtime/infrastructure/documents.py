@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from ....infrastructure.exporter.java_office import JavaOfficeExporterGateway
-from ..domain.models import DocumentArtifact
+from ..domain.models import DocumentArtifact, ReportDsl, report_dsl_to_dict
 
 DOCUMENTS_DIR = Path(__file__).resolve().parent / "generated_documents"
 MIME_TYPES = {
@@ -33,7 +33,7 @@ class ReportDocumentGateway:
     def generate_document(
         self,
         *,
-        report: dict[str, Any],
+        report: ReportDsl,
         report_id: str,
         format_name: str,
         theme: str,
@@ -84,7 +84,7 @@ class ReportDocumentGateway:
         }
 
 
-def _serialize_report_payload(report: dict[str, Any], *, theme: str, format_name: str) -> str:
+def _serialize_report_payload(report: ReportDsl, *, theme: str, format_name: str) -> str:
     """生成确定性的文稿导出结果，用于调试和轻量分发。"""
     return "\n".join(
         [
@@ -93,7 +93,7 @@ def _serialize_report_payload(report: dict[str, Any], *, theme: str, format_name
             f"- theme: {theme}",
             "",
             "```json",
-            json.dumps(report, ensure_ascii=False, indent=2),
+            json.dumps(report_dsl_to_dict(report), ensure_ascii=False, indent=2),
             "```",
             "",
         ]

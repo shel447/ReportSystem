@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from backend.contexts.report_runtime.infrastructure.documents import ReportDocumentGateway
-from backend.contexts.report_runtime.domain.models import DocumentArtifact
+from backend.contexts.report_runtime.domain.models import DocumentArtifact, report_dsl_from_dict
 
 
 class _FakeOfficeExporter:
@@ -23,9 +23,16 @@ class ReportDocumentGatewayTests(unittest.TestCase):
     def test_word_generation_delegates_to_java_exporter(self):
         exporter = _FakeOfficeExporter()
         gateway = ReportDocumentGateway(office_exporter=exporter)
+        report = report_dsl_from_dict(
+            {
+                "basicInfo": {"id": "rpt_001", "schemaVersion": "1.0.0", "mode": "published", "status": "Success"},
+                "catalogs": [],
+                "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
+            }
+        )
 
         result = gateway.generate_document(
-            report={"basicInfo": {"schemaVersion": "1.0.0"}},
+            report=report,
             report_id="rpt_001",
             format_name="word",
             theme="default",
@@ -40,9 +47,16 @@ class ReportDocumentGatewayTests(unittest.TestCase):
     def test_markdown_generation_writes_local_file(self):
         exporter = _FakeOfficeExporter()
         gateway = ReportDocumentGateway(office_exporter=exporter)
+        report = report_dsl_from_dict(
+            {
+                "basicInfo": {"id": "rpt_002", "schemaVersion": "1.0.0", "mode": "published", "status": "Success", "name": "demo"},
+                "catalogs": [],
+                "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
+            }
+        )
 
         result = gateway.generate_document(
-            report={"basicInfo": {"schemaVersion": "1.0.0", "name": "demo"}},
+            report=report,
             report_id="rpt_002",
             format_name="markdown",
             theme="default",

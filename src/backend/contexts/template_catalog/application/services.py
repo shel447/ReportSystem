@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from ....shared.kernel.errors import ConflictError, NotFoundError, ValidationError
-from ..domain.models import ReportTemplate
+from ..domain.models import ReportTemplate, report_template_to_dict
 
 
 class TemplateCatalogService:
@@ -78,18 +78,7 @@ class TemplateCatalogService:
 
     def serialize_detail(self, template: ReportTemplate) -> dict[str, Any]:
         """把领域对象投影为公开的报告模板契约。"""
-        return {
-            "id": template.id,
-            "category": template.category,
-            "name": template.name,
-            "description": template.description,
-            "schemaVersion": template.schema_version,
-            "tags": list(template.tags or []),
-            "parameters": list(template.parameters or []),
-            "catalogs": list(template.catalogs or []),
-            "createdAt": template.created_at.isoformat().replace("+00:00", "Z") if template.created_at else None,
-            "updatedAt": template.updated_at.isoformat().replace("+00:00", "Z") if template.updated_at else None,
-        }
+        return report_template_to_dict(template)
 
     def _validate_template_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         # 校验停留在应用层，这样仓储层只接收结构干净的对象，不需要兼容分支。
