@@ -14,7 +14,73 @@
     "modifyDate": "2026-04-18",
     "creator": "report-system",
     "modifier": "report-system",
-    "category": "network_operations"
+    "category": "network_operations",
+    "parameters": {
+      "reportDate": {
+        "id": "reportDate",
+        "label": "报告日期",
+        "description": "日报统计日期。",
+        "inputType": "date",
+        "required": true,
+        "multi": false,
+        "interactionMode": "form",
+        "defaultValue": [
+          {
+            "label": "2026-04-18",
+            "value": "2026-04-18",
+            "query": "2026-04-18"
+          }
+        ],
+        "values": [
+          {
+            "label": "2026-04-18",
+            "value": "2026-04-18",
+            "query": "2026-04-18"
+          }
+        ],
+        "runtimeContext": {
+          "valueSource": "default",
+          "confirmed": true,
+          "confirmedAt": "2026-04-18T09:15:00Z"
+        }
+      },
+      "scope": {
+        "id": "scope",
+        "label": "分析对象",
+        "description": "需要分析的网络对象。",
+        "inputType": "dynamic",
+        "required": true,
+        "multi": true,
+        "interactionMode": "natural_language",
+        "source": "https://example.internal/api/network/scopes/options",
+        "options": [
+          {
+            "label": "总部网络",
+            "value": "hq-network",
+            "query": "scope_id = 'hq-network'"
+          },
+          {
+            "label": "分支网络",
+            "value": "branch-network",
+            "query": "scope_id = 'branch-network'"
+          }
+        ],
+        "values": [
+          {
+            "label": "总部网络",
+            "value": "hq-network",
+            "query": "scope_id = 'hq-network'"
+          }
+        ],
+        "runtimeContext": {
+          "valueSource": "dynamic_candidate",
+          "confirmed": true,
+          "confirmedAt": "2026-04-18T09:15:00Z",
+          "optionSource": "https://example.internal/api/network/scopes/options",
+          "optionsFetchedAt": "2026-04-18T09:11:00Z"
+        }
+      }
+    }
   },
   "cover": {
     "title": "总部网络运行日报",
@@ -56,13 +122,34 @@
   "reportMeta": {
     "section_overview": {
       "status": "Success",
-      "question": "分析总部网络在 2026-04-18 的总体运行态势，并总结关键结论。",
+      "question": "请分析总部网络整体运行态势，并给出关键结论。",
       "additionalInfos": [
         {
           "type": "SQL",
           "value": "SELECT * FROM daily_summary WHERE scope_id = 'hq-network' AND stat_date = '2026-04-18'"
         }
-      ]
+      ],
+      "parameters": {},
+      "outline": {
+        "requirement": "分析{@scopeItem}在{@reportDateItem}的总体运行态势，并总结关键结论。",
+        "renderedRequirement": "分析总部网络在 2026-04-18 的总体运行态势，并总结关键结论。",
+        "items": [
+          {
+            "id": "scopeItem",
+            "sourceParameterId": "scope",
+            "value": [
+              "hq-network"
+            ]
+          },
+          {
+            "id": "reportDateItem",
+            "sourceParameterId": "reportDate",
+            "value": [
+              "2026-04-18"
+            ]
+          }
+        ]
+      }
     }
   },
   "layout": {

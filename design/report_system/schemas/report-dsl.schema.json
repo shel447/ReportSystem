@@ -1500,6 +1500,194 @@
       ],
       "additionalProperties": false
     },
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "ParameterValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "value",
+        "query"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "query": {
+          "$ref": "#/$defs/Scalar"
+        }
+      }
+    },
+    "ParameterRuntimeContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "dynamic_candidate",
+            "parameter_ref",
+            "system_fill"
+          ]
+        },
+        "queryContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "confirmed": {
+          "type": "boolean"
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "optionSource": {
+          "type": "string"
+        },
+        "optionsFetchedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "inputType",
+        "required",
+        "multi",
+        "interactionMode"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputType": {
+          "type": "string",
+          "enum": [
+            "free_text",
+            "date",
+            "enum",
+            "dynamic"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "interactionMode": {
+          "type": "string",
+          "enum": [
+            "form",
+            "natural_language"
+          ]
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "runtimeContext": {
+          "$ref": "#/$defs/ParameterRuntimeContext"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "OutlineItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sourceParameterId",
+        "value"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sourceParameterId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          }
+        }
+      }
+    },
+    "GenerateOutline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement",
+        "renderedRequirement",
+        "items"
+      ],
+      "properties": {
+        "requirement": {
+          "type": "string"
+        },
+        "renderedRequirement": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OutlineItem"
+          }
+        }
+      }
+    },
     "GenerateMeta": {
       "type": "object",
       "properties": {
@@ -1508,6 +1696,18 @@
         },
         "question": {
           "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9]*$": {
+              "$ref": "#/$defs/Parameter"
+            }
+          },
+          "additionalProperties": false
+        },
+        "outline": {
+          "$ref": "#/$defs/GenerateOutline"
         },
         "additionalInfos": {
           "type": "array",
@@ -1518,7 +1718,9 @@
       },
       "required": [
         "status",
-        "question"
+        "question",
+        "parameters",
+        "outline"
       ],
       "additionalProperties": false
     },
@@ -1582,12 +1784,22 @@
         },
         "category": {
           "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9]*$": {
+              "$ref": "#/$defs/Parameter"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [
         "id",
         "schemaVersion",
-        "mode"
+        "mode",
+        "parameters"
       ],
       "additionalProperties": false
     }

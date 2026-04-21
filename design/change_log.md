@@ -216,3 +216,24 @@
 - 风险与后续：
   - 当前只补到 `part` 级运行态，不继续缓存子表单元格结果或最终生成内容。
   - 实现阶段需要保证参数或诉求变化时，只重算受影响 `part.runtimeContext`，而不是破坏整个 `composite_table` 结构。
+
+## 2026-04-21 Report DSL 增强参数与大纲回显
+
+- 变更动机：
+  - 生成后的报告需要在前台支持结构化编辑，单靠 `TemplateInstance` 回显不足以支撑“直接基于报告编辑”的场景。
+  - 现有 DSL 中 `basicInfo` 和 `GenerateMeta` 只保留了最小元信息，无法直接回显全局参数、章节参数和章节大纲骨架。
+- 设计决策：
+  - 在 `basicInfo` 中新增 `parameters`，按 `Record<parameterId, Parameter>` 保存全局参数完整定义与当前取值。
+  - 在 `GenerateMeta` 中新增 `parameters`，只保存章节本地参数。
+  - 在 `GenerateMeta` 中新增 `outline`，包含 `requirement`、`renderedRequirement`、`items`。
+  - `OutlineItem` 正式定义为：`id`、`sourceParameterId`、`value`；其中 `value` 是参数三元组中的 `value` 数组。
+  - `GenerateMeta.question` 与 `outline.renderedRequirement` 同时保留且独立存在，前端和编译逻辑不得假定二者相等。
+- 影响范围：
+  - [report_system/schemas/report-dsl.schema.json](report_system/schemas/report-dsl.schema.json)
+  - [report_system/examples/report-dsl.example.json](report_system/examples/report-dsl.example.json)
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+- 风险与后续：
+  - 该调整会扩大 DSL 体积，实现阶段需要避免把 `TemplateInstance` 原样透传进 `Report DSL`。
+  - 若后续需要把父 catalog 参数也显式回显到章节级，需要再单独扩展 `GenerateMeta.parameters` 的范围定义。

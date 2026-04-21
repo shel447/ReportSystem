@@ -339,6 +339,7 @@
 - `catalogs -> (subCatalogs)* -> sections -> components` 是正式主体
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
+- `Report DSL` 需要保留足够的参数配置和大纲配置，以支持前台对已生成报告进行结构化编辑
 
 当前业务 profile：
 
@@ -348,6 +349,35 @@
   - 组件：优先使用 `text`、`table`、`chart`、`markdown`
   - `CompositeTable` 已作为正式模板能力启用，但只通过 `presentation.blocks[].type = composite_table` 产出
   - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成
+
+`Report DSL` 的结构化编辑增强规则：
+
+- `basicInfo.parameters`
+  - 正式保存报告全局参数
+  - 结构为 `Record<parameterId, Parameter>`
+  - key 使用 lowerCamelCase 全局参数 id
+  - value 使用实例态完整参数对象，而不是精简副本
+- `GenerateMeta.parameters`
+  - 只保存该章节本地参数
+  - 结构为 `Record<parameterId, Parameter>`
+  - 不重复放全局参数，也不放父 catalog 参数
+- `GenerateMeta.outline`
+  - 正式保存章节诉求骨架与实例化结果
+  - 包含：`requirement`、`renderedRequirement`、`items`
+- `GenerateMeta.question`
+  - 继续保留
+  - 与 `outline.renderedRequirement` 并存
+  - 二者允许不同值，前端和编译逻辑不得假定相等
+
+`GenerateMeta.outline.items[*]` 规则：
+
+- `id`
+  - 章节内大纲项 id
+- `sourceParameterId`
+  - 关联的上级参数 id
+- `value`
+  - 标量数组，保存参数三元组中的 `value` 集合
+  - 例如：`[\"a\", \"b\"]`
 
 `CompositeTable` 的模板支持规则：
 
