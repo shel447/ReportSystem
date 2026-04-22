@@ -309,7 +309,7 @@
       "required": [
         "id",
         "sourceType",
-        "sourceRef"
+        "source"
       ],
       "properties": {
         "id": {
@@ -327,8 +327,9 @@
             "compose"
           ]
         },
-        "sourceRef": {
-          "type": "string"
+        "source": {
+          "type": "string",
+          "description": "数据源定义字符串。sourceType=sql 时为 SQL 模板；sourceType=api 时为 API URL；其它类型沿用统一字符串口径。"
         },
         "dependsOn": {
           "type": "array",

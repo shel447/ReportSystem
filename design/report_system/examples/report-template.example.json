@@ -73,25 +73,25 @@
                 "id": "dataset_daily_summary",
                 "name": "运行概览数据集",
                 "sourceType": "sql",
-                "sourceRef": "sql.network.daily_summary"
+                "source": "SELECT stat_date, region_name, availability_rate, alarm_count, ticket_count\nFROM rpt_network_daily_summary\nWHERE stat_date = '{{reportDate}}'\n  AND scope_code IN ({{scope}})"
               },
               {
                 "id": "dataset_device_basic",
                 "name": "核心设备基础信息数据集",
                 "sourceType": "sql",
-                "sourceRef": "sql.network.device_basic"
+                "source": "SELECT device_name, model, vendor, site_name, online_time\nFROM dim_network_device\nWHERE stat_date = '{{reportDate}}'\n  AND scope_code IN ({{scope}})"
               },
               {
                 "id": "dataset_interface_checks",
                 "name": "接口检查结果数据集",
                 "sourceType": "sql",
-                "sourceRef": "sql.network.interface_checks"
+                "source": "SELECT item, result, remark\nFROM rpt_network_interface_checks\nWHERE stat_date = '{{reportDate}}'\n  AND scope_code IN ({{scope}})"
               },
               {
                 "id": "dataset_board_checks",
                 "name": "板卡检查结果数据集",
                 "sourceType": "sql",
-                "sourceRef": "sql.network.board_checks"
+                "source": "SELECT item, result, remark\nFROM rpt_network_board_checks\nWHERE stat_date = '{{reportDate}}'\n  AND scope_code IN ({{scope}})"
               }
             ],
             "presentation": {
@@ -306,7 +306,7 @@
                     "id": "dataset_scope_trend",
                     "name": "对象趋势数据集",
                     "sourceType": "sql",
-                    "sourceRef": "sql.network.scope_trend"
+                    "source": "SELECT stat_date, scope_code, availability_rate\nFROM rpt_network_scope_trend\nWHERE stat_date BETWEEN DATE_SUB('{{reportDate}}', INTERVAL 30 DAY) AND '{{reportDate}}'\n  AND scope_code = '{{scope}}'"
                   }
                 ],
                 "presentation": {
