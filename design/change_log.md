@@ -8,6 +8,25 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-04-22 模板 `dataset.source` 内联数据源
+
+- 变更动机：
+  - 现有模板里 `dataset.sourceType = sql` 只通过 `sourceRef` 引用外部 SQL 定义，模板本身不保存 SQL 原文，导致模板导入导出和独立审阅时无法直接看到真实数据源定义。
+  - `sql` 与 `api` 两类数据源都需要一个简单、统一、强约束的入口字段，不适合再拆成复杂对象结构。
+- 设计决策：
+  - `DatasetDefinition` 正式取消 `sourceRef`，统一改为 `source`。
+  - `source` 始终是字符串：
+    - `sourceType = sql` 时，`source` 保存 SQL 模板
+    - `sourceType = api` 时，`source` 保存 API URL
+  - SQL 返回字段、API 请求参数、API 响应体都视为外部已约定内容，不在模板中显式配置。
+  - SQL 模板占位符语法本轮不做正式标准化；示例中的写法只用于表达“运行时会结合参数实例化”。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/schemas/report-template.schema.json](report_system/schemas/report-template.schema.json)
+  - [report_system/examples/report-template.example.json](report_system/examples/report-template.example.json)
+- 风险与后续：
+  - 如果后续需要规范 SQL 模板占位符语法，应单独追加一轮运行时模板实例化规则设计，而不是在本轮继续扩张 `DatasetDefinition`。
+
 ## 2026-04-19 旧 `design/implementation/` 目录归档
 
 - 变更动机：
