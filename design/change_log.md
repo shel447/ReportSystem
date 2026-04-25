@@ -8,6 +8,42 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-04-25 删除后路径引用收口
+
+- 变更动机：
+  - `docs/` 目录以及 `design/archive/`、`design/chatbi/`、`design/openapi/`、`design/spec.md`、`design/story.md`、`design/deployment_guide.md`、`design/report_sample.md` 已从当前工作树删除。
+  - 剩余入口文档不能继续链接或推荐这些已删除材料。
+- 设计决策：
+  - `README.md` 的仓库结构和文档导航移除 `docs/` 与已删除设计辅助文档。
+  - `design/README.md` 只保留 `report_system/`、`report_system/implementation/`、`change_log.md` 和 `biz_requirement.md` 四类入口。
+  - `design/report_system/README.md` 的治理规则移除已删除的 `chatbi/openapi/archive` 目录引用，改为说明历史材料已退出主阅读路径。
+  - `design/change_log.md` 中历史影响范围里指向已删除文件的 Markdown 链接改为纯文本历史路径，避免形成失效链接。
+- 影响范围：
+  - [README.md](../README.md)
+  - [README.md](README.md)
+  - [report_system/README.md](report_system/README.md)
+- 风险与后续：
+  - `design/biz_requirement.md` 是设计团队原始输入来源，仍保留历史路径文字，不按当前目录结构改写。
+
+## 2026-04-25 非权威文档口径清理
+
+- 变更动机：
+  - `design/report_system/` 已明确成为当前方案设计权威来源，但根层摘要、测试文档和历史材料入口仍存在旧路径、旧字段或旧目录名，容易被误读为当前口径。
+  - `biz_requirement.md` 需要继续作为设计团队原始输入来源保留，不能按当前实现口径改写。
+- 设计决策：
+  - 刷新 `design/spec.md` 与 `design/story.md`，只保留当前报告主系统摘要和业务叙事。
+  - 更新 `design/README.md`，明确 `biz_requirement.md` 是原始输入来源，历史计划和演示材料只用于追溯。
+  - 修正部署说明中的仓库名、路径和 Python 版本要求。
+  - 刷新 `docs/testing/functional-use-cases.md`，移除旧 `design/design_*`、旧模板字段、旧实例资源和旧 `generated_content` 口径。
+  - 为 `docs/`、`docs/plans/`、`docs/presentations/` 增加入口说明，声明日期型计划和演示资料是历史快照，不作为当前设计依据。
+- 影响范围：
+  - [README.md](../README.md)
+  - [README.md](README.md)
+  - `design/spec.md`、`design/story.md`、`design/deployment_guide.md`（后续已删除）
+  - `docs/` 下测试、计划和演示材料（后续已删除）
+- 风险与后续：
+  - 归档目录、历史计划和历史测试报告中的原文仍可能包含旧词汇；这些文档已通过入口说明降级为追溯材料，不再作为当前方案依据。
+
 ## 2026-04-22 模板 `dataset.source` 内联数据源
 
 - 变更动机：
@@ -38,12 +74,9 @@
   - 历史文档中仍需追溯旧实现映射时，统一从归档目录读取，不再把旧目录作为当前实现设计来源。
 - 影响范围：
   - [README.md](README.md)
-  - [archive/README.md](archive/README.md)
-  - [archive/legacy-implementation/README.md](archive/legacy-implementation/README.md)
-  - [archive/legacy-entrypoints/README.md](archive/legacy-entrypoints/README.md)
   - [report_system/README.md](report_system/README.md)
-  - [archive/legacy-entrypoints/design.md](archive/legacy-entrypoints/design.md)
   - [biz_requirement.md](biz_requirement.md)
+  - `design/archive/` 下历史归档材料（后续已删除）
 - 风险与后续：
   - 若仓库外仍有旧链接直接指向 `design/implementation/*`，需要后续按需补充跳转说明或继续清理引用。
   - 后续新增实现设计只允许进入 `design/report_system/implementation/`，不得在根目录再恢复并行实现目录。
@@ -83,9 +116,9 @@
   - `src/backend/report_system.db` 明确降级为本地运行时文件，不再纳入版本跟踪。
   - SQL 初始化稿必须按当前 ORM 目标模型维护，不能再从历史 `report_system.db` 倒推。
 - 影响范围：
-  - [archive/legacy-implementation/database_schema.md](archive/legacy-implementation/database_schema.md)
   - [report_system/05-数据模型与持久化.md](report_system/05-%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B%E4%B8%8E%E6%8C%81%E4%B9%85%E5%8C%96.md)
-  - [deployment_guide.md](deployment_guide.md)
+  - `design/archive/legacy-implementation/database_schema.md`（后续已删除）
+  - `design/deployment_guide.md`（后续已删除）
   - `src/backend/infrastructure/persistence/schema_init.sql`
 - 风险与后续：
   - 当前仍未引入迁移框架，SQL 初始化稿与 ORM 的一致性需要在后续开发中显式维护。
@@ -106,10 +139,7 @@
   - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
   - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
   - [report_system/08-相对ChatBI的扩展点.md](report_system/08-%E7%9B%B8%E5%AF%B9ChatBI%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9.md)
-  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
-  - [chatbi/03-运行时交互流程.md](chatbi/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E4%BA%A4%E4%BA%92%E6%B5%81%E7%A8%8B.md)
-  - [chatbi/05-报告系统扩展映射.md](chatbi/05-%E6%8A%A5%E5%91%8A%E7%B3%BB%E7%BB%9F%E6%89%A9%E5%B1%95%E6%98%A0%E5%B0%84.md)
-  - `design/openapi/reportsystem-openapi*.yaml|json`
+  - `design/chatbi/*` 与 `design/openapi/*`（后续已删除）
 - 风险与后续：
   - `delta` 当前只覆盖目录和章节新增；若后续需要章节替换、组件更新、目录删除等动作，需要继续扩充动作枚举。
   - 前端必须明确区分 `steps`、`delta`、`answer` 三条通道，避免再次混淆。
@@ -129,8 +159,7 @@
   - [report_system/08-相对ChatBI的扩展点.md](report_system/08-%E7%9B%B8%E5%AF%B9ChatBI%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9.md)
   - [report_system/implementation/统一对话实现.md](report_system/implementation/%E7%BB%9F%E4%B8%80%E5%AF%B9%E8%AF%9D%E5%AE%9E%E7%8E%B0.md)
   - [report_system/implementation/前端实现.md](report_system/implementation/%E5%89%8D%E7%AB%AF%E5%AE%9E%E7%8E%B0.md)
-  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
-  - `design/openapi/reportsystem-openapi*.yaml|json`
+  - `design/chatbi/*` 与 `design/openapi/*`（后续已删除）
 - 风险与后续：
   - 当前只定义了 `pending | replied`，若后续出现“过期”“被替换”等场景，需要扩展状态枚举。
   - 历史消息回显若仍使用极简消息模型，需要继续把 `ask` 结构纳入正式消息对象。
@@ -149,8 +178,7 @@
   - [report_system/08-相对ChatBI的扩展点.md](report_system/08-%E7%9B%B8%E5%AF%B9ChatBI%E7%9A%84%E6%89%A9%E5%B1%95%E7%82%B9.md)
   - [report_system/implementation/统一对话实现.md](report_system/implementation/%E7%BB%9F%E4%B8%80%E5%AF%B9%E8%AF%9D%E5%AE%9E%E7%8E%B0.md)
   - [report_system/implementation/前端实现.md](report_system/implementation/%E5%89%8D%E7%AB%AF%E5%AE%9E%E7%8E%B0.md)
-  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
-  - `design/openapi/reportsystem-openapi*.yaml|json`
+  - `design/chatbi/*` 与 `design/openapi/*`（后续已删除）
 - 风险与后续：
   - 若未来允许一条 `reply` 同时消费多条历史追问，需要把单值 `sourceChatId` 扩展为数组或更通用的 source 引用模型。
 
@@ -168,9 +196,8 @@
   - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
   - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
   - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
-  - [chatbi/02-核心协议对象.md](chatbi/02-%E6%A0%B8%E5%BF%83%E5%8D%8F%E8%AE%AE%E5%AF%B9%E8%B1%A1.md)
   - `design/report_system/schemas/*.json`
-  - `design/openapi/reportsystem-openapi*.yaml|json`
+  - `design/chatbi/*` 与 `design/openapi/*`（后续已删除）
 - 风险与后续：
   - 运行时如果仍按旧 `display` 字段取值，实现阶段必须同步切到 `label`。
   - `Reply.parameters` 既然已经与 `Ask.parameters` 脱钩，后续实现中不得再把两者视为同构 DTO。
@@ -209,7 +236,7 @@
   - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
   - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
   - [report_system/schemas/parameter-option-source-request.schema.json](report_system/schemas/parameter-option-source-request.schema.json)
-  - `design/openapi/reportsystem-openapi*.yaml|json`
+  - `design/openapi/*`（后续已删除）
 - 风险与后续：
   - 若后续把参数 id 直接暴露到更多公开接口对象中，应继续沿用 lowerCamelCase 口径。
 
@@ -231,7 +258,7 @@
   - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
   - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
   - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
-  - [chatbi/05-报告系统扩展映射.md](chatbi/05-%E6%8A%A5%E5%91%8A%E7%B3%BB%E7%BB%9F%E6%89%A9%E5%B1%95%E6%98%A0%E5%B0%84.md)
+  - `design/chatbi/*`（后续已删除）
 - 风险与后续：
   - 当前只补到 `part` 级运行态，不继续缓存子表单元格结果或最终生成内容。
   - 实现阶段需要保证参数或诉求变化时，只重算受影响 `part.runtimeContext`，而不是破坏整个 `composite_table` 结构。

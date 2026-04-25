@@ -1,4 +1,4 @@
-# ReportSystemV2
+# ReportSystem
 
 智能报告系统。当前公开业务面已经收口为三条主链路：`templates`、`chat`、`reports`。
 
@@ -90,9 +90,8 @@ flowchart LR
 ## 4. 仓库结构
 
 ```text
-ReportSystemV2/
+ReportSystem/
 ├─ design/
-├─ docs/
 ├─ src/
 │  ├─ backend/
 │  └─ frontend/
@@ -171,27 +170,25 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 
 ## 6. 文档导航
 
-### 总体与模块设计
+### 当前权威设计
 
-- [整体设计](design/design.md)
-- [模板设计](design/design_template.md)
-- [API 设计](design/design_api.md)
-- [对话制报告接口串联案例](design/design_chat_report_stream_case.md)
+- [设计文档总入口](design/README.md)
+- [报告系统统一设计包](design/report_system/README.md)
+- [接口契约](design/report_system/04-接口契约.md)
+- [数据模型与持久化](design/report_system/05-数据模型与持久化.md)
 
-### 核心实现文档
+### 当前实现设计
 
-- [实现文档索引](design/implementation/index.md)
-- [模板目录实现](design/implementation/template_catalog.md)
-- [统一对话实现](design/implementation/conversation.md)
-- [报告运行时实现](design/implementation/report_runtime.md)
-- [数据库表定义总览](design/implementation/database_schema.md)
-- [外部接口与用法](design/implementation/external_interfaces.md)
+- [实现设计索引](design/report_system/implementation/README.md)
+- [总体实现架构](design/report_system/implementation/总体实现架构.md)
+- [模板目录实现](design/report_system/implementation/模板目录实现.md)
+- [统一对话实现](design/report_system/implementation/统一对话实现.md)
+- [报告运行时实现](design/report_system/implementation/报告运行时实现.md)
+- [持久化与表结构实现](design/report_system/implementation/持久化与表结构实现.md)
 
 ### 产品与需求
 
-- [规格文档](design/spec.md)
-- [用户故事](design/story.md)
-- [原始需求与按日演进记录](design/biz_requirement.md)
+- [原始需求输入](design/biz_requirement.md)
 
 ## 7. 当前实现边界
 
