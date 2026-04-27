@@ -414,9 +414,21 @@
 - 基础信息也归为 `query part`，不单独引入第三类 part
 - 不在 `part` 内再做 group；若业务上需要多个分区，就拆成多个顺序 `part`
 
+表格布局规则：
+
+- 普通 `presentation.blocks[].type = table` 必须使用 `datasetId` 指向数据集，并通过 `properties` 承载展示属性
+- `PresentationProperty` 当前仅定义 `mergeColumns[]`，且仅对 `type = table` 的普通表格块生效
+- 普通表格的 `properties.mergeColumns[]` 用于声明合并列，结构为 `{title, columns}`
+  - `title` 是合并之后展示的列名称
+  - `columns` 是源数据列 key 数组，至少包含两个互不重复的列 key
+  - 一个表格可以声明多个合并列，按数组顺序展示
+- `composite_table.parts[].tableLayout.mergeColumns[]` 与普通表格的 `properties.mergeColumns[]` 使用同一套 `MergeColumnInfo` 定义
+- `mergeColumns` 只影响展示结构，不修改数据行，也不改变 `columns[]` 中源列的含义
+
 `TemplateInstance` 对 `CompositeTable` 的正式承载规则：
 
 - `TemplateInstance.section.content.presentation.blocks[]` 也必须支持 `type = composite_table`
+- 实例态普通 `table` block 也必须保留 `datasetId/properties`，供二次编辑与重新生成复用
 - 实例态 `composite_table` block 保留模板定义字段：`id/type/title/description/parts[]`
 - `parts[]` 在实例态继续保留同样的顺序和结构，不做运行时重排
 - `query part`

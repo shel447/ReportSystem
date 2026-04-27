@@ -116,12 +116,28 @@ class CompositeTableColumn:
 
 
 @dataclass(slots=True)
+class MergeColumnInfo:
+    """表格合并列定义。"""
+
+    title: str
+    columns: list[str] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class CompositeTablePartLayout:
     """复合表分片布局定义。"""
 
     kind: str
     show_header: bool | None = _alias_field("showHeader", default=None)
     columns: list[CompositeTableColumn] = field(default_factory=list)
+    merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
+
+
+@dataclass(slots=True)
+class PresentationProperty:
+    """展示块附加展示属性。当前仅对普通表格生效。"""
+
+    merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
 
 
 @dataclass(slots=True)
@@ -162,6 +178,7 @@ class PresentationBlock:
     type: str
     title: str | None = None
     dataset_id: str | None = _alias_field("datasetId", default=None)
+    properties: PresentationProperty | None = None
     description: str | None = None
     parts: list[CompositeTablePart] = field(default_factory=list)
 
@@ -493,6 +510,20 @@ def composite_table_column_to_dict(column: CompositeTableColumn) -> dict[str, An
     return payload
 
 
+def merge_column_info_from_dict(payload: dict[str, Any]) -> MergeColumnInfo:
+    return MergeColumnInfo(
+        title=str(payload.get("title") or ""),
+        columns=[str(item) for item in list(payload.get("columns") or [])],
+    )
+
+
+def merge_column_info_to_dict(merge_column: MergeColumnInfo) -> dict[str, Any]:
+    return {
+        "title": merge_column.title,
+        "columns": list(merge_column.columns),
+    }
+
+
 def composite_table_part_layout_from_dict(payload: Any) -> CompositeTablePartLayout | None:
     if not isinstance(payload, dict):
         return None
@@ -500,6 +531,7 @@ def composite_table_part_layout_from_dict(payload: Any) -> CompositeTablePartLay
         kind=str(payload.get("kind") or ""),
         show_header=_as_optional_bool(get_value(payload, CompositeTablePartLayout, "show_header")),
         columns=[composite_table_column_from_dict(item) for item in list(payload.get("columns") or [])],
+        merge_columns=[merge_column_info_from_dict(item) for item in list(get_value(payload, CompositeTablePartLayout, "merge_columns") or [])],
     )
 
 
@@ -511,6 +543,23 @@ def composite_table_part_layout_to_dict(layout: CompositeTablePartLayout) -> dic
         set_value(payload, CompositeTablePartLayout, "show_header", layout.show_header)
     if layout.columns:
         payload["columns"] = [composite_table_column_to_dict(item) for item in layout.columns]
+    if layout.merge_columns:
+        set_value(payload, CompositeTablePartLayout, "merge_columns", [merge_column_info_to_dict(item) for item in layout.merge_columns])
+    return payload
+
+
+def presentation_property_from_dict(payload: Any) -> PresentationProperty | None:
+    if not isinstance(payload, dict):
+        return None
+    return PresentationProperty(
+        merge_columns=[merge_column_info_from_dict(item) for item in list(get_value(payload, PresentationProperty, "merge_columns") or [])],
+    )
+
+
+def presentation_property_to_dict(properties: PresentationProperty) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if properties.merge_columns:
+        set_value(payload, PresentationProperty, "merge_columns", [merge_column_info_to_dict(item) for item in properties.merge_columns])
     return payload
 
 
@@ -583,6 +632,7 @@ def presentation_block_from_dict(payload: dict[str, Any]) -> PresentationBlock:
         type=str(payload.get("type") or ""),
         title=_as_optional_str(payload.get("title")),
         dataset_id=_as_optional_str(get_value(payload, PresentationBlock, "dataset_id")),
+        properties=presentation_property_from_dict(payload.get("properties")),
         description=_as_optional_str(payload.get("description")),
         parts=[composite_table_part_from_dict(item) for item in list(payload.get("parts") or [])],
     )
@@ -597,6 +647,8 @@ def presentation_block_to_dict(block: PresentationBlock) -> dict[str, Any]:
         payload["title"] = block.title
     if block.dataset_id is not None:
         set_value(payload, PresentationBlock, "dataset_id", block.dataset_id)
+    if block.properties is not None:
+        payload["properties"] = presentation_property_to_dict(block.properties)
     if block.description is not None:
         payload["description"] = block.description
     if block.parts:

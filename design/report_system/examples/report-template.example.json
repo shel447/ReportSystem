@@ -110,6 +110,23 @@
                   "datasetId": "dataset_daily_summary"
                 },
                 {
+                  "id": "block_summary_table",
+                  "type": "table",
+                  "title": "关键指标明细",
+                  "datasetId": "dataset_daily_summary",
+                  "properties": {
+                    "mergeColumns": [
+                      {
+                        "title": "范围指标",
+                        "columns": [
+                          "scope_name",
+                          "metric_name"
+                        ]
+                      }
+                    ]
+                  }
+                },
+                {
                   "id": "block_device_inspection",
                   "type": "composite_table",
                   "title": "核心设备巡检信息",
@@ -144,6 +161,15 @@
                           {
                             "key": "remark",
                             "title": "备注"
+                          }
+                        ],
+                        "mergeColumns": [
+                          {
+                            "title": "检查结论",
+                            "columns": [
+                              "result",
+                              "remark"
+                            ]
                           }
                         ]
                       }

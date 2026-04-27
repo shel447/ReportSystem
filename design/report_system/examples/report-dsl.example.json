@@ -105,6 +105,24 @@
                 "dataType": "static",
                 "content": "## 总体结论\n\n总部网络整体稳定，关键指标正常。"
               }
+            },
+            {
+              "id": "block_summary_table",
+              "type": "table",
+              "dataProperties": {
+                "dataType": "datasource",
+                "sourceId": "dataset_daily_summary",
+                "title": "关键指标明细",
+                "mergeColumns": [
+                  {
+                    "title": "范围指标",
+                    "columns": [
+                      "scope_name",
+                      "metric_name"
+                    ]
+                  }
+                ]
+              }
             }
           ],
           "summary": {

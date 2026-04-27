@@ -435,6 +435,7 @@ def _materialize_presentation_block(
             type=block.type,
             title=block.title,
             dataset_id=block.dataset_id,
+            properties=copy.deepcopy(block.properties),
             description=block.description,
         )
     return TemplateInstancePresentationBlock(

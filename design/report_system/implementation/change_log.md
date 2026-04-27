@@ -276,3 +276,19 @@
     - 仓储与导出边界继续输出合法 JSON 契约
   - 全量验证基线：
     - `python -m pytest src/backend/tests -q`
+
+## 2026-04-27 表格合并列实现
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-04-27 表格 Presentation 支持合并列定义”
+- 实现设计调整：
+  - `template_catalog.domain.models` 新增 `MergeColumnInfo`，并把 `mergeColumns` 挂到 `CompositeTablePartLayout`。
+  - 普通 `PresentationBlock.type = table` 与实例态 `TemplateInstancePresentationBlock` 保留 `properties`，避免实例化后丢失合并列展示意图。
+  - 新增 `PresentationProperty`，当前仅定义 `mergeColumns`，且仅对普通 `table` block 生效。
+  - `report_runtime.domain.models.TableDataProperties` 新增 `mergeColumns`，序列化为 DSL 的 `dataProperties.mergeColumns`。
+  - `BuildReportDslService` 正式编译普通 `table` block，并把普通表格 `properties.mergeColumns` 及复合表 query part 的 `tableLayout.columns/mergeColumns` 透传到 DSL table。
+  - 前端模板与对话类型同步加入 `PresentationProperty.mergeColumns` 和 `TableLayout.mergeColumns`。
+- 验证要求：
+  - 后端测试锁住 `CompositeTablePartLayout` 和 `TableDataProperties` 的 `mergeColumns` round-trip。
+  - 后端测试锁住普通 `table` block 和 `composite_table` query part 编译后的 `dataProperties.mergeColumns`。
+  - 前端构建需通过 TypeScript 校验。

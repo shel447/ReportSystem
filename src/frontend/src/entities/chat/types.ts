@@ -1,4 +1,4 @@
-import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition, ParameterScalar, DatasetDefinition } from "../templates/types";
+import type { ReportTemplate, TemplateParameter, ParameterValue, ParameterRuntimeContext, RequirementItemDefinition, ParameterScalar, DatasetDefinition, TableLayout, PresentationProperty } from "../templates/types";
 
 export type TemplateInstanceRequirementItem = RequirementItemDefinition;
 
@@ -13,11 +13,7 @@ export type TemplateInstanceCompositeTablePart = {
     rows: Array<{ id: string; title: string }>;
     prompt?: string;
   };
-  tableLayout?: {
-    kind: "table";
-    showHeader?: boolean;
-    columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
-  };
+  tableLayout?: TableLayout;
   runtimeContext: {
     status: "pending" | "running" | "finished" | "failed";
     resolvedDatasetId?: string;
@@ -33,6 +29,7 @@ export type TemplateInstancePresentationBlock = {
   type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown" | "composite_table";
   title?: string;
   datasetId?: string;
+  properties?: PresentationProperty;
   description?: string;
   parts?: TemplateInstanceCompositeTablePart[];
 };

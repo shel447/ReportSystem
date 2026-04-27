@@ -456,6 +456,7 @@
         },
         "title": { "type": "string" },
         "datasetId": { "type": "string" },
+        "properties": { "$ref": "./report-template.schema.json#/$defs/PresentationProperty" },
         "description": { "type": "string" },
         "parts": {
           "type": "array",
@@ -467,6 +468,10 @@
         {
           "if": { "properties": { "type": { "const": "composite_table" } } },
           "then": { "required": ["parts"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "table" } } },
+          "then": { "required": ["datasetId"] }
         }
       ]
     },

@@ -10,12 +10,14 @@ from ....shared.kernel.dataclass_aliases import get_alias, get_value, set_value
 from ...template_catalog.domain.models import (
     CatalogDefinition,
     CompositeTableColumn,
+    MergeColumnInfo,
     CompositeTablePart,
     CompositeTablePartLayout,
     DatasetDefinition,
     OutlineDefinition,
     Parameter,
     ParameterValue,
+    PresentationProperty,
     ReportTemplate,
     SummaryTableSpec,
     catalog_definition_to_dict,
@@ -111,6 +113,7 @@ class TemplateInstancePresentationBlock:
     type: str
     title: str | None = None
     dataset_id: str | None = _alias_field("datasetId", default=None)
+    properties: PresentationProperty | None = None
     description: str | None = None
     parts: list[TemplateInstanceCompositeTablePart] = field(default_factory=list)
 
@@ -283,6 +286,7 @@ class TableDataProperties:
     source_id: str | None = _alias_field("sourceId", default=None)
     title: str | None = None
     columns: list[ReportColumn] = field(default_factory=list)
+    merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
     data: list[dict[str, Any]] = field(default_factory=list)
 
 
@@ -603,6 +607,10 @@ def template_instance_presentation_block_to_dict(block: TemplateInstancePresenta
         set_value(payload, TemplateInstancePresentationBlock, "title", block.title)
     if block.dataset_id is not None:
         set_value(payload, TemplateInstancePresentationBlock, "dataset_id", block.dataset_id)
+    if block.properties is not None:
+        from ...template_catalog.domain.models import presentation_property_to_dict
+
+        payload["properties"] = presentation_property_to_dict(block.properties)
     if block.description is not None:
         set_value(payload, TemplateInstancePresentationBlock, "description", block.description)
     if block.parts:
@@ -616,6 +624,7 @@ def template_instance_presentation_block_from_dict(payload: dict[str, Any]) -> T
         type=str(get_value(payload, TemplateInstancePresentationBlock, "type") or ""),
         title=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "title")),
         dataset_id=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "dataset_id")),
+        properties=_presentation_property_from_any(payload.get("properties")),
         description=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "description")),
         parts=[template_instance_composite_table_part_from_dict(item) for item in list(get_value(payload, TemplateInstancePresentationBlock, "parts") or [])],
     )
@@ -925,6 +934,10 @@ def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
     _set_if(data_properties, TableDataProperties, "title", component.data_properties.title)
     if component.data_properties.columns:
         data_properties["columns"] = [report_column_to_dict(item) for item in component.data_properties.columns]
+    if component.data_properties.merge_columns:
+        from ...template_catalog.domain.models import merge_column_info_to_dict
+
+        set_value(data_properties, TableDataProperties, "merge_columns", [merge_column_info_to_dict(item) for item in component.data_properties.merge_columns])
     if component.data_properties.data:
         data_properties["data"] = list(component.data_properties.data)
     return payload
@@ -940,6 +953,10 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
             source_id=_as_optional_str(data.get(get_alias(TableDataProperties, "source_id"))),
             title=_as_optional_str(data.get(get_alias(TableDataProperties, "title"))),
             columns=[report_column_from_dict(item) for item in list(data.get("columns") or [])],
+            merge_columns=[
+                _merge_column_info_from_any(item)
+                for item in list(get_value(data, TableDataProperties, "merge_columns") or [])
+            ],
             data=list(data.get("data") or []),
         ),
     )
@@ -1072,6 +1089,26 @@ def _table_layout_from_any(payload: Any) -> CompositeTablePartLayout | None:
 
         return composite_table_part_layout_from_dict(payload)
     return None
+
+
+def _presentation_property_from_any(payload: Any) -> PresentationProperty | None:
+    if isinstance(payload, PresentationProperty):
+        return payload
+    if isinstance(payload, dict):
+        from ...template_catalog.domain.models import presentation_property_from_dict
+
+        return presentation_property_from_dict(payload)
+    return None
+
+
+def _merge_column_info_from_any(payload: Any) -> MergeColumnInfo:
+    if isinstance(payload, MergeColumnInfo):
+        return payload
+    if isinstance(payload, dict):
+        from ...template_catalog.domain.models import merge_column_info_from_dict
+
+        return merge_column_info_from_dict(payload)
+    return MergeColumnInfo(title="", columns=[])
 
 
 def _set_if(payload: dict[str, Any], model_type: type, field_name: str, value: Any) -> None:

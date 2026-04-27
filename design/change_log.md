@@ -283,3 +283,23 @@
 - 风险与后续：
   - 该调整会扩大 DSL 体积，实现阶段需要避免把 `TemplateInstance` 原样透传进 `Report DSL`。
   - 若后续需要把父 catalog 参数也显式回显到章节级，需要再单独扩展 `GenerateMeta.parameters` 的范围定义。
+
+## 2026-04-27 表格 Presentation 支持合并列定义
+
+- 变更动机：
+  - 现有表格 presentation 只能声明源列，无法表达“把多个源列合并为一个展示列”的版式意图。
+  - DSL 层已有 `dataProperties.mergeColumns`，模板和实例态需要补齐同名定义并进入运行时编译链路。
+- 设计决策：
+  - 普通 `presentation.blocks[].type = table` 新增 `properties`，并要求使用 `datasetId` 指向数据集。
+  - `PresentationProperty` 当前仅定义 `mergeColumns[]`，且仅对普通 `table` block 生效。
+  - `CompositeTablePartLayout` 新增 `mergeColumns[]`，用于 `composite_table` query part 的子表布局。
+  - `mergeColumns[]` 固定为 `{title, columns}`；`columns` 使用源数据列 key，至少两个且不重复。
+  - `mergeColumns` 只表达展示结构，不修改数据行，也不改变 `columns[]` 中源列的含义。
+- 影响范围：
+  - [report_system/schemas/report-template.schema.json](report_system/schemas/report-template.schema.json)
+  - [report_system/schemas/template-instance.schema.json](report_system/schemas/template-instance.schema.json)
+  - [report_system/schemas/report-dsl.schema.json](report_system/schemas/report-dsl.schema.json)
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+- 风险与后续：
+  - v1 不做跨字段校验，即不强制 `mergeColumns.columns[]` 必须出现在源数据集或 `tableLayout.columns[]` 中；该约束先由设计文档和模板评审保证。

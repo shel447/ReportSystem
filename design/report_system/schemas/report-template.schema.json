@@ -371,6 +371,9 @@
         "datasetId": {
           "type": "string"
         },
+        "properties": {
+          "$ref": "#/$defs/PresentationProperty"
+        },
         "description": {
           "type": "string"
         },
@@ -396,8 +399,36 @@
               "parts"
             ]
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "table"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "datasetId"
+            ]
+          }
         }
       ]
+    },
+    "PresentationProperty": {
+      "type": "object",
+      "description": "展示块附加展示属性。当前仅定义 mergeColumns，且仅对 type=table 的普通表格块生效。",
+      "additionalProperties": false,
+      "properties": {
+        "mergeColumns": {
+          "type": "array",
+          "description": "普通表格的合并列定义，仅对 type=table 生效。",
+          "items": {
+            "$ref": "#/$defs/MergeColumnInfo"
+          }
+        }
+      }
     },
     "CompositeTablePart": {
       "type": "object",
@@ -486,6 +517,12 @@
           "items": {
             "$ref": "#/$defs/CompositeTableColumn"
           }
+        },
+        "mergeColumns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MergeColumnInfo"
+          }
         }
       }
     },
@@ -513,6 +550,27 @@
             "center",
             "right"
           ]
+        }
+      }
+    },
+    "MergeColumnInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "columns"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "uniqueItems": true
         }
       }
     },

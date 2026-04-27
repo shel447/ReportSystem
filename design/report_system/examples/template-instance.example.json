@@ -166,6 +166,23 @@
                   "type": "chart",
                   "title": "关键指标趋势",
                   "datasetId": "dataset_daily_summary"
+                },
+                {
+                  "id": "block_summary_table",
+                  "type": "table",
+                  "title": "关键指标明细",
+                  "datasetId": "dataset_daily_summary",
+                  "properties": {
+                    "mergeColumns": [
+                      {
+                        "title": "范围指标",
+                        "columns": [
+                          "scope_name",
+                          "metric_name"
+                        ]
+                      }
+                    ]
+                  }
                 }
               ]
             }
@@ -467,7 +484,7 @@
                   "id": "dataset_daily_summary",
                   "name": "运行概览数据集",
                   "sourceType": "sql",
-                  "sourceRef": "sql.network.daily_summary"
+                  "source": "sql.network.daily_summary"
                 }
               ],
               "presentation": {
@@ -591,7 +608,7 @@
                       "id": "dataset_scope_trend",
                       "name": "对象趋势数据集",
                       "sourceType": "sql",
-                      "sourceRef": "sql.network.scope_trend"
+                      "source": "sql.network.scope_trend"
                     }
                   ],
                   "presentation": {

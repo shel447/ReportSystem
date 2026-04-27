@@ -35,6 +35,7 @@ from ..domain.models import (
     ReportAdditionalInfo,
     ReportBasicInfo,
     ReportCatalog,
+    ReportColumn,
     ReportDsl,
     ReportGenerateMeta,
     ReportLayout,
@@ -391,10 +392,25 @@ def _build_presentation_components(section) -> list[Any]:
     blocks = list(section.content.presentation.blocks or [])
     components: list[Any] = []
     for block in blocks:
-        if str(block.type or "") != "composite_table":
-            continue
-        components.append(_build_composite_table_component(block))
+        block_type = str(block.type or "")
+        if block_type == "composite_table":
+            components.append(_build_composite_table_component(block))
+        elif block_type == "table":
+            components.append(_build_table_component(block))
     return components
+
+
+def _build_table_component(block) -> TableComponent:
+    return TableComponent(
+        id=str(block.id or ""),
+        type="table",
+        data_properties=TableDataProperties(
+            data_type="datasource",
+            source_id=str(block.dataset_id or ""),
+            title=str(block.title or ""),
+            merge_columns=_presentation_merge_columns(getattr(block, "properties", None)),
+        ),
+    )
 
 
 def _build_composite_table_component(block) -> CompositeTableComponent:
@@ -431,9 +447,36 @@ def _build_composite_table_part(block, part) -> TableComponent:
             data_type="datasource",
             source_id=str(part.dataset_id or ""),
             title=str(part.title or ""),
-            columns=list(part.table_layout.columns or []) if part.table_layout else [],
+            columns=_layout_columns(part.table_layout),
+            merge_columns=_layout_merge_columns(part.table_layout),
         ),
     )
+
+
+def _layout_columns(table_layout) -> list[ReportColumn]:
+    if table_layout is None:
+        return []
+    return [
+        ReportColumn(
+            key=str(column.key or ""),
+            title=str(column.title or ""),
+            width=getattr(column, "width", None),
+            align=getattr(column, "align", None),
+        )
+        for column in list(table_layout.columns or [])
+    ]
+
+
+def _layout_merge_columns(table_layout):
+    if table_layout is None:
+        return []
+    return list(table_layout.merge_columns or [])
+
+
+def _presentation_merge_columns(properties):
+    if properties is None:
+        return []
+    return list(properties.merge_columns or [])
 
 
 def _collect_section_titles(catalogs: list[ReportCatalog]) -> list[str]:

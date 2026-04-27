@@ -79,11 +79,28 @@ export type DatasetDefinition = {
   description?: string;
 };
 
+export type MergeColumnInfo = {
+  title: string;
+  columns: string[];
+};
+
+export type TableLayout = {
+  kind: "table";
+  showHeader?: boolean;
+  columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
+  mergeColumns?: MergeColumnInfo[];
+};
+
+export type PresentationProperty = {
+  mergeColumns?: MergeColumnInfo[];
+};
+
 export type PresentationBlock = {
   id: string;
   type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown" | "composite_table";
   title?: string;
   datasetId?: string;
+  properties?: PresentationProperty;
   description?: string;
   parts?: Array<{
     id: string;
@@ -96,11 +113,7 @@ export type PresentationBlock = {
       rows: Array<{ id: string; title: string }>;
       prompt?: string;
     };
-    tableLayout?: {
-      kind: "table";
-      showHeader?: boolean;
-      columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
-    };
+    tableLayout?: TableLayout;
   }>;
 };
 
