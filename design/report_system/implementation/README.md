@@ -26,7 +26,7 @@
 - `TemplateInstance.section.content` 属于正式实例化视图，不能在对话层、仓储层或前端类型层被裁剪。
 - `/chat` 流式协议按 `steps / delta / answer` 三条通道实现；`delta` 只属于流式事件，不进入持久化聚合。
 - 参数值三元组正式使用 `{label, value, query}`；`reply.parameters` 只回传 `Record<parameterId, Scalar[]>`。
-- 模板 `presentation.blocks[]` 已正式支持 `composite_table`，运行时必须编译为 DSL `compositeTable`。
+- 模板 `presentation.blocks[]` 当前支持 `text/table/chart`，并兼容保留 `composite_table`；运行时必须分别编译为 DSL `TextComponent/TableComponent/ChartComponent/CompositeTable`。
 - 数据库允许删表重建，因此实现中不得保留任何旧结构向新结构的转换映射。
 
 ## Application Service 导航

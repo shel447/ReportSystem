@@ -179,6 +179,7 @@ class PresentationBlock:
     title: str | None = None
     dataset_id: str | None = _alias_field("datasetId", default=None)
     properties: PresentationProperty | None = None
+    template: str | None = None
     description: str | None = None
     parts: list[CompositeTablePart] = field(default_factory=list)
 
@@ -633,6 +634,7 @@ def presentation_block_from_dict(payload: dict[str, Any]) -> PresentationBlock:
         title=_as_optional_str(payload.get("title")),
         dataset_id=_as_optional_str(get_value(payload, PresentationBlock, "dataset_id")),
         properties=presentation_property_from_dict(payload.get("properties")),
+        template=_as_optional_str(payload.get("template")),
         description=_as_optional_str(payload.get("description")),
         parts=[composite_table_part_from_dict(item) for item in list(payload.get("parts") or [])],
     )
@@ -649,6 +651,8 @@ def presentation_block_to_dict(block: PresentationBlock) -> dict[str, Any]:
         set_value(payload, PresentationBlock, "dataset_id", block.dataset_id)
     if block.properties is not None:
         payload["properties"] = presentation_property_to_dict(block.properties)
+    if block.template is not None:
+        payload["template"] = block.template
     if block.description is not None:
         payload["description"] = block.description
     if block.parts:

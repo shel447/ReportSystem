@@ -114,6 +114,8 @@ class TemplateInstancePresentationBlock:
     title: str | None = None
     dataset_id: str | None = _alias_field("datasetId", default=None)
     properties: PresentationProperty | None = None
+    template: str | None = None
+    content: str | None = None
     description: str | None = None
     parts: list[TemplateInstanceCompositeTablePart] = field(default_factory=list)
 
@@ -268,6 +270,16 @@ class MarkdownDataProperties:
 
 
 @dataclass(slots=True)
+class TextDataProperties:
+    """文本组件数据属性。"""
+
+    data_type: str = _alias_field("dataType")
+    content: str
+    source_id: str | None = _alias_field("sourceId", default=None)
+    title: str | None = None
+
+
+@dataclass(slots=True)
 class ReportColumn:
     """表格列定义。"""
 
@@ -291,6 +303,15 @@ class TableDataProperties:
 
 
 @dataclass(slots=True)
+class ChartDataProperties:
+    """图表组件数据属性。"""
+
+    data_type: str = _alias_field("dataType")
+    source_id: str | None = _alias_field("sourceId", default=None)
+    title: str | None = None
+
+
+@dataclass(slots=True)
 class CompositeTableDataProperties:
     """复合表组件数据属性。"""
 
@@ -308,12 +329,30 @@ class MarkdownComponent:
 
 
 @dataclass(slots=True)
+class TextComponent:
+    """文本组件。"""
+
+    id: str
+    type: str
+    data_properties: TextDataProperties = _alias_field("dataProperties")
+
+
+@dataclass(slots=True)
 class TableComponent:
     """表格组件。"""
 
     id: str
     type: str
     data_properties: TableDataProperties = _alias_field("dataProperties")
+
+
+@dataclass(slots=True)
+class ChartComponent:
+    """图表组件。"""
+
+    id: str
+    type: str
+    data_properties: ChartDataProperties = _alias_field("dataProperties")
 
 
 @dataclass(slots=True)
@@ -328,7 +367,7 @@ class CompositeTableComponent:
     )
 
 
-ReportComponent = MarkdownComponent | TableComponent | CompositeTableComponent
+ReportComponent = MarkdownComponent | TextComponent | TableComponent | ChartComponent | CompositeTableComponent
 
 
 @dataclass(slots=True)
@@ -611,6 +650,10 @@ def template_instance_presentation_block_to_dict(block: TemplateInstancePresenta
         from ...template_catalog.domain.models import presentation_property_to_dict
 
         payload["properties"] = presentation_property_to_dict(block.properties)
+    if block.template is not None:
+        set_value(payload, TemplateInstancePresentationBlock, "template", block.template)
+    if block.content is not None:
+        set_value(payload, TemplateInstancePresentationBlock, "content", block.content)
     if block.description is not None:
         set_value(payload, TemplateInstancePresentationBlock, "description", block.description)
     if block.parts:
@@ -625,6 +668,8 @@ def template_instance_presentation_block_from_dict(payload: dict[str, Any]) -> T
         title=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "title")),
         dataset_id=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "dataset_id")),
         properties=_presentation_property_from_any(payload.get("properties")),
+        template=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "template")),
+        content=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "content")),
         description=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "description")),
         parts=[template_instance_composite_table_part_from_dict(item) for item in list(get_value(payload, TemplateInstancePresentationBlock, "parts") or [])],
     )
@@ -921,6 +966,35 @@ def markdown_component_from_dict(payload: dict[str, Any]) -> MarkdownComponent:
     )
 
 
+def text_component_to_dict(component: TextComponent) -> dict[str, Any]:
+    payload = {
+        get_alias(TextComponent, "id"): component.id,
+        get_alias(TextComponent, "type"): component.type,
+        get_alias(TextComponent, "data_properties"): {
+            get_alias(TextDataProperties, "data_type"): component.data_properties.data_type,
+            "content": component.data_properties.content,
+        },
+    }
+    data_properties = payload[get_alias(TextComponent, "data_properties")]
+    _set_if(data_properties, TextDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, TextDataProperties, "title", component.data_properties.title)
+    return payload
+
+
+def text_component_from_dict(payload: dict[str, Any]) -> TextComponent:
+    data = get_value(payload, TextComponent, "data_properties") if isinstance(get_value(payload, TextComponent, "data_properties"), dict) else {}
+    return TextComponent(
+        id=str(get_value(payload, TextComponent, "id") or ""),
+        type=str(get_value(payload, TextComponent, "type") or ""),
+        data_properties=TextDataProperties(
+            data_type=str(data.get(get_alias(TextDataProperties, "data_type")) or ""),
+            content=str(data.get("content") or ""),
+            source_id=_as_optional_str(data.get(get_alias(TextDataProperties, "source_id"))),
+            title=_as_optional_str(data.get(get_alias(TextDataProperties, "title"))),
+        ),
+    )
+
+
 def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
     payload = {
         get_alias(TableComponent, "id"): component.id,
@@ -962,6 +1036,33 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
     )
 
 
+def chart_component_to_dict(component: ChartComponent) -> dict[str, Any]:
+    payload = {
+        get_alias(ChartComponent, "id"): component.id,
+        get_alias(ChartComponent, "type"): component.type,
+        get_alias(ChartComponent, "data_properties"): {
+            get_alias(ChartDataProperties, "data_type"): component.data_properties.data_type,
+        },
+    }
+    data_properties = payload[get_alias(ChartComponent, "data_properties")]
+    _set_if(data_properties, ChartDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, ChartDataProperties, "title", component.data_properties.title)
+    return payload
+
+
+def chart_component_from_dict(payload: dict[str, Any]) -> ChartComponent:
+    data = get_value(payload, ChartComponent, "data_properties") if isinstance(get_value(payload, ChartComponent, "data_properties"), dict) else {}
+    return ChartComponent(
+        id=str(get_value(payload, ChartComponent, "id") or ""),
+        type=str(get_value(payload, ChartComponent, "type") or ""),
+        data_properties=ChartDataProperties(
+            data_type=str(data.get(get_alias(ChartDataProperties, "data_type")) or ""),
+            source_id=_as_optional_str(data.get(get_alias(ChartDataProperties, "source_id"))),
+            title=_as_optional_str(data.get(get_alias(ChartDataProperties, "title"))),
+        ),
+    )
+
+
 def composite_table_component_to_dict(component: CompositeTableComponent) -> dict[str, Any]:
     payload = {
         get_alias(CompositeTableComponent, "id"): component.id,
@@ -991,8 +1092,12 @@ def composite_table_component_from_dict(payload: dict[str, Any]) -> CompositeTab
 def report_component_to_dict(component: ReportComponent) -> dict[str, Any]:
     if isinstance(component, MarkdownComponent):
         return markdown_component_to_dict(component)
+    if isinstance(component, TextComponent):
+        return text_component_to_dict(component)
     if isinstance(component, TableComponent):
         return table_component_to_dict(component)
+    if isinstance(component, ChartComponent):
+        return chart_component_to_dict(component)
     return composite_table_component_to_dict(component)
 
 
@@ -1000,8 +1105,12 @@ def report_component_from_dict(payload: dict[str, Any]) -> ReportComponent:
     component_type = str(payload.get("type") or "")
     if component_type == "markdown":
         return markdown_component_from_dict(payload)
+    if component_type == "text":
+        return text_component_from_dict(payload)
     if component_type == "table":
         return table_component_from_dict(payload)
+    if component_type == "chart":
+        return chart_component_from_dict(payload)
     return composite_table_component_from_dict(payload)
 
 

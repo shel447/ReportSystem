@@ -8,6 +8,20 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-08 Presentation Block 类型收敛实现
+
+- 背景问题：
+  - 模板/实例态 presentation 类型需要收敛到 `text/chart/table`，同时短期兼容既有 `composite_table`。
+  - `text` block 需要模板态 `template` 与实例态 `content` 的序列化和运行时编译链路。
+- 实现设计调整：
+  - 模板 schema、实例态 schema、后端 dataclass、前端类型统一声明 `text/table/chart/composite_table`。
+  - `report_runtime.domain.services` 在实例化阶段渲染 `text.template -> text.content`。
+  - `BuildReportDslService` 补齐 `text -> TextComponent`、`chart -> ChartComponent` 编译，保留普通 `table` 与兼容 `composite_table` 编译。
+  - Report DSL 后端模型补齐 `TextComponent/TextDataProperties` 与 `ChartComponent/ChartDataProperties` 序列化。
+- 验证要求：
+  - 后端测试覆盖 text 模板实例化、text/chart DSL 编译、text/chart 序列化往返和 schema 类型约束。
+  - 现有普通表格 `mergeColumns` 与 `composite_table` 测试继续通过。
+
 ## 2026-04-20 application/domain/infrastructure 函数签名类型收口
 
 - 背景问题：

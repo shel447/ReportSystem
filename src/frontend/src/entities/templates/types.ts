@@ -97,10 +97,11 @@ export type PresentationProperty = {
 
 export type PresentationBlock = {
   id: string;
-  type: "paragraph" | "bullet" | "kpi" | "table" | "chart" | "markdown" | "composite_table";
+  type: "text" | "table" | "chart" | "composite_table";
   title?: string;
   datasetId?: string;
   properties?: PresentationProperty;
+  template?: string;
   description?: string;
   parts?: Array<{
     id: string;
@@ -133,7 +134,7 @@ export type SectionDefinition = {
   content: {
     datasets?: DatasetDefinition[];
     presentation: {
-      kind: "narrative" | "table" | "chart" | "mixed";
+      kind: "text" | "table" | "chart" | "mixed";
       blocks: PresentationBlock[];
     };
   };

@@ -28,6 +28,8 @@ from .models import (
     ReportView,
 )
 from ..domain.models import (
+    ChartComponent,
+    ChartDataProperties,
     CompositeTableComponent,
     CompositeTableDataProperties,
     MarkdownComponent,
@@ -44,6 +46,8 @@ from ..domain.models import (
     TableComponent,
     TableDataProperties,
     TemplateInstance,
+    TextComponent,
+    TextDataProperties,
     GridDefinition,
     ReportInstance,
     report_dsl_to_dict,
@@ -395,9 +399,25 @@ def _build_presentation_components(section) -> list[Any]:
         block_type = str(block.type or "")
         if block_type == "composite_table":
             components.append(_build_composite_table_component(block))
+        elif block_type == "text":
+            components.append(_build_text_component(block))
         elif block_type == "table":
             components.append(_build_table_component(block))
+        elif block_type == "chart":
+            components.append(_build_chart_component(block))
     return components
+
+
+def _build_text_component(block) -> TextComponent:
+    return TextComponent(
+        id=str(block.id or ""),
+        type="text",
+        data_properties=TextDataProperties(
+            data_type="static",
+            content=str(getattr(block, "content", None) or ""),
+            title=str(block.title or ""),
+        ),
+    )
 
 
 def _build_table_component(block) -> TableComponent:
@@ -409,6 +429,18 @@ def _build_table_component(block) -> TableComponent:
             source_id=str(block.dataset_id or ""),
             title=str(block.title or ""),
             merge_columns=_presentation_merge_columns(getattr(block, "properties", None)),
+        ),
+    )
+
+
+def _build_chart_component(block) -> ChartComponent:
+    return ChartComponent(
+        id=str(block.id or ""),
+        type="chart",
+        data_properties=ChartDataProperties(
+            data_type="datasource",
+            source_id=str(block.dataset_id or ""),
+            title=str(block.title or ""),
         ),
     )
 

@@ -34,14 +34,6 @@ _PARAMETER_OPTION_STORE = {
     f"./{TEMPLATE_INSTANCE_SCHEMA_PATH.name}": _TEMPLATE_INSTANCE_SCHEMA,
     TEMPLATE_INSTANCE_SCHEMA_PATH.as_uri(): _TEMPLATE_INSTANCE_SCHEMA,
 }
-_TEMPLATE_INSTANCE_VALIDATOR = Draft202012Validator(
-    _TEMPLATE_INSTANCE_SCHEMA,
-    resolver=RefResolver(
-        base_uri=TEMPLATE_INSTANCE_SCHEMA_PATH.parent.as_uri() + "/",
-        referrer=_TEMPLATE_INSTANCE_SCHEMA,
-        store=_PARAMETER_OPTION_STORE,
-    ),
-)
 _PARAMETER_OPTION_RESPONSE_VALIDATOR = Draft202012Validator(
     _PARAMETER_OPTION_RESPONSE_SCHEMA,
     resolver=RefResolver(
@@ -50,6 +42,17 @@ _PARAMETER_OPTION_RESPONSE_VALIDATOR = Draft202012Validator(
         store=_PARAMETER_OPTION_STORE,
     ),
 )
+
+
+def _build_template_instance_validator() -> Draft202012Validator:
+    return Draft202012Validator(
+        _TEMPLATE_INSTANCE_SCHEMA,
+        resolver=RefResolver(
+            base_uri=TEMPLATE_INSTANCE_SCHEMA_PATH.parent.as_uri() + "/",
+            referrer=_TEMPLATE_INSTANCE_SCHEMA,
+            store=_PARAMETER_OPTION_STORE,
+        ),
+    )
 
 
 def validate_report_template(payload: dict[str, Any]) -> dict[str, Any]:
@@ -62,7 +65,7 @@ def validate_report_template(payload: dict[str, Any]) -> dict[str, Any]:
 def validate_template_instance(payload: dict[str, Any]) -> dict[str, Any]:
     """按设计原样校验运行时模板实例契约。"""
     candidate = copy.deepcopy(payload or {})
-    _raise_first_error(_TEMPLATE_INSTANCE_VALIDATOR, candidate, "模板实例校验失败")
+    _raise_first_error(_build_template_instance_validator(), candidate, "模板实例校验失败")
     return candidate
 
 

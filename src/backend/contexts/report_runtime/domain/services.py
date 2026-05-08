@@ -403,7 +403,11 @@ def build_section_instance(
             rendered_requirement=rendered_requirement,
             items=item_instances,
         ),
-        content=materialize_section_content(section=section, runtime_bindings=runtime_bindings),
+        content=materialize_section_content(
+            section=section,
+            runtime_bindings=runtime_bindings,
+            visible_values=visible_values,
+        ),
         runtime_context=SectionRuntimeContext(bindings=runtime_bindings),
         skeleton_status="reusable",
         user_edited=False,
@@ -414,12 +418,20 @@ def materialize_section_content(
     *,
     section: SectionDefinition,
     runtime_bindings: list[ExecutionBinding],
+    visible_values: dict[str, list[ParameterValue]],
 ) -> TemplateInstanceSectionContent:
     return TemplateInstanceSectionContent(
         datasets=[copy.deepcopy(dataset) for dataset in section.content.datasets],
         presentation=TemplateInstancePresentationDefinition(
             kind=section.content.presentation.kind or "mixed",
-            blocks=[_materialize_presentation_block(block, runtime_bindings=runtime_bindings) for block in section.content.presentation.blocks],
+            blocks=[
+                _materialize_presentation_block(
+                    block,
+                    runtime_bindings=runtime_bindings,
+                    visible_values=visible_values,
+                )
+                for block in section.content.presentation.blocks
+            ],
         ),
     )
 
@@ -428,14 +440,18 @@ def _materialize_presentation_block(
     block: PresentationBlock,
     *,
     runtime_bindings: list[ExecutionBinding],
+    visible_values: dict[str, list[ParameterValue]],
 ) -> TemplateInstancePresentationBlock:
     if block.type != "composite_table":
+        content = render_parameter_text(block.template, visible_values) if block.type == "text" and block.template is not None else None
         return TemplateInstancePresentationBlock(
             id=block.id,
             type=block.type,
             title=block.title,
             dataset_id=block.dataset_id,
             properties=copy.deepcopy(block.properties),
+            template=block.template,
+            content=content,
             description=block.description,
         )
     return TemplateInstancePresentationBlock(

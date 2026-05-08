@@ -8,6 +8,42 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-08 Text 模板支持 Dataset 字段引用
+
+- 变更动机：
+  - `text.template` 只表达参数引用时，无法把已执行 dataset 的关键指标直接写入文本结论。
+  - 文本结论需要同时引用多个 dataset 的执行结果字段，但本轮不进入实现代码调整。
+- 设计决策：
+  - `text.template` 继续作为唯一承载字段，不新增 `datasetIds`。
+  - 新增 dataset 字段引用语法 `{#datasetId.field}`，其中 `datasetId` 指向同一 section 的 `content.datasets[].id`，`field` 使用源数据字段 key。
+  - 被引用 dataset 当前按单行结果理解；如果返回多行，默认取第一行对应字段值。
+  - JSON Schema 只更新字段说明和示例，不强制校验 dataset 或字段是否存在。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/报告模板定义与使用说明书.md](report_system/%E6%8A%A5%E5%91%8A%E6%A8%A1%E6%9D%BF%E5%AE%9A%E4%B9%89%E4%B8%8E%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6.md)
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+  - `report_system/examples/report-template.example.json`
+  - `report_system/examples/template-instance.example.json`
+
+## 2026-05-08 Presentation Block 类型收敛
+
+- 变更动机：
+  - 旧模板 presentation 同时暴露 `paragraph/bullet/kpi/markdown` 等类型，和当前希望优先支持的文本、图表、表格能力不一致。
+  - 文本块需要从模板态模板文本和实例态渲染内容两个阶段明确建模。
+- 设计决策：
+  - 模板/实例态 `presentation.blocks[].type` 收敛为 `text`、`chart`、`table`，并兼容保留既有 `composite_table`。
+  - `text` block 模板态必须保存 `template`，实例态必须保存 `template` 与渲染后的 `content`。
+  - `paragraph/bullet/kpi/markdown` 不再作为模板/实例态 presentation block 类型支持；Report DSL 内部系统生成的 `markdown` 组件不受影响。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+
 ## 2026-04-25 删除后路径引用收口
 
 - 变更动机：

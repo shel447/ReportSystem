@@ -436,7 +436,7 @@
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["narrative", "table", "chart", "mixed"]
+          "enum": ["text", "table", "chart", "mixed"]
         },
         "blocks": {
           "type": "array",
@@ -452,11 +452,19 @@
         "id": { "type": "string" },
         "type": {
           "type": "string",
-          "enum": ["paragraph", "bullet", "kpi", "table", "chart", "markdown", "composite_table"]
+          "enum": ["text", "table", "chart", "composite_table"]
         },
         "title": { "type": "string" },
         "datasetId": { "type": "string" },
         "properties": { "$ref": "./report-template.schema.json#/$defs/PresentationProperty" },
+        "template": {
+          "type": "string",
+          "description": "文本展示块原始模板。仅对 type=text 生效，支持 {$parameterId} 参数引用与 {#datasetId.field} dataset 字段引用。"
+        },
+        "content": {
+          "type": "string",
+          "description": "文本展示块实例化后的展示内容。仅对 type=text 生效，是参数引用与 dataset 字段引用渲染后的结果；dataset 多行结果默认取第一行字段值。"
+        },
         "description": { "type": "string" },
         "parts": {
           "type": "array",
@@ -468,6 +476,10 @@
         {
           "if": { "properties": { "type": { "const": "composite_table" } } },
           "then": { "required": ["parts"] }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text" } } },
+          "then": { "required": ["template", "content"] }
         },
         {
           "if": { "properties": { "type": { "const": "table" } } },

@@ -371,7 +371,8 @@
 - Schema 全量能力以 `report-dsl.schema.json` 为准
 - 但当前报告系统首版只启用其中一个正式子集：
   - 目录：`catalogs -> (subCatalogs)* -> sections`
-  - 组件：优先使用 `text`、`table`、`chart`、`markdown`
+  - 模板/实例态 `presentation.blocks[].type`：正式支持 `text`、`table`、`chart`，并兼容保留 `composite_table`
+  - DSL 组件：继续允许系统生成的 `markdown` 组件承载章节说明；模板 presentation 不再直接使用 `markdown` block
   - `CompositeTable` 已作为正式模板能力启用，但只通过 `presentation.blocks[].type = composite_table` 产出
   - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成
 
@@ -406,6 +407,14 @@
 
 `CompositeTable` 的模板支持规则：
 
+- `presentation.blocks[].type` 当前只正式支持 `text`、`table`、`chart`，并兼容保留 `composite_table`
+- `paragraph`、`bullet`、`kpi`、`markdown` 不再作为模板 presentation block 类型使用
+- `text` block 在模板态必须保存 `template`；实例态必须保存原始 `template` 和渲染后的 `content`
+- `text.template` 支持两类引用：
+  - `{$parameterId}`：引用当前 section 可见参数，按文本展示口径默认读取参数 `label`
+  - `{#datasetId.field}`：引用同一 section 内 `content.datasets[].id = datasetId` 的执行结果字段，`field` 使用源数据字段 key
+- 一个 `text.template` 可以引用多个 dataset 字段；当前版本约束被引用 dataset 按单行结果理解，若实际返回多行，默认取第一行对应字段值
+- JSON Schema 只校验 `template` 是字符串，不校验 `{#datasetId.field}` 是否存在；dataset 和字段有效性由后续业务校验器或实现阶段处理
 - `CompositeTable` 只作为 `section.content.presentation.blocks[]` 的一种 block 类型出现
 - 一个 `composite_table` block 由 `parts[]` 组成
 - 每个 `part` 只支持两类来源：
@@ -428,6 +437,7 @@
 `TemplateInstance` 对 `CompositeTable` 的正式承载规则：
 
 - `TemplateInstance.section.content.presentation.blocks[]` 也必须支持 `type = composite_table`
+- 实例态 `text` block 保留模板定义字段 `id/type/title/template/description`，并额外保存渲染后的 `content`
 - 实例态普通 `table` block 也必须保留 `datasetId/properties`，供二次编辑与重新生成复用
 - 实例态 `composite_table` block 保留模板定义字段：`id/type/title/description/parts[]`
 - `parts[]` 在实例态继续保留同样的顺序和结构，不做运行时重排

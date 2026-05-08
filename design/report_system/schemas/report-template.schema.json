@@ -356,12 +356,9 @@
         "type": {
           "type": "string",
           "enum": [
-            "paragraph",
-            "bullet",
-            "kpi",
+            "text",
             "table",
             "chart",
-            "markdown",
             "composite_table"
           ]
         },
@@ -373,6 +370,10 @@
         },
         "properties": {
           "$ref": "#/$defs/PresentationProperty"
+        },
+        "template": {
+          "type": "string",
+          "description": "文本展示块模板。仅对 type=text 生效，支持使用 {$parameterId} 引用参数，使用 {#datasetId.field} 引用同一 section 内 dataset 执行结果第一行的字段值；一个模板可引用多个 dataset。实例化后会渲染为实例态 content。"
         },
         "description": {
           "type": "string"
@@ -397,6 +398,20 @@
           "then": {
             "required": [
               "parts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "template"
             ]
           }
         },
@@ -628,7 +643,7 @@
         "kind": {
           "type": "string",
           "enum": [
-            "narrative",
+            "text",
             "table",
             "chart",
             "mixed"

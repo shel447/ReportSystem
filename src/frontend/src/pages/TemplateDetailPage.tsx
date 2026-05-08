@@ -301,7 +301,7 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         <label className="field field--full"><span className="field-label">诉求文本</span><textarea rows={3} value={section.outline.requirement} onChange={(e) => onChange({ ...section, outline: { ...section.outline, requirement: e.target.value } })} /></label>
         <label className="field"><span className="field-label">Foreach 参数</span><input value={section.foreach?.parameterId ?? ""} onChange={(e) => onChange({ ...section, foreach: normalizeForeach(e.target.value, section.foreach?.as ?? "item") })} /></label>
         <label className="field"><span className="field-label">Foreach 别名</span><input value={section.foreach?.as ?? ""} onChange={(e) => onChange({ ...section, foreach: normalizeForeach(section.foreach?.parameterId ?? "", e.target.value) })} /></label>
-        <label className="field"><span className="field-label">展示种类</span><select value={section.content.presentation.kind} onChange={(e) => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, kind: e.target.value as SectionDefinition["content"]["presentation"]["kind"] } } })}><option value="narrative">narrative</option><option value="table">table</option><option value="chart">chart</option><option value="mixed">mixed</option></select></label>
+        <label className="field"><span className="field-label">展示种类</span><select value={section.content.presentation.kind} onChange={(e) => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, kind: e.target.value as SectionDefinition["content"]["presentation"]["kind"] } } })}><option value="text">text</option><option value="table">table</option><option value="chart">chart</option><option value="mixed">mixed</option></select></label>
       </div>
 
       <div className="template-inline-group"><div className="template-inline-group__header"><strong>章节级参数</strong></div><ParameterEditorList parameters={section.parameters ?? []} onChange={(parameters) => onChange({ ...section, parameters: parameters.length ? parameters : undefined })} /></div>
@@ -340,9 +340,10 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         {section.content.presentation.blocks.map((block, index) => (
           <div key={`${block.id}-${index}`} className="template-inline-row template-inline-row--wide">
             <input value={block.id} onChange={(e) => updateBlock(section, index, { id: e.target.value }, onChange)} placeholder="block id" />
-            <select value={block.type} onChange={(e) => updateBlock(section, index, { type: e.target.value as PresentationBlock["type"] }, onChange)}><option value="paragraph">paragraph</option><option value="bullet">bullet</option><option value="kpi">kpi</option><option value="table">table</option><option value="chart">chart</option><option value="markdown">markdown</option></select>
+            <select value={block.type} onChange={(e) => updateBlock(section, index, { type: e.target.value as PresentationBlock["type"] }, onChange)}><option value="text">text</option><option value="table">table</option><option value="chart">chart</option><option value="composite_table">composite_table</option></select>
             <input value={block.title ?? ""} onChange={(e) => updateBlock(section, index, { title: e.target.value || undefined }, onChange)} placeholder="标题" />
             <input value={block.datasetId ?? ""} onChange={(e) => updateBlock(section, index, { datasetId: e.target.value || undefined }, onChange)} placeholder="datasetId" />
+            {block.type === "text" ? <input value={block.template ?? ""} onChange={(e) => updateBlock(section, index, { template: e.target.value || undefined }, onChange)} placeholder="文本模板" /> : null}
             <button className="ghost-button ghost-button--inline" type="button" onClick={() => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, blocks: removeAtIndex(section.content.presentation.blocks, index) } } })}>删除</button>
           </div>
         ))}
@@ -417,7 +418,7 @@ function createEmptyDataset() {
 }
 
 function createEmptyBlock(): PresentationBlock {
-  return { id: `block_${Date.now()}`, type: "paragraph", title: "", datasetId: "" };
+  return { id: `block_${Date.now()}`, type: "text", title: "", template: "" };
 }
 
 function cloneTemplate(template: ReportTemplate): ReportTemplate {
