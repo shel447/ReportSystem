@@ -50,6 +50,7 @@ class Parameter:
     required: bool
     multi: bool
     interaction_mode: str = _alias_field("interactionMode")
+    priority: int = 99
     description: str | None = None
     placeholder: str | None = None
     default_value: list[ParameterValue] = _alias_field("defaultValue", default_factory=list)
@@ -142,6 +143,8 @@ class CompositeTablePartLayout:
 class PresentationProperty:
     """展示块附加展示属性。"""
 
+    template: str | None = None
+    content: str | None = None
     preferred_type: str | None = _alias_field("preferredType", default=None)
     columns: list[TableColumn] = field(default_factory=list)
     show_title: bool | None = _alias_field("showTitle", default=None)
@@ -179,7 +182,7 @@ class CompositeTablePart:
     table_layout: CompositeTablePartLayout | None = _alias_field("tableLayout", default=None)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class PresentationBlock:
     """章节展示块定义。"""
 
@@ -188,9 +191,35 @@ class PresentationBlock:
     title: str | None = None
     dataset_id: str | None = _alias_field("datasetId", default=None)
     properties: PresentationProperty | None = None
-    template: str | None = None
     description: str | None = None
     parts: list[CompositeTablePart] = field(default_factory=list)
+
+    def __init__(
+        self,
+        id: str,
+        type: str,
+        title: str | None = None,
+        dataset_id: str | None = None,
+        properties: PresentationProperty | None = None,
+        template: str | None = None,
+        description: str | None = None,
+        parts: list[CompositeTablePart] | None = None,
+    ) -> None:
+        self.id = id
+        self.type = type
+        self.title = title
+        self.dataset_id = dataset_id
+        self.properties = presentation_property_with_text(properties, template=template)
+        self.description = description
+        self.parts = list(parts or [])
+
+    @property
+    def template(self) -> str | None:
+        return self.properties.template if self.properties is not None else None
+
+    @template.setter
+    def template(self, value: str | None) -> None:
+        self.properties = presentation_property_with_text(self.properties, template=value)
 
 
 @dataclass(slots=True)
@@ -245,7 +274,6 @@ class ReportTemplate:
     schema_version: str = _alias_field("schemaVersion")
     parameters: list[Parameter] = field(default_factory=list)
     catalogs: list[CatalogDefinition] = field(default_factory=list)
-    tags: list[str] = field(default_factory=list)
     created_at: datetime | None = _alias_field("createdAt", default=None)
     updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
@@ -287,7 +315,6 @@ def report_template_from_dict(payload: dict[str, Any]) -> ReportTemplate:
         schema_version=str(get_value(payload, ReportTemplate, "schema_version") or ""),
         parameters=[parameter_from_dict(item) for item in list(get_value(payload, ReportTemplate, "parameters") or [])],
         catalogs=[catalog_definition_from_dict(item) for item in list(get_value(payload, ReportTemplate, "catalogs") or [])],
-        tags=[str(item) for item in list(get_value(payload, ReportTemplate, "tags") or [])],
         created_at=_as_datetime(get_value(payload, ReportTemplate, "created_at")),
         updated_at=_as_datetime(get_value(payload, ReportTemplate, "updated_at")),
     )
@@ -301,7 +328,6 @@ def report_template_to_dict(template: ReportTemplate) -> dict[str, Any]:
     set_value(payload, ReportTemplate, "name", template.name)
     set_value(payload, ReportTemplate, "description", template.description)
     set_value(payload, ReportTemplate, "schema_version", template.schema_version)
-    set_value(payload, ReportTemplate, "tags", list(template.tags))
     set_value(payload, ReportTemplate, "parameters", [parameter_to_dict(item) for item in template.parameters])
     set_value(payload, ReportTemplate, "catalogs", [catalog_definition_to_dict(item) for item in template.catalogs])
     set_value(payload, ReportTemplate, "created_at", _isoformat(template.created_at))
@@ -317,6 +343,7 @@ def parameter_from_dict(payload: dict[str, Any]) -> Parameter:
         required=bool(get_value(payload, Parameter, "required")),
         multi=bool(get_value(payload, Parameter, "multi")),
         interaction_mode=str(get_value(payload, Parameter, "interaction_mode") or ""),
+        priority=_as_priority(get_value(payload, Parameter, "priority")),
         description=_as_optional_str(get_value(payload, Parameter, "description")),
         placeholder=_as_optional_str(get_value(payload, Parameter, "placeholder")),
         default_value=[parameter_value_from_dict(item) for item in list(get_value(payload, Parameter, "default_value") or [])],
@@ -336,6 +363,7 @@ def parameter_to_dict(parameter: Parameter) -> dict[str, Any]:
     set_value(payload, Parameter, "required", parameter.required)
     set_value(payload, Parameter, "multi", parameter.multi)
     set_value(payload, Parameter, "interaction_mode", parameter.interaction_mode)
+    set_value(payload, Parameter, "priority", parameter.priority)
     if parameter.description is not None:
         set_value(payload, Parameter, "description", parameter.description)
     if parameter.placeholder is not None:
@@ -576,6 +604,8 @@ def presentation_property_from_dict(payload: Any) -> PresentationProperty | None
     if not isinstance(payload, dict):
         return None
     return PresentationProperty(
+        template=_as_optional_str(payload.get("template")),
+        content=_as_optional_str(payload.get("content")),
         preferred_type=_as_optional_str(get_value(payload, PresentationProperty, "preferred_type")),
         columns=[table_column_from_dict(item) for item in list(payload.get("columns") or [])],
         show_title=_as_optional_bool(get_value(payload, PresentationProperty, "show_title")),
@@ -586,6 +616,10 @@ def presentation_property_from_dict(payload: Any) -> PresentationProperty | None
 
 def presentation_property_to_dict(properties: PresentationProperty) -> dict[str, Any]:
     payload: dict[str, Any] = {}
+    if properties.template is not None:
+        payload["template"] = properties.template
+    if properties.content is not None:
+        payload["content"] = properties.content
     if properties.preferred_type is not None:
         set_value(payload, PresentationProperty, "preferred_type", properties.preferred_type)
     if properties.columns:
@@ -597,6 +631,22 @@ def presentation_property_to_dict(properties: PresentationProperty) -> dict[str,
     if properties.merge_columns:
         set_value(payload, PresentationProperty, "merge_columns", [merge_column_info_to_dict(item) for item in properties.merge_columns])
     return payload
+
+
+def presentation_property_with_text(
+    properties: PresentationProperty | None,
+    *,
+    template: str | None = None,
+    content: str | None = None,
+) -> PresentationProperty | None:
+    if template is None and content is None:
+        return properties
+    result = properties if properties is not None else PresentationProperty()
+    if template is not None:
+        result.template = template
+    if content is not None:
+        result.content = content
+    return result
 
 
 def summary_row_def_from_dict(payload: dict[str, Any]) -> SummaryRowDef:
@@ -663,13 +713,17 @@ def composite_table_part_to_dict(part: CompositeTablePart) -> dict[str, Any]:
 
 
 def presentation_block_from_dict(payload: dict[str, Any]) -> PresentationBlock:
+    properties = presentation_property_from_dict(payload.get("properties"))
+    properties = presentation_property_with_text(
+        properties,
+        template=_as_optional_str(payload.get("template")),
+    )
     return PresentationBlock(
         id=str(payload.get("id") or ""),
         type=str(payload.get("type") or ""),
         title=_as_optional_str(payload.get("title")),
         dataset_id=_as_optional_str(get_value(payload, PresentationBlock, "dataset_id")),
-        properties=presentation_property_from_dict(payload.get("properties")),
-        template=_as_optional_str(payload.get("template")),
+        properties=properties,
         description=_as_optional_str(payload.get("description")),
         parts=[composite_table_part_from_dict(item) for item in list(payload.get("parts") or [])],
     )
@@ -686,8 +740,6 @@ def presentation_block_to_dict(block: PresentationBlock) -> dict[str, Any]:
         set_value(payload, PresentationBlock, "dataset_id", block.dataset_id)
     if block.properties is not None:
         payload["properties"] = presentation_property_to_dict(block.properties)
-    if block.template is not None:
-        payload["template"] = block.template
     if block.description is not None:
         payload["description"] = block.description
     if block.parts:
@@ -815,3 +867,8 @@ def _as_optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _as_priority(value: Any) -> int:
+    parsed = _as_optional_int(value)
+    return parsed if parsed is not None else 99

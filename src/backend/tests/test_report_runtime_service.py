@@ -409,7 +409,9 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         template_block = presentation_block_from_dict(
             {"id": "block_text", "type": "text", "title": "态势综述", "template": "{$scope}运行态势综述。"}
         )
-        self.assertEqual(presentation_block_to_dict(template_block)["template"], "{$scope}运行态势综述。")
+        self.assertEqual(template_block.template, "{$scope}运行态势综述。")
+        self.assertEqual(presentation_block_to_dict(template_block)["properties"]["template"], "{$scope}运行态势综述。")
+        self.assertNotIn("template", presentation_block_to_dict(template_block))
 
         instance_block = template_instance_presentation_block_from_dict(
             {
@@ -421,8 +423,12 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             }
         )
         instance_payload = template_instance_presentation_block_to_dict(instance_block)
-        self.assertEqual(instance_payload["template"], "{$scope}运行态势综述。")
-        self.assertEqual(instance_payload["content"], "总部网络运行态势综述。")
+        self.assertEqual(instance_block.template, "{$scope}运行态势综述。")
+        self.assertEqual(instance_block.content, "总部网络运行态势综述。")
+        self.assertEqual(instance_payload["properties"]["template"], "{$scope}运行态势综述。")
+        self.assertEqual(instance_payload["properties"]["content"], "总部网络运行态势综述。")
+        self.assertNotIn("template", instance_payload)
+        self.assertNotIn("content", instance_payload)
 
         text = TextComponent(
             id="text_summary",
@@ -529,7 +535,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                                             "id": "block_text",
                                             "type": "text",
                                             "title": "态势综述",
-                                            "template": "运行态势综述。",
+                                            "properties": {"template": "运行态势综述。"},
                                         },
                                         {
                                             "id": "block_chart",
@@ -604,8 +610,10 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                                             "id": "block_text",
                                             "type": "text",
                                             "title": "态势综述",
-                                            "template": "运行态势综述。",
-                                            "content": "运行态势综述。",
+                                            "properties": {
+                                                "template": "运行态势综述。",
+                                                "content": "运行态势综述。",
+                                            },
                                         }
                                     ],
                                 },
@@ -623,12 +631,12 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         validate_template_instance(instance_payload)
 
         invalid_instance_payload = copy.deepcopy(instance_payload)
-        del invalid_instance_payload["catalogs"][0]["sections"][0]["content"]["presentation"]["blocks"][0]["content"]
+        del invalid_instance_payload["catalogs"][0]["sections"][0]["content"]["presentation"]["blocks"][0]["properties"]["content"]
         with self.assertRaises(ValueError):
             validate_template_instance(invalid_instance_payload)
 
         invalid_text_payload = copy.deepcopy(template_payload)
-        del invalid_text_payload["catalogs"][0]["sections"][0]["content"]["presentation"]["blocks"][0]["template"]
+        del invalid_text_payload["catalogs"][0]["sections"][0]["content"]["presentation"]["blocks"][0]["properties"]["template"]
         with self.assertRaises(ValueError):
             validate_report_template(invalid_text_payload)
 

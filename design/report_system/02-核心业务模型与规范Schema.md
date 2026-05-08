@@ -199,7 +199,6 @@
 | 无 | `schemaVersion` | 新增 | 用于显式标识模板结构版本 |
 | `parameters` | `parameters` | 保留但内部升级 | 参数结构从旧 `input_type/source/value_mapping` 收敛为统一参数模型与 `source` 口径 |
 | `sections` | `catalogs -> (subCatalogs)* -> sections` | 重构 | 把“章节树”提升为“目录树 + 章节”正式模型 |
-| 无 | `tags` | 新增可选 | 用于筛选、搜索、运营管理 |
 | 无 | `createdAt/updatedAt` | 新增可选 | 属于模板资产元信息 |
 
 参数层详细对照：
@@ -212,6 +211,14 @@
 | `value_mode=label/key` | 已取消 | 展示值、实际值、查询值统一由 `ParameterValue` 承载 |
 | `value_mapping.query` | 由 `ParameterValue.query` + 运行时上下文承担 | 不再把值映射逻辑散落在模板参数定义里 |
 | `options=[string/object]` | `options=[ParameterValue]` | 候选值结构统一 |
+
+参数优先级规则：
+
+- `Parameter.priority` 是 `0-99` 的整数，数字越小追问优先级越高；`0` 最高，`99` 最低
+- `priority` 是可选字段，缺省按 `99` 处理
+- 对话生成报告时，缺失必填参数按 `priority` 从小到大追问；同一优先级的一批参数一起追问
+- `priority = 99` 的参数不单独追问，只在最终确认所有参数的环节一起展示和补齐
+- `priority` 不改变 `required` 语义；`required = true` 且 `priority = 99` 的参数在最终确认通过前仍必须有值
 
 结构层详细对照：
 
@@ -409,12 +416,13 @@
 
 - `presentation.blocks[].type` 当前只正式支持 `text`、`table`、`chart`，并兼容保留 `composite_table`
 - `paragraph`、`bullet`、`kpi`、`markdown` 不再作为模板 presentation block 类型使用
-- `text` block 在模板态必须保存 `template`；实例态必须保存原始 `template` 和渲染后的 `content`
-- `text.template` 支持两类引用：
+- `text` block 的文本字段统一保存在 `properties` 下，模板态必须保存 `properties.template`；实例态必须保存 `properties.template` 和渲染后的 `properties.content`
+- `PresentationBlock` 与 `TemplateInstancePresentationBlock` 不直接承载 `template/content` 字段
+- `properties.template` 支持两类引用：
   - `{$parameterId}`：引用当前 section 可见参数，按文本展示口径默认读取参数 `label`
   - `{#datasetId.field}`：引用同一 section 内 `content.datasets[].id = datasetId` 的执行结果字段，`field` 使用源数据字段 key
-- 一个 `text.template` 可以引用多个 dataset 字段；当前版本约束被引用 dataset 按单行结果理解，若实际返回多行，默认取第一行对应字段值
-- JSON Schema 只校验 `template` 是字符串，不校验 `{#datasetId.field}` 是否存在；dataset 和字段有效性由后续业务校验器或实现阶段处理
+- 一个 `properties.template` 可以引用多个 dataset 字段；当前版本约束被引用 dataset 按单行结果理解，若实际返回多行，默认取第一行对应字段值
+- JSON Schema 只校验 `properties.template` 是字符串，不校验 `{#datasetId.field}` 是否存在；dataset 和字段有效性由后续业务校验器或实现阶段处理
 - `CompositeTable` 只作为 `section.content.presentation.blocks[]` 的一种 block 类型出现
 - 一个 `composite_table` block 由 `parts[]` 组成
 - 每个 `part` 只支持两类来源：
@@ -443,7 +451,7 @@
 `TemplateInstance` 对 `CompositeTable` 的正式承载规则：
 
 - `TemplateInstance.section.content.presentation.blocks[]` 也必须支持 `type = composite_table`
-- 实例态 `text` block 保留模板定义字段 `id/type/title/template/description`，并额外保存渲染后的 `content`
+- 实例态 `text` block 保留模板定义字段 `id/type/title/properties.template/description`，并额外保存渲染后的 `properties.content`
 - 实例态普通 `table` block 也必须保留 `datasetId/properties`，供二次编辑与重新生成复用
 - 实例态 `composite_table` block 保留模板定义字段：`id/type/title/description/parts[]`
 - `parts[]` 在实例态继续保留同样的顺序和结构，不做运行时重排

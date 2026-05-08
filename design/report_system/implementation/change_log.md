@@ -8,6 +8,23 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-08 参数优先级、移除 Tags 与 Text 属性归并核心模型定义
+
+- 背景问题：
+  - 模板参数需要增加追问优先级定义，但本轮不进入对话追问排序业务实现。
+  - 模板顶层 `tags` 从当前契约移除。
+  - `text` block 的 `template/content` 需要归入 `PresentationProperty`。
+- 实现设计调整：
+  - `Parameter` dataclass 增加 `priority`，缺省为 `99`，from/to dict 支持 `priority`。
+  - `ReportTemplate` dataclass、from/to dict 和模板 upsert DTO 移除 `tags`。
+  - `PresentationProperty` 增加 `template/content`。
+  - `PresentationBlock` 与 `TemplateInstancePresentationBlock` 不再序列化 direct `template/content`；from dict 兼容旧字段并归并到 `properties`。
+  - 为避免本轮改业务实现，核心模型保留 `block.template/block.content` 兼容访问器，映射到 `properties.template/content`。
+- 验证要求：
+  - schema 验证覆盖 `priority` 边界、顶层 `tags` 禁止、text 的 `properties.template/content` 要求。
+  - 模型 round-trip 覆盖 `priority` 缺省、`tags` 不输出、旧 text direct 字段归并。
+  - 运行现有后端测试，确认当前业务流程不受核心模型收口影响。
+
 ## 2026-05-08 Presentation 属性扩展核心模型定义
 
 - 背景问题：
@@ -30,7 +47,7 @@
   - `text` block 需要模板态 `template` 与实例态 `content` 的序列化和运行时编译链路。
 - 实现设计调整：
   - 模板 schema、实例态 schema、后端 dataclass、前端类型统一声明 `text/table/chart/composite_table`。
-  - `report_runtime.domain.services` 在实例化阶段渲染 `text.template -> text.content`。
+  - `report_runtime.domain.services` 在实例化阶段渲染 `properties.template -> properties.content`。
   - `BuildReportDslService` 补齐 `text -> TextComponent`、`chart -> ChartComponent` 编译，保留普通 `table` 与兼容 `composite_table` 编译。
   - Report DSL 后端模型补齐 `TextComponent/TextDataProperties` 与 `ChartComponent/ChartDataProperties` 序列化。
 - 验证要求：

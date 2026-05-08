@@ -168,6 +168,7 @@ def materialize_parameters(
             required=definition.required,
             multi=definition.multi,
             interaction_mode=definition.interaction_mode,
+            priority=definition.priority,
         )
         values = _normalize_parameter_value_list(
             value_map.get(definition.id)
@@ -193,6 +194,7 @@ def materialize_parameters(
                 required=definition.required,
                 multi=definition.multi,
                 interaction_mode=definition.interaction_mode,
+                priority=definition.priority,
                 placeholder=definition.placeholder,
                 default_value=_normalize_parameter_value_list(definition.default_value),
                 options=options,

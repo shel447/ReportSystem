@@ -4,11 +4,6 @@
   "name": "网络运行日报",
   "description": "面向网络运维中心的统一日报模板。",
   "schemaVersion": "template.v3",
-  "tags": [
-    "daily",
-    "network",
-    "operations"
-  ],
   "createdAt": "2026-04-18T09:00:00Z",
   "updatedAt": "2026-04-18T09:00:00Z",
   "parameters": [
@@ -26,7 +21,8 @@
           "value": "2026-04-18",
           "query": "2026-04-18"
         }
-      ]
+      ],
+      "priority": 0
     },
     {
       "id": "scope",
@@ -36,7 +32,8 @@
       "required": true,
       "multi": true,
       "interactionMode": "natural_language",
-      "source": "https://example.internal/api/network/scopes/options"
+      "source": "https://example.internal/api/network/scopes/options",
+      "priority": 10
     }
   ],
   "catalogs": [
@@ -101,7 +98,9 @@
                   "id": "block_summary_text",
                   "type": "text",
                   "title": "态势综述",
-                  "template": "面向{$report_date}的{$scope}运行态势综述：可用率{#dataset_daily_summary.availability_rate}，告警数{#dataset_daily_summary.alarm_count}，工单数{#dataset_daily_summary.ticket_count}。"
+                  "properties": {
+                    "template": "面向{$report_date}的{$scope}运行态势综述：可用率{#dataset_daily_summary.availability_rate}，告警数{#dataset_daily_summary.alarm_count}，工单数{#dataset_daily_summary.ticket_count}。"
+                  }
                 },
                 {
                   "id": "block_summary_chart",
@@ -291,7 +290,8 @@
               "value": "day",
               "query": "day"
             }
-          ]
+          ],
+          "priority": 20
         }
       ],
       "subCatalogs": [
@@ -327,7 +327,8 @@
                       "value": "7d",
                       "query": "7d"
                     }
-                  ]
+                  ],
+                  "priority": 99
                 }
               ],
               "outline": {
@@ -373,7 +374,9 @@
                       "id": "block_scope_trend_text",
                       "type": "text",
                       "title": "趋势结论",
-                      "template": "{$scope}在{$report_date}的可用性趋势结论：首条趋势日期{#dataset_scope_trend.stat_date}，可用率{#dataset_scope_trend.availability_rate}。"
+                      "properties": {
+                        "template": "{$scope}在{$report_date}的可用性趋势结论：首条趋势日期{#dataset_scope_trend.stat_date}，可用率{#dataset_scope_trend.availability_rate}。"
+                      }
                     }
                   ]
                 }

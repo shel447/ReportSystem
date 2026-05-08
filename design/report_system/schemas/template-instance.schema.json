@@ -179,6 +179,13 @@
             "natural_language"
           ]
         },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99,
+          "default": 99,
+          "description": "参数追问优先级。数字越小优先级越高；0 最高，99 最低。缺省按 99 处理。"
+        },
         "placeholder": {
           "type": "string"
         },
@@ -458,15 +465,7 @@
         "datasetId": { "type": "string" },
         "properties": {
           "$ref": "./report-template.schema.json#/$defs/PresentationProperty",
-          "description": "实例态展示属性，复用模板 PresentationProperty；preferredType 仅对 chart 生效，columns/showTitle/defaultDisplayRows/mergeColumns 仅对普通 table 生效。"
-        },
-        "template": {
-          "type": "string",
-          "description": "文本展示块原始模板。仅对 type=text 生效，支持 {$parameterId} 参数引用与 {#datasetId.field} dataset 字段引用。"
-        },
-        "content": {
-          "type": "string",
-          "description": "文本展示块实例化后的展示内容。仅对 type=text 生效，是参数引用与 dataset 字段引用渲染后的结果；dataset 多行结果默认取第一行字段值。"
+          "description": "实例态展示属性，复用模板 PresentationProperty；text 使用 template/content，chart 使用 preferredType，普通 table 使用 columns/showTitle/defaultDisplayRows/mergeColumns。"
         },
         "description": { "type": "string" },
         "parts": {
@@ -482,7 +481,14 @@
         },
         {
           "if": { "properties": { "type": { "const": "text" } } },
-          "then": { "required": ["template", "content"] }
+          "then": {
+            "required": ["properties"],
+            "properties": {
+              "properties": {
+                "required": ["template", "content"]
+              }
+            }
+          }
         },
         {
           "if": { "properties": { "type": { "const": "table" } } },

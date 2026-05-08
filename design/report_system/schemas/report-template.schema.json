@@ -31,12 +31,6 @@
     "schemaVersion": {
       "type": "string"
     },
-    "tags": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "createdAt": {
       "type": "string",
       "format": "date-time"
@@ -119,6 +113,13 @@
             "form",
             "natural_language"
           ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99,
+          "default": 99,
+          "description": "参数追问优先级。数字越小优先级越高；0 最高，99 最低。缺省按 99 处理。"
         },
         "placeholder": {
           "type": "string"
@@ -371,10 +372,6 @@
         "properties": {
           "$ref": "#/$defs/PresentationProperty"
         },
-        "template": {
-          "type": "string",
-          "description": "文本展示块模板。仅对 type=text 生效，支持使用 {$parameterId} 引用参数，使用 {#datasetId.field} 引用同一 section 内 dataset 执行结果第一行的字段值；一个模板可引用多个 dataset。实例化后会渲染为实例态 content。"
-        },
         "description": {
           "type": "string"
         },
@@ -411,8 +408,20 @@
           },
           "then": {
             "required": [
-              "template"
-            ]
+              "properties"
+            ],
+            "properties": {
+              "properties": {
+                "required": [
+                  "template"
+                ],
+                "not": {
+                  "required": [
+                    "content"
+                  ]
+                }
+              }
+            }
           }
         },
         {
@@ -433,9 +442,17 @@
     },
     "PresentationProperty": {
       "type": "object",
-      "description": "展示块附加展示属性。preferredType 仅对 type=chart 生效；columns、showTitle、defaultDisplayRows、mergeColumns 仅对 type=table 的普通表格块生效。",
+      "description": "展示块附加展示属性。template 仅对 type=text 生效；content 仅对实例态 type=text 生效；preferredType 仅对 type=chart 生效；columns、showTitle、defaultDisplayRows、mergeColumns 仅对 type=table 的普通表格块生效。",
       "additionalProperties": false,
       "properties": {
+        "template": {
+          "type": "string",
+          "description": "文本展示块模板。仅对 type=text 生效，支持使用 {$parameterId} 引用参数，使用 {#datasetId.field} 引用同一 section 内 dataset 执行结果第一行的字段值；一个模板可引用多个 dataset。实例化后会渲染为实例态 properties.content。"
+        },
+        "content": {
+          "type": "string",
+          "description": "文本展示块实例化后的展示内容。仅对实例态 type=text 生效；模板态禁止保存 content。"
+        },
         "preferredType": {
           "type": "string",
           "description": "图表首选展示类型，仅对 type=chart 生效。",

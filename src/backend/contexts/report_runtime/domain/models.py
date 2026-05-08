@@ -26,6 +26,7 @@ from ...template_catalog.domain.models import (
     parameter_to_dict,
     parameter_value_from_dict,
     parameter_value_to_dict,
+    presentation_property_with_text,
     report_template_from_dict,
     report_template_to_dict,
 )
@@ -105,7 +106,7 @@ class TemplateInstanceCompositeTablePart:
     table_layout: CompositeTablePartLayout | None = _alias_field("tableLayout", default=None)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class TemplateInstancePresentationBlock:
     """实例态展示块。"""
 
@@ -114,10 +115,44 @@ class TemplateInstancePresentationBlock:
     title: str | None = None
     dataset_id: str | None = _alias_field("datasetId", default=None)
     properties: PresentationProperty | None = None
-    template: str | None = None
-    content: str | None = None
     description: str | None = None
     parts: list[TemplateInstanceCompositeTablePart] = field(default_factory=list)
+
+    def __init__(
+        self,
+        id: str,
+        type: str,
+        title: str | None = None,
+        dataset_id: str | None = None,
+        properties: PresentationProperty | None = None,
+        template: str | None = None,
+        content: str | None = None,
+        description: str | None = None,
+        parts: list[TemplateInstanceCompositeTablePart] | None = None,
+    ) -> None:
+        self.id = id
+        self.type = type
+        self.title = title
+        self.dataset_id = dataset_id
+        self.properties = presentation_property_with_text(properties, template=template, content=content)
+        self.description = description
+        self.parts = list(parts or [])
+
+    @property
+    def template(self) -> str | None:
+        return self.properties.template if self.properties is not None else None
+
+    @template.setter
+    def template(self, value: str | None) -> None:
+        self.properties = presentation_property_with_text(self.properties, template=value)
+
+    @property
+    def content(self) -> str | None:
+        return self.properties.content if self.properties is not None else None
+
+    @content.setter
+    def content(self, value: str | None) -> None:
+        self.properties = presentation_property_with_text(self.properties, content=value)
 
 
 @dataclass(slots=True)
@@ -650,10 +685,6 @@ def template_instance_presentation_block_to_dict(block: TemplateInstancePresenta
         from ...template_catalog.domain.models import presentation_property_to_dict
 
         payload["properties"] = presentation_property_to_dict(block.properties)
-    if block.template is not None:
-        set_value(payload, TemplateInstancePresentationBlock, "template", block.template)
-    if block.content is not None:
-        set_value(payload, TemplateInstancePresentationBlock, "content", block.content)
     if block.description is not None:
         set_value(payload, TemplateInstancePresentationBlock, "description", block.description)
     if block.parts:
@@ -662,14 +693,18 @@ def template_instance_presentation_block_to_dict(block: TemplateInstancePresenta
 
 
 def template_instance_presentation_block_from_dict(payload: dict[str, Any]) -> TemplateInstancePresentationBlock:
+    properties = _presentation_property_from_any(payload.get("properties"))
+    properties = presentation_property_with_text(
+        properties,
+        template=_as_optional_str(payload.get("template")),
+        content=_as_optional_str(payload.get("content")),
+    )
     return TemplateInstancePresentationBlock(
         id=str(get_value(payload, TemplateInstancePresentationBlock, "id") or ""),
         type=str(get_value(payload, TemplateInstancePresentationBlock, "type") or ""),
         title=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "title")),
         dataset_id=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "dataset_id")),
-        properties=_presentation_property_from_any(payload.get("properties")),
-        template=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "template")),
-        content=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "content")),
+        properties=properties,
         description=_as_optional_str(get_value(payload, TemplateInstancePresentationBlock, "description")),
         parts=[template_instance_composite_table_part_from_dict(item) for item in list(get_value(payload, TemplateInstancePresentationBlock, "parts") or [])],
     )
