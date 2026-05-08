@@ -426,12 +426,18 @@
 表格布局规则：
 
 - 普通 `presentation.blocks[].type = table` 必须使用 `datasetId` 指向数据集，并通过 `properties` 承载展示属性
-- `PresentationProperty` 当前仅定义 `mergeColumns[]`，且仅对 `type = table` 的普通表格块生效
+- `PresentationProperty.preferredType` 仅对 `type = chart` 生效，用于声明图表首选展示类型；当前枚举为 `line/bar/pie/scatter/radar/gauge/candlestick`
+- `PresentationProperty.columns[]` 仅对 `type = table` 的普通表格块生效，使用统一 `TableColumn` 定义
+- `TableColumn.key` 是 dataset 执行结果中的字段 key，`TableColumn.title` 是表格展示列名
+- `TableColumn.width` 与 `TableColumn.align` 为兼容保留字段，v1 暂不承诺渲染支持
+- `PresentationProperty.showTitle` 仅控制普通表格是否显示 `title`，不改变 `title` 字段本身
+- `PresentationProperty.defaultDisplayRows` 是普通表格默认展示数据条数，只作为展示提示，不截断 dataset 结果
 - 普通表格的 `properties.mergeColumns[]` 用于声明合并列，结构为 `{title, columns}`
   - `title` 是合并之后展示的列名称
   - `columns` 是源数据列 key 数组，至少包含两个互不重复的列 key
   - 一个表格可以声明多个合并列，按数组顺序展示
-- `composite_table.parts[].tableLayout.mergeColumns[]` 与普通表格的 `properties.mergeColumns[]` 使用同一套 `MergeColumnInfo` 定义
+- `composite_table.parts[].tableLayout.columns[]` 与普通表格的 `properties.columns[]` 使用同一套 `TableColumn` 定义
+- `composite_table.parts[].tableLayout.showTitle/defaultDisplayRows/mergeColumns[]` 与普通表格的同名展示属性语义一致
 - `mergeColumns` 只影响展示结构，不修改数据行，也不改变 `columns[]` 中源列的含义
 
 `TemplateInstance` 对 `CompositeTable` 的正式承载规则：

@@ -8,6 +8,21 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-08 Presentation 属性扩展核心模型定义
+
+- 背景问题：
+  - 模板定义层新增 chart 首选类型、普通表格列定义、标题显示和默认展示条数。
+  - 复合表子表布局需要复用同一套表格列定义和展示属性。
+- 实现设计调整：
+  - `template_catalog.domain.models` 新增统一 `TableColumn`，并保留 `CompositeTableColumn` 兼容入口。
+  - `PresentationProperty` 补齐 `preferredType/columns/showTitle/defaultDisplayRows/mergeColumns` 的 dataclass 与 from/to dict。
+  - `CompositeTablePartLayout` 补齐 `showTitle/defaultDisplayRows`，并让 `columns` 复用 `TableColumn`。
+  - 本轮不接入运行时 DSL 编译透传，不更新前端类型和渲染逻辑。
+- 验证要求：
+  - 静态解析 schema 与 example。
+  - 最小 payload 验证 `PresentationProperty` 与 `CompositeTablePartLayout` 新字段 round-trip。
+  - 运行现有后端测试，确认兼容入口不破坏当前流程。
+
 ## 2026-05-08 Presentation Block 类型收敛实现
 
 - 背景问题：

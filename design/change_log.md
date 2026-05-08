@@ -8,6 +8,27 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-08 Presentation 属性扩展
+
+- 变更动机：
+  - 模板 presentation 需要在定义层表达 chart 的首选图表类型。
+  - 普通表格和复合表子表需要统一表达列展示、标题显示和默认展示条数。
+- 设计决策：
+  - `PresentationProperty.preferredType` 仅对 `type = chart` 生效，枚举为 `line/bar/pie/scatter/radar/gauge/candlestick`。
+  - 普通 `type = table` 通过 `properties.columns/showTitle/defaultDisplayRows/mergeColumns` 承载表格展示属性。
+  - `CompositeTablePartLayout` 同步支持 `columns/showTitle/defaultDisplayRows/mergeColumns`。
+  - 新增统一 `TableColumn` 定义；`key/title` 是正式字段，`width/align` 兼容保留但 v1 暂不承诺渲染支持。
+  - `showTitle` 只控制标题展示，不改变 `title` 字段；`defaultDisplayRows` 只表示默认展示条数，不截断 dataset 结果。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/报告模板定义与使用说明书.md](report_system/%E6%8A%A5%E5%91%8A%E6%A8%A1%E6%9D%BF%E5%AE%9A%E4%B9%89%E4%B8%8E%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6.md)
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+  - `report_system/examples/report-template.example.json`
+  - `report_system/examples/template-instance.example.json`
+
 ## 2026-05-08 Text 模板支持 Dataset 字段引用
 
 - 变更动机：

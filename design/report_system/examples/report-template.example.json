@@ -107,7 +107,10 @@
                   "id": "block_summary_chart",
                   "type": "chart",
                   "title": "关键指标趋势",
-                  "datasetId": "dataset_daily_summary"
+                  "datasetId": "dataset_daily_summary",
+                  "properties": {
+                    "preferredType": "line"
+                  }
                 },
                 {
                   "id": "block_summary_table",
@@ -115,12 +118,28 @@
                   "title": "关键指标明细",
                   "datasetId": "dataset_daily_summary",
                   "properties": {
+                    "showTitle": true,
+                    "defaultDisplayRows": 10,
+                    "columns": [
+                      {
+                        "key": "region_name",
+                        "title": "范围"
+                      },
+                      {
+                        "key": "availability_rate",
+                        "title": "可用率"
+                      },
+                      {
+                        "key": "alarm_count",
+                        "title": "告警数"
+                      }
+                    ],
                     "mergeColumns": [
                       {
                         "title": "范围指标",
                         "columns": [
-                          "scope_name",
-                          "metric_name"
+                          "region_name",
+                          "availability_rate"
                         ]
                       }
                     ]
@@ -138,7 +157,9 @@
                       "datasetId": "dataset_device_basic",
                       "tableLayout": {
                         "kind": "table",
-                        "showHeader": true
+                        "showHeader": true,
+                        "showTitle": true,
+                        "defaultDisplayRows": 8
                       }
                     },
                     {
@@ -149,6 +170,8 @@
                       "tableLayout": {
                         "kind": "table",
                         "showHeader": true,
+                        "showTitle": true,
+                        "defaultDisplayRows": 8,
                         "columns": [
                           {
                             "key": "item",
@@ -182,6 +205,8 @@
                       "tableLayout": {
                         "kind": "table",
                         "showHeader": true,
+                        "showTitle": true,
+                        "defaultDisplayRows": 8,
                         "columns": [
                           {
                             "key": "item",

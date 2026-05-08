@@ -106,13 +106,16 @@ class DatasetDefinition:
 
 
 @dataclass(slots=True)
-class CompositeTableColumn:
-    """复合表列定义。"""
+class TableColumn:
+    """表格列定义。"""
 
     key: str
     title: str
     width: str | None = None
     align: str | None = None
+
+
+CompositeTableColumn = TableColumn
 
 
 @dataclass(slots=True)
@@ -129,14 +132,20 @@ class CompositeTablePartLayout:
 
     kind: str
     show_header: bool | None = _alias_field("showHeader", default=None)
-    columns: list[CompositeTableColumn] = field(default_factory=list)
+    show_title: bool | None = _alias_field("showTitle", default=None)
+    default_display_rows: int | None = _alias_field("defaultDisplayRows", default=None)
+    columns: list[TableColumn] = field(default_factory=list)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
 
 
 @dataclass(slots=True)
 class PresentationProperty:
-    """展示块附加展示属性。当前仅对普通表格生效。"""
+    """展示块附加展示属性。"""
 
+    preferred_type: str | None = _alias_field("preferredType", default=None)
+    columns: list[TableColumn] = field(default_factory=list)
+    show_title: bool | None = _alias_field("showTitle", default=None)
+    default_display_rows: int | None = _alias_field("defaultDisplayRows", default=None)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
 
 
@@ -490,8 +499,8 @@ def dataset_definition_to_dict(dataset: DatasetDefinition) -> dict[str, Any]:
     return payload
 
 
-def composite_table_column_from_dict(payload: dict[str, Any]) -> CompositeTableColumn:
-    return CompositeTableColumn(
+def table_column_from_dict(payload: dict[str, Any]) -> TableColumn:
+    return TableColumn(
         key=str(payload.get("key") or ""),
         title=str(payload.get("title") or ""),
         width=_as_optional_str(payload.get("width")),
@@ -499,7 +508,7 @@ def composite_table_column_from_dict(payload: dict[str, Any]) -> CompositeTableC
     )
 
 
-def composite_table_column_to_dict(column: CompositeTableColumn) -> dict[str, Any]:
+def table_column_to_dict(column: TableColumn) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "key": column.key,
         "title": column.title,
@@ -509,6 +518,14 @@ def composite_table_column_to_dict(column: CompositeTableColumn) -> dict[str, An
     if column.align is not None:
         payload["align"] = column.align
     return payload
+
+
+def composite_table_column_from_dict(payload: dict[str, Any]) -> CompositeTableColumn:
+    return table_column_from_dict(payload)
+
+
+def composite_table_column_to_dict(column: CompositeTableColumn) -> dict[str, Any]:
+    return table_column_to_dict(column)
 
 
 def merge_column_info_from_dict(payload: dict[str, Any]) -> MergeColumnInfo:
@@ -531,7 +548,9 @@ def composite_table_part_layout_from_dict(payload: Any) -> CompositeTablePartLay
     return CompositeTablePartLayout(
         kind=str(payload.get("kind") or ""),
         show_header=_as_optional_bool(get_value(payload, CompositeTablePartLayout, "show_header")),
-        columns=[composite_table_column_from_dict(item) for item in list(payload.get("columns") or [])],
+        show_title=_as_optional_bool(get_value(payload, CompositeTablePartLayout, "show_title")),
+        default_display_rows=_as_optional_int(get_value(payload, CompositeTablePartLayout, "default_display_rows")),
+        columns=[table_column_from_dict(item) for item in list(payload.get("columns") or [])],
         merge_columns=[merge_column_info_from_dict(item) for item in list(get_value(payload, CompositeTablePartLayout, "merge_columns") or [])],
     )
 
@@ -542,8 +561,12 @@ def composite_table_part_layout_to_dict(layout: CompositeTablePartLayout) -> dic
     }
     if layout.show_header is not None:
         set_value(payload, CompositeTablePartLayout, "show_header", layout.show_header)
+    if layout.show_title is not None:
+        set_value(payload, CompositeTablePartLayout, "show_title", layout.show_title)
+    if layout.default_display_rows is not None:
+        set_value(payload, CompositeTablePartLayout, "default_display_rows", layout.default_display_rows)
     if layout.columns:
-        payload["columns"] = [composite_table_column_to_dict(item) for item in layout.columns]
+        payload["columns"] = [table_column_to_dict(item) for item in layout.columns]
     if layout.merge_columns:
         set_value(payload, CompositeTablePartLayout, "merge_columns", [merge_column_info_to_dict(item) for item in layout.merge_columns])
     return payload
@@ -553,12 +576,24 @@ def presentation_property_from_dict(payload: Any) -> PresentationProperty | None
     if not isinstance(payload, dict):
         return None
     return PresentationProperty(
+        preferred_type=_as_optional_str(get_value(payload, PresentationProperty, "preferred_type")),
+        columns=[table_column_from_dict(item) for item in list(payload.get("columns") or [])],
+        show_title=_as_optional_bool(get_value(payload, PresentationProperty, "show_title")),
+        default_display_rows=_as_optional_int(get_value(payload, PresentationProperty, "default_display_rows")),
         merge_columns=[merge_column_info_from_dict(item) for item in list(get_value(payload, PresentationProperty, "merge_columns") or [])],
     )
 
 
 def presentation_property_to_dict(properties: PresentationProperty) -> dict[str, Any]:
     payload: dict[str, Any] = {}
+    if properties.preferred_type is not None:
+        set_value(payload, PresentationProperty, "preferred_type", properties.preferred_type)
+    if properties.columns:
+        payload["columns"] = [table_column_to_dict(item) for item in properties.columns]
+    if properties.show_title is not None:
+        set_value(payload, PresentationProperty, "show_title", properties.show_title)
+    if properties.default_display_rows is not None:
+        set_value(payload, PresentationProperty, "default_display_rows", properties.default_display_rows)
     if properties.merge_columns:
         set_value(payload, PresentationProperty, "merge_columns", [merge_column_info_to_dict(item) for item in properties.merge_columns])
     return payload
@@ -771,3 +806,12 @@ def _as_optional_bool(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
     return None
+
+
+def _as_optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None

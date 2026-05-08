@@ -433,9 +433,38 @@
     },
     "PresentationProperty": {
       "type": "object",
-      "description": "展示块附加展示属性。当前仅定义 mergeColumns，且仅对 type=table 的普通表格块生效。",
+      "description": "展示块附加展示属性。preferredType 仅对 type=chart 生效；columns、showTitle、defaultDisplayRows、mergeColumns 仅对 type=table 的普通表格块生效。",
       "additionalProperties": false,
       "properties": {
+        "preferredType": {
+          "type": "string",
+          "description": "图表首选展示类型，仅对 type=chart 生效。",
+          "enum": [
+            "line",
+            "bar",
+            "pie",
+            "scatter",
+            "radar",
+            "gauge",
+            "candlestick"
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "description": "普通表格列定义，仅对 type=table 生效。key 为 dataset 字段名，title 为展示名称。",
+          "items": {
+            "$ref": "#/$defs/TableColumn"
+          }
+        },
+        "showTitle": {
+          "type": "boolean",
+          "description": "普通表格是否显示表格标题，仅影响展示，不改变 title 字段本身。"
+        },
+        "defaultDisplayRows": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "普通表格默认展示数据条数，仅作为展示提示，不截断 dataset 结果。"
+        },
         "mergeColumns": {
           "type": "array",
           "description": "普通表格的合并列定义，仅对 type=table 生效。",
@@ -527,10 +556,19 @@
         "showHeader": {
           "type": "boolean"
         },
+        "showTitle": {
+          "type": "boolean",
+          "description": "是否显示该 part 的表格标题，仅影响展示，不改变 title 字段本身。"
+        },
+        "defaultDisplayRows": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "该 part 默认展示数据条数，仅作为展示提示，不截断 dataset 结果。"
+        },
         "columns": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CompositeTableColumn"
+            "$ref": "#/$defs/TableColumn"
           }
         },
         "mergeColumns": {
@@ -541,8 +579,9 @@
         }
       }
     },
-    "CompositeTableColumn": {
+    "TableColumn": {
       "type": "object",
+      "description": "表格列定义。key/title 为正式字段；width/align 为兼容保留字段，v1 暂不承诺渲染支持。",
       "additionalProperties": false,
       "required": [
         "key",
@@ -550,16 +589,20 @@
       ],
       "properties": {
         "key": {
-          "type": "string"
+          "type": "string",
+          "description": "dataset 执行结果中的字段 key。"
         },
         "title": {
-          "type": "string"
+          "type": "string",
+          "description": "表格展示列名。"
         },
         "width": {
-          "type": "string"
+          "type": "string",
+          "description": "兼容保留字段，v1 暂不承诺渲染支持。"
         },
         "align": {
           "type": "string",
+          "description": "兼容保留字段，v1 暂不承诺渲染支持。",
           "enum": [
             "left",
             "center",
@@ -567,6 +610,10 @@
           ]
         }
       }
+    },
+    "CompositeTableColumn": {
+      "description": "兼容旧名称，等价于 TableColumn。",
+      "$ref": "#/$defs/TableColumn"
     },
     "MergeColumnInfo": {
       "type": "object",

@@ -166,7 +166,10 @@
                   "id": "block_summary_chart",
                   "type": "chart",
                   "title": "关键指标趋势",
-                  "datasetId": "dataset_daily_summary"
+                  "datasetId": "dataset_daily_summary",
+                  "properties": {
+                    "preferredType": "line"
+                  }
                 },
                 {
                   "id": "block_summary_table",
@@ -174,12 +177,28 @@
                   "title": "关键指标明细",
                   "datasetId": "dataset_daily_summary",
                   "properties": {
+                    "showTitle": true,
+                    "defaultDisplayRows": 10,
+                    "columns": [
+                      {
+                        "key": "region_name",
+                        "title": "范围"
+                      },
+                      {
+                        "key": "availability_rate",
+                        "title": "可用率"
+                      },
+                      {
+                        "key": "alarm_count",
+                        "title": "告警数"
+                      }
+                    ],
                     "mergeColumns": [
                       {
                         "title": "范围指标",
                         "columns": [
-                          "scope_name",
-                          "metric_name"
+                          "region_name",
+                          "availability_rate"
                         ]
                       }
                     ]
@@ -366,7 +385,10 @@
                       "id": "block_scope_trend_chart",
                       "type": "chart",
                       "title": "趋势图",
-                      "datasetId": "dataset_scope_trend"
+                      "datasetId": "dataset_scope_trend",
+                      "properties": {
+                        "preferredType": "line"
+                      }
                     },
                     {
                       "id": "block_scope_trend_text",
@@ -496,14 +518,16 @@
                     "id": "block_summary_text",
                     "type": "text",
                     "title": "态势综述",
-                    "template": "面向{$report_date}的{$scope}运行态势综述：可用率{#dataset_daily_summary.availability_rate}，告警数{#dataset_daily_summary.alarm_count}，工单数{#dataset_daily_summary.ticket_count}。",
-                    "content": "面向2026-04-18的总部网络、分支网络运行态势综述：可用率99.92%，告警数18，工单数5。"
+                    "template": "面向{$report_date}的{$scope}运行态势综述：可用率{#dataset_daily_summary.availability_rate}，告警数{#dataset_daily_summary.alarm_count}，工单数{#dataset_daily_summary.ticket_count}。"
                   },
                   {
                     "id": "block_summary_chart",
                     "type": "chart",
                     "title": "关键指标趋势",
-                    "datasetId": "dataset_daily_summary"
+                    "datasetId": "dataset_daily_summary",
+                    "properties": {
+                      "preferredType": "line"
+                    }
                   }
                 ]
               }
@@ -621,14 +645,16 @@
                         "id": "block_scope_trend_chart",
                         "type": "chart",
                         "title": "趋势图",
-                        "datasetId": "dataset_scope_trend"
+                        "datasetId": "dataset_scope_trend",
+                        "properties": {
+                          "preferredType": "line"
+                        }
                       },
                       {
                         "id": "block_scope_trend_text",
                         "type": "text",
                         "title": "趋势结论",
-                        "template": "{$scope}在{$report_date}的可用性趋势结论：首条趋势日期{#dataset_scope_trend.stat_date}，可用率{#dataset_scope_trend.availability_rate}。",
-                        "content": "{$scope}在{$report_date}的可用性趋势结论：首条趋势日期{#dataset_scope_trend.stat_date}，可用率{#dataset_scope_trend.availability_rate}。"
+                        "template": "{$scope}在{$report_date}的可用性趋势结论：首条趋势日期{#dataset_scope_trend.stat_date}，可用率{#dataset_scope_trend.availability_rate}。"
                       }
                     ]
                   }
