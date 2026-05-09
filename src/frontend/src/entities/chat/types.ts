@@ -30,20 +30,22 @@ export type TemplateInstancePresentationBlock = {
   title?: string;
   datasetId?: string;
   properties?: PresentationProperty;
-  template?: string;
-  content?: string;
   description?: string;
   parts?: TemplateInstanceCompositeTablePart[];
+};
+
+export type DynamicContext = {
+  type: "foreach" | "foreachCase";
+  parameterId: string;
+  itemValue?: ParameterValue;
+  caseId?: string;
 };
 
 export type TemplateInstanceSection = {
   id: string;
   description?: string;
   parameters?: TemplateParameter[];
-  foreachContext?: {
-    parameterId: string;
-    itemValues: ParameterValue[];
-  };
+  dynamicContext?: DynamicContext;
   outline: {
     requirement: string;
     renderedRequirement?: string;
@@ -79,10 +81,7 @@ export type TemplateInstanceCatalog = {
   renderedTitle: string;
   description?: string;
   parameters?: TemplateParameter[];
-  foreachContext?: {
-    parameterId: string;
-    itemValues: ParameterValue[];
-  };
+  dynamicContext?: DynamicContext;
   subCatalogs?: TemplateInstanceCatalog[];
   sections?: TemplateInstanceSection[];
 };

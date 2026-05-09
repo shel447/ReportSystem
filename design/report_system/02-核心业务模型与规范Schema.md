@@ -36,6 +36,7 @@
 - 参数动态候选项来源统一用 `source` 描述，类型是 URL 字符串；不再把方法、请求体、响应体格式散落在模板中
 - 所有参数都必须显式声明 `multi`；候选值来源由是否存在 `source` 决定
 - 模板支持多层目录：每个 `catalog` 下可以同时存在 `subCatalogs` 与 `sections`
+- 目录和章节的动态展开统一由 `dynamic` 承载；`dynamic.type` 支持 `foreach`、`foreachCase`、`custom`
 - `catalog.title` 支持在一句话目录标题中直接使用参数槽位；目录标题渲染不经过单独的大模型生成任务。`section` 不再定义标题，只保留诉求定义。
 - 参数可定义在模板根部、目录或章节上；参数 `id` 在同一模板内必须全局唯一
 - `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
@@ -226,7 +227,17 @@
 |---|---|---|
 | `sections[*].subsections` | `catalogs[*].subCatalogs / sections` | 正式引入“目录”业务概念 |
 | `Catalog.title / Section.outline.requirement` | `Catalog.title / Section.outline.requirement` | 目录负责展示标题，章节负责内容诉求 |
-| `foreach.param` | `foreach.parameterId` | 命名统一 |
+| `foreach.param` | `dynamic.parameterId` | 旧循环字段归并到统一 `dynamic` 结构 |
+
+动态结构规则：
+
+- `dynamic.type = foreach`：按 `parameterId` 对应参数的每个取值重复展开同一目录或章节模板，`as` 表示当前循环变量别名。
+- `dynamic.type = foreachCase`：仍然是 foreach 语义，但每个参数取值会先按 `ParameterValue.value` 匹配 `cases[].values`，再使用命中的 case 内容展开。
+- `foreachCase` 的目录级 case 可定义 `subCatalogs` 和/或 `sections`；章节级 case 通过 `sections` 定义章节变体，用于替换当前占位 section。
+- 多选参数会按用户选择值逐个展开；多个值命中同一 case 时，每个值仍生成一次，只是复用同一 case 内容模板。
+- 未命中 case 时使用 `defaultCase`；没有 `defaultCase` 时，该参数值不生成内容。
+- `dynamic.type = custom` 是预留结构，本期只保存配置，不定义运行时展开语义。
+- 新 schema 不再接受旧 `foreach` 字段；实现层可兼容读取旧字段并输出 canonical `dynamic`。
 
 结论：
 
@@ -251,7 +262,8 @@
 - `section.outline.items[].values` 也统一保留 `ParameterValue` 数组，不提前把多值拼成 SQL 字符串
 - 模板实例只维护每次操作后的最新状态，不记录变更轨迹
 - 顶层模板骨架状态不单独持久化；如需整体状态，由服务端基于各 `section.skeletonStatus` 聚合
-- 模板实例允许保留物化后的顺序字段，用于 `foreach` 展开后的稳定排序与后续冻结
+- 模板实例允许保留物化后的顺序字段，用于 `dynamic` 展开后的稳定排序与后续冻结
+- 模板实例使用 `dynamicContext` 记录展开来源，包含 `type/parameterId/itemValue/caseId`；旧 `foreachContext` 不再作为新实例输出字段
 
 模板实例顶层示例：
 

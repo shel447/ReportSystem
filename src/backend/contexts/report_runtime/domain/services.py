@@ -11,6 +11,8 @@ from ...template_catalog.domain.models import (
     CatalogDefinition,
     CompositeTablePart,
     DatasetDefinition,
+    DynamicDefinition,
+    ForeachCaseBranch,
     OutlineDefinition,
     Parameter,
     ParameterRuntimeContext,
@@ -25,8 +27,8 @@ from ...template_catalog.domain.models import (
     report_template_from_dict,
 )
 from .models import (
+    DynamicContext,
     ExecutionBinding,
-    ForeachContext,
     ParameterConfirmation,
     PartRuntimeContext,
     SectionRuntimeContext,
@@ -234,43 +236,100 @@ def expand_catalog_instances(
     effective_values: dict[str, list[ParameterValue]],
     current_parameters: list[Parameter] | None,
 ) -> list[TemplateInstanceCatalog]:
-    foreach = catalog.foreach
-    if foreach is None:
+    dynamic = catalog.dynamic
+    if dynamic is None or dynamic.type == "custom":
         return [
             build_catalog_instance(
                 catalog=catalog,
                 inherited_values=inherited_values,
                 effective_values=effective_values,
                 current_parameters=current_parameters,
-                foreach_context=None,
+                dynamic_context=None,
             )
         ]
 
-    values = list(inherited_values.get(foreach.parameter_id) or [])
-    if not foreach.parameter_id or not values:
+    if dynamic.type == "foreachCase":
+        return expand_catalog_foreach_case_instances(
+            catalog=catalog,
+            inherited_values=inherited_values,
+            effective_values=effective_values,
+            current_parameters=current_parameters,
+        )
+
+    if dynamic.type != "foreach":
         return [
             build_catalog_instance(
                 catalog=catalog,
                 inherited_values=inherited_values,
                 effective_values=effective_values,
                 current_parameters=current_parameters,
-                foreach_context=None,
+                dynamic_context=None,
+            )
+        ]
+
+    values = list(inherited_values.get(dynamic.parameter_id or "") or [])
+    if not dynamic.parameter_id or not values:
+        return [
+            build_catalog_instance(
+                catalog=catalog,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=None,
             )
         ]
 
     expanded: list[TemplateInstanceCatalog] = []
     for value in values:
         scoped_values = copy.deepcopy(inherited_values)
-        scoped_values[foreach.parameter_id] = [_normalize_parameter_value(value)]
+        scoped_values[dynamic.parameter_id] = [_normalize_parameter_value(value)]
         expanded.append(
             build_catalog_instance(
                 catalog=catalog,
                 inherited_values=scoped_values,
                 effective_values=effective_values,
                 current_parameters=current_parameters,
-                foreach_context=ForeachContext(
-                    parameter_id=foreach.parameter_id,
-                    item_values=[_normalize_parameter_value(value)],
+                dynamic_context=_build_dynamic_context(dynamic_type="foreach", parameter_id=dynamic.parameter_id, value=value),
+            )
+        )
+    return expanded
+
+
+def expand_catalog_foreach_case_instances(
+    *,
+    catalog: CatalogDefinition,
+    inherited_values: dict[str, list[ParameterValue]],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+) -> list[TemplateInstanceCatalog]:
+    dynamic = catalog.dynamic
+    parameter_id = dynamic.parameter_id if dynamic is not None else None
+    values = list(inherited_values.get(parameter_id or "") or [])
+    if dynamic is None or not parameter_id or not values:
+        return []
+
+    expanded: list[TemplateInstanceCatalog] = []
+    for value in values:
+        branch = _match_foreach_case_branch(dynamic, value)
+        if branch is None:
+            continue
+        scoped_values = copy.deepcopy(inherited_values)
+        scoped_values[parameter_id] = [_normalize_parameter_value(value)]
+        branch_catalog = copy.deepcopy(catalog)
+        branch_catalog.dynamic = None
+        branch_catalog.sub_catalogs = copy.deepcopy(branch.sub_catalogs)
+        branch_catalog.sections = copy.deepcopy(branch.sections)
+        expanded.append(
+            build_catalog_instance(
+                catalog=branch_catalog,
+                inherited_values=scoped_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=_build_dynamic_context(
+                    dynamic_type="foreachCase",
+                    parameter_id=parameter_id,
+                    value=value,
+                    case_id=branch.id,
                 ),
             )
         )
@@ -283,7 +342,7 @@ def build_catalog_instance(
     inherited_values: dict[str, list[ParameterValue]],
     effective_values: dict[str, list[ParameterValue]],
     current_parameters: list[Parameter] | None,
-    foreach_context: ForeachContext | None,
+    dynamic_context: DynamicContext | None,
 ) -> TemplateInstanceCatalog:
     catalog_parameters = materialize_parameters(
         parameter_definitions=catalog.parameters,
@@ -317,7 +376,7 @@ def build_catalog_instance(
         rendered_title=render_parameter_text(catalog.title, visible_values),
         description=catalog.description,
         parameters=catalog_parameters,
-        foreach_context=foreach_context,
+        dynamic_context=dynamic_context,
         sub_catalogs=sub_catalogs,
         sections=sections,
     )
@@ -330,46 +389,102 @@ def expand_section_instances(
     effective_values: dict[str, list[ParameterValue]],
     current_parameters: list[Parameter] | None,
 ) -> list[TemplateInstanceSection]:
-    foreach = section.foreach
-    if foreach is None:
+    dynamic = section.dynamic
+    if dynamic is None or dynamic.type == "custom":
         return [
             build_section_instance(
                 section=section,
                 inherited_values=inherited_values,
                 effective_values=effective_values,
                 current_parameters=current_parameters,
-                foreach_context=None,
+                dynamic_context=None,
             )
         ]
 
-    values = list(inherited_values.get(foreach.parameter_id) or [])
-    if not foreach.parameter_id or not values:
+    if dynamic.type == "foreachCase":
+        return expand_section_foreach_case_instances(
+            section=section,
+            inherited_values=inherited_values,
+            effective_values=effective_values,
+            current_parameters=current_parameters,
+        )
+
+    if dynamic.type != "foreach":
         return [
             build_section_instance(
                 section=section,
                 inherited_values=inherited_values,
                 effective_values=effective_values,
                 current_parameters=current_parameters,
-                foreach_context=None,
+                dynamic_context=None,
+            )
+        ]
+
+    values = list(inherited_values.get(dynamic.parameter_id or "") or [])
+    if not dynamic.parameter_id or not values:
+        return [
+            build_section_instance(
+                section=section,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=None,
             )
         ]
 
     expanded: list[TemplateInstanceSection] = []
     for value in values:
         scoped_values = copy.deepcopy(inherited_values)
-        scoped_values[foreach.parameter_id] = [_normalize_parameter_value(value)]
+        scoped_values[dynamic.parameter_id] = [_normalize_parameter_value(value)]
         expanded.append(
             build_section_instance(
                 section=section,
                 inherited_values=scoped_values,
                 effective_values=effective_values,
                 current_parameters=current_parameters,
-                foreach_context=ForeachContext(
-                    parameter_id=foreach.parameter_id,
-                    item_values=[_normalize_parameter_value(value)],
-                ),
+                dynamic_context=_build_dynamic_context(dynamic_type="foreach", parameter_id=dynamic.parameter_id, value=value),
             )
         )
+    return expanded
+
+
+def expand_section_foreach_case_instances(
+    *,
+    section: SectionDefinition,
+    inherited_values: dict[str, list[ParameterValue]],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+) -> list[TemplateInstanceSection]:
+    dynamic = section.dynamic
+    parameter_id = dynamic.parameter_id if dynamic is not None else None
+    values = list(inherited_values.get(parameter_id or "") or [])
+    if dynamic is None or not parameter_id or not values:
+        return []
+
+    expanded: list[TemplateInstanceSection] = []
+    for value in values:
+        branch = _match_foreach_case_branch(dynamic, value)
+        if branch is None:
+            continue
+        scoped_values = copy.deepcopy(inherited_values)
+        scoped_values[parameter_id] = [_normalize_parameter_value(value)]
+        branch_sections = copy.deepcopy(branch.sections) or [copy.deepcopy(section)]
+        for branch_section in branch_sections:
+            branch_section.dynamic = None
+            expanded.append(
+                build_section_instance(
+                    section=branch_section,
+                    inherited_values=scoped_values,
+                    effective_values=effective_values,
+                    current_parameters=current_parameters,
+                    dynamic_context=_build_dynamic_context(
+                        dynamic_type="foreachCase",
+                        parameter_id=parameter_id,
+                        value=value,
+                        case_id=branch.id,
+                    ),
+                )
+            )
     return expanded
 
 
@@ -379,7 +494,7 @@ def build_section_instance(
     inherited_values: dict[str, list[ParameterValue]],
     effective_values: dict[str, list[ParameterValue]],
     current_parameters: list[Parameter] | None,
-    foreach_context: ForeachContext | None,
+    dynamic_context: DynamicContext | None,
 ) -> TemplateInstanceSection:
     section_parameters = materialize_parameters(
         parameter_definitions=section.parameters,
@@ -399,7 +514,7 @@ def build_section_instance(
         id=section.id,
         description=section.description,
         parameters=section_parameters,
-        foreach_context=foreach_context,
+        dynamic_context=dynamic_context,
         outline=OutlineDefinition(
             requirement=section.outline.requirement,
             rendered_requirement=rendered_requirement,
@@ -585,9 +700,24 @@ def collect_template_parameters(template: ReportTemplate) -> list[Parameter]:
 def _collect_catalog_template_parameters(catalog: CatalogDefinition) -> list[Parameter]:
     parameters: list[Parameter] = [copy.deepcopy(item) for item in catalog.parameters]
     for section in catalog.sections:
-        parameters.extend(copy.deepcopy(section.parameters))
+        parameters.extend(_collect_section_template_parameters(section))
     for sub_catalog in catalog.sub_catalogs:
         parameters.extend(_collect_catalog_template_parameters(sub_catalog))
+    if catalog.dynamic is not None:
+        for branch in [*catalog.dynamic.cases, *([catalog.dynamic.default_case] if catalog.dynamic.default_case is not None else [])]:
+            for section in branch.sections:
+                parameters.extend(_collect_section_template_parameters(section))
+            for sub_catalog in branch.sub_catalogs:
+                parameters.extend(_collect_catalog_template_parameters(sub_catalog))
+    return parameters
+
+
+def _collect_section_template_parameters(section: SectionDefinition) -> list[Parameter]:
+    parameters: list[Parameter] = copy.deepcopy(section.parameters)
+    if section.dynamic is not None:
+        for branch in [*section.dynamic.cases, *([section.dynamic.default_case] if section.dynamic.default_case is not None else [])]:
+            for branch_section in branch.sections:
+                parameters.extend(_collect_section_template_parameters(branch_section))
     return parameters
 
 
@@ -629,6 +759,29 @@ def _render_parameter_placeholder(match: re.Match[str], parameter_values: dict[s
 def _render_value_channel(values: list[ParameterValue], channel: str) -> str:
     rendered = [str(getattr(value, channel, None) or value.label or "") for value in values]
     return "、".join([text for text in rendered if text])
+
+
+def _match_foreach_case_branch(dynamic: DynamicDefinition, value: ParameterValue) -> ForeachCaseBranch | None:
+    value_key = value.value
+    for branch in dynamic.cases:
+        if any(candidate == value_key for candidate in branch.values):
+            return branch
+    return dynamic.default_case
+
+
+def _build_dynamic_context(
+    *,
+    dynamic_type: str,
+    parameter_id: str,
+    value: ParameterValue,
+    case_id: str | None = None,
+) -> DynamicContext:
+    return DynamicContext(
+        type=dynamic_type,
+        parameter_id=parameter_id,
+        item_value=_normalize_parameter_value(value),
+        case_id=case_id,
+    )
 
 
 def build_resolved_query(values: list[ParameterValue]) -> str:

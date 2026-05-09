@@ -95,6 +95,28 @@ class ForeachDefinition:
 
 
 @dataclass(slots=True)
+class ForeachCaseBranch:
+    """foreachCase 的单个分支定义。"""
+
+    id: str | None = None
+    values: list[Scalar] = field(default_factory=list)
+    sub_catalogs: list["CatalogDefinition"] = _alias_field("subCatalogs", default_factory=list)
+    sections: list["SectionDefinition"] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class DynamicDefinition:
+    """模板级动态结构定义。"""
+
+    type: str
+    parameter_id: str | None = _alias_field("parameterId", default=None)
+    alias: str | None = _alias_field("as", default=None)
+    cases: list[ForeachCaseBranch] = field(default_factory=list)
+    default_case: ForeachCaseBranch | None = _alias_field("defaultCase", default=None)
+    config: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class DatasetDefinition:
     """章节数据集定义。"""
 
@@ -238,7 +260,7 @@ class SectionContentDefinition:
     datasets: list[DatasetDefinition] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, init=False)
 class SectionDefinition:
     """章节定义。"""
 
@@ -247,10 +269,36 @@ class SectionDefinition:
     content: SectionContentDefinition
     description: str | None = None
     parameters: list[Parameter] = field(default_factory=list)
-    foreach: ForeachDefinition | None = None
+    dynamic: DynamicDefinition | None = None
 
 
-@dataclass(slots=True)
+    def __init__(
+        self,
+        id: str,
+        outline: OutlineDefinition,
+        content: SectionContentDefinition,
+        description: str | None = None,
+        parameters: list[Parameter] | None = None,
+        dynamic: DynamicDefinition | None = None,
+        foreach: ForeachDefinition | None = None,
+    ) -> None:
+        self.id = id
+        self.outline = outline
+        self.content = content
+        self.description = description
+        self.parameters = list(parameters or [])
+        self.dynamic = dynamic_definition_with_foreach(dynamic, foreach=foreach)
+
+    @property
+    def foreach(self) -> ForeachDefinition | None:
+        return foreach_definition_from_dynamic(self.dynamic)
+
+    @foreach.setter
+    def foreach(self, value: ForeachDefinition | None) -> None:
+        self.dynamic = dynamic_definition_with_foreach(None, foreach=value)
+
+
+@dataclass(slots=True, init=False)
 class CatalogDefinition:
     """目录定义。"""
 
@@ -258,9 +306,36 @@ class CatalogDefinition:
     title: str
     description: str | None = None
     parameters: list[Parameter] = field(default_factory=list)
-    foreach: ForeachDefinition | None = None
+    dynamic: DynamicDefinition | None = None
     sub_catalogs: list["CatalogDefinition"] = _alias_field("subCatalogs", default_factory=list)
     sections: list[SectionDefinition] = field(default_factory=list)
+
+    def __init__(
+        self,
+        id: str,
+        title: str,
+        description: str | None = None,
+        parameters: list[Parameter] | None = None,
+        dynamic: DynamicDefinition | None = None,
+        foreach: ForeachDefinition | None = None,
+        sub_catalogs: list["CatalogDefinition"] | None = None,
+        sections: list[SectionDefinition] | None = None,
+    ) -> None:
+        self.id = id
+        self.title = title
+        self.description = description
+        self.parameters = list(parameters or [])
+        self.dynamic = dynamic_definition_with_foreach(dynamic, foreach=foreach)
+        self.sub_catalogs = list(sub_catalogs or [])
+        self.sections = list(sections or [])
+
+    @property
+    def foreach(self) -> ForeachDefinition | None:
+        return foreach_definition_from_dynamic(self.dynamic)
+
+    @foreach.setter
+    def foreach(self, value: ForeachDefinition | None) -> None:
+        self.dynamic = dynamic_definition_with_foreach(None, foreach=value)
 
 
 @dataclass(slots=True)
@@ -498,6 +573,88 @@ def foreach_definition_to_dict(foreach: ForeachDefinition) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ForeachDefinition, "parameter_id", foreach.parameter_id)
     set_value(payload, ForeachDefinition, "alias", foreach.alias)
+    return payload
+
+
+def dynamic_definition_with_foreach(
+    dynamic: DynamicDefinition | None,
+    *,
+    foreach: ForeachDefinition | None = None,
+) -> DynamicDefinition | None:
+    if dynamic is not None:
+        return dynamic
+    if foreach is None:
+        return None
+    return DynamicDefinition(
+        type="foreach",
+        parameter_id=foreach.parameter_id,
+        alias=foreach.alias,
+    )
+
+
+def foreach_definition_from_dynamic(dynamic: DynamicDefinition | None) -> ForeachDefinition | None:
+    if dynamic is None or dynamic.type != "foreach" or dynamic.parameter_id is None:
+        return None
+    return ForeachDefinition(
+        parameter_id=dynamic.parameter_id,
+        alias=dynamic.alias or "item",
+    )
+
+
+def foreach_case_branch_from_dict(payload: Any) -> ForeachCaseBranch | None:
+    if not isinstance(payload, dict):
+        return None
+    return ForeachCaseBranch(
+        id=_as_optional_str(payload.get("id")),
+        values=list(payload.get("values") or []),
+        sub_catalogs=[catalog_definition_from_dict(item) for item in list(get_value(payload, ForeachCaseBranch, "sub_catalogs") or [])],
+        sections=[section_definition_from_dict(item) for item in list(payload.get("sections") or [])],
+    )
+
+
+def foreach_case_branch_to_dict(branch: ForeachCaseBranch) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if branch.id is not None:
+        payload["id"] = branch.id
+    if branch.values:
+        payload["values"] = list(branch.values)
+    if branch.sub_catalogs:
+        set_value(payload, ForeachCaseBranch, "sub_catalogs", [catalog_definition_to_dict(item) for item in branch.sub_catalogs])
+    if branch.sections:
+        payload["sections"] = [section_definition_to_dict(item) for item in branch.sections]
+    return payload
+
+
+def dynamic_definition_from_dict(payload: Any) -> DynamicDefinition | None:
+    if not isinstance(payload, dict):
+        return None
+    default_case = foreach_case_branch_from_dict(get_value(payload, DynamicDefinition, "default_case"))
+    return DynamicDefinition(
+        type=str(payload.get("type") or ""),
+        parameter_id=_as_optional_str(get_value(payload, DynamicDefinition, "parameter_id")),
+        alias=_as_optional_str(get_value(payload, DynamicDefinition, "alias")),
+        cases=[
+            branch
+            for branch in (foreach_case_branch_from_dict(item) for item in list(payload.get("cases") or []))
+            if branch is not None
+        ],
+        default_case=default_case,
+        config=dict(payload.get("config") or {}) if isinstance(payload.get("config"), dict) else {},
+    )
+
+
+def dynamic_definition_to_dict(dynamic: DynamicDefinition) -> dict[str, Any]:
+    payload: dict[str, Any] = {"type": dynamic.type}
+    if dynamic.parameter_id is not None:
+        set_value(payload, DynamicDefinition, "parameter_id", dynamic.parameter_id)
+    if dynamic.alias is not None:
+        set_value(payload, DynamicDefinition, "alias", dynamic.alias)
+    if dynamic.cases:
+        payload["cases"] = [foreach_case_branch_to_dict(item) for item in dynamic.cases]
+    if dynamic.default_case is not None:
+        set_value(payload, DynamicDefinition, "default_case", foreach_case_branch_to_dict(dynamic.default_case))
+    if dynamic.config:
+        payload["config"] = dict(dynamic.config)
     return payload
 
 
@@ -778,13 +935,17 @@ def section_content_definition_to_dict(content: SectionContentDefinition) -> dic
 
 
 def section_definition_from_dict(payload: dict[str, Any]) -> SectionDefinition:
+    dynamic = dynamic_definition_with_foreach(
+        dynamic_definition_from_dict(payload.get("dynamic")),
+        foreach=foreach_definition_from_dict(payload.get("foreach")),
+    )
     return SectionDefinition(
         id=str(payload.get("id") or ""),
         outline=outline_definition_from_dict(payload.get("outline") or {}),
         content=section_content_definition_from_dict(payload.get("content") or {}),
         description=_as_optional_str(payload.get("description")),
         parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
-        foreach=foreach_definition_from_dict(payload.get("foreach")),
+        dynamic=dynamic,
     )
 
 
@@ -798,18 +959,22 @@ def section_definition_to_dict(section: SectionDefinition) -> dict[str, Any]:
         payload["description"] = section.description
     if section.parameters:
         payload["parameters"] = [parameter_to_dict(item) for item in section.parameters]
-    if section.foreach is not None:
-        payload["foreach"] = foreach_definition_to_dict(section.foreach)
+    if section.dynamic is not None:
+        payload["dynamic"] = dynamic_definition_to_dict(section.dynamic)
     return payload
 
 
 def catalog_definition_from_dict(payload: dict[str, Any]) -> CatalogDefinition:
+    dynamic = dynamic_definition_with_foreach(
+        dynamic_definition_from_dict(payload.get("dynamic")),
+        foreach=foreach_definition_from_dict(payload.get("foreach")),
+    )
     return CatalogDefinition(
         id=str(payload.get("id") or ""),
         title=str(payload.get("title") or ""),
         description=_as_optional_str(payload.get("description")),
         parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
-        foreach=foreach_definition_from_dict(payload.get("foreach")),
+        dynamic=dynamic,
         sub_catalogs=[catalog_definition_from_dict(item) for item in list(get_value(payload, CatalogDefinition, "sub_catalogs") or [])],
         sections=[section_definition_from_dict(item) for item in list(payload.get("sections") or [])],
     )
@@ -824,8 +989,8 @@ def catalog_definition_to_dict(catalog: CatalogDefinition) -> dict[str, Any]:
         payload["description"] = catalog.description
     if catalog.parameters:
         payload["parameters"] = [parameter_to_dict(item) for item in catalog.parameters]
-    if catalog.foreach is not None:
-        payload["foreach"] = foreach_definition_to_dict(catalog.foreach)
+    if catalog.dynamic is not None:
+        payload["dynamic"] = dynamic_definition_to_dict(catalog.dynamic)
     if catalog.sub_catalogs:
         set_value(payload, CatalogDefinition, "sub_catalogs", [catalog_definition_to_dict(item) for item in catalog.sub_catalogs])
     if catalog.sections:

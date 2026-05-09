@@ -344,6 +344,32 @@
         }
       }
     },
+    "DynamicContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "parameterId"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "foreach",
+            "foreachCase"
+          ]
+        },
+        "parameterId": {
+          "type": "string"
+        },
+        "itemValue": {
+          "$ref": "#/$defs/ParameterValue"
+        },
+        "caseId": {
+          "type": "string"
+        }
+      }
+    },
     "ExecutionBinding": {
       "type": "object",
       "additionalProperties": false,
@@ -585,8 +611,8 @@
             "$ref": "#/$defs/Parameter"
           }
         },
-        "foreachContext": {
-          "$ref": "#/$defs/ForeachContext"
+        "dynamicContext": {
+          "$ref": "#/$defs/DynamicContext"
         },
         "outline": {
           "$ref": "#/$defs/Outline"
@@ -638,8 +664,8 @@
             "$ref": "#/$defs/Parameter"
           }
         },
-        "foreachContext": {
-          "$ref": "#/$defs/ForeachContext"
+        "dynamicContext": {
+          "$ref": "#/$defs/DynamicContext"
         },
         "subCatalogs": {
           "type": "array",

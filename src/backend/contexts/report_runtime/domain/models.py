@@ -58,6 +58,16 @@ class ForeachContext:
 
 
 @dataclass(slots=True)
+class DynamicContext:
+    """实例态 dynamic 展开上下文。"""
+
+    type: str
+    parameter_id: str = _alias_field("parameterId")
+    item_value: ParameterValue | None = _alias_field("itemValue", default=None)
+    case_id: str | None = _alias_field("caseId", default=None)
+
+
+@dataclass(slots=True)
 class ExecutionBinding:
     """章节执行绑定。"""
 
@@ -192,6 +202,7 @@ class TemplateInstanceSection:
     description: str | None = None
     order: int | None = None
     parameters: list[Parameter] = field(default_factory=list)
+    dynamic_context: DynamicContext | None = _alias_field("dynamicContext", default=None)
     foreach_context: ForeachContext | None = _alias_field("foreachContext", default=None)
 
 
@@ -205,6 +216,7 @@ class TemplateInstanceCatalog:
     description: str | None = None
     order: int | None = None
     parameters: list[Parameter] = field(default_factory=list)
+    dynamic_context: DynamicContext | None = _alias_field("dynamicContext", default=None)
     foreach_context: ForeachContext | None = _alias_field("foreachContext", default=None)
     sub_catalogs: list["TemplateInstanceCatalog"] = _alias_field("subCatalogs", default_factory=list)
     sections: list[TemplateInstanceSection] = field(default_factory=list)
@@ -564,6 +576,35 @@ def foreach_context_from_dict(payload: Any) -> ForeachContext | None:
     )
 
 
+def dynamic_context_to_dict(item: DynamicContext) -> dict[str, Any]:
+    payload: dict[str, Any] = {"type": item.type}
+    set_value(payload, DynamicContext, "parameter_id", item.parameter_id)
+    if item.item_value is not None:
+        set_value(payload, DynamicContext, "item_value", parameter_value_to_dict(item.item_value))
+    if item.case_id is not None:
+        set_value(payload, DynamicContext, "case_id", item.case_id)
+    return payload
+
+
+def dynamic_context_from_dict(payload: Any) -> DynamicContext | None:
+    if not isinstance(payload, dict):
+        foreach_context = foreach_context_from_dict(payload)
+        return dynamic_context_from_foreach(foreach_context)
+    return DynamicContext(
+        type=str(payload.get("type") or ""),
+        parameter_id=str(get_value(payload, DynamicContext, "parameter_id") or ""),
+        item_value=parameter_value_from_dict(get_value(payload, DynamicContext, "item_value")) if isinstance(get_value(payload, DynamicContext, "item_value"), dict) else None,
+        case_id=_as_optional_str(get_value(payload, DynamicContext, "case_id")),
+    )
+
+
+def dynamic_context_from_foreach(context: ForeachContext | None) -> DynamicContext | None:
+    if context is None:
+        return None
+    item_value = context.item_values[0] if context.item_values else None
+    return DynamicContext(type="foreach", parameter_id=context.parameter_id, item_value=item_value)
+
+
 def execution_binding_to_dict(binding: ExecutionBinding) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ExecutionBinding, "id", binding.id)
@@ -771,12 +812,15 @@ def template_instance_section_to_dict(section: TemplateInstanceSection) -> dict[
         set_value(payload, TemplateInstanceSection, "order", section.order)
     if section.parameters:
         set_value(payload, TemplateInstanceSection, "parameters", [parameter_to_dict(item) for item in section.parameters])
-    if section.foreach_context is not None:
-        set_value(payload, TemplateInstanceSection, "foreach_context", foreach_context_to_dict(section.foreach_context))
+    dynamic_context = section.dynamic_context or dynamic_context_from_foreach(section.foreach_context)
+    if dynamic_context is not None:
+        set_value(payload, TemplateInstanceSection, "dynamic_context", dynamic_context_to_dict(dynamic_context))
     return payload
 
 
 def template_instance_section_from_dict(payload: dict[str, Any]) -> TemplateInstanceSection:
+    legacy_foreach_context = foreach_context_from_dict(get_value(payload, TemplateInstanceSection, "foreach_context"))
+    dynamic_context = dynamic_context_from_dict(get_value(payload, TemplateInstanceSection, "dynamic_context")) or dynamic_context_from_foreach(legacy_foreach_context)
     return TemplateInstanceSection(
         id=str(get_value(payload, TemplateInstanceSection, "id") or ""),
         outline=_outline_from_any(get_value(payload, TemplateInstanceSection, "outline")),
@@ -787,7 +831,8 @@ def template_instance_section_from_dict(payload: dict[str, Any]) -> TemplateInst
         description=_as_optional_str(get_value(payload, TemplateInstanceSection, "description")),
         order=_as_optional_int(get_value(payload, TemplateInstanceSection, "order")),
         parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstanceSection, "parameters") or [])],
-        foreach_context=foreach_context_from_dict(get_value(payload, TemplateInstanceSection, "foreach_context")),
+        dynamic_context=dynamic_context,
+        foreach_context=legacy_foreach_context,
     )
 
 
@@ -802,8 +847,9 @@ def template_instance_catalog_to_dict(catalog: TemplateInstanceCatalog) -> dict[
         set_value(payload, TemplateInstanceCatalog, "order", catalog.order)
     if catalog.parameters:
         set_value(payload, TemplateInstanceCatalog, "parameters", [parameter_to_dict(item) for item in catalog.parameters])
-    if catalog.foreach_context is not None:
-        set_value(payload, TemplateInstanceCatalog, "foreach_context", foreach_context_to_dict(catalog.foreach_context))
+    dynamic_context = catalog.dynamic_context or dynamic_context_from_foreach(catalog.foreach_context)
+    if dynamic_context is not None:
+        set_value(payload, TemplateInstanceCatalog, "dynamic_context", dynamic_context_to_dict(dynamic_context))
     if catalog.sub_catalogs:
         set_value(payload, TemplateInstanceCatalog, "sub_catalogs", [template_instance_catalog_to_dict(item) for item in catalog.sub_catalogs])
     if catalog.sections:
@@ -812,6 +858,8 @@ def template_instance_catalog_to_dict(catalog: TemplateInstanceCatalog) -> dict[
 
 
 def template_instance_catalog_from_dict(payload: dict[str, Any]) -> TemplateInstanceCatalog:
+    legacy_foreach_context = foreach_context_from_dict(get_value(payload, TemplateInstanceCatalog, "foreach_context"))
+    dynamic_context = dynamic_context_from_dict(get_value(payload, TemplateInstanceCatalog, "dynamic_context")) or dynamic_context_from_foreach(legacy_foreach_context)
     return TemplateInstanceCatalog(
         id=str(get_value(payload, TemplateInstanceCatalog, "id") or ""),
         title=str(get_value(payload, TemplateInstanceCatalog, "title") or ""),
@@ -819,7 +867,8 @@ def template_instance_catalog_from_dict(payload: dict[str, Any]) -> TemplateInst
         description=_as_optional_str(get_value(payload, TemplateInstanceCatalog, "description")),
         order=_as_optional_int(get_value(payload, TemplateInstanceCatalog, "order")),
         parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "parameters") or [])],
-        foreach_context=foreach_context_from_dict(get_value(payload, TemplateInstanceCatalog, "foreach_context")),
+        dynamic_context=dynamic_context,
+        foreach_context=legacy_foreach_context,
         sub_catalogs=[template_instance_catalog_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "sub_catalogs") or [])],
         sections=[template_instance_section_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "sections") or [])],
     )

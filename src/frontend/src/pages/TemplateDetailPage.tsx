@@ -162,7 +162,6 @@ export function TemplateDetailPage() {
                   <label className="field"><span className="field-label">名称</span><input value={activeDraft.name} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, name: e.target.value }))} /></label>
                   <label className="field"><span className="field-label">Schema Version</span><input value={activeDraft.schemaVersion} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, schemaVersion: e.target.value }))} /></label>
                   <label className="field field--full"><span className="field-label">描述</span><textarea rows={3} value={activeDraft.description} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, description: e.target.value }))} /></label>
-                  <label className="field field--full"><span className="field-label">标签（逗号分隔）</span><input value={(activeDraft.tags ?? []).join(", ")} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, tags: e.target.value.split(",").map((item) => item.trim()).filter(Boolean) }))} /></label>
                 </div>
               </SurfaceCard>
 
@@ -231,8 +230,8 @@ function CatalogEditor({ catalog, onChange, onRemove, path }: CatalogEditorProps
         <label className="field"><span className="field-label">目录 ID</span><input value={catalog.id} onChange={(e) => onChange({ ...catalog, id: e.target.value })} /></label>
         <label className="field"><span className="field-label">目录标题</span><input value={catalog.title} onChange={(e) => onChange({ ...catalog, title: e.target.value })} /></label>
         <label className="field field--full"><span className="field-label">目录描述</span><textarea rows={2} value={catalog.description ?? ""} onChange={(e) => onChange({ ...catalog, description: e.target.value || undefined })} /></label>
-        <label className="field"><span className="field-label">Foreach 参数</span><input value={catalog.foreach?.parameterId ?? ""} onChange={(e) => onChange({ ...catalog, foreach: normalizeForeach(e.target.value, catalog.foreach?.as ?? "item") })} /></label>
-        <label className="field"><span className="field-label">Foreach 别名</span><input value={catalog.foreach?.as ?? ""} onChange={(e) => onChange({ ...catalog, foreach: normalizeForeach(catalog.foreach?.parameterId ?? "", e.target.value) })} /></label>
+        <label className="field"><span className="field-label">Dynamic Foreach 参数</span><input value={getForeachDynamic(catalog.dynamic)?.parameterId ?? ""} onChange={(e) => onChange({ ...catalog, dynamic: normalizeForeachDynamic(e.target.value, getForeachDynamic(catalog.dynamic)?.as ?? "item") })} /></label>
+        <label className="field"><span className="field-label">Dynamic Foreach 别名</span><input value={getForeachDynamic(catalog.dynamic)?.as ?? ""} onChange={(e) => onChange({ ...catalog, dynamic: normalizeForeachDynamic(getForeachDynamic(catalog.dynamic)?.parameterId ?? "", e.target.value) })} /></label>
       </div>
 
       <div className="template-inline-group">
@@ -299,8 +298,8 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         <label className="field"><span className="field-label">章节 ID</span><input value={section.id} onChange={(e) => onChange({ ...section, id: e.target.value })} /></label>
         <label className="field field--full"><span className="field-label">章节描述</span><textarea rows={2} value={section.description ?? ""} onChange={(e) => onChange({ ...section, description: e.target.value || undefined })} /></label>
         <label className="field field--full"><span className="field-label">诉求文本</span><textarea rows={3} value={section.outline.requirement} onChange={(e) => onChange({ ...section, outline: { ...section.outline, requirement: e.target.value } })} /></label>
-        <label className="field"><span className="field-label">Foreach 参数</span><input value={section.foreach?.parameterId ?? ""} onChange={(e) => onChange({ ...section, foreach: normalizeForeach(e.target.value, section.foreach?.as ?? "item") })} /></label>
-        <label className="field"><span className="field-label">Foreach 别名</span><input value={section.foreach?.as ?? ""} onChange={(e) => onChange({ ...section, foreach: normalizeForeach(section.foreach?.parameterId ?? "", e.target.value) })} /></label>
+        <label className="field"><span className="field-label">Dynamic Foreach 参数</span><input value={getForeachDynamic(section.dynamic)?.parameterId ?? ""} onChange={(e) => onChange({ ...section, dynamic: normalizeForeachDynamic(e.target.value, getForeachDynamic(section.dynamic)?.as ?? "item") })} /></label>
+        <label className="field"><span className="field-label">Dynamic Foreach 别名</span><input value={getForeachDynamic(section.dynamic)?.as ?? ""} onChange={(e) => onChange({ ...section, dynamic: normalizeForeachDynamic(getForeachDynamic(section.dynamic)?.parameterId ?? "", e.target.value) })} /></label>
         <label className="field"><span className="field-label">展示种类</span><select value={section.content.presentation.kind} onChange={(e) => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, kind: e.target.value as SectionDefinition["content"]["presentation"]["kind"] } } })}><option value="text">text</option><option value="table">table</option><option value="chart">chart</option><option value="mixed">mixed</option></select></label>
       </div>
 
@@ -343,7 +342,7 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
             <select value={block.type} onChange={(e) => updateBlock(section, index, { type: e.target.value as PresentationBlock["type"] }, onChange)}><option value="text">text</option><option value="table">table</option><option value="chart">chart</option><option value="composite_table">composite_table</option></select>
             <input value={block.title ?? ""} onChange={(e) => updateBlock(section, index, { title: e.target.value || undefined }, onChange)} placeholder="标题" />
             <input value={block.datasetId ?? ""} onChange={(e) => updateBlock(section, index, { datasetId: e.target.value || undefined }, onChange)} placeholder="datasetId" />
-            {block.type === "text" ? <input value={block.template ?? ""} onChange={(e) => updateBlock(section, index, { template: e.target.value || undefined }, onChange)} placeholder="文本模板" /> : null}
+            {block.type === "text" ? <input value={block.properties?.template ?? ""} onChange={(e) => updateBlock(section, index, { properties: { ...(block.properties ?? {}), template: e.target.value || undefined } }, onChange)} placeholder="文本模板" /> : null}
             <button className="ghost-button ghost-button--inline" type="button" onClick={() => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, blocks: removeAtIndex(section.content.presentation.blocks, index) } } })}>删除</button>
           </div>
         ))}
@@ -381,7 +380,7 @@ function ParameterEditorList({ parameters, onChange }: { parameters: TemplatePar
 }
 
 function createEmptyTemplate(): ReportTemplate {
-  return { id: "", category: "", name: "", description: "", schemaVersion: "template.v3", tags: [], parameters: [], catalogs: [] };
+  return { id: "", category: "", name: "", description: "", schemaVersion: "template.v3", parameters: [], catalogs: [] };
 }
 
 function createEmptyParameter(): TemplateParameter {
@@ -418,7 +417,7 @@ function createEmptyDataset() {
 }
 
 function createEmptyBlock(): PresentationBlock {
-  return { id: `block_${Date.now()}`, type: "text", title: "", template: "" };
+  return { id: `block_${Date.now()}`, type: "text", title: "", properties: { template: "" } };
 }
 
 function cloneTemplate(template: ReportTemplate): ReportTemplate {
@@ -502,11 +501,15 @@ function removeAtIndex<T>(items: T[], index: number): T[] {
   return next;
 }
 
-function normalizeForeach(parameterId: string, asValue: string) {
+function getForeachDynamic(dynamic: CatalogDefinition["dynamic"] | SectionDefinition["dynamic"]) {
+  return dynamic?.type === "foreach" ? dynamic : undefined;
+}
+
+function normalizeForeachDynamic(parameterId: string, asValue: string) {
   if (!parameterId.trim()) {
     return undefined;
   }
-  return { parameterId: parameterId.trim(), as: asValue.trim() || "item" };
+  return { type: "foreach" as const, parameterId: parameterId.trim(), as: asValue.trim() || "item" };
 }
 
 function countCatalogs(catalogs: CatalogDefinition[]): number {

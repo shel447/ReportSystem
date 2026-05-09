@@ -48,6 +48,7 @@ from backend.contexts.template_catalog.domain.models import (
     presentation_block_from_dict,
     presentation_block_to_dict,
     report_template_from_dict,
+    report_template_to_dict,
 )
 from backend.contexts.template_catalog.infrastructure.schema import validate_report_template, validate_template_instance
 from backend.shared.kernel.errors import ValidationError
@@ -645,6 +646,266 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             invalid_type_payload["catalogs"][0]["sections"][0]["content"]["presentation"]["blocks"][0]["type"] = unsupported_type
             with self.assertRaises(ValueError):
                 validate_report_template(invalid_type_payload)
+
+    def test_dynamic_schema_accepts_foreach_case_and_rejects_legacy_foreach(self):
+        payload = {
+            "id": "tpl_dynamic",
+            "category": "network_ops",
+            "name": "动态目录模板",
+            "description": "用于校验 dynamic 定义。",
+            "schemaVersion": "template.v3",
+            "parameters": [
+                {
+                    "id": "scope",
+                    "label": "分析对象",
+                    "inputType": "enum",
+                    "required": True,
+                    "multi": True,
+                    "interactionMode": "form",
+                    "options": [
+                        {"label": "总部", "value": "hq", "query": "scope = 'hq'"},
+                        {"label": "分支", "value": "branch", "query": "scope = 'branch'"},
+                    ],
+                }
+            ],
+            "catalogs": [
+                {
+                    "id": "catalog_dynamic",
+                    "title": "{$scope} 分支分析",
+                    "dynamic": {
+                        "type": "foreachCase",
+                        "parameterId": "scope",
+                        "as": "scope_item",
+                        "cases": [
+                            {
+                                "id": "hq_case",
+                                "values": ["hq"],
+                                "sections": [
+                                    {
+                                        "id": "section_hq",
+                                        "outline": {"requirement": "分析总部。", "items": []},
+                                        "content": {"presentation": {"kind": "text", "blocks": []}},
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+        validate_report_template(payload)
+
+        invalid_legacy = copy.deepcopy(payload)
+        invalid_legacy["catalogs"][0].pop("dynamic")
+        invalid_legacy["catalogs"][0]["foreach"] = {"parameterId": "scope", "as": "scope_item"}
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_legacy)
+
+        invalid_case = copy.deepcopy(payload)
+        del invalid_case["catalogs"][0]["dynamic"]["cases"][0]["values"]
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_case)
+
+    def test_legacy_foreach_input_serializes_as_dynamic(self):
+        template = report_template_from_dict(
+            {
+                "id": "tpl_legacy_foreach",
+                "category": "network_ops",
+                "name": "旧 foreach 模板",
+                "description": "用于校验兼容读取。",
+                "schemaVersion": "template.v3",
+                "parameters": [],
+                "catalogs": [
+                    {
+                        "id": "catalog_scope",
+                        "title": "{$scope} 分析",
+                        "foreach": {"parameterId": "scope", "as": "scope_item"},
+                        "sections": [],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(template.catalogs[0].dynamic.type, "foreach")
+        self.assertEqual(template.catalogs[0].foreach.parameter_id, "scope")
+        payload = report_template_to_dict(template)
+        self.assertEqual(payload["catalogs"][0]["dynamic"]["type"], "foreach")
+        self.assertNotIn("foreach", payload["catalogs"][0])
+
+    def test_instantiate_template_expands_catalog_foreach_case(self):
+        template = report_template_from_dict(
+            {
+                "id": "tpl_catalog_foreach_case",
+                "category": "network_ops",
+                "name": "目录 foreachCase 模板",
+                "description": "用于校验目录级 foreachCase。",
+                "schemaVersion": "template.v3",
+                "parameters": [
+                    {
+                        "id": "scope",
+                        "label": "分析对象",
+                        "inputType": "enum",
+                        "required": True,
+                        "multi": True,
+                        "interactionMode": "form",
+                        "options": [
+                            {"label": "总部", "value": "hq", "query": "scope = 'hq'"},
+                            {"label": "分支", "value": "branch", "query": "scope = 'branch'"},
+                            {"label": "未知", "value": "unknown", "query": "scope = 'unknown'"},
+                        ],
+                    }
+                ],
+                "catalogs": [
+                    {
+                        "id": "catalog_dynamic",
+                        "title": "{$scope} 分支分析",
+                        "dynamic": {
+                            "type": "foreachCase",
+                            "parameterId": "scope",
+                            "as": "scope_item",
+                            "cases": [
+                                {
+                                    "id": "hq_case",
+                                    "values": ["hq"],
+                                    "sections": [
+                                        {
+                                            "id": "section_hq",
+                                            "outline": {"requirement": "分析总部。", "items": []},
+                                            "content": {"presentation": {"kind": "text", "blocks": []}},
+                                        }
+                                    ],
+                                },
+                                {
+                                    "id": "branch_case",
+                                    "values": ["branch"],
+                                    "sections": [
+                                        {
+                                            "id": "section_branch",
+                                            "outline": {"requirement": "分析分支。", "items": []},
+                                            "content": {"presentation": {"kind": "text", "blocks": []}},
+                                        }
+                                    ],
+                                },
+                            ],
+                            "defaultCase": {
+                                "sections": [
+                                    {
+                                        "id": "section_default",
+                                        "outline": {"requirement": "分析默认对象。", "items": []},
+                                        "content": {"presentation": {"kind": "text", "blocks": []}},
+                                    }
+                                ]
+                            },
+                        },
+                    }
+                ],
+            }
+        )
+
+        instance = instantiate_template_instance(
+            instance_id="ti_catalog_case",
+            template=template,
+            conversation_id="conv_001",
+            chat_id="chat_001",
+            status="collecting_parameters",
+            capture_stage="fill_params",
+            revision=1,
+            parameter_values={
+                "scope": [
+                    ParameterValue(label="总部", value="hq", query="scope = 'hq'"),
+                    ParameterValue(label="分支", value="branch", query="scope = 'branch'"),
+                    ParameterValue(label="未知", value="unknown", query="scope = 'unknown'"),
+                ]
+            },
+        )
+
+        self.assertEqual([catalog.sections[0].id for catalog in instance.catalogs], ["section_hq", "section_branch", "section_default"])
+        self.assertEqual([catalog.dynamic_context.case_id for catalog in instance.catalogs], ["hq_case", "branch_case", None])
+        self.assertEqual(instance.catalogs[0].dynamic_context.item_value.value, "hq")
+
+    def test_instantiate_template_expands_section_foreach_case(self):
+        template = report_template_from_dict(
+            {
+                "id": "tpl_section_foreach_case",
+                "category": "network_ops",
+                "name": "章节 foreachCase 模板",
+                "description": "用于校验章节级 foreachCase。",
+                "schemaVersion": "template.v3",
+                "parameters": [
+                    {
+                        "id": "scope",
+                        "label": "分析对象",
+                        "inputType": "enum",
+                        "required": True,
+                        "multi": True,
+                        "interactionMode": "form",
+                        "options": [
+                            {"label": "总部", "value": "hq", "query": "scope = 'hq'"},
+                            {"label": "分支", "value": "branch", "query": "scope = 'branch'"},
+                        ],
+                    }
+                ],
+                "catalogs": [
+                    {
+                        "id": "catalog_main",
+                        "title": "分支章节",
+                        "sections": [
+                            {
+                                "id": "section_dynamic",
+                                "dynamic": {
+                                    "type": "foreachCase",
+                                    "parameterId": "scope",
+                                    "as": "scope_item",
+                                    "cases": [
+                                        {
+                                            "id": "hq_case",
+                                            "values": ["hq"],
+                                            "sections": [
+                                                {
+                                                    "id": "section_hq",
+                                                    "outline": {"requirement": "分析总部。", "items": []},
+                                                    "content": {"presentation": {"kind": "text", "blocks": []}},
+                                                }
+                                            ],
+                                        },
+                                        {
+                                            "id": "branch_case",
+                                            "values": ["branch"],
+                                            "sections": [
+                                                {
+                                                    "id": "section_branch",
+                                                    "outline": {"requirement": "分析分支。", "items": []},
+                                                    "content": {"presentation": {"kind": "text", "blocks": []}},
+                                                }
+                                            ],
+                                        },
+                                    ],
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+
+        instance = instantiate_template_instance(
+            instance_id="ti_section_case",
+            template=template,
+            conversation_id="conv_001",
+            chat_id="chat_001",
+            status="collecting_parameters",
+            capture_stage="fill_params",
+            revision=1,
+            parameter_values={
+                "scope": [
+                    ParameterValue(label="总部", value="hq", query="scope = 'hq'"),
+                    ParameterValue(label="分支", value="branch", query="scope = 'branch'"),
+                ]
+            },
+        )
+
+        self.assertEqual([section.id for section in instance.catalogs[0].sections], ["section_hq", "section_branch"])
+        self.assertEqual([section.dynamic_context.case_id for section in instance.catalogs[0].sections], ["hq_case", "branch_case"])
 
 
 if __name__ == "__main__":

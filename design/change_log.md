@@ -8,6 +8,27 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-09 Dynamic/ForeachCase 模板展开结构
+
+- 变更动机：
+  - 旧 `foreach` 只能表达“同一内容重复展开”，无法表达“仍按参数多值循环，但不同取值需要不同章节/目录定义”的场景。
+  - 该能力本质不是单选 `switch`，而是一种特殊 foreach，因此命名为 `foreachCase`。
+- 设计决策：
+  - `CatalogDefinition` 与 `SectionDefinition` 的动态展开统一使用 `dynamic` 字段。
+  - `dynamic.type` 支持 `foreach`、`foreachCase`、`custom`；`custom` 仅预留。
+  - `foreachCase` 使用 `ParameterValue.value` 匹配 `cases[].values`；多选参数逐值展开，未命中时使用 `defaultCase`，无默认分支则跳过该值。
+  - 正式 schema 不再接受旧 `foreach` 字段；实现层可兼容读取旧字段并输出 canonical `dynamic`。
+  - 模板实例使用 `dynamicContext` 记录展开来源，旧 `foreachContext` 不再作为新实例输出字段。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/报告模板定义与使用说明书.md](report_system/%E6%8A%A5%E5%91%8A%E6%A8%A1%E6%9D%BF%E5%AE%9A%E4%B9%89%E4%B8%8E%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6.md)
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+  - `report_system/examples/report-template.example.json`
+  - `report_system/examples/template-instance.example.json`
+
 ## 2026-05-08 参数优先级、移除 Tags 与 Text 属性归并
 
 - 变更动机：

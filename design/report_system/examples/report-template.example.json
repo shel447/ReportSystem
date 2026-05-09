@@ -258,8 +258,103 @@
       "title": "运行概览"
     },
     {
+      "id": "catalog_scope_case_strategy",
+      "title": "{$scope} 分支分析",
+      "dynamic": {
+        "type": "foreachCase",
+        "parameterId": "scope",
+        "as": "scope_item",
+        "cases": [
+          {
+            "id": "hq_network_case",
+            "values": [
+              "hq-network"
+            ],
+            "sections": [
+              {
+                "id": "section_hq_network_strategy",
+                "outline": {
+                  "requirement": "分析总部网络的核心链路与集中管控风险。",
+                  "items": []
+                },
+                "content": {
+                  "presentation": {
+                    "kind": "text",
+                    "blocks": [
+                      {
+                        "id": "block_hq_network_strategy",
+                        "type": "text",
+                        "properties": {
+                          "template": "{$scope} 需要重点关注核心链路容量、跨区域访问质量和统一管控风险。"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "id": "branch_network_case",
+            "values": [
+              "branch-network"
+            ],
+            "sections": [
+              {
+                "id": "section_branch_network_strategy",
+                "outline": {
+                  "requirement": "分析分支网络的接入质量与本地故障风险。",
+                  "items": []
+                },
+                "content": {
+                  "presentation": {
+                    "kind": "text",
+                    "blocks": [
+                      {
+                        "id": "block_branch_network_strategy",
+                        "type": "text",
+                        "properties": {
+                          "template": "{$scope} 需要重点关注接入链路稳定性、末端设备告警和本地恢复能力。"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "defaultCase": {
+          "sections": [
+            {
+              "id": "section_scope_default_strategy",
+              "outline": {
+                "requirement": "分析当前对象的通用运行风险。",
+                "items": []
+              },
+              "content": {
+                "presentation": {
+                  "kind": "text",
+                  "blocks": [
+                    {
+                      "id": "block_scope_default_strategy",
+                      "type": "text",
+                      "properties": {
+                        "template": "{$scope} 按通用网络对象规则进行运行风险分析。"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
       "id": "catalog_scope_analysis",
-      "foreach": {
+      "dynamic": {
+        "type": "foreach",
         "parameterId": "scope",
         "as": "scope_item"
       },

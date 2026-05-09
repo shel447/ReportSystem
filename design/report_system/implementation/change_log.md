@@ -8,6 +8,23 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-09 Dynamic/ForeachCase 实现
+
+- 背景问题：
+  - 旧 `foreach` 字段需要收敛为统一 `dynamic` 结构。
+  - 模板需要支持特殊 foreach：按参数多值循环，但不同取值可命中不同 case 内容。
+- 实现设计调整：
+  - `template_catalog.domain.models` 新增 `DynamicDefinition/ForeachCaseDefinition/ForeachCaseBranch` 相关结构。
+  - `CatalogDefinition/SectionDefinition` 以 `dynamic` 为 canonical 字段，兼容读取旧 `foreach` 并在输出时收敛为 `dynamic`。
+  - `report_runtime.domain.models` 新增 `DynamicContext`，实例态输出 `dynamicContext`，旧 `foreachContext` 仅兼容读取。
+  - `report_runtime.domain.services` 负责解释 `dynamic.foreach` 与 `dynamic.foreachCase`，`custom` 暂不做业务展开。
+  - 前端类型同步声明 `dynamic` 与 `dynamicContext`，模板编辑页普通循环输入写入 `dynamic.type = foreach`。
+- 验证要求：
+  - schema 覆盖 `dynamic.foreach/foreachCase/custom` 合法性，以及旧 `foreach` 在新 schema 中失败。
+  - 模型测试覆盖旧 `foreach` 输入归并为 canonical `dynamic`。
+  - 运行时测试覆盖目录级与章节级 `foreachCase` 的多值、defaultCase 和空展开行为。
+  - 运行后端测试与前端类型/构建验证。
+
 ## 2026-05-08 参数优先级、移除 Tags 与 Text 属性归并核心模型定义
 
 - 背景问题：

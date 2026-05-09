@@ -233,15 +233,14 @@
     {
       "id": "catalog_scope_analysis_hq",
       "order": 2,
-      "foreachContext": {
+      "dynamicContext": {
+        "type": "foreach",
         "parameterId": "scope",
-        "itemValues": [
-          {
-            "label": "总部网络",
-            "value": "hq-network",
-            "query": "scope_id = 'hq-network'"
-          }
-        ]
+        "itemValue": {
+          "label": "总部网络",
+          "value": "hq-network",
+          "query": "scope_id = 'hq-network'"
+        }
       },
       "parameters": [
         {
@@ -545,7 +544,8 @@
       },
       {
         "id": "catalog_scope_analysis",
-        "foreach": {
+        "dynamic": {
+          "type": "foreach",
           "parameterId": "scope",
           "as": "scope_item"
         },

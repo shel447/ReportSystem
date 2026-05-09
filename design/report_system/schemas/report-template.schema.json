@@ -288,19 +288,129 @@
         }
       }
     },
-    "ForeachDefinition": {
+    "DynamicDefinition": {
+      "description": "目录或章节的动态展开定义。type=foreach 表示同一模板按参数值重复展开；type=foreachCase 表示按参数值循环并为不同取值使用不同分支内容；type=custom 为预留扩展。",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "parameterId",
+            "as"
+          ],
+          "properties": {
+            "type": {
+              "const": "foreach"
+            },
+            "parameterId": {
+              "type": "string"
+            },
+            "as": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "parameterId",
+            "as",
+            "cases"
+          ],
+          "properties": {
+            "type": {
+              "const": "foreachCase"
+            },
+            "parameterId": {
+              "type": "string"
+            },
+            "as": {
+              "type": "string"
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ForeachCaseDefinition"
+              },
+              "minItems": 1
+            },
+            "defaultCase": {
+              "$ref": "#/$defs/ForeachCaseBranch"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "custom"
+            },
+            "config": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      ]
+    },
+    "ForeachCaseDefinition": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "parameterId",
-        "as"
+        "id",
+        "values"
       ],
       "properties": {
-        "parameterId": {
+        "id": {
           "type": "string"
         },
-        "as": {
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "subCatalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CatalogDefinition"
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SectionDefinition"
+          }
+        }
+      }
+    },
+    "ForeachCaseBranch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
           "type": "string"
+        },
+        "subCatalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CatalogDefinition"
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SectionDefinition"
+          }
         }
       }
     },
@@ -743,9 +853,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "id",
-        "outline",
-        "content"
+        "id"
       ],
       "properties": {
         "id": {
@@ -758,8 +866,8 @@
         "parameters": {
           "$ref": "#/$defs/ScopedParameters"
         },
-        "foreach": {
-          "$ref": "#/$defs/ForeachDefinition"
+        "dynamic": {
+          "$ref": "#/$defs/DynamicDefinition"
         },
         "outline": {
           "$ref": "#/$defs/OutlineDefinition"
@@ -767,7 +875,20 @@
         "content": {
           "$ref": "#/$defs/SectionContentDefinition"
         }
-      }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "outline",
+            "content"
+          ]
+        },
+        {
+          "required": [
+            "dynamic"
+          ]
+        }
+      ]
     },
     "CatalogDefinition": {
       "type": "object",
@@ -791,8 +912,8 @@
         "parameters": {
           "$ref": "#/$defs/ScopedParameters"
         },
-        "foreach": {
-          "$ref": "#/$defs/ForeachDefinition"
+        "dynamic": {
+          "$ref": "#/$defs/DynamicDefinition"
         },
         "subCatalogs": {
           "type": "array",
@@ -816,6 +937,11 @@
         {
           "required": [
             "subCatalogs"
+          ]
+        },
+        {
+          "required": [
+            "dynamic"
           ]
         }
       ]

@@ -92,7 +92,42 @@ export type TableLayout = {
 };
 
 export type PresentationProperty = {
+  template?: string;
+  content?: string;
+  preferredType?: "line" | "bar" | "pie" | "scatter" | "radar" | "gauge" | "candlestick";
+  columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
+  showTitle?: boolean;
+  defaultDisplayRows?: number;
   mergeColumns?: MergeColumnInfo[];
+};
+
+export type DynamicDefinition =
+  | {
+      type: "foreach";
+      parameterId: string;
+      as: string;
+    }
+  | {
+      type: "foreachCase";
+      parameterId: string;
+      as: string;
+      cases: ForeachCaseDefinition[];
+      defaultCase?: ForeachCaseBranch;
+    }
+  | {
+      type: "custom";
+      config?: Record<string, unknown>;
+    };
+
+export type ForeachCaseBranch = {
+  id?: string;
+  subCatalogs?: CatalogDefinition[];
+  sections?: SectionDefinition[];
+};
+
+export type ForeachCaseDefinition = ForeachCaseBranch & {
+  id: string;
+  values: ParameterScalar[];
 };
 
 export type PresentationBlock = {
@@ -101,7 +136,6 @@ export type PresentationBlock = {
   title?: string;
   datasetId?: string;
   properties?: PresentationProperty;
-  template?: string;
   description?: string;
   parts?: Array<{
     id: string;
@@ -122,10 +156,7 @@ export type SectionDefinition = {
   id: string;
   description?: string;
   parameters?: TemplateParameter[];
-  foreach?: {
-    parameterId: string;
-    as: string;
-  };
+  dynamic?: DynamicDefinition;
   outline: {
     requirement: string;
     renderedRequirement?: string;
@@ -145,10 +176,7 @@ export type CatalogDefinition = {
   title: string;
   description?: string;
   parameters?: TemplateParameter[];
-  foreach?: {
-    parameterId: string;
-    as: string;
-  };
+  dynamic?: DynamicDefinition;
   subCatalogs?: CatalogDefinition[];
   sections?: SectionDefinition[];
 };
@@ -159,7 +187,6 @@ export type ReportTemplate = {
   name: string;
   description: string;
   schemaVersion: string;
-  tags?: string[];
   createdAt?: string | null;
   updatedAt?: string | null;
   parameters: TemplateParameter[];
