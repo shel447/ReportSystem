@@ -62,9 +62,11 @@ class DynamicContext:
     """实例态 dynamic 展开上下文。"""
 
     type: str
-    parameter_id: str = _alias_field("parameterId")
+    parameter_id: str | None = _alias_field("parameterId", default=None)
     item_value: ParameterValue | None = _alias_field("itemValue", default=None)
     case_id: str | None = _alias_field("caseId", default=None)
+    url: str | None = None
+    node_type: str | None = _alias_field("nodeType", default=None)
 
 
 @dataclass(slots=True)
@@ -578,11 +580,16 @@ def foreach_context_from_dict(payload: Any) -> ForeachContext | None:
 
 def dynamic_context_to_dict(item: DynamicContext) -> dict[str, Any]:
     payload: dict[str, Any] = {"type": item.type}
-    set_value(payload, DynamicContext, "parameter_id", item.parameter_id)
+    if item.parameter_id is not None:
+        set_value(payload, DynamicContext, "parameter_id", item.parameter_id)
     if item.item_value is not None:
         set_value(payload, DynamicContext, "item_value", parameter_value_to_dict(item.item_value))
     if item.case_id is not None:
         set_value(payload, DynamicContext, "case_id", item.case_id)
+    if item.url is not None:
+        payload["url"] = item.url
+    if item.node_type is not None:
+        set_value(payload, DynamicContext, "node_type", item.node_type)
     return payload
 
 
@@ -592,9 +599,11 @@ def dynamic_context_from_dict(payload: Any) -> DynamicContext | None:
         return dynamic_context_from_foreach(foreach_context)
     return DynamicContext(
         type=str(payload.get("type") or ""),
-        parameter_id=str(get_value(payload, DynamicContext, "parameter_id") or ""),
+        parameter_id=_as_optional_str(get_value(payload, DynamicContext, "parameter_id")),
         item_value=parameter_value_from_dict(get_value(payload, DynamicContext, "item_value")) if isinstance(get_value(payload, DynamicContext, "item_value"), dict) else None,
         case_id=_as_optional_str(get_value(payload, DynamicContext, "case_id")),
+        url=_as_optional_str(payload.get("url")),
+        node_type=_as_optional_str(get_value(payload, DynamicContext, "node_type")),
     )
 
 

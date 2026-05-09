@@ -348,15 +348,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "type",
-        "parameterId"
+        "type"
       ],
       "properties": {
         "type": {
           "type": "string",
           "enum": [
             "foreach",
-            "foreachCase"
+            "foreachCase",
+            "custom"
           ]
         },
         "parameterId": {
@@ -367,8 +367,41 @@
         },
         "caseId": {
           "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nodeType": {
+          "type": "string",
+          "enum": [
+            "catalog",
+            "section"
+          ]
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "custom"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "url",
+              "nodeType"
+            ]
+          },
+          "else": {
+            "required": [
+              "parameterId"
+            ]
+          }
+        }
+      ]
     },
     "ExecutionBinding": {
       "type": "object",
@@ -689,6 +722,11 @@
         {
           "required": [
             "subCatalogs"
+          ]
+        },
+        {
+          "required": [
+            "dynamicContext"
           ]
         }
       ]

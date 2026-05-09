@@ -237,7 +237,7 @@ def expand_catalog_instances(
     current_parameters: list[Parameter] | None,
 ) -> list[TemplateInstanceCatalog]:
     dynamic = catalog.dynamic
-    if dynamic is None or dynamic.type == "custom":
+    if dynamic is None:
         return [
             build_catalog_instance(
                 catalog=catalog,
@@ -245,6 +245,17 @@ def expand_catalog_instances(
                 effective_values=effective_values,
                 current_parameters=current_parameters,
                 dynamic_context=None,
+            )
+        ]
+
+    if dynamic.type == "custom":
+        return [
+            build_catalog_instance(
+                catalog=catalog,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=_build_custom_dynamic_context(url=dynamic.url, node_type="catalog"),
             )
         ]
 
@@ -390,7 +401,7 @@ def expand_section_instances(
     current_parameters: list[Parameter] | None,
 ) -> list[TemplateInstanceSection]:
     dynamic = section.dynamic
-    if dynamic is None or dynamic.type == "custom":
+    if dynamic is None:
         return [
             build_section_instance(
                 section=section,
@@ -398,6 +409,17 @@ def expand_section_instances(
                 effective_values=effective_values,
                 current_parameters=current_parameters,
                 dynamic_context=None,
+            )
+        ]
+
+    if dynamic.type == "custom":
+        return [
+            build_section_instance(
+                section=section,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=_build_custom_dynamic_context(url=dynamic.url, node_type="section"),
             )
         ]
 
@@ -781,6 +803,14 @@ def _build_dynamic_context(
         parameter_id=parameter_id,
         item_value=_normalize_parameter_value(value),
         case_id=case_id,
+    )
+
+
+def _build_custom_dynamic_context(*, url: str | None, node_type: str) -> DynamicContext:
+    return DynamicContext(
+        type="custom",
+        url=url,
+        node_type=node_type,
     )
 
 

@@ -8,6 +8,7 @@ from ..contexts.conversation.infrastructure.repositories import (
     SqlAlchemyConversationRepository,
 )
 from ..contexts.report_runtime.application.services import ReportDocumentService, ReportRuntimeService
+from ..contexts.report_runtime.infrastructure.custom_content import CustomContentGateway
 from ..contexts.report_runtime.infrastructure.documents import ReportDocumentGateway
 from ..contexts.report_runtime.infrastructure.repositories import (
     SqlAlchemyDocumentRepository,
@@ -46,6 +47,7 @@ def build_report_runtime_service(db: Session) -> ReportRuntimeService:
         document_repository=SqlAlchemyDocumentRepository(db),
         export_job_repository=SqlAlchemyExportJobRepository(db),
         document_gateway=ReportDocumentGateway(),
+        custom_content_gateway=CustomContentGateway(),
     )
 
 

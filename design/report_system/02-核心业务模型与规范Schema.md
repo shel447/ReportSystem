@@ -236,7 +236,10 @@
 - `foreachCase` 的目录级 case 可定义 `subCatalogs` 和/或 `sections`；章节级 case 通过 `sections` 定义章节变体，用于替换当前占位 section。
 - 多选参数会按用户选择值逐个展开；多个值命中同一 case 时，每个值仍生成一次，只是复用同一 case 内容模板。
 - 未命中 case 时使用 `defaultCase`；没有 `defaultCase` 时，该参数值不生成内容。
-- `dynamic.type = custom` 是预留结构，本期只保存配置，不定义运行时展开语义。
+- `dynamic.type = custom` 表示由外部服务生成当前目录或章节内容，定义为 `{ "type": "custom", "url": "..." }`。
+- 目录级 `custom` 请求 `url` 后必须返回完整 Report DSL `Catalog` 片段；请求体的 `prompt` 使用目录实例的 `renderedTitle`。
+- 章节级 `custom` 必须保留 `outline`，用于用户编辑大纲；请求 `url` 后必须返回完整 Report DSL `Section` 片段；请求体的 `prompt` 使用编辑后的 `outline.renderedRequirement`。
+- `custom` 请求体的 `parameters` 为当前节点可见参数，按 `parameterId` 分组，值保持 `ParameterValue` 结构。
 - 新 schema 不再接受旧 `foreach` 字段；实现层可兼容读取旧字段并输出 canonical `dynamic`。
 
 结论：
@@ -263,7 +266,7 @@
 - 模板实例只维护每次操作后的最新状态，不记录变更轨迹
 - 顶层模板骨架状态不单独持久化；如需整体状态，由服务端基于各 `section.skeletonStatus` 聚合
 - 模板实例允许保留物化后的顺序字段，用于 `dynamic` 展开后的稳定排序与后续冻结
-- 模板实例使用 `dynamicContext` 记录展开来源，包含 `type/parameterId/itemValue/caseId`；旧 `foreachContext` 不再作为新实例输出字段
+- 模板实例使用 `dynamicContext` 记录展开来源；`foreach/foreachCase` 包含 `type/parameterId/itemValue/caseId`，`custom` 包含 `type/url/nodeType`；旧 `foreachContext` 不再作为新实例输出字段
 
 模板实例顶层示例：
 

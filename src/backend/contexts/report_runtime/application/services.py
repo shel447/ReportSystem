@@ -17,6 +17,8 @@ from ....infrastructure.demo.telecom import get_demo_db_path, init_telecom_demo_
 from ....shared.kernel.errors import NotFoundError, ValidationError
 from ...template_catalog.infrastructure.schema import validate_template_instance
 from ...template_catalog.domain.models import (
+    Parameter,
+    parameter_value_to_dict,
     ReportTemplate,
 )
 from .models import (
@@ -50,13 +52,29 @@ from ..domain.models import (
     TextDataProperties,
     GridDefinition,
     ReportInstance,
+    report_catalog_from_dict,
     report_dsl_to_dict,
+    report_section_from_dict,
 )
 from ..domain.services import serialize_template_instance
 
 REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[5] / "design" / "report_system" / "schemas" / "report-dsl.schema.json"
 REPORT_SCHEMA = json.loads(REPORT_SCHEMA_PATH.read_text(encoding="utf-8"))
 REPORT_VALIDATOR = Draft202012Validator(REPORT_SCHEMA)
+REPORT_CATALOG_FRAGMENT_VALIDATOR = Draft202012Validator(
+    {
+        "$schema": REPORT_SCHEMA.get("$schema"),
+        "$defs": REPORT_SCHEMA.get("$defs", {}),
+        "$ref": "#/$defs/Catalog",
+    }
+)
+REPORT_SECTION_FRAGMENT_VALIDATOR = Draft202012Validator(
+    {
+        "$schema": REPORT_SCHEMA.get("$schema"),
+        "$defs": REPORT_SCHEMA.get("$defs", {}),
+        "$ref": "#/$defs/Section",
+    }
+)
 
 
 class ReportRuntimeService:
@@ -71,6 +89,7 @@ class ReportRuntimeService:
         document_repository,
         export_job_repository,
         document_gateway,
+        custom_content_gateway=None,
     ) -> None:
         self.template_repository = template_repository
         self.template_instance_repository = template_instance_repository
@@ -78,6 +97,7 @@ class ReportRuntimeService:
         self.document_repository = document_repository
         self.export_job_repository = export_job_repository
         self.document_gateway = document_gateway
+        self.custom_content_gateway = custom_content_gateway
 
     def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> TemplateInstance:
         """创建或更新流程中唯一被跟踪的模板实例。"""
@@ -118,7 +138,12 @@ class ReportRuntimeService:
             template_model = copy.deepcopy(template)
 
         report_id = f"rpt_{uuid.uuid4().hex[:12]}"
-        report = build_report_dsl(report_id=report_id, template=template_model, template_instance=template_instance)
+        report = build_report_dsl(
+            report_id=report_id,
+            template=template_model,
+            template_instance=template_instance,
+            custom_content_gateway=self.custom_content_gateway,
+        )
         report_payload = report_dsl_to_dict(report)
         _validate_report_dsl(report_payload)
         resource_status = _resource_status_from_dsl(report)
@@ -257,14 +282,27 @@ class ReportDocumentService:
         return self.runtime_service.resolve_download(report_id=report_id, document_id=document_id, user_id=user_id)
 
 
-def build_report_dsl(*, report_id: str, template: ReportTemplate, template_instance: TemplateInstance) -> ReportDsl:
+def build_report_dsl(
+    *,
+    report_id: str,
+    template: ReportTemplate,
+    template_instance: TemplateInstance,
+    custom_content_gateway=None,
+) -> ReportDsl:
     """把已确认的模板实例编译成正式报告载荷。"""
     catalogs: list[ReportCatalog] = []
     report_meta: dict[str, ReportGenerateMeta] = {}
     init_telecom_demo_db()
 
     for catalog in template_instance.catalogs:
-        catalogs.append(_build_report_catalog(catalog, report_meta))
+        catalogs.append(
+            _build_report_catalog(
+                catalog,
+                report_meta,
+                custom_content_gateway=custom_content_gateway,
+                inherited_parameters={},
+            )
+        )
 
     report_name = _build_report_name(template=template, template_instance=template_instance)
     today = datetime.now(timezone.utc).date().isoformat()
@@ -293,10 +331,50 @@ def build_report_dsl(*, report_id: str, template: ReportTemplate, template_insta
     )
 
 
-def _build_report_catalog(catalog, report_meta: dict[str, ReportGenerateMeta]) -> ReportCatalog:
-    sub_catalogs = [_build_report_catalog(sub_catalog, report_meta) for sub_catalog in list(catalog.sub_catalogs or [])]
+def _build_report_catalog(
+    catalog,
+    report_meta: dict[str, ReportGenerateMeta],
+    *,
+    custom_content_gateway=None,
+    inherited_parameters: dict[str, list[dict[str, Any]]] | None = None,
+) -> ReportCatalog:
+    visible_parameters = _merge_parameter_payloads(inherited_parameters or {}, list(catalog.parameters or []))
+    if _is_custom_context(catalog.dynamic_context, "catalog"):
+        prompt = str(catalog.rendered_title or catalog.title or catalog.id or "")
+        custom_catalog = _fetch_custom_catalog(
+            gateway=custom_content_gateway,
+            url=str(catalog.dynamic_context.url or ""),
+            node_id=str(catalog.id or ""),
+            parameters=visible_parameters,
+            prompt=prompt,
+        )
+        _record_custom_catalog_meta(custom_catalog, report_meta, prompt=prompt)
+        return custom_catalog
+
+    sub_catalogs = [
+        _build_report_catalog(
+            sub_catalog,
+            report_meta,
+            custom_content_gateway=custom_content_gateway,
+            inherited_parameters=visible_parameters,
+        )
+        for sub_catalog in list(catalog.sub_catalogs or [])
+    ]
     sections: list[ReportSection] = []
     for section in list(catalog.sections or []):
+        section_parameters = _merge_parameter_payloads(visible_parameters, list(section.parameters or []))
+        if _is_custom_context(section.dynamic_context, "section"):
+            prompt = str(section.outline.rendered_requirement or section.outline.requirement or "")
+            custom_section = _fetch_custom_section(
+                gateway=custom_content_gateway,
+                url=str(section.dynamic_context.url or ""),
+                node_id=str(section.id or ""),
+                parameters=section_parameters,
+                prompt=prompt,
+            )
+            sections.append(custom_section)
+            report_meta[custom_section.id] = ReportGenerateMeta(status="Success", question=prompt, additional_infos=[])
+            continue
         components, summary, additional_infos = _build_section_components(section)
         sections.append(
             ReportSection(
@@ -320,6 +398,96 @@ def _build_report_catalog(catalog, report_meta: dict[str, ReportGenerateMeta]) -
         sub_catalogs=sub_catalogs,
         sections=sections,
     )
+
+
+def _is_custom_context(dynamic_context, expected_node_type: str) -> bool:
+    if dynamic_context is None or dynamic_context.type != "custom":
+        return False
+    node_type = str(dynamic_context.node_type or expected_node_type)
+    return node_type == expected_node_type
+
+
+def _merge_parameter_payloads(
+    inherited: dict[str, list[dict[str, Any]]],
+    parameters: list[Parameter],
+) -> dict[str, list[dict[str, Any]]]:
+    merged = copy.deepcopy(inherited)
+    for parameter in parameters:
+        merged[str(parameter.id or "")] = [parameter_value_to_dict(value) for value in list(parameter.values or [])]
+    return merged
+
+
+def _fetch_custom_catalog(
+    *,
+    gateway,
+    url: str,
+    node_id: str,
+    parameters: dict[str, list[dict[str, Any]]],
+    prompt: str,
+) -> ReportCatalog:
+    payload = _fetch_custom_payload(gateway=gateway, url=url, node_type="catalog", node_id=node_id, parameters=parameters, prompt=prompt)
+    _validate_report_fragment(REPORT_CATALOG_FRAGMENT_VALIDATOR, payload, "custom catalog")
+    return report_catalog_from_dict(payload)
+
+
+def _fetch_custom_section(
+    *,
+    gateway,
+    url: str,
+    node_id: str,
+    parameters: dict[str, list[dict[str, Any]]],
+    prompt: str,
+) -> ReportSection:
+    payload = _fetch_custom_payload(gateway=gateway, url=url, node_type="section", node_id=node_id, parameters=parameters, prompt=prompt)
+    _validate_report_fragment(REPORT_SECTION_FRAGMENT_VALIDATOR, payload, "custom section")
+    return report_section_from_dict(payload)
+
+
+def _fetch_custom_payload(
+    *,
+    gateway,
+    url: str,
+    node_type: str,
+    node_id: str,
+    parameters: dict[str, list[dict[str, Any]]],
+    prompt: str,
+) -> dict[str, Any]:
+    if gateway is None:
+        raise ValidationError("custom dynamic content gateway is not configured")
+    if not url:
+        raise ValidationError(f"custom dynamic {node_type} {node_id} missing url")
+    request_payload = {
+        "nodeType": node_type,
+        "nodeId": node_id,
+        "parameters": parameters,
+        "prompt": prompt,
+    }
+    try:
+        response = gateway.post_json(url=url, payload=request_payload)
+    except Exception as exc:
+        raise ValidationError(f"custom dynamic {node_type} {node_id} request failed: {exc}") from exc
+    if not isinstance(response, dict):
+        raise ValidationError(f"custom dynamic {node_type} {node_id} response must be a JSON object")
+    return response
+
+
+def _validate_report_fragment(validator: Draft202012Validator, payload: dict[str, Any], label: str) -> None:
+    errors = sorted(validator.iter_errors(payload), key=lambda item: list(item.absolute_path))
+    if not errors:
+        return
+    error = errors[0]
+    path = ".".join(str(part) for part in error.absolute_path)
+    prefix = f"{label} DSL 校验失败"
+    if path:
+        raise ValidationError(f"{prefix}: {path} {error.message}")
+    raise ValidationError(f"{prefix}: {error.message}")
+
+
+def _record_custom_catalog_meta(catalog: ReportCatalog, report_meta: dict[str, ReportGenerateMeta], *, prompt: str) -> None:
+    for section in list(catalog.sections or []):
+        report_meta[section.id] = ReportGenerateMeta(status="Success", question=prompt, additional_infos=[])
+    for sub_catalog in list(catalog.sub_catalogs or []):
+        _record_custom_catalog_meta(sub_catalog, report_meta, prompt=prompt)
 
 
 def _build_section_components(section) -> tuple[list[Any], str, list[ReportAdditionalInfo]]:

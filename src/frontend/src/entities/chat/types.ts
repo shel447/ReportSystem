@@ -35,10 +35,12 @@ export type TemplateInstancePresentationBlock = {
 };
 
 export type DynamicContext = {
-  type: "foreach" | "foreachCase";
-  parameterId: string;
+  type: "foreach" | "foreachCase" | "custom";
+  parameterId?: string;
   itemValue?: ParameterValue;
   caseId?: string;
+  url?: string;
+  nodeType?: "catalog" | "section";
 };
 
 export type TemplateInstanceSection = {

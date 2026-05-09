@@ -8,6 +8,26 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-09 Dynamic Custom 外部内容生成
+
+- 变更动机：
+  - `dynamic.custom` 不能只作为占位配置，需要支持由外部服务生成目录或章节内容。
+  - 章节级 custom 仍需要保留 outline，便于用户在生成前编辑大纲诉求。
+- 设计决策：
+  - `dynamic.type = custom` 使用显式 `{ "type": "custom", "url": "..." }`，删除原占位 `config`。
+  - 目录级 custom 运行时向 `url` 发起 POST 请求，请求 `prompt` 使用目录实例的 `renderedTitle`，响应为完整 Report DSL `Catalog`。
+  - 章节级 custom 要求模板中有 `outline`，请求 `prompt` 使用用户可编辑后的 `outline.renderedRequirement`，响应为完整 Report DSL `Section`。
+  - 请求参数使用当前节点可见参数，按 `parameterId` 分组，值保持 `ParameterValue` 结构。
+- 影响范围：
+  - [report_system/02-核心业务模型与规范Schema.md](report_system/02-%E6%A0%B8%E5%BF%83%E4%B8%9A%E5%8A%A1%E6%A8%A1%E5%9E%8B%E4%B8%8E%E8%A7%84%E8%8C%83Schema.md)
+  - [report_system/03-运行时流程与状态机.md](report_system/03-%E8%BF%90%E8%A1%8C%E6%97%B6%E6%B5%81%E7%A8%8B%E4%B8%8E%E7%8A%B6%E6%80%81%E6%9C%BA.md)
+  - [report_system/04-接口契约.md](report_system/04-%E6%8E%A5%E5%8F%A3%E5%A5%91%E7%BA%A6.md)
+  - [report_system/报告模板定义与使用说明书.md](report_system/%E6%8A%A5%E5%91%8A%E6%A8%A1%E6%9D%BF%E5%AE%9A%E4%B9%89%E4%B8%8E%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E%E4%B9%A6.md)
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+  - `report_system/examples/report-template.example.json`
+  - `report_system/examples/template-instance.example.json`
+
 ## 2026-05-09 Dynamic/ForeachCase 模板展开结构
 
 - 变更动机：

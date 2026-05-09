@@ -289,7 +289,7 @@
       }
     },
     "DynamicDefinition": {
-      "description": "目录或章节的动态展开定义。type=foreach 表示同一模板按参数值重复展开；type=foreachCase 表示按参数值循环并为不同取值使用不同分支内容；type=custom 为预留扩展。",
+      "description": "目录或章节的动态展开定义。type=foreach 表示同一模板按参数值重复展开；type=foreachCase 表示按参数值循环并为不同取值使用不同分支内容；type=custom 表示运行时调用外部 URL 获取目录或章节的 Report DSL 片段。",
       "oneOf": [
         {
           "type": "object",
@@ -346,15 +346,17 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "type"
+            "type",
+            "url"
           ],
           "properties": {
             "type": {
               "const": "custom"
             },
-            "config": {
-              "type": "object",
-              "additionalProperties": true
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "description": "获取当前 custom 目录或章节内容的 HTTP POST URL。"
             }
           }
         }
@@ -876,6 +878,32 @@
           "$ref": "#/$defs/SectionContentDefinition"
         }
       },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "dynamic"
+            ],
+            "properties": {
+              "dynamic": {
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "custom"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "outline"
+            ]
+          }
+        }
+      ],
       "anyOf": [
         {
           "required": [

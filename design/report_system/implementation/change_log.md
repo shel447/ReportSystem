@@ -8,6 +8,22 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-09 Dynamic Custom 外部内容运行时实现
+
+- 背景问题：
+  - `dynamic.custom` 需要从预留配置升级为可运行的外部内容生成入口。
+  - custom 既可能替换目录，也可能替换章节；章节仍要在模板实例中保留可编辑 outline。
+- 实现设计调整：
+  - `template_catalog.domain.models.DynamicDefinition` 使用显式 `url` 字段，不兼容旧占位 `config`。
+  - `report_runtime.domain.models.DynamicContext` 支持 `type=custom`，并记录 `url/nodeType`。
+  - 模板实例化阶段不展开 custom，但会在目录或章节实例上保留 custom 上下文。
+  - Report DSL 编译阶段通过 `CustomContentGateway` 发起 HTTP POST，目录响应按 `ReportCatalog` 解析，章节响应按 `ReportSection` 解析。
+  - custom HTTP 调用位于 application/infrastructure 层，领域服务只负责实例上下文标记。
+- 验证要求：
+  - schema 覆盖 custom 必填 `url`、禁止 `config`、章节 custom 必须有 outline。
+  - 模型测试覆盖 `DynamicDefinition.url` 与 `DynamicContext.custom` round-trip。
+  - 运行时测试覆盖目录和章节 custom 请求体、响应替换、非法响应失败。
+
 ## 2026-05-09 Dynamic/ForeachCase 实现
 
 - 背景问题：

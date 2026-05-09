@@ -8,8 +8,12 @@ from backend.contexts.report_runtime.domain.models import (
     ChartComponent,
     ChartDataProperties,
     CompositeTableComponent,
+    DynamicContext,
     ParameterConfirmation,
+    ReportCatalog,
     ReportDsl,
+    ReportSection,
+    ReportSummary,
     TemplateInstance,
     TemplateInstanceCatalog,
     TemplateInstancePresentationBlock,
@@ -27,8 +31,10 @@ from backend.contexts.report_runtime.domain.models import (
     chart_component_to_dict,
     table_component_from_dict,
     table_component_to_dict,
+    template_instance_from_dict,
     template_instance_presentation_block_from_dict,
     template_instance_presentation_block_to_dict,
+    template_instance_to_dict,
     text_component_from_dict,
     text_component_to_dict,
 )
@@ -36,8 +42,10 @@ from backend.contexts.report_runtime.domain.services import instantiate_template
 from backend.contexts.template_catalog.domain.models import (
     CompositeTableColumn,
     CompositeTablePartLayout,
+    DynamicDefinition,
     MergeColumnInfo,
     OutlineDefinition,
+    Parameter,
     ParameterValue,
     PresentationProperty,
     ReportTemplate,
@@ -49,6 +57,8 @@ from backend.contexts.template_catalog.domain.models import (
     presentation_block_to_dict,
     report_template_from_dict,
     report_template_to_dict,
+    dynamic_definition_from_dict,
+    dynamic_definition_to_dict,
 )
 from backend.contexts.template_catalog.infrastructure.schema import validate_report_template, validate_template_instance
 from backend.shared.kernel.errors import ValidationError
@@ -91,6 +101,16 @@ def _valid_template_instance():
         catalogs=[],
         warnings=[],
     )
+
+
+class _FakeCustomContentGateway:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.requests = []
+
+    def post_json(self, *, url, payload):
+        self.requests.append({"url": url, "payload": payload})
+        return self.responses.pop(0)
 
 
 class ReportRuntimeServiceTests(unittest.TestCase):
@@ -731,6 +751,222 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         payload = report_template_to_dict(template)
         self.assertEqual(payload["catalogs"][0]["dynamic"]["type"], "foreach")
         self.assertNotIn("foreach", payload["catalogs"][0])
+
+    def test_dynamic_custom_schema_and_model_contract(self):
+        payload = {
+            "id": "tpl_custom_dynamic",
+            "category": "network_ops",
+            "name": "外部内容模板",
+            "description": "用于校验 dynamic custom。",
+            "schemaVersion": "template.v3",
+            "parameters": [],
+            "catalogs": [
+                {
+                    "id": "catalog_custom",
+                    "title": "外部目录",
+                    "dynamic": {"type": "custom", "url": "https://example.test/catalog"},
+                },
+                {
+                    "id": "catalog_main",
+                    "title": "主目录",
+                    "sections": [
+                        {
+                            "id": "section_custom",
+                            "dynamic": {"type": "custom", "url": "https://example.test/section"},
+                            "outline": {"requirement": "生成外部章节。", "items": []},
+                        }
+                    ],
+                },
+            ],
+        }
+        validate_report_template(payload)
+
+        invalid_without_url = copy.deepcopy(payload)
+        del invalid_without_url["catalogs"][0]["dynamic"]["url"]
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_without_url)
+
+        invalid_with_config = copy.deepcopy(payload)
+        invalid_with_config["catalogs"][0]["dynamic"]["config"] = {}
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_with_config)
+
+        invalid_section_without_outline = copy.deepcopy(payload)
+        del invalid_section_without_outline["catalogs"][1]["sections"][0]["outline"]
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_section_without_outline)
+
+        dynamic = dynamic_definition_from_dict({"type": "custom", "url": "https://example.test/section"})
+        self.assertEqual(dynamic.url, "https://example.test/section")
+        self.assertEqual(dynamic_definition_to_dict(dynamic), {"type": "custom", "url": "https://example.test/section"})
+
+    def test_dynamic_custom_context_round_trip(self):
+        instance = _valid_template_instance()
+        instance.catalogs = [
+            TemplateInstanceCatalog(
+                id="catalog_custom",
+                title="外部目录",
+                rendered_title="外部目录",
+                dynamic_context=DynamicContext(type="custom", url="https://example.test/catalog", node_type="catalog"),
+                sections=[],
+            )
+        ]
+        payload = template_instance_to_dict(instance)
+        payload["createdAt"] = "2026-05-09T00:00:00Z"
+        payload["updatedAt"] = "2026-05-09T00:00:00Z"
+        payload["template"]["createdAt"] = "2026-05-09T00:00:00Z"
+        payload["template"]["updatedAt"] = "2026-05-09T00:00:00Z"
+        validate_template_instance(payload)
+
+        self.assertEqual(payload["catalogs"][0]["dynamicContext"]["type"], "custom")
+        self.assertEqual(payload["catalogs"][0]["dynamicContext"]["url"], "https://example.test/catalog")
+        self.assertEqual(payload["catalogs"][0]["dynamicContext"]["nodeType"], "catalog")
+        restored = template_instance_from_dict(payload)
+        self.assertEqual(restored.catalogs[0].dynamic_context.type, "custom")
+        self.assertEqual(restored.catalogs[0].dynamic_context.url, "https://example.test/catalog")
+
+    def test_build_report_dsl_uses_custom_catalog_response(self):
+        instance = _valid_template_instance()
+        instance.parameters = []
+        scope_value = ParameterValue(label="总部", value="hq", query="scope = 'hq'")
+        instance.catalogs = [
+            TemplateInstanceCatalog(
+                id="catalog_custom",
+                title="{$scope} 外部目录",
+                rendered_title="总部 外部目录",
+                parameters=[
+                    Parameter(
+                        id="scope",
+                        label="分析对象",
+                        input_type="enum",
+                        required=True,
+                        multi=False,
+                        interaction_mode="form",
+                        values=[scope_value],
+                    )
+                ],
+                dynamic_context=DynamicContext(type="custom", url="https://example.test/catalog", node_type="catalog"),
+                sections=[],
+            )
+        ]
+        gateway = _FakeCustomContentGateway(
+            [
+                {
+                    "id": "catalog_external",
+                    "name": "外部返回目录",
+                    "sections": [
+                        {
+                            "id": "section_external",
+                            "title": "外部章节",
+                            "components": [
+                                {
+                                    "id": "component_external",
+                                    "type": "markdown",
+                                    "dataProperties": {"dataType": "static", "content": "外部内容"},
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ]
+        )
+
+        report = build_report_dsl(
+            report_id="rpt_custom_catalog",
+            template=ReportTemplate(
+                id="tpl_custom",
+                category="network_ops",
+                name="外部内容模板",
+                description="验证 custom catalog。",
+                schema_version="template.v3",
+            ),
+            template_instance=instance,
+            custom_content_gateway=gateway,
+        )
+
+        self.assertEqual(report.catalogs[0].id, "catalog_external")
+        self.assertEqual(report.catalogs[0].sections[0].id, "section_external")
+        self.assertEqual(gateway.requests[0]["url"], "https://example.test/catalog")
+        self.assertEqual(gateway.requests[0]["payload"]["nodeType"], "catalog")
+        self.assertEqual(gateway.requests[0]["payload"]["nodeId"], "catalog_custom")
+        self.assertEqual(gateway.requests[0]["payload"]["prompt"], "总部 外部目录")
+        self.assertEqual(gateway.requests[0]["payload"]["parameters"]["scope"][0]["value"], "hq")
+
+    def test_build_report_dsl_uses_custom_section_response(self):
+        scope_value = ParameterValue(label="总部", value="hq", query="scope = 'hq'")
+        instance = _valid_template_instance()
+        instance.catalogs = [
+            TemplateInstanceCatalog(
+                id="catalog_main",
+                title="主目录",
+                rendered_title="主目录",
+                parameters=[
+                    Parameter(
+                        id="scope",
+                        label="分析对象",
+                        input_type="enum",
+                        required=True,
+                        multi=False,
+                        interaction_mode="form",
+                        values=[scope_value],
+                    )
+                ],
+                sections=[
+                    TemplateInstanceSection(
+                        id="section_custom",
+                        outline=OutlineDefinition(
+                            requirement="生成{$scope}外部章节。",
+                            rendered_requirement="生成总部外部章节。",
+                            items=[],
+                        ),
+                        content=TemplateInstanceSectionContent(
+                            presentation=TemplateInstancePresentationDefinition(kind="mixed", blocks=[])
+                        ),
+                        runtime_context=SectionRuntimeContext(bindings=[]),
+                        skeleton_status="reusable",
+                        user_edited=True,
+                        dynamic_context=DynamicContext(type="custom", url="https://example.test/section", node_type="section"),
+                    )
+                ],
+            )
+        ]
+        gateway = _FakeCustomContentGateway(
+            [
+                {
+                    "id": "section_external",
+                    "title": "外部章节",
+                    "components": [
+                        {
+                            "id": "component_external",
+                            "type": "markdown",
+                            "dataProperties": {"dataType": "static", "content": "外部章节内容"},
+                        }
+                    ],
+                    "summary": {"id": "summary_section_external", "overview": "外部摘要"},
+                }
+            ]
+        )
+
+        report = build_report_dsl(
+            report_id="rpt_custom_section",
+            template=ReportTemplate(
+                id="tpl_custom",
+                category="network_ops",
+                name="外部内容模板",
+                description="验证 custom section。",
+                schema_version="template.v3",
+            ),
+            template_instance=instance,
+            custom_content_gateway=gateway,
+        )
+
+        self.assertEqual(report.catalogs[0].sections[0].id, "section_external")
+        self.assertEqual(report.catalogs[0].sections[0].summary.overview, "外部摘要")
+        self.assertEqual(gateway.requests[0]["url"], "https://example.test/section")
+        self.assertEqual(gateway.requests[0]["payload"]["nodeType"], "section")
+        self.assertEqual(gateway.requests[0]["payload"]["nodeId"], "section_custom")
+        self.assertEqual(gateway.requests[0]["payload"]["prompt"], "生成总部外部章节。")
+        self.assertEqual(gateway.requests[0]["payload"]["parameters"]["scope"][0]["label"], "总部")
 
     def test_instantiate_template_expands_catalog_foreach_case(self):
         template = report_template_from_dict(

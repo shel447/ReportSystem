@@ -116,7 +116,7 @@ export type DynamicDefinition =
     }
   | {
       type: "custom";
-      config?: Record<string, unknown>;
+      url: string;
     };
 
 export type ForeachCaseBranch = {

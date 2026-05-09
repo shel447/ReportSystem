@@ -111,9 +111,9 @@ class DynamicDefinition:
     type: str
     parameter_id: str | None = _alias_field("parameterId", default=None)
     alias: str | None = _alias_field("as", default=None)
+    url: str | None = None
     cases: list[ForeachCaseBranch] = field(default_factory=list)
     default_case: ForeachCaseBranch | None = _alias_field("defaultCase", default=None)
-    config: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -633,13 +633,13 @@ def dynamic_definition_from_dict(payload: Any) -> DynamicDefinition | None:
         type=str(payload.get("type") or ""),
         parameter_id=_as_optional_str(get_value(payload, DynamicDefinition, "parameter_id")),
         alias=_as_optional_str(get_value(payload, DynamicDefinition, "alias")),
+        url=_as_optional_str(payload.get("url")),
         cases=[
             branch
             for branch in (foreach_case_branch_from_dict(item) for item in list(payload.get("cases") or []))
             if branch is not None
         ],
         default_case=default_case,
-        config=dict(payload.get("config") or {}) if isinstance(payload.get("config"), dict) else {},
     )
 
 
@@ -649,12 +649,12 @@ def dynamic_definition_to_dict(dynamic: DynamicDefinition) -> dict[str, Any]:
         set_value(payload, DynamicDefinition, "parameter_id", dynamic.parameter_id)
     if dynamic.alias is not None:
         set_value(payload, DynamicDefinition, "alias", dynamic.alias)
+    if dynamic.url is not None:
+        payload["url"] = dynamic.url
     if dynamic.cases:
         payload["cases"] = [foreach_case_branch_to_dict(item) for item in dynamic.cases]
     if dynamic.default_case is not None:
         set_value(payload, DynamicDefinition, "default_case", foreach_case_branch_to_dict(dynamic.default_case))
-    if dynamic.config:
-        payload["config"] = dict(dynamic.config)
     return payload
 
 
@@ -906,7 +906,7 @@ def presentation_block_to_dict(block: PresentationBlock) -> dict[str, Any]:
 
 def presentation_definition_from_dict(payload: dict[str, Any]) -> PresentationDefinition:
     return PresentationDefinition(
-        kind=str(payload.get("kind") or ""),
+        kind=str(payload.get("kind") or "mixed"),
         blocks=[presentation_block_from_dict(item) for item in list(payload.get("blocks") or [])],
     )
 

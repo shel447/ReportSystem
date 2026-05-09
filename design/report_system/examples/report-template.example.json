@@ -482,6 +482,31 @@
         }
       ],
       "title": "{$scope}专题分析"
+    },
+    {
+      "id": "catalog_external_deep_dive",
+      "title": "{$scope}外部专题分析",
+      "dynamic": {
+        "type": "custom",
+        "url": "https://report-content.example.com/api/report/catalog"
+      }
+    },
+    {
+      "id": "catalog_external_sections",
+      "title": "外部章节示例",
+      "sections": [
+        {
+          "id": "section_external_recommendation",
+          "dynamic": {
+            "type": "custom",
+            "url": "https://report-content.example.com/api/report/section"
+          },
+          "outline": {
+            "requirement": "基于{$scope}在{$report_date}的运行数据生成外部分析建议。",
+            "items": []
+          }
+        }
+      ]
     }
   ]
 }
