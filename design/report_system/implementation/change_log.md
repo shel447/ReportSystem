@@ -8,6 +8,19 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-12 表格 mergeRows 行合并实现
+
+- 背景问题：
+  - 模板表格已有列合并定义，还需要在模板中表达按连续相同值合并行单元格的展示规则。
+- 实现设计调整：
+  - `template_catalog.domain.models` 新增 `MergeRowDefinition`，并挂到 `PresentationProperty` 与 `CompositeTablePartLayout`。
+  - `report_runtime.domain.models` 新增 `MergeRowConfig`，`TableDataProperties.mergeRows` 输出使用 `column`，不使用 `columnKey`。
+  - `BuildReportDslService` 在表格 `data` 已存在时，根据 `mergeRows` 定义计算 `startRowIndex/rowSpan/mergedText/column`。
+  - 普通表格编译同时透传 `properties.columns` 到 DSL `dataProperties.columns`，作为 `mergeRows.column` 的列集合。
+- 验证要求：
+  - schema 覆盖模板 `mergeRows` 和 DSL `column` 字段。
+  - 后端测试覆盖模板/DSL 模型往返、连续行合并计算，以及无 `data` 时不输出具体 `mergeRows`。
+
 ## 2026-05-09 Dynamic Custom 外部内容运行时实现
 
 - 背景问题：

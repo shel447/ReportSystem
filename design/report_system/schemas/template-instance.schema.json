@@ -524,7 +524,7 @@
         "datasetId": { "type": "string" },
         "properties": {
           "$ref": "./report-template.schema.json#/$defs/PresentationProperty",
-          "description": "实例态展示属性，复用模板 PresentationProperty；text 使用 template/content，chart 使用 preferredType，普通 table 使用 columns/showTitle/defaultDisplayRows/mergeColumns。"
+          "description": "实例态展示属性，复用模板 PresentationProperty；text 使用 template/content，chart 使用 preferredType，普通 table 使用 columns/showTitle/defaultDisplayRows/mergeColumns/mergeRows。"
         },
         "description": { "type": "string" },
         "parts": {
@@ -571,7 +571,7 @@
         "summarySpec": { "$ref": "./report-template.schema.json#/$defs/SummaryTableSpec" },
         "tableLayout": {
           "$ref": "./report-template.schema.json#/$defs/CompositeTablePartLayout",
-          "description": "实例态复合表 part 布局，复用模板 CompositeTablePartLayout，包含 columns/showTitle/defaultDisplayRows/mergeColumns 等展示属性。"
+          "description": "实例态复合表 part 布局，复用模板 CompositeTablePartLayout，包含 columns/showTitle/defaultDisplayRows/mergeColumns/mergeRows 等展示属性。"
         },
         "runtimeContext": { "$ref": "#/$defs/PartRuntimeContext" }
       },

@@ -3,12 +3,13 @@ import unittest
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 
-from backend.contexts.report_runtime.application.services import ReportRuntimeService, build_report_dsl
+from backend.contexts.report_runtime.application.services import ReportRuntimeService, _validate_report_dsl, build_report_dsl
 from backend.contexts.report_runtime.domain.models import (
     ChartComponent,
     ChartDataProperties,
     CompositeTableComponent,
     DynamicContext,
+    MergeRowConfig,
     ParameterConfirmation,
     ReportCatalog,
     ReportDsl,
@@ -44,6 +45,7 @@ from backend.contexts.template_catalog.domain.models import (
     CompositeTablePartLayout,
     DynamicDefinition,
     MergeColumnInfo,
+    MergeRowDefinition,
     OutlineDefinition,
     Parameter,
     ParameterValue,
@@ -176,9 +178,18 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                                                 summary_spec=SummaryTableSpec(
                                                     part_ids=["part_basic_info"],
                                                     rows=[
-                                                        SummaryRowDef(id="major_issue", title="主要问题"),
                                                         SummaryRowDef(id="action_advice", title="处理建议"),
+                                                        SummaryRowDef(id="major_issue", title="问题"),
+                                                        SummaryRowDef(id="risk_assessment", title="问题"),
                                                     ],
+                                                ),
+                                                table_layout=CompositeTablePartLayout(
+                                                    kind="table",
+                                                    columns=[
+                                                        CompositeTableColumn(key="title", title="项目"),
+                                                        CompositeTableColumn(key="content", title="内容"),
+                                                    ],
+                                                    merge_rows=[MergeRowDefinition(column="title")],
                                                 ),
                                                 runtime_context=PartRuntimeContext(status="pending"),
                                             ),
@@ -217,7 +228,11 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(composite_table.tables[0].data_properties.columns[0].key, "device_name")
         self.assertEqual(composite_table.tables[0].data_properties.merge_columns[0].title, "状态说明")
         self.assertEqual(composite_table.tables[0].data_properties.merge_columns[0].columns, ["status", "remark"])
-        self.assertEqual(composite_table.tables[1].data_properties.data[0]["title"], "主要问题")
+        self.assertEqual(composite_table.tables[1].data_properties.data[0]["title"], "处理建议")
+        self.assertEqual(composite_table.tables[1].data_properties.merge_rows[0].start_row_index, 1)
+        self.assertEqual(composite_table.tables[1].data_properties.merge_rows[0].row_span, 2)
+        self.assertEqual(composite_table.tables[1].data_properties.merge_rows[0].merged_text, "问题")
+        self.assertEqual(composite_table.tables[1].data_properties.merge_rows[0].column, "title")
 
     def test_generate_report_compiles_plain_table_block_with_merge_columns(self):
         instance = _valid_template_instance()
@@ -402,12 +417,18 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         layout = CompositeTablePartLayout(
             kind="table",
             merge_columns=[MergeColumnInfo(title="范围指标", columns=["scope_name", "metric_name"])],
+            merge_rows=[MergeRowDefinition(column="scope_name")],
         )
         layout_payload = composite_table_part_layout_to_dict(layout)
         self.assertEqual(layout_payload["mergeColumns"][0]["columns"], ["scope_name", "metric_name"])
+        self.assertEqual(layout_payload["mergeRows"][0]["column"], "scope_name")
         self.assertEqual(
             composite_table_part_layout_from_dict(layout_payload).merge_columns[0].title,
             "范围指标",
+        )
+        self.assertEqual(
+            composite_table_part_layout_from_dict(layout_payload).merge_rows[0].mode,
+            "default",
         )
 
         table = TableComponent(
@@ -417,13 +438,20 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 data_type="datasource",
                 source_id="dataset_metrics",
                 merge_columns=[MergeColumnInfo(title="范围指标", columns=["scope_name", "metric_name"])],
+                merge_rows=[MergeRowConfig(start_row_index=0, row_span=2, column="scope_name", merged_text="总部网络")],
             ),
         )
         table_payload = table_component_to_dict(table)
         self.assertEqual(table_payload["dataProperties"]["mergeColumns"][0]["title"], "范围指标")
+        self.assertEqual(table_payload["dataProperties"]["mergeRows"][0]["column"], "scope_name")
+        self.assertNotIn("columnKey", table_payload["dataProperties"]["mergeRows"][0])
         self.assertEqual(
             table_component_from_dict(table_payload).data_properties.merge_columns[0].columns,
             ["scope_name", "metric_name"],
+        )
+        self.assertEqual(
+            table_component_from_dict(table_payload).data_properties.merge_rows[0].merged_text,
+            "总部网络",
         )
 
     def test_text_chart_and_presentation_blocks_round_trip_domain_serializers(self):
@@ -504,6 +532,9 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                                                         "columns": ["scope_name", "metric_name"],
                                                     }
                                                 ],
+                                                "mergeRows": [
+                                                    {"column": "scope_name"},
+                                                ],
                                             },
                                         }
                                     ],
@@ -528,6 +559,69 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         assert_invalid_merge_columns([{"title": "范围指标", "columns": ["scope_name", "scope_name"]}])
         assert_invalid_merge_columns([{"columns": ["scope_name", "metric_name"]}])
         assert_invalid_merge_columns([{"title": "范围指标"}])
+
+        def assert_invalid_merge_rows(merge_rows):
+            invalid_payload = copy.deepcopy(payload)
+            invalid_payload["catalogs"][0]["sections"][0]["content"]["presentation"]["blocks"][0]["properties"][
+                "mergeRows"
+            ] = merge_rows
+            with self.assertRaises(ValueError):
+                validate_report_template(invalid_payload)
+
+        assert_invalid_merge_rows([{"mode": "default"}])
+        assert_invalid_merge_rows([{"column": ""}])
+        assert_invalid_merge_rows([{"column": "scope_name", "mode": "custom"}])
+
+    def test_report_dsl_schema_accepts_merge_rows_column_and_rejects_column_key(self):
+        payload = {
+            "basicInfo": {
+                "id": "rpt_merge_rows",
+                "schemaVersion": "1.0.0",
+                "mode": "published",
+                "status": "Success",
+                "parameters": {},
+            },
+            "catalogs": [
+                {
+                    "id": "catalog_main",
+                    "name": "主目录",
+                    "sections": [
+                        {
+                            "id": "section_main",
+                            "components": [
+                                {
+                                    "id": "table_metrics",
+                                    "type": "table",
+                                    "dataProperties": {
+                                        "dataType": "static",
+                                        "columns": [{"key": "scope_name", "title": "对象"}],
+                                        "data": [{"scope_name": "总部"}, {"scope_name": "总部"}],
+                                        "mergeRows": [
+                                            {
+                                                "startRowIndex": 0,
+                                                "rowSpan": 2,
+                                                "column": "scope_name",
+                                                "mergedText": "总部",
+                                            }
+                                        ],
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "layout": {"type": "grid"},
+        }
+        _validate_report_dsl(payload)
+
+        invalid_payload = copy.deepcopy(payload)
+        invalid_payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]["mergeRows"][0][
+            "columnKey"
+        ] = "scope_name"
+        del invalid_payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]["mergeRows"][0]["column"]
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_payload)
 
     def test_schema_validates_supported_presentation_block_types(self):
         template_payload = {

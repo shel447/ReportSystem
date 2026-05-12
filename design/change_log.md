@@ -8,6 +8,21 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-12 表格 mergeRows 行合并定义
+
+- 变更动机：
+  - 模板表格已支持列合并，还需要声明基于连续相同值的行合并展示规则。
+- 设计决策：
+  - 普通表格 `PresentationProperty.mergeRows[]` 和复合表 `CompositeTablePartLayout.mergeRows[]` 使用统一 `MergeRowDefinition`。
+  - `MergeRowDefinition.column` 引用 `TableComponent.dataProperties.columns[].key`，并读取 `TableComponent.dataProperties.data[]` 中同名字段。
+  - `mode` 当前仅支持 `default`，缺省为 `default`；默认逻辑是连续多行相同值合并为一个单元格。
+  - Report DSL 的 `MergeRowConfig` 使用 `column` 字段，不再使用 `columnKey`；`startRowIndex` 从 0 起算。
+- 影响范围：
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-template.example.json`
+  - `report_system/examples/report-dsl.example.json`
+
 ## 2026-05-09 Dynamic Custom 外部内容生成
 
 - 变更动机：

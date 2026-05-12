@@ -43,6 +43,7 @@ from ..domain.models import (
     ReportDsl,
     ReportGenerateMeta,
     ReportLayout,
+    MergeRowConfig,
     ReportSection,
     ReportSummary,
     TableComponent,
@@ -589,6 +590,8 @@ def _build_text_component(block) -> TextComponent:
 
 
 def _build_table_component(block) -> TableComponent:
+    columns = _presentation_columns(getattr(block, "properties", None))
+    data: list[dict[str, Any]] = []
     return TableComponent(
         id=str(block.id or ""),
         type="table",
@@ -596,7 +599,10 @@ def _build_table_component(block) -> TableComponent:
             data_type="datasource",
             source_id=str(block.dataset_id or ""),
             title=str(block.title or ""),
+            columns=columns,
             merge_columns=_presentation_merge_columns(getattr(block, "properties", None)),
+            merge_rows=_build_merge_rows(data=data, columns=columns, definitions=_presentation_merge_rows(getattr(block, "properties", None))),
+            data=data,
         ),
     )
 
@@ -630,16 +636,20 @@ def _build_composite_table_part(block, part) -> TableComponent:
         rows = []
         for row in list((part.summary_spec.rows if part.summary_spec else []) or []):
             rows.append({"title": str(row.title or ""), "content": "待补充"})
+        columns = _layout_columns(part.table_layout)
         return TableComponent(
             id=str(part.id or ""),
             type="table",
             data_properties=TableDataProperties(
                 data_type="static",
                 title=str(part.title or ""),
-                columns=[],
+                columns=columns,
+                merge_rows=_build_merge_rows(data=rows, columns=columns, definitions=_layout_merge_rows(part.table_layout)),
                 data=rows,
             ),
         )
+    columns = _layout_columns(part.table_layout)
+    data: list[dict[str, Any]] = []
     return TableComponent(
         id=str(part.id or ""),
         type="table",
@@ -647,15 +657,27 @@ def _build_composite_table_part(block, part) -> TableComponent:
             data_type="datasource",
             source_id=str(part.dataset_id or ""),
             title=str(part.title or ""),
-            columns=_layout_columns(part.table_layout),
+            columns=columns,
             merge_columns=_layout_merge_columns(part.table_layout),
+            merge_rows=_build_merge_rows(data=data, columns=columns, definitions=_layout_merge_rows(part.table_layout)),
+            data=data,
         ),
     )
+
+
+def _presentation_columns(properties) -> list[ReportColumn]:
+    if properties is None:
+        return []
+    return _table_columns(getattr(properties, "columns", []))
 
 
 def _layout_columns(table_layout) -> list[ReportColumn]:
     if table_layout is None:
         return []
+    return _table_columns(getattr(table_layout, "columns", []))
+
+
+def _table_columns(columns) -> list[ReportColumn]:
     return [
         ReportColumn(
             key=str(column.key or ""),
@@ -663,7 +685,7 @@ def _layout_columns(table_layout) -> list[ReportColumn]:
             width=getattr(column, "width", None),
             align=getattr(column, "align", None),
         )
-        for column in list(table_layout.columns or [])
+        for column in list(columns or [])
     ]
 
 
@@ -671,6 +693,53 @@ def _layout_merge_columns(table_layout):
     if table_layout is None:
         return []
     return list(table_layout.merge_columns or [])
+
+
+def _presentation_merge_rows(properties):
+    if properties is None:
+        return []
+    return list(properties.merge_rows or [])
+
+
+def _layout_merge_rows(table_layout):
+    if table_layout is None:
+        return []
+    return list(table_layout.merge_rows or [])
+
+
+def _build_merge_rows(*, data: list[dict[str, Any]], columns: list[ReportColumn], definitions) -> list[MergeRowConfig]:
+    if not data or not definitions:
+        return []
+    column_keys = {str(column.key or "") for column in columns if str(column.key or "")}
+    configs: list[MergeRowConfig] = []
+    for definition in definitions:
+        column = str(getattr(definition, "column", "") or "")
+        if not column or column not in column_keys:
+            continue
+        configs.extend(_build_default_merge_rows(data=data, column=column))
+    return configs
+
+
+def _build_default_merge_rows(*, data: list[dict[str, Any]], column: str) -> list[MergeRowConfig]:
+    configs: list[MergeRowConfig] = []
+    start_index = 0
+    while start_index < len(data):
+        current_value = data[start_index].get(column)
+        end_index = start_index + 1
+        while end_index < len(data) and data[end_index].get(column) == current_value:
+            end_index += 1
+        row_span = end_index - start_index
+        if row_span > 1:
+            configs.append(
+                MergeRowConfig(
+                    start_row_index=start_index,
+                    row_span=row_span,
+                    column=column,
+                    merged_text="" if current_value is None else str(current_value),
+                )
+            )
+        start_index = end_index
+    return configs
 
 
 def _presentation_merge_columns(properties):

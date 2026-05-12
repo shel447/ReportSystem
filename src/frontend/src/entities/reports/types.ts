@@ -1,5 +1,29 @@
 import type { TemplateInstance } from "../chat/types";
 
+export type ReportColumn = {
+  key: string;
+  title: string;
+  width?: string;
+  align?: string;
+  children?: ReportColumn[];
+};
+
+export type ReportMergeRowConfig = {
+  startRowIndex: number;
+  rowSpan: number;
+  column: string;
+  mergedText?: string;
+};
+
+export type ReportTableDataProperties = {
+  dataType: string;
+  sourceId?: string;
+  title?: string;
+  columns?: ReportColumn[];
+  data?: Array<Record<string, unknown>>;
+  mergeRows?: ReportMergeRowConfig[];
+};
+
 export type ReportDocument = {
   id: string;
   format: string;

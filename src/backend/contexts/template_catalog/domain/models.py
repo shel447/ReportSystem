@@ -150,6 +150,14 @@ class MergeColumnInfo:
 
 
 @dataclass(slots=True)
+class MergeRowDefinition:
+    """表格行合并定义。"""
+
+    column: str
+    mode: str = "default"
+
+
+@dataclass(slots=True)
 class CompositeTablePartLayout:
     """复合表分片布局定义。"""
 
@@ -159,6 +167,7 @@ class CompositeTablePartLayout:
     default_display_rows: int | None = _alias_field("defaultDisplayRows", default=None)
     columns: list[TableColumn] = field(default_factory=list)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
+    merge_rows: list[MergeRowDefinition] = _alias_field("mergeRows", default_factory=list)
 
 
 @dataclass(slots=True)
@@ -172,6 +181,7 @@ class PresentationProperty:
     show_title: bool | None = _alias_field("showTitle", default=None)
     default_display_rows: int | None = _alias_field("defaultDisplayRows", default=None)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
+    merge_rows: list[MergeRowDefinition] = _alias_field("mergeRows", default_factory=list)
 
 
 @dataclass(slots=True)
@@ -727,6 +737,20 @@ def merge_column_info_to_dict(merge_column: MergeColumnInfo) -> dict[str, Any]:
     }
 
 
+def merge_row_definition_from_dict(payload: dict[str, Any]) -> MergeRowDefinition:
+    return MergeRowDefinition(
+        column=str(payload.get("column") or ""),
+        mode=str(payload.get("mode") or "default"),
+    )
+
+
+def merge_row_definition_to_dict(merge_row: MergeRowDefinition) -> dict[str, Any]:
+    payload = {"column": merge_row.column}
+    if merge_row.mode != "default":
+        payload["mode"] = merge_row.mode
+    return payload
+
+
 def composite_table_part_layout_from_dict(payload: Any) -> CompositeTablePartLayout | None:
     if not isinstance(payload, dict):
         return None
@@ -737,6 +761,7 @@ def composite_table_part_layout_from_dict(payload: Any) -> CompositeTablePartLay
         default_display_rows=_as_optional_int(get_value(payload, CompositeTablePartLayout, "default_display_rows")),
         columns=[table_column_from_dict(item) for item in list(payload.get("columns") or [])],
         merge_columns=[merge_column_info_from_dict(item) for item in list(get_value(payload, CompositeTablePartLayout, "merge_columns") or [])],
+        merge_rows=[merge_row_definition_from_dict(item) for item in list(get_value(payload, CompositeTablePartLayout, "merge_rows") or [])],
     )
 
 
@@ -754,6 +779,8 @@ def composite_table_part_layout_to_dict(layout: CompositeTablePartLayout) -> dic
         payload["columns"] = [table_column_to_dict(item) for item in layout.columns]
     if layout.merge_columns:
         set_value(payload, CompositeTablePartLayout, "merge_columns", [merge_column_info_to_dict(item) for item in layout.merge_columns])
+    if layout.merge_rows:
+        set_value(payload, CompositeTablePartLayout, "merge_rows", [merge_row_definition_to_dict(item) for item in layout.merge_rows])
     return payload
 
 
@@ -768,6 +795,7 @@ def presentation_property_from_dict(payload: Any) -> PresentationProperty | None
         show_title=_as_optional_bool(get_value(payload, PresentationProperty, "show_title")),
         default_display_rows=_as_optional_int(get_value(payload, PresentationProperty, "default_display_rows")),
         merge_columns=[merge_column_info_from_dict(item) for item in list(get_value(payload, PresentationProperty, "merge_columns") or [])],
+        merge_rows=[merge_row_definition_from_dict(item) for item in list(get_value(payload, PresentationProperty, "merge_rows") or [])],
     )
 
 
@@ -787,6 +815,8 @@ def presentation_property_to_dict(properties: PresentationProperty) -> dict[str,
         set_value(payload, PresentationProperty, "default_display_rows", properties.default_display_rows)
     if properties.merge_columns:
         set_value(payload, PresentationProperty, "merge_columns", [merge_column_info_to_dict(item) for item in properties.merge_columns])
+    if properties.merge_rows:
+        set_value(payload, PresentationProperty, "merge_rows", [merge_row_definition_to_dict(item) for item in properties.merge_rows])
     return payload
 
 

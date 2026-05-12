@@ -11,6 +11,7 @@ from ...template_catalog.domain.models import (
     CatalogDefinition,
     CompositeTableColumn,
     MergeColumnInfo,
+    MergeRowDefinition,
     CompositeTablePart,
     CompositeTablePartLayout,
     DatasetDefinition,
@@ -348,7 +349,18 @@ class TableDataProperties:
     title: str | None = None
     columns: list[ReportColumn] = field(default_factory=list)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
+    merge_rows: list["MergeRowConfig"] = _alias_field("mergeRows", default_factory=list)
     data: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class MergeRowConfig:
+    """表格行合并渲染配置。"""
+
+    start_row_index: int = _alias_field("startRowIndex")
+    row_span: int = _alias_field("rowSpan")
+    column: str
+    merged_text: str | None = _alias_field("mergedText", default=None)
 
 
 @dataclass(slots=True)
@@ -1088,6 +1100,25 @@ def text_component_from_dict(payload: dict[str, Any]) -> TextComponent:
     )
 
 
+def merge_row_config_to_dict(config: MergeRowConfig) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    set_value(payload, MergeRowConfig, "start_row_index", config.start_row_index)
+    set_value(payload, MergeRowConfig, "row_span", config.row_span)
+    payload["column"] = config.column
+    if config.merged_text is not None:
+        set_value(payload, MergeRowConfig, "merged_text", config.merged_text)
+    return payload
+
+
+def merge_row_config_from_dict(payload: dict[str, Any]) -> MergeRowConfig:
+    return MergeRowConfig(
+        start_row_index=int(get_value(payload, MergeRowConfig, "start_row_index") or 0),
+        row_span=int(get_value(payload, MergeRowConfig, "row_span") or 0),
+        column=str(payload.get("column") or ""),
+        merged_text=_as_optional_str(get_value(payload, MergeRowConfig, "merged_text")),
+    )
+
+
 def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
     payload = {
         get_alias(TableComponent, "id"): component.id,
@@ -1105,6 +1136,8 @@ def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
         from ...template_catalog.domain.models import merge_column_info_to_dict
 
         set_value(data_properties, TableDataProperties, "merge_columns", [merge_column_info_to_dict(item) for item in component.data_properties.merge_columns])
+    if component.data_properties.merge_rows:
+        set_value(data_properties, TableDataProperties, "merge_rows", [merge_row_config_to_dict(item) for item in component.data_properties.merge_rows])
     if component.data_properties.data:
         data_properties["data"] = list(component.data_properties.data)
     return payload
@@ -1124,6 +1157,7 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
                 _merge_column_info_from_any(item)
                 for item in list(get_value(data, TableDataProperties, "merge_columns") or [])
             ],
+            merge_rows=[merge_row_config_from_dict(item) for item in list(get_value(data, TableDataProperties, "merge_rows") or [])],
             data=list(data.get("data") or []),
         ),
     )

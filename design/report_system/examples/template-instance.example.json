@@ -205,6 +205,11 @@
                           "availability_rate"
                         ]
                       }
+                    ],
+                    "mergeRows": [
+                      {
+                        "column": "region_name"
+                      }
                     ]
                   }
                 }

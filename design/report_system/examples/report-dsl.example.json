@@ -113,6 +113,26 @@
                 "dataType": "datasource",
                 "sourceId": "dataset_daily_summary",
                 "title": "关键指标明细",
+                "columns": [
+                  {
+                    "key": "scope_name",
+                    "title": "对象"
+                  },
+                  {
+                    "key": "metric_name",
+                    "title": "指标"
+                  }
+                ],
+                "data": [
+                  {
+                    "scope_name": "总部网络",
+                    "metric_name": "可用率"
+                  },
+                  {
+                    "scope_name": "总部网络",
+                    "metric_name": "告警数"
+                  }
+                ],
                 "mergeColumns": [
                   {
                     "title": "范围指标",
@@ -120,6 +140,14 @@
                       "scope_name",
                       "metric_name"
                     ]
+                  }
+                ],
+                "mergeRows": [
+                  {
+                    "startRowIndex": 0,
+                    "rowSpan": 2,
+                    "mergedText": "总部网络",
+                    "column": "scope_name"
                   }
                 ]
               }

@@ -554,7 +554,7 @@
     },
     "PresentationProperty": {
       "type": "object",
-      "description": "展示块附加展示属性。template 仅对 type=text 生效；content 仅对实例态 type=text 生效；preferredType 仅对 type=chart 生效；columns、showTitle、defaultDisplayRows、mergeColumns 仅对 type=table 的普通表格块生效。",
+      "description": "展示块附加展示属性。template 仅对 type=text 生效；content 仅对实例态 type=text 生效；preferredType 仅对 type=chart 生效；columns、showTitle、defaultDisplayRows、mergeColumns、mergeRows 仅对 type=table 的普通表格块生效。",
       "additionalProperties": false,
       "properties": {
         "template": {
@@ -599,6 +599,13 @@
           "description": "普通表格的合并列定义，仅对 type=table 生效。",
           "items": {
             "$ref": "#/$defs/MergeColumnInfo"
+          }
+        },
+        "mergeRows": {
+          "type": "array",
+          "description": "普通表格的行合并定义，仅对 type=table 生效。column 引用 TableComponent.dataProperties.columns[].key，并读取 data[] 中同名字段。",
+          "items": {
+            "$ref": "#/$defs/MergeRowDefinition"
           }
         }
       }
@@ -705,6 +712,12 @@
           "items": {
             "$ref": "#/$defs/MergeColumnInfo"
           }
+        },
+        "mergeRows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MergeRowDefinition"
+          }
         }
       }
     },
@@ -762,6 +775,28 @@
           },
           "minItems": 2,
           "uniqueItems": true
+        }
+      }
+    },
+    "MergeRowDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "column"
+      ],
+      "properties": {
+        "column": {
+          "type": "string",
+          "minLength": 1,
+          "description": "需要按连续相同值合并的表格列 key，对应 TableComponent.dataProperties.columns[].key。"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "default"
+          ],
+          "default": "default",
+          "description": "行合并模式。default 表示连续多行相同值合并为一个单元格。"
         }
       }
     },

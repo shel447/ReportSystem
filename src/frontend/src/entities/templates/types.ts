@@ -84,11 +84,17 @@ export type MergeColumnInfo = {
   columns: string[];
 };
 
+export type MergeRowDefinition = {
+  column: string;
+  mode?: "default";
+};
+
 export type TableLayout = {
   kind: "table";
   showHeader?: boolean;
   columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
   mergeColumns?: MergeColumnInfo[];
+  mergeRows?: MergeRowDefinition[];
 };
 
 export type PresentationProperty = {
@@ -99,6 +105,7 @@ export type PresentationProperty = {
   showTitle?: boolean;
   defaultDisplayRows?: number;
   mergeColumns?: MergeColumnInfo[];
+  mergeRows?: MergeRowDefinition[];
 };
 
 export type DynamicDefinition =

@@ -279,13 +279,16 @@
       "type": "object",
       "properties": {
         "startRowIndex": {
-          "type": "number"
+          "type": "integer",
+          "minimum": 0
         },
         "rowSpan": {
-          "type": "number"
+          "type": "integer",
+          "minimum": 2
         },
-        "columnKey": {
-          "type": "string"
+        "column": {
+          "type": "string",
+          "minLength": 1
         },
         "mergedText": {
           "type": "string"
@@ -294,7 +297,7 @@
       "required": [
         "startRowIndex",
         "rowSpan",
-        "columnKey"
+        "column"
       ],
       "additionalProperties": false
     },

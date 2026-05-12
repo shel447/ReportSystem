@@ -456,12 +456,15 @@
 - `PresentationProperty.showTitle` 仅控制普通表格是否显示 `title`，不改变 `title` 字段本身
 - `PresentationProperty.defaultDisplayRows` 是普通表格默认展示数据条数，只作为展示提示，不截断 dataset 结果
 - 普通表格的 `properties.mergeColumns[]` 用于声明合并列，结构为 `{title, columns}`
+- 普通表格的 `properties.mergeRows[]` 用于声明行合并，结构为 `{column, mode}`；`column` 引用 `TableComponent.dataProperties.columns[].key`，并读取 `TableComponent.dataProperties.data[]` 中同名字段
+- `mergeRows.mode` 当前仅支持 `default`，缺省为 `default`；默认逻辑是连续多行相同值合并为一个单元格
   - `title` 是合并之后展示的列名称
   - `columns` 是源数据列 key 数组，至少包含两个互不重复的列 key
   - 一个表格可以声明多个合并列，按数组顺序展示
 - `composite_table.parts[].tableLayout.columns[]` 与普通表格的 `properties.columns[]` 使用同一套 `TableColumn` 定义
-- `composite_table.parts[].tableLayout.showTitle/defaultDisplayRows/mergeColumns[]` 与普通表格的同名展示属性语义一致
+- `composite_table.parts[].tableLayout.showTitle/defaultDisplayRows/mergeColumns[]/mergeRows[]` 与普通表格的同名展示属性语义一致
 - `mergeColumns` 只影响展示结构，不修改数据行，也不改变 `columns[]` 中源列的含义
+- `mergeRows` 不改变数据排序、不修改数据行；报告 DSL 输出已计算的 `{startRowIndex, rowSpan, mergedText, column}`，其中 `startRowIndex` 从 0 起算
 
 `TemplateInstance` 对 `CompositeTable` 的正式承载规则：
 

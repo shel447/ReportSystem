@@ -141,6 +141,11 @@
                           "availability_rate"
                         ]
                       }
+                    ],
+                    "mergeRows": [
+                      {
+                        "column": "region_name"
+                      }
                     ]
                   }
                 },
@@ -192,6 +197,12 @@
                               "result",
                               "remark"
                             ]
+                          }
+                        ],
+                        "mergeRows": [
+                          {
+                            "column": "item",
+                            "mode": "default"
                           }
                         ]
                       }
