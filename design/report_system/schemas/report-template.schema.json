@@ -11,8 +11,7 @@
     "name",
     "description",
     "schemaVersion",
-    "parameters",
-    "catalogs"
+    "parameters"
   ],
   "properties": {
     "id": {
@@ -31,6 +30,15 @@
     "schemaVersion": {
       "type": "string"
     },
+    "structureType": {
+      "type": "string",
+      "enum": [
+        "flow",
+        "paged"
+      ],
+      "default": "flow",
+      "description": "报告结构类型。缺省为 flow；flow 使用 catalogs -> sections，paged 使用 chapters -> slides -> sections。"
+    },
     "createdAt": {
       "type": "string",
       "format": "date-time"
@@ -46,12 +54,54 @@
       }
     },
     "catalogs": {
+      "description": "瀑布流报告结构入口，仅在 structureType=flow 或缺省时生效。",
       "type": "array",
       "items": {
         "$ref": "#/$defs/CatalogDefinition"
       }
+    },
+    "chapters": {
+      "description": "分页报告结构入口，仅在 structureType=paged 时生效。",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ChapterDefinition"
+      }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "structureType"
+        ],
+        "properties": {
+          "structureType": {
+            "const": "paged"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "chapters"
+        ],
+        "not": {
+          "required": [
+            "catalogs"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "catalogs"
+        ],
+        "not": {
+          "required": [
+            "chapters"
+          ]
+        }
+      }
+    }
+  ],
   "$defs": {
     "Scalar": {
       "anyOf": [
@@ -1008,6 +1058,99 @@
           ]
         }
       ]
+    },
+    "SlideLayout": {
+      "type": "object",
+      "description": "分页报告页面布局提示。当前仅作为设计器与后续 PPT 渲染适配的提示字段，不承诺运行时渲染语义。",
+      "additionalProperties": false,
+      "properties": {
+        "layoutId": {
+          "type": "string",
+          "description": "页面版式标识，例如 title_content、kpi_grid。"
+        },
+        "variant": {
+          "type": "string",
+          "description": "同一版式下的变体标识。"
+        },
+        "notes": {
+          "type": "string",
+          "description": "设计器或模板作者给后续渲染适配的补充说明。"
+        }
+      }
+    },
+    "SlideDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sections"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/ScopedParameters"
+        },
+        "dynamic": {
+          "$ref": "#/$defs/DynamicDefinition"
+        },
+        "layout": {
+          "$ref": "#/$defs/SlideLayout"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SectionDefinition"
+          }
+        }
+      }
+    },
+    "ChapterDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slides"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "implicit": {
+          "type": "boolean",
+          "description": "是否为系统隐式生成的默认章节。没有显式分节时，系统可补一个 id=__default__ 的 implicit chapter。"
+        },
+        "parameters": {
+          "$ref": "#/$defs/ScopedParameters"
+        },
+        "dynamic": {
+          "$ref": "#/$defs/DynamicDefinition"
+        },
+        "slides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SlideDefinition"
+          }
+        }
+      }
     },
     "ParameterValue": {
       "type": "object",

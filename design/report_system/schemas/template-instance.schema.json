@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./template-instance.schema.json",
   "title": "TemplateInstance",
-  "description": "模板实例正式定义。模板实例是对话运行态对象，主体保持 catalogs -> (subCatalogs)* -> sections 层级；参数与诉求统一复用渐进式核心模型。section.content 保留实例化后的内容视图，复合表在 block/part 级维护运行态。",
+  "description": "模板实例正式定义。模板实例是对话运行态对象，structureType=flow 时主体保持 catalogs -> (subCatalogs)* -> sections，structureType=paged 时主体使用 chapters -> slides -> sections；参数与诉求统一复用渐进式核心模型。section.content 保留实例化后的内容视图，复合表在 block/part 级维护运行态。",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -16,7 +16,6 @@
     "revision",
     "parameters",
     "parameterConfirmation",
-    "catalogs",
     "createdAt",
     "updatedAt"
   ],
@@ -61,6 +60,15 @@
       "type": "integer",
       "minimum": 1
     },
+    "structureType": {
+      "type": "string",
+      "enum": [
+        "flow",
+        "paged"
+      ],
+      "default": "flow",
+      "description": "模板实例结构类型。缺省为 flow；flow 使用 catalogs，paged 使用 chapters。"
+    },
     "parameters": {
       "type": "array",
       "description": "模板实例根部参数。与模板、ask、reply 复用同一套参数模型；实例态通过 options/values/runtimeContext 表达最新状态。",
@@ -72,9 +80,17 @@
       "$ref": "#/$defs/ParameterConfirmation"
     },
     "catalogs": {
+      "description": "瀑布流模板实例结构入口，仅在 structureType=flow 或缺省时生效。",
       "type": "array",
       "items": {
         "$ref": "#/$defs/TemplateInstanceCatalog"
+      }
+    },
+    "chapters": {
+      "description": "分页模板实例结构入口，仅在 structureType=paged 时生效。",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TemplateInstanceChapter"
       }
     },
     "warnings": {
@@ -96,6 +112,40 @@
       "description": "模板实例冻结时使用的完整模板快照。二次编辑与重新生成必须以该模板为准，不能回读线上最新模板。"
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "structureType"
+        ],
+        "properties": {
+          "structureType": {
+            "const": "paged"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "chapters"
+        ],
+        "not": {
+          "required": [
+            "catalogs"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "catalogs"
+        ],
+        "not": {
+          "required": [
+            "chapters"
+          ]
+        }
+      }
+    }
+  ],
   "$defs": {
     "Scalar": {
       "anyOf": [
@@ -730,6 +780,79 @@
           ]
         }
       ]
+    },
+    "TemplateInstanceSlide": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "sections"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "description": { "type": "string" },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "dynamicContext": {
+          "$ref": "#/$defs/DynamicContext"
+        },
+        "layout": {
+          "$ref": "./report-template.schema.json#/$defs/SlideLayout",
+          "description": "实例态分页页面布局提示，复用模板 SlideLayout。"
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TemplateInstanceSection"
+          }
+        }
+      }
+    },
+    "TemplateInstanceChapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "slides"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "implicit": {
+          "type": "boolean",
+          "description": "是否为系统隐式生成的默认章节。"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "dynamicContext": {
+          "$ref": "#/$defs/DynamicContext"
+        },
+        "slides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TemplateInstanceSlide"
+          }
+        }
+      }
     },
     "WarningItem": {
       "type": "object",

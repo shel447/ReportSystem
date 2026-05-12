@@ -349,6 +349,42 @@ class CatalogDefinition:
 
 
 @dataclass(slots=True)
+class SlideLayout:
+    """分页报告页面布局提示。"""
+
+    layout_id: str | None = _alias_field("layoutId", default=None)
+    variant: str | None = None
+    notes: str | None = None
+
+
+@dataclass(slots=True)
+class SlideDefinition:
+    """分页报告页面定义。"""
+
+    id: str
+    title: str | None = None
+    subtitle: str | None = None
+    description: str | None = None
+    parameters: list[Parameter] = field(default_factory=list)
+    dynamic: DynamicDefinition | None = None
+    layout: SlideLayout | None = None
+    sections: list[SectionDefinition] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ChapterDefinition:
+    """分页报告章节定义。"""
+
+    id: str
+    title: str | None = None
+    description: str | None = None
+    implicit: bool | None = None
+    parameters: list[Parameter] = field(default_factory=list)
+    dynamic: DynamicDefinition | None = None
+    slides: list[SlideDefinition] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class ReportTemplate:
     """模板目录与运行时共用的正式静态模板聚合。"""
 
@@ -357,8 +393,10 @@ class ReportTemplate:
     name: str
     description: str
     schema_version: str = _alias_field("schemaVersion")
+    structure_type: str = _alias_field("structureType", default="flow")
     parameters: list[Parameter] = field(default_factory=list)
     catalogs: list[CatalogDefinition] = field(default_factory=list)
+    chapters: list[ChapterDefinition] = field(default_factory=list)
     created_at: datetime | None = _alias_field("createdAt", default=None)
     updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
@@ -398,8 +436,10 @@ def report_template_from_dict(payload: dict[str, Any]) -> ReportTemplate:
         name=str(get_value(payload, ReportTemplate, "name") or ""),
         description=str(get_value(payload, ReportTemplate, "description") or ""),
         schema_version=str(get_value(payload, ReportTemplate, "schema_version") or ""),
+        structure_type=str(get_value(payload, ReportTemplate, "structure_type") or "flow"),
         parameters=[parameter_from_dict(item) for item in list(get_value(payload, ReportTemplate, "parameters") or [])],
         catalogs=[catalog_definition_from_dict(item) for item in list(get_value(payload, ReportTemplate, "catalogs") or [])],
+        chapters=[chapter_definition_from_dict(item) for item in list(get_value(payload, ReportTemplate, "chapters") or [])],
         created_at=_as_datetime(get_value(payload, ReportTemplate, "created_at")),
         updated_at=_as_datetime(get_value(payload, ReportTemplate, "updated_at")),
     )
@@ -413,10 +453,16 @@ def report_template_to_dict(template: ReportTemplate) -> dict[str, Any]:
     set_value(payload, ReportTemplate, "name", template.name)
     set_value(payload, ReportTemplate, "description", template.description)
     set_value(payload, ReportTemplate, "schema_version", template.schema_version)
+    set_value(payload, ReportTemplate, "structure_type", template.structure_type or "flow")
     set_value(payload, ReportTemplate, "parameters", [parameter_to_dict(item) for item in template.parameters])
-    set_value(payload, ReportTemplate, "catalogs", [catalog_definition_to_dict(item) for item in template.catalogs])
-    set_value(payload, ReportTemplate, "created_at", _isoformat(template.created_at))
-    set_value(payload, ReportTemplate, "updated_at", _isoformat(template.updated_at))
+    if (template.structure_type or "flow") == "paged":
+        set_value(payload, ReportTemplate, "chapters", [chapter_definition_to_dict(item) for item in template.chapters])
+    else:
+        set_value(payload, ReportTemplate, "catalogs", [catalog_definition_to_dict(item) for item in template.catalogs])
+    if template.created_at is not None:
+        set_value(payload, ReportTemplate, "created_at", _isoformat(template.created_at))
+    if template.updated_at is not None:
+        set_value(payload, ReportTemplate, "updated_at", _isoformat(template.updated_at))
     return payload
 
 
@@ -1025,6 +1071,92 @@ def catalog_definition_to_dict(catalog: CatalogDefinition) -> dict[str, Any]:
         set_value(payload, CatalogDefinition, "sub_catalogs", [catalog_definition_to_dict(item) for item in catalog.sub_catalogs])
     if catalog.sections:
         payload["sections"] = [section_definition_to_dict(item) for item in catalog.sections]
+    return payload
+
+
+def slide_layout_from_dict(payload: Any) -> SlideLayout | None:
+    if not isinstance(payload, dict):
+        return None
+    return SlideLayout(
+        layout_id=_as_optional_str(get_value(payload, SlideLayout, "layout_id")),
+        variant=_as_optional_str(get_value(payload, SlideLayout, "variant")),
+        notes=_as_optional_str(get_value(payload, SlideLayout, "notes")),
+    )
+
+
+def slide_layout_to_dict(layout: SlideLayout) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    if layout.layout_id is not None:
+        set_value(payload, SlideLayout, "layout_id", layout.layout_id)
+    if layout.variant is not None:
+        set_value(payload, SlideLayout, "variant", layout.variant)
+    if layout.notes is not None:
+        set_value(payload, SlideLayout, "notes", layout.notes)
+    return payload
+
+
+def slide_definition_from_dict(payload: dict[str, Any]) -> SlideDefinition:
+    return SlideDefinition(
+        id=str(payload.get("id") or ""),
+        title=_as_optional_str(payload.get("title")),
+        subtitle=_as_optional_str(payload.get("subtitle")),
+        description=_as_optional_str(payload.get("description")),
+        parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
+        dynamic=dynamic_definition_with_foreach(
+            dynamic_definition_from_dict(payload.get("dynamic")),
+            foreach=foreach_definition_from_dict(payload.get("foreach")),
+        ),
+        layout=slide_layout_from_dict(payload.get("layout")),
+        sections=[section_definition_from_dict(item) for item in list(payload.get("sections") or [])],
+    )
+
+
+def slide_definition_to_dict(slide: SlideDefinition) -> dict[str, Any]:
+    payload: dict[str, Any] = {"id": slide.id}
+    if slide.title is not None:
+        payload["title"] = slide.title
+    if slide.subtitle is not None:
+        payload["subtitle"] = slide.subtitle
+    if slide.description is not None:
+        payload["description"] = slide.description
+    if slide.parameters:
+        payload["parameters"] = [parameter_to_dict(item) for item in slide.parameters]
+    if slide.dynamic is not None:
+        payload["dynamic"] = dynamic_definition_to_dict(slide.dynamic)
+    if slide.layout is not None:
+        payload["layout"] = slide_layout_to_dict(slide.layout)
+    payload["sections"] = [section_definition_to_dict(item) for item in slide.sections]
+    return payload
+
+
+def chapter_definition_from_dict(payload: dict[str, Any]) -> ChapterDefinition:
+    return ChapterDefinition(
+        id=str(payload.get("id") or ""),
+        title=_as_optional_str(payload.get("title")),
+        description=_as_optional_str(payload.get("description")),
+        implicit=_as_optional_bool(payload.get("implicit")),
+        parameters=[parameter_from_dict(item) for item in list(payload.get("parameters") or [])],
+        dynamic=dynamic_definition_with_foreach(
+            dynamic_definition_from_dict(payload.get("dynamic")),
+            foreach=foreach_definition_from_dict(payload.get("foreach")),
+        ),
+        slides=[slide_definition_from_dict(item) for item in list(payload.get("slides") or [])],
+    )
+
+
+def chapter_definition_to_dict(chapter: ChapterDefinition) -> dict[str, Any]:
+    payload: dict[str, Any] = {"id": chapter.id}
+    if chapter.title is not None:
+        payload["title"] = chapter.title
+    if chapter.description is not None:
+        payload["description"] = chapter.description
+    if chapter.implicit is not None:
+        payload["implicit"] = chapter.implicit
+    if chapter.parameters:
+        payload["parameters"] = [parameter_to_dict(item) for item in chapter.parameters]
+    if chapter.dynamic is not None:
+        payload["dynamic"] = dynamic_definition_to_dict(chapter.dynamic)
+    payload["slides"] = [slide_definition_to_dict(item) for item in chapter.slides]
     return payload
 
 

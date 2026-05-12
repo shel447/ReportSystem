@@ -7,6 +7,7 @@
   "status": "confirmed",
   "captureStage": "confirm_params",
   "revision": 3,
+  "structureType": "flow",
   "parameters": [
     {
       "id": "report_date",
@@ -493,6 +494,7 @@
     "name": "网络运行日报",
     "description": "面向网络运维中心的统一日报模板。",
     "schemaVersion": "template.v3",
+    "structureType": "flow",
     "createdAt": "2026-04-18T09:00:00Z",
     "updatedAt": "2026-04-18T09:00:00Z",
     "parameters": [

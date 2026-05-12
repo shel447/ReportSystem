@@ -60,7 +60,7 @@
 ## 5. 本轮统一收敛的关键结论
 
 - 报告主系统的唯一主线是：`ReportTemplate -> TemplateInstance -> Report DSL -> ReportInstance -> DocumentArtifact`
-- 模板主结构统一为：`catalogs -> (subCatalogs)* -> sections`
+- 模板主结构由 `structureType` 决定：`flow` 使用 `catalogs -> (subCatalogs)* -> sections`，`paged` 使用 `chapters -> slides -> sections`
 - 报告主结构统一为：`catalogs -> (subCatalogs)* -> sections -> components`
 - `Report DSL` 是正式领域模型，不是导出阶段临时对象
 - `TemplateInstance -> Report DSL` 与“文档生成”都属于应用层能力

@@ -31,17 +31,57 @@
 
 关键要求：
 
-- `parameters`、`catalogs` 是模板对象根属性，不再放进 `content`
+- `parameters` 是模板对象根属性，不再放进 `content`
+- `structureType` 声明模板结构类型，缺省为 `flow`
+- `structureType = flow` 使用 `catalogs -> (subCatalogs)* -> sections`
+- `structureType = paged` 使用 `chapters -> slides -> sections`，用于 PPT 等分页报告结构
 - 模板是静态资产，不带运行态 `status`
 - 参数动态候选项来源统一用 `source` 描述，类型是 URL 字符串；不再把方法、请求体、响应体格式散落在模板中
 - 所有参数都必须显式声明 `multi`；候选值来源由是否存在 `source` 决定
-- 模板支持多层目录：每个 `catalog` 下可以同时存在 `subCatalogs` 与 `sections`
+- flow 模板支持多层目录：每个 `catalog` 下可以同时存在 `subCatalogs` 与 `sections`
+- paged 模板的 `ChapterDefinition` 支持 `parameters/dynamic`，`SlideDefinition` 支持 `parameters/dynamic/layout`；其中 `sections` 继续复用现有 `SectionDefinition`
 - 目录和章节的动态展开统一由 `dynamic` 承载；`dynamic.type` 支持 `foreach`、`foreachCase`、`custom`
 - `catalog.title` 支持在一句话目录标题中直接使用参数槽位；目录标题渲染不经过单独的大模型生成任务。`section` 不再定义标题，只保留诉求定义。
 - 参数可定义在模板根部、目录或章节上；参数 `id` 在同一模板内必须全局唯一
 - `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
-- 模板中的目录、子目录、章节顺序由数组位置定义，静态模板不再维护 `order`
+- 模板中的目录、子目录、章节、页面顺序由数组位置定义，静态模板不再维护 `order`
 - `dataset` 的数据源统一写在 `source` 中，不再使用 `sourceRef`
+
+分页报告结构示例：
+
+```json
+{
+  "structureType": "paged",
+  "chapters": [
+    {
+      "id": "chapter_overview",
+      "title": "整体概览",
+      "slides": [
+        {
+          "id": "slide_kpi_overview",
+          "title": "核心指标概览",
+          "layout": {
+            "layoutId": "title_content",
+            "variant": "kpi_grid"
+          },
+          "sections": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+若分页报告没有显式分节，系统可补一个默认隐式章节：
+
+```json
+{
+  "id": "__default__",
+  "title": "",
+  "implicit": true,
+  "slides": []
+}
+```
 
 ### 2.1 数据集数据源定义
 
@@ -254,7 +294,7 @@
 
 关键要求：
 
-- 主体保持 `catalogs -> (subCatalogs)* -> sections`
+- 主体由 `structureType` 决定：flow 保持 `catalogs -> (subCatalogs)* -> sections`，paged 使用 `chapters -> slides -> sections`
 - 模板实例根部、目录、章节中的 `parameters` 都统一复用同一套参数模型
 - 若用户未显式赋值，则先取参数 `defaultValue` 后再写入对应参数对象的 `values`
 - `TemplateInstance.parameters` 与接口层 `Ask.parameters` 使用完全相同的数据形状

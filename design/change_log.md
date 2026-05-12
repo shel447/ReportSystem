@@ -8,6 +8,27 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-12 报告模板支持 PPT 分页结构
+
+- 变更动机：
+  - 现有模板只表达瀑布流目录结构，无法直接承载 PPT 等分页报告的 chapter/slide 页面结构。
+- 设计决策：
+  - `ReportTemplate.structureType` 新增 `flow/paged`，缺省为 `flow`。
+  - `flow` 使用既有 `catalogs -> (subCatalogs)* -> sections`。
+  - `paged` 使用新增 `chapters -> slides -> sections`，其中 `sections` 复用现有 `SectionDefinition`。
+  - `ChapterDefinition` 支持 `id/title/description/implicit/parameters/dynamic/slides`。
+  - `SlideDefinition` 支持 `id/title/subtitle/description/parameters/dynamic/layout/sections`。
+  - `SlideLayout` 仅作为设计器和后续 PPT 渲染适配提示，本轮不承诺运行时渲染语义。
+- 影响范围：
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+  - `report_system/examples/report-template.example.json`
+  - `report_system/examples/report-template-paged.example.json`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+  - `report_system/04-接口契约.md`
+  - `report_system/报告模板定义与使用说明书.md`
+
 ## 2026-05-12 表格 mergeRows 行合并定义
 
 - 变更动机：

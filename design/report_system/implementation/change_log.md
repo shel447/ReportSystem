@@ -8,6 +8,21 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-12 PPT 分页模板结构核心模型
+
+- 背景问题：
+  - 模板目录核心模型只支持 flow 的 `catalogs`，无法保存 PPT 设计器需要的分页 chapter/slide 结构。
+- 实现设计调整：
+  - `template_catalog.domain.models.ReportTemplate` 新增 `structure_type` 与 `chapters`。
+  - 新增 `ChapterDefinition`、`SlideDefinition`、`SlideLayout` dataclass，并补齐 from/to dict。
+  - `report_runtime.domain.models.TemplateInstance` 新增 `structure_type` 与实例态 `chapters`。
+  - 新增 `TemplateInstanceChapter`、`TemplateInstanceSlide` dataclass，并补齐 from/to dict。
+  - 模板 upsert DTO 允许 `catalogs` 或 `chapters`，最终结构合法性继续交由正式 JSON Schema 校验。
+  - 本轮不修改 `BuildReportDslService` 的 paged 编译逻辑，也不修改 PPT 导出器协议。
+- 验证要求：
+  - schema 覆盖 flow/paged 条件约束、chapter/slides 必填、flow/paged 入口互斥。
+  - 后端测试覆盖模板与实例态 paged 核心模型往返。
+
 ## 2026-05-12 表格 mergeRows 行合并实现
 
 - 背景问题：

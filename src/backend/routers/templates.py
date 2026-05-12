@@ -27,8 +27,10 @@ class TemplateUpsertRequest(BaseModel):
     name: str
     description: str
     schemaVersion: str
+    structureType: str | None = None
     parameters: list[dict[str, Any]]
-    catalogs: list[dict[str, Any]]
+    catalogs: list[dict[str, Any]] | None = None
+    chapters: list[dict[str, Any]] | None = None
 
 
 class TemplateImportPreviewRequest(BaseModel):

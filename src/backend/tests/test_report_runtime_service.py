@@ -17,8 +17,10 @@ from backend.contexts.report_runtime.domain.models import (
     ReportSummary,
     TemplateInstance,
     TemplateInstanceCatalog,
+    TemplateInstanceChapter,
     TemplateInstancePresentationBlock,
     TemplateInstancePresentationDefinition,
+    TemplateInstanceSlide,
     TemplateInstanceSection,
     TemplateInstanceSectionContent,
     TemplateInstanceCompositeTablePart,
@@ -51,6 +53,7 @@ from backend.contexts.template_catalog.domain.models import (
     ParameterValue,
     PresentationProperty,
     ReportTemplate,
+    SlideLayout,
     SummaryRowDef,
     SummaryTableSpec,
     composite_table_part_layout_from_dict,
@@ -571,6 +574,179 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         assert_invalid_merge_rows([{"mode": "default"}])
         assert_invalid_merge_rows([{"column": ""}])
         assert_invalid_merge_rows([{"column": "scope_name", "mode": "custom"}])
+
+    def test_template_schema_supports_flow_and_paged_structures(self):
+        flow_payload = {
+            "id": "tpl_flow",
+            "category": "network_ops",
+            "name": "瀑布流模板",
+            "description": "用于校验缺省 flow 结构。",
+            "schemaVersion": "template.v3",
+            "parameters": [],
+            "catalogs": [{"id": "catalog_main", "title": "主目录", "sections": []}],
+        }
+        validate_report_template(flow_payload)
+
+        explicit_flow = copy.deepcopy(flow_payload)
+        explicit_flow["structureType"] = "flow"
+        validate_report_template(explicit_flow)
+
+        paged_payload = {
+            "id": "tpl_paged",
+            "category": "network_ops",
+            "name": "分页模板",
+            "description": "用于校验 PPT 分页结构。",
+            "schemaVersion": "template.v3",
+            "structureType": "paged",
+            "parameters": [],
+            "chapters": [
+                {
+                    "id": "chapter_overview",
+                    "title": "整体概览",
+                    "slides": [
+                        {
+                            "id": "slide_kpi",
+                            "title": "核心指标",
+                            "subtitle": "{$report_date}",
+                            "layout": {"layoutId": "title_content", "variant": "kpi_grid"},
+                            "sections": [],
+                        }
+                    ],
+                },
+                {"id": "__default__", "title": "", "implicit": True, "slides": []},
+            ],
+        }
+        validate_report_template(paged_payload)
+
+        missing_chapters = copy.deepcopy(paged_payload)
+        del missing_chapters["chapters"]
+        with self.assertRaises(ValueError):
+            validate_report_template(missing_chapters)
+
+        paged_with_catalogs = copy.deepcopy(paged_payload)
+        paged_with_catalogs["catalogs"] = []
+        with self.assertRaises(ValueError):
+            validate_report_template(paged_with_catalogs)
+
+        flow_without_catalogs = copy.deepcopy(flow_payload)
+        del flow_without_catalogs["catalogs"]
+        with self.assertRaises(ValueError):
+            validate_report_template(flow_without_catalogs)
+
+        flow_with_chapters = copy.deepcopy(explicit_flow)
+        flow_with_chapters["chapters"] = []
+        with self.assertRaises(ValueError):
+            validate_report_template(flow_with_chapters)
+
+        chapter_without_slides = copy.deepcopy(paged_payload)
+        del chapter_without_slides["chapters"][0]["slides"]
+        with self.assertRaises(ValueError):
+            validate_report_template(chapter_without_slides)
+
+        slide_without_sections = copy.deepcopy(paged_payload)
+        del slide_without_sections["chapters"][0]["slides"][0]["sections"]
+        with self.assertRaises(ValueError):
+            validate_report_template(slide_without_sections)
+
+    def test_paged_template_model_round_trip(self):
+        default_flow = report_template_from_dict(
+            {
+                "id": "tpl_default_flow",
+                "category": "network_ops",
+                "name": "默认瀑布流",
+                "description": "缺省 structureType。",
+                "schemaVersion": "template.v3",
+                "parameters": [],
+                "catalogs": [{"id": "catalog_main", "title": "主目录", "sections": []}],
+            }
+        )
+        self.assertEqual(default_flow.structure_type, "flow")
+        default_flow_payload = report_template_to_dict(default_flow)
+        self.assertEqual(default_flow_payload["structureType"], "flow")
+        self.assertIn("catalogs", default_flow_payload)
+
+        paged = report_template_from_dict(
+            {
+                "id": "tpl_paged_model",
+                "category": "network_ops",
+                "name": "分页模型",
+                "description": "校验 paged from/to dict。",
+                "schemaVersion": "template.v3",
+                "structureType": "paged",
+                "parameters": [],
+                "chapters": [
+                    {
+                        "id": "chapter_overview",
+                        "title": "整体概览",
+                        "slides": [
+                            {
+                                "id": "slide_kpi",
+                                "title": "核心指标",
+                                "layout": {"layoutId": "title_content", "variant": "kpi_grid"},
+                                "sections": [],
+                            }
+                        ],
+                    },
+                    {"id": "__default__", "title": "", "implicit": True, "slides": []},
+                ],
+            }
+        )
+        self.assertEqual(paged.structure_type, "paged")
+        self.assertEqual(paged.chapters[0].slides[0].layout.layout_id, "title_content")
+        paged_payload = report_template_to_dict(paged)
+        self.assertEqual(paged_payload["structureType"], "paged")
+        self.assertIn("chapters", paged_payload)
+        self.assertNotIn("catalogs", paged_payload)
+        self.assertTrue(paged_payload["chapters"][1]["implicit"])
+
+    def test_paged_template_instance_schema_and_model_round_trip(self):
+        template = ReportTemplate(
+            id="tpl_paged_instance",
+            category="network_ops",
+            name="分页实例模板",
+            description="校验分页实例结构。",
+            schema_version="template.v3",
+            structure_type="paged",
+        )
+        instance = TemplateInstance(
+            id="ti_paged",
+            schema_version="template-instance.vNext-draft",
+            template_id="tpl_paged_instance",
+            template=template,
+            conversation_id="conv_paged",
+            chat_id="chat_paged",
+            status="ready_for_confirmation",
+            capture_stage="confirm_params",
+            revision=1,
+            structure_type="paged",
+            parameters=[],
+            parameter_confirmation=ParameterConfirmation(missing_parameter_ids=[], confirmed=True),
+            chapters=[
+                TemplateInstanceChapter(
+                    id="chapter_overview",
+                    title="整体概览",
+                    slides=[
+                        TemplateInstanceSlide(
+                            id="slide_kpi",
+                            title="核心指标",
+                            layout=SlideLayout(layout_id="title_content", variant="kpi_grid"),
+                            sections=[],
+                        )
+                    ],
+                )
+            ],
+        )
+        payload = template_instance_to_dict(instance)
+        payload["createdAt"] = "2026-05-12T00:00:00Z"
+        payload["updatedAt"] = "2026-05-12T00:00:00Z"
+        validate_template_instance(payload)
+
+        self.assertEqual(payload["structureType"], "paged")
+        self.assertIn("chapters", payload)
+        self.assertNotIn("catalogs", payload)
+        round_trip = template_instance_from_dict(payload)
+        self.assertEqual(round_trip.structure_type, "paged")
+        self.assertEqual(round_trip.chapters[0].slides[0].layout.layout_id, "title_content")
 
     def test_report_dsl_schema_accepts_merge_rows_column_and_rejects_column_key(self):
         payload = {

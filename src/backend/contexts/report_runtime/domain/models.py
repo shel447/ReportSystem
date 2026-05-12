@@ -20,6 +20,7 @@ from ...template_catalog.domain.models import (
     ParameterValue,
     PresentationProperty,
     ReportTemplate,
+    SlideLayout,
     SummaryTableSpec,
     catalog_definition_to_dict,
     outline_definition_to_dict,
@@ -30,6 +31,8 @@ from ...template_catalog.domain.models import (
     presentation_property_with_text,
     report_template_from_dict,
     report_template_to_dict,
+    slide_layout_from_dict,
+    slide_layout_to_dict,
 )
 
 
@@ -226,6 +229,35 @@ class TemplateInstanceCatalog:
 
 
 @dataclass(slots=True)
+class TemplateInstanceSlide:
+    """实例态分页页面。"""
+
+    id: str
+    title: str | None = None
+    subtitle: str | None = None
+    description: str | None = None
+    order: int | None = None
+    parameters: list[Parameter] = field(default_factory=list)
+    dynamic_context: DynamicContext | None = _alias_field("dynamicContext", default=None)
+    layout: SlideLayout | None = None
+    sections: list[TemplateInstanceSection] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class TemplateInstanceChapter:
+    """实例态分页章节。"""
+
+    id: str
+    title: str | None = None
+    description: str | None = None
+    implicit: bool | None = None
+    order: int | None = None
+    parameters: list[Parameter] = field(default_factory=list)
+    dynamic_context: DynamicContext | None = _alias_field("dynamicContext", default=None)
+    slides: list[TemplateInstanceSlide] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class TemplateInstance:
     """运行时聚合，持续维护一条报告对话对应的模板实例状态。"""
 
@@ -238,9 +270,11 @@ class TemplateInstance:
     status: str
     capture_stage: str = _alias_field("captureStage")
     revision: int
+    structure_type: str = _alias_field("structureType", default="flow")
     parameters: list[Parameter] = field(default_factory=list)
     parameter_confirmation: ParameterConfirmation = _alias_field("parameterConfirmation", default_factory=ParameterConfirmation)
     catalogs: list[TemplateInstanceCatalog] = field(default_factory=list)
+    chapters: list[TemplateInstanceChapter] = field(default_factory=list)
     warnings: list[WarningItem] = field(default_factory=list)
     created_at: datetime | None = _alias_field("createdAt", default=None)
     updated_at: datetime | None = _alias_field("updatedAt", default=None)
@@ -526,9 +560,13 @@ def template_instance_to_dict(instance: TemplateInstance) -> dict[str, Any]:
     set_value(payload, TemplateInstance, "status", instance.status)
     set_value(payload, TemplateInstance, "capture_stage", instance.capture_stage)
     set_value(payload, TemplateInstance, "revision", instance.revision)
+    set_value(payload, TemplateInstance, "structure_type", instance.structure_type or "flow")
     set_value(payload, TemplateInstance, "parameters", [parameter_to_dict(item) for item in instance.parameters])
     set_value(payload, TemplateInstance, "parameter_confirmation", parameter_confirmation_to_dict(instance.parameter_confirmation))
-    set_value(payload, TemplateInstance, "catalogs", [template_instance_catalog_to_dict(item) for item in instance.catalogs])
+    if (instance.structure_type or "flow") == "paged":
+        set_value(payload, TemplateInstance, "chapters", [template_instance_chapter_to_dict(item) for item in instance.chapters])
+    else:
+        set_value(payload, TemplateInstance, "catalogs", [template_instance_catalog_to_dict(item) for item in instance.catalogs])
     set_value(payload, TemplateInstance, "warnings", [warning_item_to_dict(item) for item in instance.warnings])
     set_value(payload, TemplateInstance, "created_at", _isoformat(instance.created_at))
     set_value(payload, TemplateInstance, "updated_at", _isoformat(instance.updated_at))
@@ -546,9 +584,11 @@ def template_instance_from_dict(payload: dict[str, Any]) -> TemplateInstance:
         status=str(get_value(payload, TemplateInstance, "status") or ""),
         capture_stage=str(get_value(payload, TemplateInstance, "capture_stage") or ""),
         revision=int(get_value(payload, TemplateInstance, "revision") or 1),
+        structure_type=str(get_value(payload, TemplateInstance, "structure_type") or "flow"),
         parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstance, "parameters") or [])],
         parameter_confirmation=parameter_confirmation_from_dict(get_value(payload, TemplateInstance, "parameter_confirmation")),
         catalogs=[template_instance_catalog_from_dict(item) for item in list(get_value(payload, TemplateInstance, "catalogs") or [])],
+        chapters=[template_instance_chapter_from_dict(item) for item in list(get_value(payload, TemplateInstance, "chapters") or [])],
         warnings=[warning_item_from_dict(item) for item in list(get_value(payload, TemplateInstance, "warnings") or [])],
         created_at=_as_datetime(get_value(payload, TemplateInstance, "created_at")),
         updated_at=_as_datetime(get_value(payload, TemplateInstance, "updated_at")),
@@ -892,6 +932,73 @@ def template_instance_catalog_from_dict(payload: dict[str, Any]) -> TemplateInst
         foreach_context=legacy_foreach_context,
         sub_catalogs=[template_instance_catalog_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "sub_catalogs") or [])],
         sections=[template_instance_section_from_dict(item) for item in list(get_value(payload, TemplateInstanceCatalog, "sections") or [])],
+    )
+
+
+def template_instance_slide_to_dict(slide: TemplateInstanceSlide) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    set_value(payload, TemplateInstanceSlide, "id", slide.id)
+    if slide.title is not None:
+        set_value(payload, TemplateInstanceSlide, "title", slide.title)
+    if slide.subtitle is not None:
+        set_value(payload, TemplateInstanceSlide, "subtitle", slide.subtitle)
+    if slide.description is not None:
+        set_value(payload, TemplateInstanceSlide, "description", slide.description)
+    if slide.order is not None:
+        set_value(payload, TemplateInstanceSlide, "order", slide.order)
+    if slide.parameters:
+        set_value(payload, TemplateInstanceSlide, "parameters", [parameter_to_dict(item) for item in slide.parameters])
+    if slide.dynamic_context is not None:
+        set_value(payload, TemplateInstanceSlide, "dynamic_context", dynamic_context_to_dict(slide.dynamic_context))
+    if slide.layout is not None:
+        set_value(payload, TemplateInstanceSlide, "layout", slide_layout_to_dict(slide.layout))
+    set_value(payload, TemplateInstanceSlide, "sections", [template_instance_section_to_dict(item) for item in slide.sections])
+    return payload
+
+
+def template_instance_slide_from_dict(payload: dict[str, Any]) -> TemplateInstanceSlide:
+    return TemplateInstanceSlide(
+        id=str(get_value(payload, TemplateInstanceSlide, "id") or ""),
+        title=_as_optional_str(get_value(payload, TemplateInstanceSlide, "title")),
+        subtitle=_as_optional_str(get_value(payload, TemplateInstanceSlide, "subtitle")),
+        description=_as_optional_str(get_value(payload, TemplateInstanceSlide, "description")),
+        order=_as_optional_int(get_value(payload, TemplateInstanceSlide, "order")),
+        parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstanceSlide, "parameters") or [])],
+        dynamic_context=dynamic_context_from_dict(get_value(payload, TemplateInstanceSlide, "dynamic_context")),
+        layout=slide_layout_from_dict(get_value(payload, TemplateInstanceSlide, "layout")),
+        sections=[template_instance_section_from_dict(item) for item in list(get_value(payload, TemplateInstanceSlide, "sections") or [])],
+    )
+
+
+def template_instance_chapter_to_dict(chapter: TemplateInstanceChapter) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    set_value(payload, TemplateInstanceChapter, "id", chapter.id)
+    if chapter.title is not None:
+        set_value(payload, TemplateInstanceChapter, "title", chapter.title)
+    if chapter.description is not None:
+        set_value(payload, TemplateInstanceChapter, "description", chapter.description)
+    if chapter.implicit is not None:
+        set_value(payload, TemplateInstanceChapter, "implicit", chapter.implicit)
+    if chapter.order is not None:
+        set_value(payload, TemplateInstanceChapter, "order", chapter.order)
+    if chapter.parameters:
+        set_value(payload, TemplateInstanceChapter, "parameters", [parameter_to_dict(item) for item in chapter.parameters])
+    if chapter.dynamic_context is not None:
+        set_value(payload, TemplateInstanceChapter, "dynamic_context", dynamic_context_to_dict(chapter.dynamic_context))
+    set_value(payload, TemplateInstanceChapter, "slides", [template_instance_slide_to_dict(item) for item in chapter.slides])
+    return payload
+
+
+def template_instance_chapter_from_dict(payload: dict[str, Any]) -> TemplateInstanceChapter:
+    return TemplateInstanceChapter(
+        id=str(get_value(payload, TemplateInstanceChapter, "id") or ""),
+        title=_as_optional_str(get_value(payload, TemplateInstanceChapter, "title")),
+        description=_as_optional_str(get_value(payload, TemplateInstanceChapter, "description")),
+        implicit=_as_optional_bool(get_value(payload, TemplateInstanceChapter, "implicit")),
+        order=_as_optional_int(get_value(payload, TemplateInstanceChapter, "order")),
+        parameters=[parameter_from_dict(item) for item in list(get_value(payload, TemplateInstanceChapter, "parameters") or [])],
+        dynamic_context=dynamic_context_from_dict(get_value(payload, TemplateInstanceChapter, "dynamic_context")),
+        slides=[template_instance_slide_from_dict(item) for item in list(get_value(payload, TemplateInstanceChapter, "slides") or [])],
     )
 
 
@@ -1380,3 +1487,9 @@ def _as_optional_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _as_optional_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None

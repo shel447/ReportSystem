@@ -29,6 +29,7 @@ class DataclassAliasContractTests(unittest.TestCase):
         aliases = _alias_map(ReportTemplate)
 
         self.assertEqual("schemaVersion", aliases["schema_version"])
+        self.assertEqual("structureType", aliases["structure_type"])
         self.assertEqual("createdAt", aliases["created_at"])
         self.assertEqual("updatedAt", aliases["updated_at"])
 
@@ -53,6 +54,7 @@ class DataclassAliasContractTests(unittest.TestCase):
         self.assertEqual("conversationId", template_instance_aliases["conversation_id"])
         self.assertEqual("chatId", template_instance_aliases["chat_id"])
         self.assertEqual("captureStage", template_instance_aliases["capture_stage"])
+        self.assertEqual("structureType", template_instance_aliases["structure_type"])
         self.assertEqual("parameterConfirmation", template_instance_aliases["parameter_confirmation"])
         self.assertEqual("basicInfo", report_dsl_aliases["basic_info"])
         self.assertEqual("reportMeta", report_dsl_aliases["report_meta"])

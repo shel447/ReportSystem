@@ -1,0 +1,86 @@
+{
+  "id": "tpl_network_ppt",
+  "category": "network_operations",
+  "name": "网络运行 PPT 汇报",
+  "description": "面向经营与运维汇报场景的分页报告模板。",
+  "schemaVersion": "template.v3",
+  "structureType": "paged",
+  "createdAt": "2026-05-12T09:00:00Z",
+  "updatedAt": "2026-05-12T09:00:00Z",
+  "parameters": [
+    {
+      "id": "report_date",
+      "label": "报告日期",
+      "inputType": "date",
+      "required": true,
+      "multi": false,
+      "interactionMode": "form",
+      "priority": 0
+    }
+  ],
+  "chapters": [
+    {
+      "id": "chapter_overview",
+      "title": "整体概览",
+      "slides": [
+        {
+          "id": "slide_kpi_overview",
+          "title": "核心指标概览",
+          "subtitle": "{$report_date}",
+          "layout": {
+            "layoutId": "title_content",
+            "variant": "kpi_grid",
+            "notes": "设计器可据此选择标题加指标卡片版式。"
+          },
+          "sections": [
+            {
+              "id": "section_kpi_summary",
+              "outline": {
+                "requirement": "总结{@report_date_item}的核心网络运行指标。",
+                "items": [
+                  {
+                    "id": "report_date_item",
+                    "label": "报告日期",
+                    "kind": "time_range",
+                    "required": true,
+                    "sourceParameterId": "report_date",
+                    "widget": "date"
+                  }
+                ]
+              },
+              "content": {
+                "datasets": [
+                  {
+                    "id": "dataset_kpi_summary",
+                    "name": "核心指标数据集",
+                    "sourceType": "sql",
+                    "source": "SELECT availability_rate, alarm_count FROM rpt_network_kpi WHERE stat_date = '{{reportDate}}'"
+                  }
+                ],
+                "presentation": {
+                  "kind": "mixed",
+                  "blocks": [
+                    {
+                      "id": "block_kpi_text",
+                      "type": "text",
+                      "title": "指标摘要",
+                      "properties": {
+                        "template": "{$report_date}网络可用率{#dataset_kpi_summary.availability_rate}，告警数{#dataset_kpi_summary.alarm_count}。"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "__default__",
+      "title": "",
+      "implicit": true,
+      "slides": []
+    }
+  ]
+}

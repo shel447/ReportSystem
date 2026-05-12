@@ -68,6 +68,30 @@ class TemplatesRouterTests(unittest.TestCase):
         self.assertIn("catalogs", payload)
         self.assertNotIn("sections", payload)
 
+    def test_create_template_accepts_paged_report_template(self):
+        fake_service = SimpleNamespace(create_template=lambda payload: payload)
+        paged_template = {
+            **_sample_template(),
+            "id": "tpl_network_ppt",
+            "name": "网络运行 PPT 汇报",
+            "structureType": "paged",
+            "chapters": [
+                {
+                    "id": "chapter_overview",
+                    "title": "整体概览",
+                    "slides": [{"id": "slide_kpi", "title": "核心指标", "sections": []}],
+                }
+            ],
+        }
+        del paged_template["catalogs"]
+
+        with patch("backend.routers.templates.build_template_catalog_service", return_value=fake_service):
+            payload = create_template(TemplateUpsertRequest(**paged_template), db=object())
+
+        self.assertEqual(payload["structureType"], "paged")
+        self.assertIn("chapters", payload)
+        self.assertNotIn("catalogs", payload)
+
     def test_update_template_requires_same_path_and_body_id(self):
         fake_service = SimpleNamespace(
             update_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("Template id mismatch"))
