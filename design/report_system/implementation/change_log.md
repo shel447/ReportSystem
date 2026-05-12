@@ -8,20 +8,34 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-12 Report DSL flow 兼容边界纠偏
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-12 Report DSL PPT 扩展不改变 flow 契约”
+- 实现设计调整：
+  - `ReportCatalog` canonical 输出恢复为 `name`；模型层兼容读取误同步期间出现的 `title`。
+  - `ReportSection` 恢复输出 `summary/order`，不把 paged-only 字段写入 flow section。
+  - 新增/恢复 `ReportCover/ReportCoverContent` 与 `ReportSignaturePage/ReportSigner` 核心模型。
+  - `ReportSummary` 恢复旧 `id/overview` 输出。
+  - `BuildReportDslService` 生成的 flow DSL 恢复 `catalogs[].name`、`sections[].summary` 与旧顶层 `summary`。
+- 验证要求：
+  - schema 覆盖旧 flow payload、旧 cover 结构、custom flow fragment 与 paged content 互斥规则。
+  - 后端测试覆盖 flow cover round-trip 与 paged content round-trip。
+
 ## 2026-05-12 Report DSL single-root flow/paged 实现
 
 - 对应设计变更：
   - [../../change_log.md](../../change_log.md) 中“2026-05-12 Report DSL 支持 single-root flow/paged 结构”
 - 实现设计调整：
   - `report_runtime.domain.models.ReportDsl` 新增 `structure_type/content`，flow 输出 `catalogs + layout`，paged 输出 `content`。
-  - 新增 `ReportSlide`、`ReportSlideSection` 与组件容器模型，支持 paged DSL from/to dict。
-  - `ReportCatalog` canonical 输出改为 `title`；模型层兼容读取旧 `name`，公开输出不再写 `name`。
+  - 新增 `ReportSlide`、`ReportSlideSection`，支持 paged DSL from/to dict。
+  - `ReportCatalog` 维持 flow 旧契约，canonical 输出仍为 `name`。
   - `ReportBasicInfo.schema_version` 内部兼容访问器映射到公开 `version` 字段。
   - `ReportGenerateMeta.additional_infos` 内部字段映射到公开 `additionalInfo`，`ReportAdditionalInfo` 输出 `{type, content}`。
   - `BuildReportDslService` 继续只编译 flow，但生成的 flow DSL 已满足新版 schema；paged 模板到 PPT DSL 的编译后续实现。
 - 验证要求：
-  - schema 覆盖 flow/paged 条件约束、paged content 不混放、旧 `columnKey/name/summary/additionalInfos` 失败。
-  - 后端测试覆盖 flow/paged ReportDsl round-trip、custom fragment 新字段校验、现有 flow 生成回归。
+  - schema 覆盖 flow/paged 条件约束、paged content 不混放、旧 `columnKey` 失败。
+  - 后端测试覆盖 flow/paged ReportDsl round-trip、custom fragment 校验、现有 flow 生成回归。
 
 ## 2026-05-12 PPT 分页模板结构核心模型
 

@@ -38,6 +38,7 @@
     }
   ],
   "summary": {
-    "content": "分页报告已生成。"
+    "id": "summary_paged_report",
+    "overview": "分页报告已生成。"
   }
 }

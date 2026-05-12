@@ -325,7 +325,7 @@ def build_report_dsl(
             category=template.category,
         ),
         catalogs=catalogs,
-        summary=ReportSummary(content=_build_report_summary(catalogs)),
+        summary=ReportSummary(id="summary_report", overview=_build_report_summary(catalogs)),
         report_meta=report_meta,
         layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
     )
@@ -381,6 +381,10 @@ def _build_report_catalog(
                 id=section.id,
                 title=_section_title(section),
                 components=components,
+                summary=ReportSummary(
+                    id=f"summary_{section.id}",
+                    overview=summary,
+                ),
             )
         )
         report_meta[section.id] = ReportGenerateMeta(
@@ -391,7 +395,7 @@ def _build_report_catalog(
         )
     return ReportCatalog(
         id=catalog.id,
-        title=catalog.rendered_title or catalog.title or catalog.id,
+        name=catalog.rendered_title or catalog.title or catalog.id,
         sub_catalogs=sub_catalogs,
         sections=sections,
     )

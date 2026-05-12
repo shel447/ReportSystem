@@ -483,46 +483,68 @@
     "Cover": {
       "type": "object",
       "properties": {
-        "components": {
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "layoutTemplate": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "contents": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/BIEngineComponent"
+            "$ref": "#/$defs/CoverContent"
           }
         }
       },
       "required": [
-        "components"
+        "title"
       ],
       "additionalProperties": false
     },
     "SignaturePage": {
       "type": "object",
       "properties": {
-        "components": {
+        "title": {
+          "type": "string"
+        },
+        "signers": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/BIEngineComponent"
+            "$ref": "#/$defs/Signer"
           }
+        },
+        "layoutTemplate": {
+          "type": "string"
         }
       },
       "required": [
-        "components"
+        "signers"
       ],
       "additionalProperties": false
     },
     "ReportSummary": {
       "type": "object",
       "properties": {
-        "components": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BIEngineComponent"
-          }
+        "id": {
+          "type": "string"
         },
-        "content": {
+        "overview": {
           "type": "string"
         }
       },
+      "required": [
+        "id",
+        "overview"
+      ],
       "additionalProperties": false
     },
     "Catalog": {
@@ -531,11 +553,11 @@
         "id": {
           "type": "string"
         },
-        "title": {
+        "name": {
           "type": "string"
         },
-        "description": {
-          "type": "string"
+        "order": {
+          "type": "number"
         },
         "subCatalogs": {
           "type": "array",
@@ -552,19 +574,7 @@
       },
       "required": [
         "id",
-        "title"
-      ],
-      "anyOf": [
-        {
-          "required": [
-            "subCatalogs"
-          ]
-        },
-        {
-          "required": [
-            "sections"
-          ]
-        }
+        "name"
       ],
       "additionalProperties": false
     },
@@ -577,17 +587,17 @@
         "title": {
           "type": "string"
         },
-        "description": {
-          "type": "string"
-        },
-        "layout": {
-          "$ref": "#/$defs/ComponentLayout"
+        "order": {
+          "type": "number"
         },
         "components": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/BIEngineComponent"
           }
+        },
+        "summary": {
+          "$ref": "#/$defs/ReportSummary"
         }
       },
       "required": [
@@ -1630,6 +1640,51 @@
           "$ref": "#/$defs/CompositeTable"
         }
       ]
+    },
+    "CoverContent": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "image",
+            "text"
+          ]
+        },
+        "content": {
+          "type": "string"
+        },
+        "elementId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "content",
+        "elementId"
+      ],
+      "additionalProperties": false
+    },
+    "Signer": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "signature": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
     }
   }
 }

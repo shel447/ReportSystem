@@ -13,6 +13,8 @@ from backend.contexts.report_runtime.domain.models import (
     ParameterConfirmation,
     ReportBasicInfo,
     ReportCatalog,
+    ReportCover,
+    ReportCoverContent,
     ReportDsl,
     ReportLayout,
     ReportSection,
@@ -766,7 +768,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             "catalogs": [
                 {
                     "id": "catalog_main",
-                    "title": "主目录",
+                    "name": "主目录",
                     "sections": [
                         {
                             "id": "section_main",
@@ -797,6 +799,11 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         }
         _validate_report_dsl(payload)
 
+        invalid_catalog_title = copy.deepcopy(payload)
+        invalid_catalog_title["catalogs"][0]["title"] = invalid_catalog_title["catalogs"][0].pop("name")
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_catalog_title)
+
         invalid_payload = copy.deepcopy(payload)
         invalid_payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]["mergeRows"][0][
             "columnKey"
@@ -804,6 +811,26 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         del invalid_payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]["mergeRows"][0]["column"]
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_payload)
+
+    def test_report_dsl_schema_keeps_legacy_flow_cover_shape(self):
+        payload = {
+            "basicInfo": {"id": "rpt_cover", "version": "1.0.0", "status": "Success"},
+            "cover": {
+                "title": "网络运行日报",
+                "author": "report-system",
+                "date": "2026-05-12",
+                "layoutTemplate": "default",
+                "contents": [{"type": "text", "content": "总部网络", "elementId": "cover_scope"}],
+            },
+            "catalogs": [],
+            "layout": {"type": "grid"},
+        }
+        _validate_report_dsl(payload)
+
+        invalid_cover = copy.deepcopy(payload)
+        invalid_cover["cover"] = {"components": []}
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_cover)
 
     def test_report_dsl_schema_accepts_paged_content_and_rejects_mixed_content(self):
         slide = {
@@ -875,6 +902,31 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         restored = report_dsl_from_dict(payload)
         self.assertEqual(restored.structure_type, "paged")
         self.assertEqual(restored.content[0].slides[0].id, "slide_overview")
+
+    def test_report_dsl_flow_cover_domain_round_trip(self):
+        report = ReportDsl(
+            basic_info=ReportBasicInfo(id="rpt_cover", schema_version="1.0.0", status="Success"),
+            cover=ReportCover(
+                title="网络运行日报",
+                author="report-system",
+                date="2026-05-12",
+                layout_template="default",
+                contents=[ReportCoverContent(type="text", content="总部网络", element_id="cover_scope")],
+            ),
+            catalogs=[ReportCatalog(id="catalog_main", name="主目录", sections=[])],
+            layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+        )
+
+        payload = report_dsl_to_dict(report)
+        self.assertEqual(payload["cover"]["title"], "网络运行日报")
+        self.assertEqual(payload["cover"]["contents"][0]["elementId"], "cover_scope")
+        self.assertEqual(payload["catalogs"][0]["name"], "主目录")
+        self.assertNotIn("title", payload["catalogs"][0])
+        _validate_report_dsl(payload)
+
+        restored = report_dsl_from_dict(payload)
+        self.assertEqual(restored.cover.title, "网络运行日报")
+        self.assertEqual(restored.cover.contents[0].element_id, "cover_scope")
 
     def test_schema_validates_supported_presentation_block_types(self):
         template_payload = {
@@ -1200,7 +1252,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             [
                 {
                     "id": "catalog_external",
-                    "title": "外部返回目录",
+                    "name": "外部返回目录",
                     "sections": [
                         {
                             "id": "section_external",
@@ -1289,6 +1341,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                             "dataProperties": {"dataType": "static", "content": "外部章节内容"},
                         }
                     ],
+                    "summary": {"id": "summary_section_external", "overview": "外部摘要"},
                 }
             ]
         )
@@ -1307,6 +1360,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(report.catalogs[0].sections[0].id, "section_external")
+        self.assertEqual(report.catalogs[0].sections[0].summary.overview, "外部摘要")
         self.assertEqual(gateway.requests[0]["url"], "https://example.test/section")
         self.assertEqual(gateway.requests[0]["payload"]["nodeType"], "section")
         self.assertEqual(gateway.requests[0]["payload"]["nodeId"], "section_custom")

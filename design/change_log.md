@@ -8,6 +8,21 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-12 Report DSL PPT 扩展不改变 flow 契约
+
+- 变更动机：
+  - PPT/paged 是新增报告结构，上一版从输入 schema 直接同步时误改了 flow 的 `Catalog/Cover/Section/ReportSummary` 既有契约。
+- 设计决策：
+  - 保留 `Report.structureType` 与 paged `content` 能力。
+  - flow 分支继续使用 PPT 扩展前的 `Catalog.name`、`Section.summary`、旧 `Cover/CoverContent`、旧 `SignaturePage/Signer`、旧 `ReportSummary`。
+  - paged 分支只通过 `content -> Slide[] | SlideSection[]` 表达 PPT 主体，不反向改变 `catalogs` 分支。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/examples/report-dsl-paged.example.json`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+
 ## 2026-05-12 Report DSL 支持 single-root flow/paged 结构
 
 - 变更动机：
@@ -17,10 +32,9 @@
   - `Report.structureType` 新增 `flow/paged`，缺省为 `flow`。
   - `flow` 使用 `catalogs + layout`，禁止 `content`。
   - `paged` 使用 `content`，禁止 `catalogs`；`content` 只能整体为 `Slide[]` 或整体为 `SlideSection[]`。
-  - `Catalog` 统一使用 `title`，不再使用旧 `name`。
-  - `Section` 不再输出旧 `summary`；章节摘要进入 `reportMeta[sectionId].summary`。
+  - flow 的 `Catalog/Section` 契约保持不变；paged 通过新增 `content` 表达页面结构。
   - `GenerateMeta.additionalInfo` 使用新版单数字段名，每项为 `{type, content}`。
-  - `cover/signaturePage/summary` 改为组件化结构，适配 flow 与 paged 共用的报告页能力。
+  - `cover/signaturePage/summary` 保持旧 flow 契约。
 - 影响范围：
   - `report_system/schemas/report-dsl.schema.json`
   - `report_system/examples/report-dsl.example.json`

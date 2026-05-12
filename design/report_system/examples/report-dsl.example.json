@@ -31,7 +31,6 @@
   "catalogs": [
     {
       "id": "catalog_overview",
-      "title": "运行概览",
       "sections": [
         {
           "id": "section_summary",
@@ -88,13 +87,19 @@
                 ]
               }
             }
-          ]
+          ],
+          "summary": {
+            "id": "summary_section_summary",
+            "overview": "总部网络整体运行平稳。"
+          }
         }
-      ]
+      ],
+      "name": "运行概览"
     }
   ],
   "summary": {
-    "content": "报告已生成，共包含 1 个章节：总体运行态势"
+    "id": "summary_report",
+    "overview": "报告已生成，共包含 1 个章节：总体运行态势"
   },
   "reportMeta": {
     "section_summary": {

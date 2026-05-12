@@ -308,10 +308,8 @@ class ReportBasicInfo:
 class ReportSummary:
     """报告或章节摘要。"""
 
-    id: str | None = None
-    overview: str | None = None
-    components: list["ReportComponent"] = field(default_factory=list)
-    content: str | None = None
+    id: str
+    overview: str
 
 
 @dataclass(slots=True)
@@ -499,19 +497,52 @@ class ReportCatalog:
     """报告目录。"""
 
     id: str
+    name: str | None = None
     title: str | None = None
     description: str | None = None
-    name: str | None = None
     order: int | None = None
     sub_catalogs: list["ReportCatalog"] = _alias_field("subCatalogs", default_factory=list)
     sections: list[ReportSection] = field(default_factory=list)
 
 
 @dataclass(slots=True)
-class ReportComponentContainer:
-    """由组件组成的报告公共页。"""
+class ReportCoverContent:
+    """报告封面内容项。"""
 
-    components: list[ReportComponent] = field(default_factory=list)
+    type: str
+    content: str
+    element_id: str = _alias_field("elementId")
+
+
+@dataclass(slots=True)
+class ReportCover:
+    """报告封面。"""
+
+    title: str
+    author: str | None = None
+    date: str | None = None
+    layout_template: str | None = _alias_field("layoutTemplate", default=None)
+    image: str | None = None
+    contents: list[ReportCoverContent] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class ReportSigner:
+    """报告签署人。"""
+
+    name: str
+    role: str | None = None
+    signature: str | None = None
+    date: str | None = None
+
+
+@dataclass(slots=True)
+class ReportSignaturePage:
+    """报告签署页。"""
+
+    signers: list[ReportSigner] = field(default_factory=list)
+    title: str | None = None
+    layout_template: str | None = _alias_field("layoutTemplate", default=None)
 
 
 @dataclass(slots=True)
@@ -545,8 +576,8 @@ class ReportDsl:
 
     basic_info: ReportBasicInfo = _alias_field("basicInfo")
     structure_type: str = _alias_field("structureType", default="flow")
-    cover: ReportComponentContainer | None = None
-    signature_page: ReportComponentContainer | None = _alias_field("signaturePage", default=None)
+    cover: ReportCover | None = None
+    signature_page: ReportSignaturePage | None = _alias_field("signaturePage", default=None)
     catalogs: list[ReportCatalog] = field(default_factory=list)
     layout: ReportLayout | None = None
     content: list[ReportPagedContentItem] = field(default_factory=list)
@@ -1064,9 +1095,9 @@ def report_dsl_to_dict(report: ReportDsl) -> dict[str, Any]:
     set_value(payload, ReportDsl, "structure_type", structure_type)
     set_value(payload, ReportDsl, "basic_info", report_basic_info_to_dict(report.basic_info))
     if report.cover is not None:
-        set_value(payload, ReportDsl, "cover", report_component_container_to_dict(report.cover))
+        set_value(payload, ReportDsl, "cover", report_cover_to_dict(report.cover))
     if report.signature_page is not None:
-        set_value(payload, ReportDsl, "signature_page", report_component_container_to_dict(report.signature_page))
+        set_value(payload, ReportDsl, "signature_page", report_signature_page_to_dict(report.signature_page))
     if structure_type == "paged":
         set_value(payload, ReportDsl, "content", [report_paged_content_item_to_dict(item) for item in report.content])
     else:
@@ -1084,8 +1115,8 @@ def report_dsl_from_dict(payload: dict[str, Any]) -> ReportDsl:
     return ReportDsl(
         structure_type=structure_type,
         basic_info=report_basic_info_from_dict(get_value(payload, ReportDsl, "basic_info") or {}),
-        cover=report_component_container_from_dict(get_value(payload, ReportDsl, "cover")) if isinstance(get_value(payload, ReportDsl, "cover"), dict) else None,
-        signature_page=report_component_container_from_dict(get_value(payload, ReportDsl, "signature_page")) if isinstance(get_value(payload, ReportDsl, "signature_page"), dict) else None,
+        cover=report_cover_from_dict(get_value(payload, ReportDsl, "cover")) if isinstance(get_value(payload, ReportDsl, "cover"), dict) else None,
+        signature_page=report_signature_page_from_dict(get_value(payload, ReportDsl, "signature_page")) if isinstance(get_value(payload, ReportDsl, "signature_page"), dict) else None,
         catalogs=[report_catalog_from_dict(item) for item in list(get_value(payload, ReportDsl, "catalogs") or [])],
         layout=report_layout_from_dict(get_value(payload, ReportDsl, "layout") or {}) if isinstance(get_value(payload, ReportDsl, "layout"), dict) else None,
         content=[report_paged_content_item_from_dict(item) for item in list(get_value(payload, ReportDsl, "content") or [])],
@@ -1141,21 +1172,13 @@ def report_basic_info_from_dict(payload: dict[str, Any]) -> ReportBasicInfo:
 
 
 def report_summary_to_dict(summary: ReportSummary) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
-    if summary.components:
-        payload["components"] = [report_component_to_dict(item) for item in summary.components]
-    content = summary.content if summary.content is not None else summary.overview
-    if content is not None:
-        payload["content"] = content
-    return payload
+    return {"id": summary.id, "overview": summary.overview}
 
 
 def report_summary_from_dict(payload: dict[str, Any]) -> ReportSummary:
     return ReportSummary(
-        id=_as_optional_str(payload.get("id")),
-        overview=_as_optional_str(payload.get("overview")),
-        components=[report_component_from_dict(item) for item in list(payload.get("components") or [])],
-        content=_as_optional_str(payload.get("content")),
+        id=str(payload.get("id") or ""),
+        overview=str(payload.get("overview") or payload.get("content") or ""),
     )
 
 
@@ -1457,12 +1480,77 @@ def report_component_from_dict(payload: dict[str, Any]) -> ReportComponent:
     return composite_table_component_from_dict(payload)
 
 
-def report_component_container_to_dict(container: ReportComponentContainer) -> dict[str, Any]:
-    return {"components": [report_component_to_dict(item) for item in container.components]}
+def report_cover_content_to_dict(item: ReportCoverContent) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportCoverContent, "type", item.type)
+    set_value(payload, ReportCoverContent, "content", item.content)
+    set_value(payload, ReportCoverContent, "element_id", item.element_id)
+    return payload
 
 
-def report_component_container_from_dict(payload: dict[str, Any]) -> ReportComponentContainer:
-    return ReportComponentContainer(components=[report_component_from_dict(item) for item in list(payload.get("components") or [])])
+def report_cover_content_from_dict(payload: dict[str, Any]) -> ReportCoverContent:
+    return ReportCoverContent(
+        type=str(payload.get("type") or ""),
+        content=str(payload.get("content") or ""),
+        element_id=str(get_value(payload, ReportCoverContent, "element_id") or ""),
+    )
+
+
+def report_cover_to_dict(cover: ReportCover) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportCover, "title", cover.title)
+    _set_if(payload, ReportCover, "author", cover.author)
+    _set_if(payload, ReportCover, "date", cover.date)
+    _set_if(payload, ReportCover, "layout_template", cover.layout_template)
+    _set_if(payload, ReportCover, "image", cover.image)
+    if cover.contents:
+        set_value(payload, ReportCover, "contents", [report_cover_content_to_dict(item) for item in cover.contents])
+    return payload
+
+
+def report_cover_from_dict(payload: dict[str, Any]) -> ReportCover:
+    return ReportCover(
+        title=str(payload.get("title") or ""),
+        author=_as_optional_str(payload.get("author")),
+        date=_as_optional_str(payload.get("date")),
+        layout_template=_as_optional_str(get_value(payload, ReportCover, "layout_template")),
+        image=_as_optional_str(payload.get("image")),
+        contents=[report_cover_content_from_dict(item) for item in list(payload.get("contents") or [])],
+    )
+
+
+def report_signer_to_dict(signer: ReportSigner) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    set_value(payload, ReportSigner, "name", signer.name)
+    _set_if(payload, ReportSigner, "role", signer.role)
+    _set_if(payload, ReportSigner, "signature", signer.signature)
+    _set_if(payload, ReportSigner, "date", signer.date)
+    return payload
+
+
+def report_signer_from_dict(payload: dict[str, Any]) -> ReportSigner:
+    return ReportSigner(
+        name=str(payload.get("name") or ""),
+        role=_as_optional_str(payload.get("role")),
+        signature=_as_optional_str(payload.get("signature")),
+        date=_as_optional_str(payload.get("date")),
+    )
+
+
+def report_signature_page_to_dict(page: ReportSignaturePage) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    _set_if(payload, ReportSignaturePage, "title", page.title)
+    set_value(payload, ReportSignaturePage, "signers", [report_signer_to_dict(item) for item in page.signers])
+    _set_if(payload, ReportSignaturePage, "layout_template", page.layout_template)
+    return payload
+
+
+def report_signature_page_from_dict(payload: dict[str, Any]) -> ReportSignaturePage:
+    return ReportSignaturePage(
+        title=_as_optional_str(payload.get("title")),
+        signers=[report_signer_from_dict(item) for item in list(payload.get("signers") or [])],
+        layout_template=_as_optional_str(get_value(payload, ReportSignaturePage, "layout_template")),
+    )
 
 
 def report_slide_to_dict(slide: ReportSlide) -> dict[str, Any]:
@@ -1524,9 +1612,10 @@ def report_section_to_dict(section: ReportSection) -> dict[str, Any]:
     set_value(payload, ReportSection, "id", section.id)
     set_value(payload, ReportSection, "components", [report_component_to_dict(item) for item in section.components])
     _set_if(payload, ReportSection, "title", section.title)
-    _set_if(payload, ReportSection, "description", section.description)
-    if section.layout is not None:
-        set_value(payload, ReportSection, "layout", section.layout)
+    if section.order is not None:
+        set_value(payload, ReportSection, "order", section.order)
+    if section.summary is not None:
+        set_value(payload, ReportSection, "summary", report_summary_to_dict(section.summary))
     return payload
 
 
@@ -1545,21 +1634,23 @@ def report_section_from_dict(payload: dict[str, Any]) -> ReportSection:
 def report_catalog_to_dict(catalog: ReportCatalog) -> dict[str, Any]:
     payload: dict[str, Any] = {
         get_alias(ReportCatalog, "id"): catalog.id,
-        "title": catalog.title or catalog.name or catalog.id,
+        get_alias(ReportCatalog, "name"): catalog.name or catalog.title or catalog.id,
     }
-    _set_if(payload, ReportCatalog, "description", catalog.description)
+    if catalog.order is not None:
+        set_value(payload, ReportCatalog, "order", catalog.order)
     if catalog.sub_catalogs:
         set_value(payload, ReportCatalog, "sub_catalogs", [report_catalog_to_dict(item) for item in catalog.sub_catalogs])
-    set_value(payload, ReportCatalog, "sections", [report_section_to_dict(item) for item in catalog.sections])
+    if catalog.sections:
+        set_value(payload, ReportCatalog, "sections", [report_section_to_dict(item) for item in catalog.sections])
     return payload
 
 
 def report_catalog_from_dict(payload: dict[str, Any]) -> ReportCatalog:
     return ReportCatalog(
         id=str(get_value(payload, ReportCatalog, "id") or ""),
+        name=_as_optional_str(get_value(payload, ReportCatalog, "name") or payload.get("title")),
         title=_as_optional_str(payload.get("title")),
         description=_as_optional_str(payload.get("description")),
-        name=_as_optional_str(payload.get("name")),
         order=_as_optional_int(get_value(payload, ReportCatalog, "order")),
         sub_catalogs=[report_catalog_from_dict(item) for item in list(get_value(payload, ReportCatalog, "sub_catalogs") or [])],
         sections=[report_section_from_dict(item) for item in list(get_value(payload, ReportCatalog, "sections") or [])],

@@ -437,6 +437,7 @@
 - Schema 全量能力以 `report-dsl.schema.json` 为准
 - 但当前报告系统首版只启用其中一个正式子集：
   - 当前运行时仍生成 `structureType = flow` 的目录结构：`catalogs -> (subCatalogs)* -> sections`
+  - PPT/paged 扩展不得改变 flow 的 `Catalog/Section/Cover/SignaturePage/ReportSummary` 既有契约；flow 目录仍使用 `Catalog.name`
   - `structureType = paged` 的 `content -> slides/sections` 已进入 DSL 契约和核心模型，模板 paged 结构到 PPT DSL 的编译后续实现
   - 模板/实例态 `presentation.blocks[].type`：正式支持 `text`、`table`、`chart`，并兼容保留 `composite_table`
   - DSL 组件：继续允许系统生成的 `markdown` 组件承载章节说明；模板 presentation 不再直接使用 `markdown` block
