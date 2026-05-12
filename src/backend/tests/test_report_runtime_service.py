@@ -11,9 +11,13 @@ from backend.contexts.report_runtime.domain.models import (
     DynamicContext,
     MergeRowConfig,
     ParameterConfirmation,
+    ReportBasicInfo,
     ReportCatalog,
     ReportDsl,
+    ReportLayout,
     ReportSection,
+    ReportSlide,
+    ReportSlideSection,
     ReportSummary,
     TemplateInstance,
     TemplateInstanceCatalog,
@@ -30,8 +34,11 @@ from backend.contexts.report_runtime.domain.models import (
     TableDataProperties,
     TextComponent,
     TextDataProperties,
+    GridDefinition,
     chart_component_from_dict,
     chart_component_to_dict,
+    report_dsl_from_dict,
+    report_dsl_to_dict,
     table_component_from_dict,
     table_component_to_dict,
     template_instance_from_dict,
@@ -752,15 +759,14 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         payload = {
             "basicInfo": {
                 "id": "rpt_merge_rows",
-                "schemaVersion": "1.0.0",
-                "mode": "published",
+                "version": "1.0.0",
                 "status": "Success",
                 "parameters": {},
             },
             "catalogs": [
                 {
                     "id": "catalog_main",
-                    "name": "主目录",
+                    "title": "主目录",
                     "sections": [
                         {
                             "id": "section_main",
@@ -798,6 +804,77 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         del invalid_payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]["mergeRows"][0]["column"]
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_payload)
+
+    def test_report_dsl_schema_accepts_paged_content_and_rejects_mixed_content(self):
+        slide = {
+            "id": "slide_overview",
+            "title": "概览页",
+            "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
+            "components": [
+                {
+                    "id": "text_overview",
+                    "type": "text",
+                    "dataProperties": {"dataType": "static", "content": "分页报告概览"},
+                }
+            ],
+        }
+        section = {
+            "id": "section_overview",
+            "type": "section",
+            "title": "整体概览",
+            "slides": [slide],
+        }
+        _validate_report_dsl({"structureType": "paged", "basicInfo": {"id": "rpt_paged"}, "content": [slide]})
+        _validate_report_dsl({"structureType": "paged", "basicInfo": {"id": "rpt_paged"}, "content": [section]})
+
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl({"structureType": "paged", "basicInfo": {"id": "rpt_paged"}, "content": [slide, section]})
+
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(
+                {
+                    "structureType": "paged",
+                    "basicInfo": {"id": "rpt_paged"},
+                    "content": [slide],
+                    "catalogs": [],
+                }
+            )
+
+    def test_report_dsl_paged_domain_round_trip(self):
+        report = ReportDsl(
+            structure_type="paged",
+            basic_info=ReportBasicInfo(id="rpt_paged", schema_version="1.0.0", status="Success", name="PPT 报告"),
+            content=[
+                ReportSlideSection(
+                    id="chapter_overview",
+                    title="整体概览",
+                    slides=[
+                        ReportSlide(
+                            id="slide_overview",
+                            title="概览页",
+                            layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+                            components=[
+                                TextComponent(
+                                    id="text_overview",
+                                    type="text",
+                                    data_properties=TextDataProperties(data_type="static", content="分页报告概览"),
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+
+        payload = report_dsl_to_dict(report)
+        self.assertEqual(payload["structureType"], "paged")
+        self.assertIn("content", payload)
+        self.assertNotIn("catalogs", payload)
+        _validate_report_dsl(payload)
+
+        restored = report_dsl_from_dict(payload)
+        self.assertEqual(restored.structure_type, "paged")
+        self.assertEqual(restored.content[0].slides[0].id, "slide_overview")
 
     def test_schema_validates_supported_presentation_block_types(self):
         template_payload = {
@@ -1123,7 +1200,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             [
                 {
                     "id": "catalog_external",
-                    "name": "外部返回目录",
+                    "title": "外部返回目录",
                     "sections": [
                         {
                             "id": "section_external",
@@ -1212,7 +1289,6 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                             "dataProperties": {"dataType": "static", "content": "外部章节内容"},
                         }
                     ],
-                    "summary": {"id": "summary_section_external", "overview": "外部摘要"},
                 }
             ]
         )
@@ -1231,7 +1307,6 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(report.catalogs[0].sections[0].id, "section_external")
-        self.assertEqual(report.catalogs[0].sections[0].summary.overview, "外部摘要")
         self.assertEqual(gateway.requests[0]["url"], "https://example.test/section")
         self.assertEqual(gateway.requests[0]["payload"]["nodeType"], "section")
         self.assertEqual(gateway.requests[0]["payload"]["nodeId"], "section_custom")

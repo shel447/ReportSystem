@@ -8,6 +8,21 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-12 Report DSL single-root flow/paged 实现
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-12 Report DSL 支持 single-root flow/paged 结构”
+- 实现设计调整：
+  - `report_runtime.domain.models.ReportDsl` 新增 `structure_type/content`，flow 输出 `catalogs + layout`，paged 输出 `content`。
+  - 新增 `ReportSlide`、`ReportSlideSection` 与组件容器模型，支持 paged DSL from/to dict。
+  - `ReportCatalog` canonical 输出改为 `title`；模型层兼容读取旧 `name`，公开输出不再写 `name`。
+  - `ReportBasicInfo.schema_version` 内部兼容访问器映射到公开 `version` 字段。
+  - `ReportGenerateMeta.additional_infos` 内部字段映射到公开 `additionalInfo`，`ReportAdditionalInfo` 输出 `{type, content}`。
+  - `BuildReportDslService` 继续只编译 flow，但生成的 flow DSL 已满足新版 schema；paged 模板到 PPT DSL 的编译后续实现。
+- 验证要求：
+  - schema 覆盖 flow/paged 条件约束、paged content 不混放、旧 `columnKey/name/summary/additionalInfos` 失败。
+  - 后端测试覆盖 flow/paged ReportDsl round-trip、custom fragment 新字段校验、现有 flow 生成回归。
+
 ## 2026-05-12 PPT 分页模板结构核心模型
 
 - 背景问题：

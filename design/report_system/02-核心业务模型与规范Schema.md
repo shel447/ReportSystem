@@ -423,7 +423,11 @@
 
 - `Report DSL` 直接收编仓库中的正式 DSL Schema，不再手写第二套相似定义
 - 其结构必须严格等于 [schemas/report-dsl.schema.json](schemas/report-dsl.schema.json)
-- `catalogs -> (subCatalogs)* -> sections -> components` 是正式主体
+- `Report DSL` 使用单一 `Report` 根对象，顶层通过 `structureType` 区分结构：
+  - `flow` 或缺省：使用 `catalogs + layout`
+  - `paged`：使用 `content`
+- flow 的正式主体是 `catalogs -> (subCatalogs)* -> sections -> components`
+- paged/PPT 的正式主体是 `content`，其数组只能整体为 `Slide[]` 或整体为 `SlideSection[]`，不得混放
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 - `Report DSL` 需要保留足够的参数配置和大纲配置，以支持前台对已生成报告进行结构化编辑
@@ -432,7 +436,8 @@
 
 - Schema 全量能力以 `report-dsl.schema.json` 为准
 - 但当前报告系统首版只启用其中一个正式子集：
-  - 目录：`catalogs -> (subCatalogs)* -> sections`
+  - 当前运行时仍生成 `structureType = flow` 的目录结构：`catalogs -> (subCatalogs)* -> sections`
+  - `structureType = paged` 的 `content -> slides/sections` 已进入 DSL 契约和核心模型，模板 paged 结构到 PPT DSL 的编译后续实现
   - 模板/实例态 `presentation.blocks[].type`：正式支持 `text`、`table`、`chart`，并兼容保留 `composite_table`
   - DSL 组件：继续允许系统生成的 `markdown` 组件承载章节说明；模板 presentation 不再直接使用 `markdown` block
   - `CompositeTable` 已作为正式模板能力启用，但只通过 `presentation.blocks[].type = composite_table` 产出
@@ -456,6 +461,9 @@
   - 继续保留
   - 与 `outline.renderedRequirement` 并存
   - 二者允许不同值，前端和编译逻辑不得假定相等
+- `GenerateMeta.additionalInfo`
+  - 使用新版单数数组字段名 `additionalInfo`
+  - 每项结构为 `{type, content}`，不再输出旧 `additionalInfos/value`
 
 `GenerateMeta.outline.items[*]` 规则：
 
@@ -525,9 +533,27 @@
 
 ```json
 {
+  "structureType": "flow",
   "basicInfo": {},
   "catalogs": [],
-  "layout": {}
+  "layout": {},
+  "reportMeta": {}
+}
+```
+
+分页/PPT DSL 顶层示例：
+
+```json
+{
+  "structureType": "paged",
+  "basicInfo": {},
+  "content": [
+    {
+      "id": "slide_overview",
+      "layout": {"type": "grid", "grid": {"cols": 12, "rowHeight": 24}},
+      "components": []
+    }
+  ]
 }
 ```
 

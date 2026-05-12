@@ -1,118 +1,57 @@
 {
+  "structureType": "flow",
   "basicInfo": {
-    "id": "rpt_20260418_001",
-    "schemaVersion": "1.0.0",
-    "mode": "published",
-    "status": "Success",
-    "name": "总部网络运行日报",
-    "subTitle": "2026-04-18",
-    "description": "总部网络统一运行日报",
-    "templateId": "tpl_network_daily",
-    "templateName": "网络运行日报",
+    "id": "rpt_network_daily_001",
+    "name": "网络运行日报",
+    "title": "2026-05-12 网络运行日报",
+    "description": "面向网络运维中心的统一日报。",
     "version": "1.0.0",
-    "createDate": "2026-04-18",
-    "modifyDate": "2026-04-18",
-    "creator": "report-system",
-    "modifier": "report-system",
-    "category": "network_operations",
+    "status": "Success",
+    "createdAt": "2026-05-12T00:00:00Z",
+    "updatedAt": "2026-05-12T00:00:00Z",
     "parameters": {
-      "reportDate": {
-        "id": "reportDate",
-        "label": "报告日期",
-        "description": "日报统计日期。",
-        "inputType": "date",
-        "required": true,
-        "multi": false,
-        "interactionMode": "form",
-        "defaultValue": [
-          {
-            "label": "2026-04-18",
-            "value": "2026-04-18",
-            "query": "2026-04-18"
-          }
-        ],
-        "values": [
-          {
-            "label": "2026-04-18",
-            "value": "2026-04-18",
-            "query": "2026-04-18"
-          }
-        ],
-        "runtimeContext": {
-          "valueSource": "default",
-          "confirmed": true,
-          "confirmedAt": "2026-04-18T09:15:00Z"
-        }
-      },
       "scope": {
         "id": "scope",
         "label": "分析对象",
-        "description": "需要分析的网络对象。",
-        "inputType": "dynamic",
+        "inputType": "enum",
         "required": true,
-        "multi": true,
-        "interactionMode": "natural_language",
-        "source": "https://example.internal/api/network/scopes/options",
-        "options": [
-          {
-            "label": "总部网络",
-            "value": "hq-network",
-            "query": "scope_id = 'hq-network'"
-          },
-          {
-            "label": "分支网络",
-            "value": "branch-network",
-            "query": "scope_id = 'branch-network'"
-          }
-        ],
+        "multi": false,
+        "interactionMode": "form",
+        "priority": 0,
         "values": [
           {
             "label": "总部网络",
             "value": "hq-network",
             "query": "scope_id = 'hq-network'"
           }
-        ],
-        "runtimeContext": {
-          "valueSource": "dynamic_candidate",
-          "confirmed": true,
-          "confirmedAt": "2026-04-18T09:15:00Z",
-          "optionSource": "https://example.internal/api/network/scopes/options",
-          "optionsFetchedAt": "2026-04-18T09:11:00Z"
-        }
+        ]
       }
     }
-  },
-  "cover": {
-    "title": "总部网络运行日报",
-    "author": "报告系统",
-    "date": "2026-04-18"
   },
   "catalogs": [
     {
       "id": "catalog_overview",
-      "name": "运行概览",
-      "order": 1,
+      "title": "运行概览",
       "sections": [
         {
-          "id": "section_overview",
-          "title": "总体态势",
-          "order": 1,
+          "id": "section_summary",
+          "title": "总体运行态势",
           "components": [
             {
-              "id": "component_overview_markdown",
-              "type": "markdown",
+              "id": "component_summary_text",
+              "type": "text",
               "dataProperties": {
                 "dataType": "static",
-                "content": "## 总体结论\n\n总部网络整体稳定，关键指标正常。"
+                "title": "态势综述",
+                "content": "总部网络整体运行平稳。"
               }
             },
             {
-              "id": "block_summary_table",
+              "id": "component_metrics_table",
               "type": "table",
               "dataProperties": {
-                "dataType": "datasource",
-                "sourceId": "dataset_daily_summary",
-                "title": "关键指标明细",
+                "dataType": "static",
+                "title": "核心指标",
                 "columns": [
                   {
                     "key": "scope_name",
@@ -121,89 +60,60 @@
                   {
                     "key": "metric_name",
                     "title": "指标"
+                  },
+                  {
+                    "key": "metric_value",
+                    "title": "数值"
                   }
                 ],
                 "data": [
                   {
                     "scope_name": "总部网络",
-                    "metric_name": "可用率"
+                    "metric_name": "可用率",
+                    "metric_value": "99.98%"
                   },
                   {
                     "scope_name": "总部网络",
-                    "metric_name": "告警数"
-                  }
-                ],
-                "mergeColumns": [
-                  {
-                    "title": "范围指标",
-                    "columns": [
-                      "scope_name",
-                      "metric_name"
-                    ]
+                    "metric_name": "拥塞小区数",
+                    "metric_value": "2"
                   }
                 ],
                 "mergeRows": [
                   {
                     "startRowIndex": 0,
                     "rowSpan": 2,
-                    "mergedText": "总部网络",
-                    "column": "scope_name"
+                    "column": "scope_name",
+                    "mergedText": "总部网络"
                   }
                 ]
               }
             }
-          ],
-          "summary": {
-            "id": "summary_overview",
-            "overview": "总部网络整体稳定，重点异常已闭环。"
-          }
+          ]
         }
       ]
     }
   ],
   "summary": {
-    "id": "summary_report",
-    "overview": "总部网络整体稳定，重点异常已闭环，建议持续关注链路时延。"
+    "content": "报告已生成，共包含 1 个章节：总体运行态势"
   },
   "reportMeta": {
-    "section_overview": {
+    "section_summary": {
       "status": "Success",
-      "question": "请分析总部网络整体运行态势，并给出关键结论。",
-      "additionalInfos": [
+      "question": "分析总部网络总体运行态势。",
+      "summary": "总部网络整体运行平稳。",
+      "additionalInfo": [
         {
           "type": "SQL",
-          "value": "SELECT * FROM daily_summary WHERE scope_id = 'hq-network' AND stat_date = '2026-04-18'"
+          "content": "select * from network_metrics where scope_id = 'hq-network'"
         }
-      ],
-      "parameters": {},
-      "outline": {
-        "requirement": "分析{@scopeItem}在{@reportDateItem}的总体运行态势，并总结关键结论。",
-        "renderedRequirement": "分析总部网络在 2026-04-18 的总体运行态势，并总结关键结论。",
-        "items": [
-          {
-            "id": "scopeItem",
-            "sourceParameterId": "scope",
-            "value": [
-              "hq-network"
-            ]
-          },
-          {
-            "id": "reportDateItem",
-            "sourceParameterId": "reportDate",
-            "value": [
-              "2026-04-18"
-            ]
-          }
-        ]
-      }
+      ]
     }
   },
   "layout": {
     "type": "grid",
     "grid": {
       "cols": 12,
-      "rowHeight": 24,
-      "gap": 8
+      "rowHeight": 24
     }
   }
 }

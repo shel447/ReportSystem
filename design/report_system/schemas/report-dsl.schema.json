@@ -1,10 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/schemas/report.schema.json",
+  "$id": "https://example.com/schemas/report-dsl.schema.json",
   "title": "Report",
-  "description": "根据提供的 DSL 类型定义生成的 Report 根对象 JSON Schema",
+  "description": "报告 DSL JSON Schema。保持单一 Report 根对象，顶层公共属性复用；通过 structureType 区分瀑布流结构与分页/PPT结构。structureType 缺省时按 flow 兼容处理。",
   "type": "object",
   "properties": {
+    "structureType": {
+      "type": "string",
+      "enum": [
+        "flow",
+        "paged"
+      ],
+      "default": "flow",
+      "description": "报告结构类型。flow 表示瀑布流报告，使用 catalogs + layout；paged 表示分页/PPT报告，使用 content。未声明时按 flow 处理。"
+    },
     "basicInfo": {
       "$ref": "#/$defs/BasicInfo"
     },
@@ -18,28 +27,148 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Catalog"
-      }
+      },
+      "description": "瀑布流报告主体目录。structureType=flow 或缺省时使用。"
     },
     "summary": {
       "$ref": "#/$defs/ReportSummary"
     },
     "reportMeta": {
+      "$ref": "#/$defs/ReportMeta"
+    },
+    "layout": {
+      "$ref": "#/$defs/PageLayout"
+    },
+    "content": {
+      "$ref": "#/$defs/PagedContent",
+      "description": "分页/PPT报告主体内容。structureType=paged 时使用。可以是 Slide[] 或 SlideSection[]。"
+    }
+  },
+  "required": [
+    "basicInfo"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "structureType"
+        ],
+        "properties": {
+          "structureType": {
+            "const": "paged"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "content"
+        ],
+        "not": {
+          "required": [
+            "catalogs"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "catalogs",
+          "layout"
+        ],
+        "not": {
+          "required": [
+            "content"
+          ]
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "PagedContent": {
+      "description": "PPT 内容。允许没有显式分节时直接使用 Slide[]；有分节时使用 SlideSection[]。不建议在同一数组内混放 Slide 与 SlideSection。",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Slide"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SlideSection"
+          }
+        }
+      ]
+    },
+    "Slide": {
       "type": "object",
+      "description": "幻灯片单一页面。页面内组件直接复用 BIEngineComponent。",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/PageLayout"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BIEngineComponent"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "layout",
+        "components"
+      ],
+      "additionalProperties": false
+    },
+    "SlideSection": {
+      "type": "object",
+      "description": "幻灯片节/分组。用于表示 PPT 中的一组 slides。",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "section"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "slides": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Slide"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "slides"
+      ],
+      "additionalProperties": false
+    },
+    "ReportMeta": {
+      "type": "object",
+      "description": "报告生成元数据。key 通常通过目录、章节、页面或组件 id 匹配。",
       "additionalProperties": {
         "$ref": "#/$defs/GenerateMeta"
       }
     },
-    "layout": {
-      "$ref": "#/$defs/PageLayout"
-    }
-  },
-  "required": [
-    "basicInfo",
-    "catalogs",
-    "layout"
-  ],
-  "additionalProperties": false,
-  "$defs": {
     "Status": {
       "type": "string",
       "enum": [
@@ -78,6 +207,568 @@
         "API",
         "Knowledge"
       ]
+    },
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "ParameterValue": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "query": {
+          "$ref": "#/$defs/Scalar"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "Parameter": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputType": {
+          "type": "string",
+          "enum": [
+            "free_text",
+            "date",
+            "enum",
+            "dynamic"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "interactionMode": {
+          "type": "string",
+          "enum": [
+            "form",
+            "natural_language"
+          ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "runtimeContext": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "inputType",
+        "required",
+        "multi",
+        "interactionMode"
+      ],
+      "additionalProperties": false
+    },
+    "BasicInfo": {
+      "type": "object",
+      "description": "报告基础信息。保留 parameters 以支持已生成报告的结构化编辑。",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Parameter"
+          }
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "PageLayout": {
+      "type": "object",
+      "description": "页面布局信息。PPT 中每个 Slide 使用该布局；瀑布流报告可作为页面级默认布局。",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/LayoutType"
+        },
+        "grid": {
+          "type": "object",
+          "properties": {
+            "cols": {
+              "type": "number"
+            },
+            "rowHeight": {
+              "type": "number"
+            },
+            "gap": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "cols",
+            "rowHeight"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "GridLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "grid"
+        },
+        "gx": {
+          "type": "number"
+        },
+        "gy": {
+          "type": "number"
+        },
+        "gw": {
+          "type": "number"
+        },
+        "gh": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "gx",
+        "gy",
+        "gw",
+        "gh"
+      ],
+      "additionalProperties": false
+    },
+    "FlowLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "flow"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "AbsoluteLayout": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "absolute"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "w": {
+          "type": "number"
+        },
+        "h": {
+          "type": "number"
+        },
+        "zIndex": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "additionalProperties": false
+    },
+    "ComponentLayout": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/GridLayout"
+        },
+        {
+          "$ref": "#/$defs/FlowLayout"
+        },
+        {
+          "$ref": "#/$defs/AbsoluteLayout"
+        }
+      ]
+    },
+    "Cover": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BIEngineComponent"
+          }
+        }
+      },
+      "required": [
+        "components"
+      ],
+      "additionalProperties": false
+    },
+    "SignaturePage": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BIEngineComponent"
+          }
+        }
+      },
+      "required": [
+        "components"
+      ],
+      "additionalProperties": false
+    },
+    "ReportSummary": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BIEngineComponent"
+          }
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Catalog": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "subCatalogs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Catalog"
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Section"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "subCatalogs"
+          ]
+        },
+        {
+          "required": [
+            "sections"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "Section": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "layout": {
+          "$ref": "#/$defs/ComponentLayout"
+        },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BIEngineComponent"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "components"
+      ],
+      "additionalProperties": false
+    },
+    "GenerateMeta": {
+      "type": "object",
+      "description": "生成元数据。用于挂载 prompt、summary、SQL、API、Knowledge、参数和大纲等生成证据。",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/Status"
+        },
+        "question": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "sql": {
+          "type": "string"
+        },
+        "api": {
+          "type": "string"
+        },
+        "knowledge": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Parameter"
+          }
+        },
+        "outline": {
+          "$ref": "#/$defs/Outline"
+        },
+        "additionalInfo": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AdditionalInfo"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AdditionalInfo": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/AdditionalInfoType"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "Outline": {
+      "type": "object",
+      "properties": {
+        "requirement": {
+          "type": "string"
+        },
+        "renderedRequirement": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RequirementItem"
+          }
+        }
+      },
+      "required": [
+        "requirement",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "RequirementItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "search_target",
+            "search_condition",
+            "metric",
+            "time_range",
+            "filter",
+            "threshold",
+            "sort",
+            "free_text",
+            "parameter_ref"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceParameterId": {
+          "type": "string"
+        },
+        "widget": {
+          "type": "string",
+          "enum": [
+            "input",
+            "textarea",
+            "select",
+            "multi_select",
+            "date",
+            "date_range"
+          ]
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "parameter_ref",
+            "system_fill"
+          ]
+        },
+        "value": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Scalar"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "required"
+      ],
+      "additionalProperties": false
     },
     "ValueFormat": {
       "oneOf": [
@@ -301,121 +992,6 @@
       ],
       "additionalProperties": false
     },
-    "GridLayout": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "grid"
-        },
-        "gx": {
-          "type": "number"
-        },
-        "gy": {
-          "type": "number"
-        },
-        "gw": {
-          "type": "number"
-        },
-        "gh": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "gx",
-        "gy",
-        "gw",
-        "gh"
-      ],
-      "additionalProperties": false
-    },
-    "FlowLayout": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "flow"
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "additionalProperties": false
-    },
-    "AbsoluteLayout": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "absolute"
-        },
-        "x": {
-          "type": "number"
-        },
-        "y": {
-          "type": "number"
-        },
-        "w": {
-          "type": "number"
-        },
-        "h": {
-          "type": "number"
-        },
-        "zIndex": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "x",
-        "y",
-        "w",
-        "h"
-      ],
-      "additionalProperties": false
-    },
-    "ComponentLayout": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/GridLayout"
-        },
-        {
-          "$ref": "#/$defs/FlowLayout"
-        },
-        {
-          "$ref": "#/$defs/AbsoluteLayout"
-        }
-      ]
-    },
-    "PageLayout": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/LayoutType"
-        },
-        "grid": {
-          "type": "object",
-          "properties": {
-            "cols": {
-              "type": "number"
-            },
-            "rowHeight": {
-              "type": "number"
-            },
-            "gap": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "cols",
-            "rowHeight"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "additionalProperties": false
-    },
     "InteractionTrigger": {
       "type": "object",
       "properties": {
@@ -480,6 +1056,45 @@
       "required": [
         "trigger",
         "targets"
+      ],
+      "additionalProperties": false
+    },
+    "CommonDataProperty": {
+      "type": "object",
+      "properties": {
+        "dataType": {
+          "type": "string",
+          "enum": [
+            "static",
+            "datasource",
+            "api"
+          ]
+        },
+        "sourceId": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "GET",
+            "POST"
+          ]
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        },
+        "refreshInterval": {
+          "type": "number"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dataType"
       ],
       "additionalProperties": false
     },
@@ -612,233 +1227,39 @@
       ],
       "additionalProperties": false
     },
-    "LineSeries": {
+    "Series": {
       "type": "object",
       "properties": {
         "type": {
-          "const": "line"
+          "type": "string",
+          "enum": [
+            "line",
+            "bar",
+            "pie",
+            "scatter",
+            "radar",
+            "gauge",
+            "candlestick"
+          ]
         },
         "subType": {
-          "const": "area"
-        },
-        "encode": {
-          "type": "object",
-          "properties": {
-            "x": {
-              "type": "string"
-            },
-            "y": {
-              "type": "string"
-            },
-            "xAxisIndex": {
-              "type": "number"
-            },
-            "yAxisIndex": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "x",
-            "y"
-          ],
-          "additionalProperties": false
-        },
-        "name": {
           "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "encode",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "BarSeries": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "bar"
-        },
-        "subType": {
-          "const": "horizontal"
         },
         "encode": {
           "type": "object",
-          "properties": {
-            "x": {
-              "type": "string"
-            },
-            "y": {
-              "type": "string"
-            },
-            "xAxisIndex": {
-              "type": "number"
-            },
-            "yAxisIndex": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "x",
-            "y"
-          ],
-          "additionalProperties": false
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "encode",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "PieSeries": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "pie"
-        },
-        "subType": {
-          "const": "ring"
-        },
-        "encode": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "value"
-          ],
-          "additionalProperties": false
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "encode",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "ScatterSeries": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "scatter"
-        },
-        "encode": {
-          "type": "object",
-          "properties": {
-            "x": {
-              "type": "string"
-            },
-            "y": {
-              "type": "string"
-            },
-            "xAxisIndex": {
-              "type": "number"
-            },
-            "yAxisIndex": {
-              "type": "number"
-            }
-          },
-          "required": [
-            "x",
-            "y"
-          ],
-          "additionalProperties": false
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "encode",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "RadarSeries": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "radar"
-        },
-        "encode": {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "name",
-            "value"
-          ],
-          "additionalProperties": false
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "encode",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "GaugeSeries": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "gauge"
-        },
-        "encode": {
-          "type": "object",
-          "properties": {
-            "value": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "value"
-          ],
-          "additionalProperties": false
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
         },
         "name": {
           "type": "string"
         },
         "config": {
           "type": "object",
-          "properties": {
-            "min": {
-              "type": "number"
-            },
-            "max": {
-              "type": "number"
-            },
-            "unit": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false
+          "additionalProperties": true
         }
       },
       "required": [
@@ -847,72 +1268,6 @@
         "name"
       ],
       "additionalProperties": false
-    },
-    "CandlestickSeries": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "const": "candlestick"
-        },
-        "encode": {
-          "type": "object",
-          "properties": {
-            "open": {
-              "type": "string"
-            },
-            "close": {
-              "type": "string"
-            },
-            "low": {
-              "type": "string"
-            },
-            "high": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "open",
-            "close",
-            "low",
-            "high"
-          ],
-          "additionalProperties": false
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "encode",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "Series": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/LineSeries"
-        },
-        {
-          "$ref": "#/$defs/BarSeries"
-        },
-        {
-          "$ref": "#/$defs/PieSeries"
-        },
-        {
-          "$ref": "#/$defs/ScatterSeries"
-        },
-        {
-          "$ref": "#/$defs/RadarSeries"
-        },
-        {
-          "$ref": "#/$defs/GaugeSeries"
-        },
-        {
-          "$ref": "#/$defs/CandlestickSeries"
-        }
-      ]
     },
     "ChartOption": {
       "type": "object",
@@ -1035,43 +1390,7 @@
       "additionalProperties": false
     },
     "CompositeTableDataProperty": {
-      "type": "object",
-      "properties": {
-        "dataType": {
-          "type": "string",
-          "enum": [
-            "static",
-            "datasource",
-            "api"
-          ]
-        },
-        "sourceId": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        },
-        "method": {
-          "type": "string",
-          "enum": [
-            "GET",
-            "POST"
-          ]
-        },
-        "autoRefresh": {
-          "type": "boolean"
-        },
-        "refreshInterval": {
-          "type": "number"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "dataType"
-      ],
-      "additionalProperties": false
+      "$ref": "#/$defs/CommonDataProperty"
     },
     "TextComponent": {
       "type": "object",
@@ -1311,502 +1630,6 @@
           "$ref": "#/$defs/CompositeTable"
         }
       ]
-    },
-    "ReportSummary": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "overview": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "overview"
-      ],
-      "additionalProperties": false
-    },
-    "Section": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "title": {
-          "type": "string"
-        },
-        "order": {
-          "type": "number"
-        },
-        "components": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/BIEngineComponent"
-          }
-        },
-        "summary": {
-          "$ref": "#/$defs/ReportSummary"
-        }
-      },
-      "required": [
-        "id",
-        "components"
-      ],
-      "additionalProperties": false
-    },
-    "Catalog": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "order": {
-          "type": "number"
-        },
-        "subCatalogs": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Catalog"
-          }
-        },
-        "sections": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Section"
-          }
-        }
-      },
-      "required": [
-        "id",
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "CoverContent": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "image",
-            "text"
-          ]
-        },
-        "content": {
-          "type": "string"
-        },
-        "elementId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "content",
-        "elementId"
-      ],
-      "additionalProperties": false
-    },
-    "Cover": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string"
-        },
-        "author": {
-          "type": "string"
-        },
-        "date": {
-          "type": "string"
-        },
-        "layoutTemplate": {
-          "type": "string"
-        },
-        "image": {
-          "type": "string"
-        },
-        "contents": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/CoverContent"
-          }
-        }
-      },
-      "required": [
-        "title"
-      ],
-      "additionalProperties": false
-    },
-    "Signer": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "role": {
-          "type": "string"
-        },
-        "signature": {
-          "type": "string"
-        },
-        "date": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "additionalProperties": false
-    },
-    "SignaturePage": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string"
-        },
-        "signers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Signer"
-          }
-        },
-        "layoutTemplate": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "signers"
-      ],
-      "additionalProperties": false
-    },
-    "AdditionalInfo": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/AdditionalInfoType"
-        },
-        "name": {
-          "type": "string"
-        },
-        "value": {
-          "type": "string"
-        },
-        "appendix": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type",
-        "value"
-      ],
-      "additionalProperties": false
-    },
-    "Scalar": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "integer"
-        },
-        {
-          "type": "boolean"
-        }
-      ]
-    },
-    "ParameterValue": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "label",
-        "value",
-        "query"
-      ],
-      "properties": {
-        "label": {
-          "$ref": "#/$defs/Scalar"
-        },
-        "value": {
-          "$ref": "#/$defs/Scalar"
-        },
-        "query": {
-          "$ref": "#/$defs/Scalar"
-        }
-      }
-    },
-    "ParameterRuntimeContext": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "valueSource": {
-          "type": "string",
-          "enum": [
-            "user_input",
-            "default",
-            "dynamic_candidate",
-            "parameter_ref",
-            "system_fill"
-          ]
-        },
-        "queryContext": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "confirmed": {
-          "type": "boolean"
-        },
-        "confirmedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "optionSource": {
-          "type": "string"
-        },
-        "optionsFetchedAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      }
-    },
-    "Parameter": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "label",
-        "inputType",
-        "required",
-        "multi",
-        "interactionMode"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "inputType": {
-          "type": "string",
-          "enum": [
-            "free_text",
-            "date",
-            "enum",
-            "dynamic"
-          ]
-        },
-        "required": {
-          "type": "boolean"
-        },
-        "multi": {
-          "type": "boolean"
-        },
-        "interactionMode": {
-          "type": "string",
-          "enum": [
-            "form",
-            "natural_language"
-          ]
-        },
-        "placeholder": {
-          "type": "string"
-        },
-        "defaultValue": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
-        "options": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
-        "values": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
-        "runtimeContext": {
-          "$ref": "#/$defs/ParameterRuntimeContext"
-        },
-        "source": {
-          "type": "string"
-        }
-      }
-    },
-    "OutlineItem": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "sourceParameterId",
-        "value"
-      ],
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "sourceParameterId": {
-          "type": "string"
-        },
-        "value": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Scalar"
-          }
-        }
-      }
-    },
-    "GenerateOutline": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "requirement",
-        "renderedRequirement",
-        "items"
-      ],
-      "properties": {
-        "requirement": {
-          "type": "string"
-        },
-        "renderedRequirement": {
-          "type": "string"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/OutlineItem"
-          }
-        }
-      }
-    },
-    "GenerateMeta": {
-      "type": "object",
-      "properties": {
-        "status": {
-          "$ref": "#/$defs/Status"
-        },
-        "question": {
-          "type": "string"
-        },
-        "parameters": {
-          "type": "object",
-          "patternProperties": {
-            "^[a-z][A-Za-z0-9]*$": {
-              "$ref": "#/$defs/Parameter"
-            }
-          },
-          "additionalProperties": false
-        },
-        "outline": {
-          "$ref": "#/$defs/GenerateOutline"
-        },
-        "additionalInfos": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AdditionalInfo"
-          }
-        }
-      },
-      "required": [
-        "status",
-        "question",
-        "parameters",
-        "outline"
-      ],
-      "additionalProperties": false
-    },
-    "BasicInfo": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "schemaVersion": {
-          "const": "1.0.0"
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "draft",
-            "published"
-          ]
-        },
-        "status": {
-          "$ref": "#/$defs/Status"
-        },
-        "name": {
-          "type": "string"
-        },
-        "subTitle": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "templateId": {
-          "type": "string"
-        },
-        "templateName": {
-          "type": "string"
-        },
-        "remark": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        },
-        "createDate": {
-          "type": "string"
-        },
-        "modifyDate": {
-          "type": "string"
-        },
-        "creator": {
-          "type": "string"
-        },
-        "modifier": {
-          "type": "string"
-        },
-        "header": {
-          "type": "string"
-        },
-        "footer": {
-          "type": "string"
-        },
-        "category": {
-          "type": "string"
-        },
-        "parameters": {
-          "type": "object",
-          "patternProperties": {
-            "^[a-z][A-Za-z0-9]*$": {
-              "$ref": "#/$defs/Parameter"
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "required": [
-        "id",
-        "schemaVersion",
-        "mode",
-        "parameters"
-      ],
-      "additionalProperties": false
     }
   }
 }

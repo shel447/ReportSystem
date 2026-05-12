@@ -1,0 +1,43 @@
+{
+  "structureType": "paged",
+  "basicInfo": {
+    "id": "rpt_network_ppt_001",
+    "name": "网络运行日报 PPT",
+    "title": "2026-05-12 网络运行日报",
+    "version": "1.0.0",
+    "status": "Success"
+  },
+  "content": [
+    {
+      "id": "chapter_overview",
+      "type": "section",
+      "title": "整体概览",
+      "slides": [
+        {
+          "id": "slide_kpi_overview",
+          "title": "核心指标概览",
+          "layout": {
+            "type": "grid",
+            "grid": {
+              "cols": 12,
+              "rowHeight": 24
+            }
+          },
+          "components": [
+            {
+              "id": "text_overview",
+              "type": "text",
+              "dataProperties": {
+                "dataType": "static",
+                "content": "总部网络整体运行平稳。"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "content": "分页报告已生成。"
+  }
+}

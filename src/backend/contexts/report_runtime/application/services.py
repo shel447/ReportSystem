@@ -156,7 +156,7 @@ class ReportRuntimeService:
             source_conversation_id=source_conversation_id,
             source_chat_id=source_chat_id,
             status=resource_status,
-            schema_version=report.basic_info.schema_version,
+            schema_version=report.basic_info.schema_version or "1.0.0",
             report=report,
         )
         template_instance.status = "completed"
@@ -308,25 +308,24 @@ def build_report_dsl(
     report_name = _build_report_name(template=template, template_instance=template_instance)
     today = datetime.now(timezone.utc).date().isoformat()
     return ReportDsl(
+        structure_type="flow",
         basic_info=ReportBasicInfo(
             id=report_id,
             schema_version="1.0.0",
-            mode="published",
             status="Success",
             name=report_name,
-            sub_title=today,
+            title=today,
             description=template.description,
             template_id=template.id,
             template_name=template.name,
-            version="1.0.0",
-            create_date=today,
-            modify_date=today,
+            created_at=f"{today}T00:00:00Z",
+            updated_at=f"{today}T00:00:00Z",
             creator="report-system",
             modifier="report-system",
             category=template.category,
         ),
         catalogs=catalogs,
-        summary=ReportSummary(id="summary_report", overview=_build_report_summary(catalogs)),
+        summary=ReportSummary(content=_build_report_summary(catalogs)),
         report_meta=report_meta,
         layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
     )
@@ -382,20 +381,17 @@ def _build_report_catalog(
                 id=section.id,
                 title=_section_title(section),
                 components=components,
-                summary=ReportSummary(
-                    id=f"summary_{section.id}",
-                    overview=summary,
-                ),
             )
         )
         report_meta[section.id] = ReportGenerateMeta(
             status="Success",
             question=section.outline.rendered_requirement or section.outline.requirement or "",
+            summary=summary,
             additional_infos=additional_infos,
         )
     return ReportCatalog(
         id=catalog.id,
-        name=catalog.rendered_title or catalog.title or catalog.id,
+        title=catalog.rendered_title or catalog.title or catalog.id,
         sub_catalogs=sub_catalogs,
         sections=sections,
     )
@@ -497,7 +493,7 @@ def _build_section_components(section) -> tuple[list[Any], str, list[ReportAddit
     for binding in list(section.runtime_context.bindings or []):
         resolved_query = str(binding.resolved_query or "").strip()
         if resolved_query:
-            additional_infos.append(ReportAdditionalInfo(type="SQL", value=resolved_query))
+            additional_infos.append(ReportAdditionalInfo(type="SQL", content=resolved_query))
 
     # 当前运行时保持确定性生成：把正式诉求状态编译成文稿区块，
     # 并把已解析的执行绑定作为证据写入附加信息。

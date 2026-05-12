@@ -8,6 +8,27 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-12 Report DSL 支持 single-root flow/paged 结构
+
+- 变更动机：
+  - 报告模板已支持 PPT 分页结构，最终 Report DSL 也需要表达分页/PPT 报告，而不是只支持瀑布流 `catalogs`。
+  - DSL 顶层公共信息应复用同一 `Report` 根对象，避免为 flow 与 paged 维护两套相似 schema。
+- 设计决策：
+  - `Report.structureType` 新增 `flow/paged`，缺省为 `flow`。
+  - `flow` 使用 `catalogs + layout`，禁止 `content`。
+  - `paged` 使用 `content`，禁止 `catalogs`；`content` 只能整体为 `Slide[]` 或整体为 `SlideSection[]`。
+  - `Catalog` 统一使用 `title`，不再使用旧 `name`。
+  - `Section` 不再输出旧 `summary`；章节摘要进入 `reportMeta[sectionId].summary`。
+  - `GenerateMeta.additionalInfo` 使用新版单数字段名，每项为 `{type, content}`。
+  - `cover/signaturePage/summary` 改为组件化结构，适配 flow 与 paged 共用的报告页能力。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/examples/report-dsl-paged.example.json`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+  - `report_system/04-接口契约.md`
+
 ## 2026-05-12 报告模板支持 PPT 分页结构
 
 - 变更动机：

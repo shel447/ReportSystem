@@ -97,7 +97,7 @@ class ReportsRouterTests(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["reportId"], "rpt_001")
         self.assertEqual(payload["answer"]["templateInstance"]["id"], "ti_001")
-        self.assertEqual(payload["answer"]["report"]["basicInfo"]["schemaVersion"], "1.0.0")
+        self.assertEqual(payload["answer"]["report"]["basicInfo"]["version"], "1.0.0")
 
     def test_download_report_document_uses_report_scoped_download(self):
         with TemporaryDirectory() as temp_dir:

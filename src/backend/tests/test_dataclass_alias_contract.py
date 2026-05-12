@@ -56,11 +56,13 @@ class DataclassAliasContractTests(unittest.TestCase):
         self.assertEqual("captureStage", template_instance_aliases["capture_stage"])
         self.assertEqual("structureType", template_instance_aliases["structure_type"])
         self.assertEqual("parameterConfirmation", template_instance_aliases["parameter_confirmation"])
+        self.assertEqual("structureType", report_dsl_aliases["structure_type"])
         self.assertEqual("basicInfo", report_dsl_aliases["basic_info"])
+        self.assertEqual("signaturePage", report_dsl_aliases["signature_page"])
         self.assertEqual("reportMeta", report_dsl_aliases["report_meta"])
-        self.assertEqual("schemaVersion", report_basic_info_aliases["schema_version"])
-        self.assertEqual("subTitle", report_basic_info_aliases["sub_title"])
-        self.assertEqual("templateId", report_basic_info_aliases["template_id"])
+        self.assertEqual("version", report_basic_info_aliases["schema_version"])
+        self.assertEqual("createdAt", report_basic_info_aliases["created_at"])
+        self.assertEqual("updatedAt", report_basic_info_aliases["updated_at"])
 
     def test_public_serializers_keep_lower_camel_case_contract(self):
         template = ReportTemplate(
