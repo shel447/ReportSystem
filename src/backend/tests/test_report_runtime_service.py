@@ -1199,6 +1199,74 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(dynamic.url, "https://example.test/section")
         self.assertEqual(dynamic_definition_to_dict(dynamic), {"type": "custom", "url": "https://example.test/section"})
 
+    def test_dynamic_custom_v6_paged_schema_contract(self):
+        payload = {
+            "id": "tpl_paged_custom_dynamic",
+            "category": "network_ops",
+            "name": "分页外部内容模板",
+            "description": "用于校验 dynamic custom v6 分页契约。",
+            "schemaVersion": "template.v3",
+            "structureType": "paged",
+            "parameters": [
+                {
+                    "id": "scope",
+                    "label": "范围",
+                    "inputType": "enum",
+                    "required": True,
+                    "multi": False,
+                    "interactionMode": "form",
+                    "options": [{"label": "总部", "value": "hq", "query": "scope = 'hq'"}],
+                }
+            ],
+            "chapters": [
+                {
+                    "id": "chapter_overview",
+                    "title": "整体概览",
+                    "slides": [
+                        {
+                            "id": "slide_custom",
+                            "title": "外部页面",
+                            "dynamic": {"type": "custom", "url": "https://example.test/slide"},
+                            "sections": [],
+                        },
+                        {
+                            "id": "slide_mixed",
+                            "title": "混合页面",
+                            "sections": [
+                                {
+                                    "id": "section_custom",
+                                    "dynamic": {"type": "custom", "url": "https://example.test/components"},
+                                    "outline": {"requirement": "生成页面内组件。", "items": []},
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+        validate_report_template(payload)
+
+        invalid_chapter_custom = copy.deepcopy(payload)
+        invalid_chapter_custom["chapters"][0]["dynamic"] = {
+            "type": "custom",
+            "url": "https://example.test/chapter",
+        }
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_chapter_custom)
+
+        chapter_foreach = copy.deepcopy(payload)
+        chapter_foreach["chapters"][0]["dynamic"] = {
+            "type": "foreach",
+            "parameterId": "scope",
+            "as": "currentScope",
+        }
+        validate_report_template(chapter_foreach)
+
+        invalid_section_without_outline = copy.deepcopy(payload)
+        del invalid_section_without_outline["chapters"][0]["slides"][1]["sections"][0]["outline"]
+        with self.assertRaises(ValueError):
+            validate_report_template(invalid_section_without_outline)
+
     def test_dynamic_custom_context_round_trip(self):
         instance = _valid_template_instance()
         instance.catalogs = [
@@ -1223,6 +1291,42 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         restored = template_instance_from_dict(payload)
         self.assertEqual(restored.catalogs[0].dynamic_context.type, "custom")
         self.assertEqual(restored.catalogs[0].dynamic_context.url, "https://example.test/catalog")
+
+    def test_dynamic_custom_slide_context_round_trip(self):
+        instance = _valid_template_instance()
+        instance.structure_type = "paged"
+        instance.catalogs = []
+        instance.chapters = [
+            TemplateInstanceChapter(
+                id="chapter_overview",
+                title="整体概览",
+                slides=[
+                    TemplateInstanceSlide(
+                        id="slide_custom",
+                        title="外部页面",
+                        dynamic_context=DynamicContext(
+                            type="custom",
+                            url="https://example.test/slide",
+                            node_type="slide",
+                        ),
+                        sections=[],
+                    )
+                ],
+            )
+        ]
+        payload = template_instance_to_dict(instance)
+        payload["createdAt"] = "2026-05-09T00:00:00Z"
+        payload["updatedAt"] = "2026-05-09T00:00:00Z"
+        payload["template"]["createdAt"] = "2026-05-09T00:00:00Z"
+        payload["template"]["updatedAt"] = "2026-05-09T00:00:00Z"
+        validate_template_instance(payload)
+
+        dynamic_context = payload["chapters"][0]["slides"][0]["dynamicContext"]
+        self.assertEqual(dynamic_context["type"], "custom")
+        self.assertEqual(dynamic_context["url"], "https://example.test/slide")
+        self.assertEqual(dynamic_context["nodeType"], "slide")
+        restored = template_instance_from_dict(payload)
+        self.assertEqual(restored.chapters[0].slides[0].dynamic_context.node_type, "slide")
 
     def test_build_report_dsl_uses_custom_catalog_response(self):
         instance = _valid_template_instance()

@@ -339,7 +339,7 @@
       }
     },
     "DynamicDefinition": {
-      "description": "目录或章节的动态展开定义。type=foreach 表示同一模板按参数值重复展开；type=foreachCase 表示按参数值循环并为不同取值使用不同分支内容；type=custom 表示运行时调用外部 URL 获取目录或章节的 Report DSL 片段。",
+      "description": "目录、章节或分页页面的动态展开定义。type=foreach 表示同一模板按参数值重复展开；type=foreachCase 表示按参数值循环并为不同取值使用不同分支内容；type=custom 表示运行时调用外部 URL 获取 DSL 片段。flow catalog 返回 Catalog，flow section 返回 Section，paged slide 返回 Slide，paged slide 内 section 返回 Components 或可转换的 Section。",
       "oneOf": [
         {
           "type": "object",
@@ -406,7 +406,7 @@
             "url": {
               "type": "string",
               "minLength": 1,
-              "description": "获取当前 custom 目录或章节内容的 HTTP POST URL。"
+              "description": "获取当前 custom 目录、章节或分页页面内容的 HTTP POST URL。"
             }
           }
         }
@@ -1103,7 +1103,8 @@
           "$ref": "#/$defs/ScopedParameters"
         },
         "dynamic": {
-          "$ref": "#/$defs/DynamicDefinition"
+          "$ref": "#/$defs/DynamicDefinition",
+          "description": "页面动态展开定义。type=custom 时外部接口返回 Report DSL Slide；sections 可为空。"
         },
         "layout": {
           "$ref": "#/$defs/SlideLayout"
@@ -1142,7 +1143,7 @@
           "$ref": "#/$defs/ScopedParameters"
         },
         "dynamic": {
-          "$ref": "#/$defs/DynamicDefinition"
+          "$ref": "#/$defs/ChapterDynamicDefinition"
         },
         "slides": {
           "type": "array",
@@ -1205,6 +1206,62 @@
           "format": "date-time"
         }
       }
+    },
+    "ChapterDynamicDefinition": {
+      "description": "分页章节的动态展开定义。Chapter 级只允许 foreach/foreachCase 这类结构展开；custom 外部 DSL 返回类型未定义，因此不允许配置。",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "parameterId",
+            "as"
+          ],
+          "properties": {
+            "type": {
+              "const": "foreach"
+            },
+            "parameterId": {
+              "type": "string"
+            },
+            "as": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "parameterId",
+            "as",
+            "cases"
+          ],
+          "properties": {
+            "type": {
+              "const": "foreachCase"
+            },
+            "parameterId": {
+              "type": "string"
+            },
+            "as": {
+              "type": "string"
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ForeachCaseDefinition"
+              },
+              "minItems": 1
+            },
+            "defaultCase": {
+              "$ref": "#/$defs/ForeachCaseBranch"
+            }
+          }
+        }
+      ]
     }
   }
 }

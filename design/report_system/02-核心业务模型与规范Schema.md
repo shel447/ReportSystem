@@ -39,8 +39,8 @@
 - 参数动态候选项来源统一用 `source` 描述，类型是 URL 字符串；不再把方法、请求体、响应体格式散落在模板中
 - 所有参数都必须显式声明 `multi`；候选值来源由是否存在 `source` 决定
 - flow 模板支持多层目录：每个 `catalog` 下可以同时存在 `subCatalogs` 与 `sections`
-- paged 模板的 `ChapterDefinition` 支持 `parameters/dynamic`，`SlideDefinition` 支持 `parameters/dynamic/layout`；其中 `sections` 继续复用现有 `SectionDefinition`
-- 目录和章节的动态展开统一由 `dynamic` 承载；`dynamic.type` 支持 `foreach`、`foreachCase`、`custom`
+- paged 模板的 `ChapterDefinition` 支持 `parameters/dynamic`，但 `dynamic` 仅允许 `foreach/foreachCase`；`SlideDefinition` 支持 `parameters/dynamic/layout`，其中 `dynamic.custom` 返回 Report DSL `Slide`，`sections` 继续复用现有 `SectionDefinition`
+- 目录、章节和分页页面的动态展开统一由 `dynamic` 承载；`dynamic.type` 支持 `foreach`、`foreachCase`、`custom`，但 Chapter 级不支持 `custom`
 - `catalog.title` 支持在一句话目录标题中直接使用参数槽位；目录标题渲染不经过单独的大模型生成任务。`section` 不再定义标题，只保留诉求定义。
 - 参数可定义在模板根部、目录或章节上；参数 `id` 在同一模板内必须全局唯一
 - `section` 中保留 `outline.requirement + outline.items`，不要把模板层的诉求骨架改写成 `requirement.text`
@@ -276,10 +276,13 @@
 - `foreachCase` 的目录级 case 可定义 `subCatalogs` 和/或 `sections`；章节级 case 通过 `sections` 定义章节变体，用于替换当前占位 section。
 - 多选参数会按用户选择值逐个展开；多个值命中同一 case 时，每个值仍生成一次，只是复用同一 case 内容模板。
 - 未命中 case 时使用 `defaultCase`；没有 `defaultCase` 时，该参数值不生成内容。
-- `dynamic.type = custom` 表示由外部服务生成当前目录或章节内容，定义为 `{ "type": "custom", "url": "..." }`。
-- 目录级 `custom` 请求 `url` 后必须返回完整 Report DSL `Catalog` 片段；请求体的 `prompt` 使用目录实例的 `renderedTitle`。
-- 章节级 `custom` 必须保留 `outline`，用于用户编辑大纲；请求 `url` 后必须返回完整 Report DSL `Section` 片段；请求体的 `prompt` 使用编辑后的 `outline.renderedRequirement`。
-- `custom` 请求体的 `parameters` 为当前节点可见参数，按 `parameterId` 分组，值保持 `ParameterValue` 结构。
+- `dynamic.type = custom` 表示由外部服务生成当前目录、章节、分页页面或页面内组件内容，模板定义保持 `{ "type": "custom", "url": "..." }`。
+- flow 目录级 `custom` 返回 `meta.dslType = "Catalog"`，`dsl` 是完整 Report DSL `Catalog` 片段。
+- flow 章节级 `custom` 必须保留 `outline`，用于用户编辑大纲；返回 `meta.dslType = "Section"`，`dsl` 是完整 Report DSL `Section` 片段。
+- paged slide 级 `custom` 返回 `meta.dslType = "Slide"`，`dsl` 是完整 Report DSL `Slide` 片段；模板中的 `sections` 可为空数组。
+- paged slide 内 section 级 `custom` 必须保留 `outline`；推荐返回 `meta.dslType = "Components"`，也允许返回 `meta.dslType = "Section"` 后转换为组件集合并入当前 slide。
+- Chapter 级不支持 `custom`，只允许 `foreach/foreachCase` 这类结构展开。
+- v6 `custom` 请求体由 `parameters/templateNode/context` 组成；`parameters` 为当前节点可见参数，按 `parameterId` 分组，值保持 `ParameterValue` 结构；旧 `nodeType/nodeId/prompt` 不再作为正式协议。
 - 新 schema 不再接受旧 `foreach` 字段；实现层可兼容读取旧字段并输出 canonical `dynamic`。
 
 结论：

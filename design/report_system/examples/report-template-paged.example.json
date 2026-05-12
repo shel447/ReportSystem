@@ -73,6 +73,37 @@
               }
             }
           ]
+        },
+        {
+          "id": "slide_external_overview",
+          "title": "外部生成概览页",
+          "dynamic": {
+            "type": "custom",
+            "url": "https://report-content.example.com/api/report/custom/slides/network-overview"
+          },
+          "layout": {
+            "layoutId": "title_content",
+            "variant": "external_slide",
+            "notes": "custom slide 可由外部服务返回完整 Report DSL Slide。"
+          },
+          "sections": []
+        },
+        {
+          "id": "slide_external_section",
+          "title": "外部组件页",
+          "sections": [
+            {
+              "id": "section_external_components",
+              "dynamic": {
+                "type": "custom",
+                "url": "https://report-content.example.com/api/report/custom/slide-sections/network-summary"
+              },
+              "outline": {
+                "requirement": "基于{$report_date}的网络运行数据生成可并入当前页面的组件。",
+                "items": []
+              }
+            }
+          ]
         }
       ]
     },

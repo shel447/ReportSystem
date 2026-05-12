@@ -426,8 +426,10 @@
           "type": "string",
           "enum": [
             "catalog",
-            "section"
-          ]
+            "section",
+            "slide"
+          ],
+          "description": "custom 动态节点的实例态节点类型。flow 支持 catalog/section；paged 支持 slide/section。"
         }
       },
       "allOf": [
@@ -519,142 +521,279 @@
         "sourceRef"
       ],
       "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
         "sourceType": {
           "type": "string",
-          "enum": ["sql", "api", "llm", "compose"]
+          "enum": [
+            "sql",
+            "api",
+            "llm",
+            "compose"
+          ]
         },
-        "sourceRef": { "type": "string" },
+        "sourceRef": {
+          "type": "string"
+        },
         "dependsOn": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "description": { "type": "string" }
+        "description": {
+          "type": "string"
+        }
       }
     },
     "TemplateInstanceSectionContent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["presentation"],
+      "required": [
+        "presentation"
+      ],
       "properties": {
         "datasets": {
           "type": "array",
-          "items": { "$ref": "#/$defs/DatasetDefinition" }
+          "items": {
+            "$ref": "#/$defs/DatasetDefinition"
+          }
         },
-        "presentation": { "$ref": "#/$defs/TemplateInstancePresentationDefinition" }
+        "presentation": {
+          "$ref": "#/$defs/TemplateInstancePresentationDefinition"
+        }
       }
     },
     "TemplateInstancePresentationDefinition": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "blocks"],
+      "required": [
+        "kind",
+        "blocks"
+      ],
       "properties": {
         "kind": {
           "type": "string",
-          "enum": ["text", "table", "chart", "mixed"]
+          "enum": [
+            "text",
+            "table",
+            "chart",
+            "mixed"
+          ]
         },
         "blocks": {
           "type": "array",
-          "items": { "$ref": "#/$defs/TemplateInstancePresentationBlock" }
+          "items": {
+            "$ref": "#/$defs/TemplateInstancePresentationBlock"
+          }
         }
       }
     },
     "TemplateInstancePresentationBlock": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "type"],
+      "required": [
+        "id",
+        "type"
+      ],
       "properties": {
-        "id": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
         "type": {
           "type": "string",
-          "enum": ["text", "table", "chart", "composite_table"]
+          "enum": [
+            "text",
+            "table",
+            "chart",
+            "composite_table"
+          ]
         },
-        "title": { "type": "string" },
-        "datasetId": { "type": "string" },
+        "title": {
+          "type": "string"
+        },
+        "datasetId": {
+          "type": "string"
+        },
         "properties": {
           "$ref": "./report-template.schema.json#/$defs/PresentationProperty",
           "description": "实例态展示属性，复用模板 PresentationProperty；text 使用 template/content，chart 使用 preferredType，普通 table 使用 columns/showTitle/defaultDisplayRows/mergeColumns/mergeRows。"
         },
-        "description": { "type": "string" },
+        "description": {
+          "type": "string"
+        },
         "parts": {
           "type": "array",
-          "items": { "$ref": "#/$defs/TemplateInstanceCompositeTablePart" },
+          "items": {
+            "$ref": "#/$defs/TemplateInstanceCompositeTablePart"
+          },
           "minItems": 1
         }
       },
       "allOf": [
         {
-          "if": { "properties": { "type": { "const": "composite_table" } } },
-          "then": { "required": ["parts"] }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "composite_table"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "parts"
+            ]
+          }
         },
         {
-          "if": { "properties": { "type": { "const": "text" } } },
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            }
+          },
           "then": {
-            "required": ["properties"],
+            "required": [
+              "properties"
+            ],
             "properties": {
               "properties": {
-                "required": ["template", "content"]
+                "required": [
+                  "template",
+                  "content"
+                ]
               }
             }
           }
         },
         {
-          "if": { "properties": { "type": { "const": "table" } } },
-          "then": { "required": ["datasetId"] }
+          "if": {
+            "properties": {
+              "type": {
+                "const": "table"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "datasetId"
+            ]
+          }
         }
       ]
     },
     "TemplateInstanceCompositeTablePart": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "sourceType", "runtimeContext"],
+      "required": [
+        "id",
+        "title",
+        "sourceType",
+        "runtimeContext"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
         "sourceType": {
           "type": "string",
-          "enum": ["query", "summary"]
+          "enum": [
+            "query",
+            "summary"
+          ]
         },
-        "datasetId": { "type": "string" },
-        "summarySpec": { "$ref": "./report-template.schema.json#/$defs/SummaryTableSpec" },
+        "datasetId": {
+          "type": "string"
+        },
+        "summarySpec": {
+          "$ref": "./report-template.schema.json#/$defs/SummaryTableSpec"
+        },
         "tableLayout": {
           "$ref": "./report-template.schema.json#/$defs/CompositeTablePartLayout",
           "description": "实例态复合表 part 布局，复用模板 CompositeTablePartLayout，包含 columns/showTitle/defaultDisplayRows/mergeColumns/mergeRows 等展示属性。"
         },
-        "runtimeContext": { "$ref": "#/$defs/PartRuntimeContext" }
+        "runtimeContext": {
+          "$ref": "#/$defs/PartRuntimeContext"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "sourceType": { "const": "query" } } },
-          "then": { "required": ["datasetId"] }
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "query"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "datasetId"
+            ]
+          }
         },
         {
-          "if": { "properties": { "sourceType": { "const": "summary" } } },
-          "then": { "required": ["summarySpec"] }
+          "if": {
+            "properties": {
+              "sourceType": {
+                "const": "summary"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "summarySpec"
+            ]
+          }
         }
       ]
     },
     "PartRuntimeContext": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status"],
+      "required": [
+        "status"
+      ],
       "properties": {
         "status": {
           "type": "string",
-          "enum": ["pending", "running", "finished", "failed"]
+          "enum": [
+            "pending",
+            "running",
+            "finished",
+            "failed"
+          ]
         },
-        "resolvedDatasetId": { "type": "string" },
-        "resolvedQuery": { "type": "string" },
+        "resolvedDatasetId": {
+          "type": "string"
+        },
+        "resolvedQuery": {
+          "type": "string"
+        },
         "resolvedPartIds": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": {
+            "type": "string"
+          }
         },
-        "prompt": { "type": "string" },
+        "prompt": {
+          "type": "string"
+        },
         "warnings": {
           "type": "array",
-          "items": { "$ref": "#/$defs/WarningItem" }
+          "items": {
+            "$ref": "#/$defs/WarningItem"
+          }
         }
       }
     },
@@ -789,10 +928,18 @@
         "sections"
       ],
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "subtitle": { "type": "string" },
-        "description": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
         "order": {
           "type": "integer",
           "minimum": 1
@@ -826,9 +973,15 @@
         "slides"
       ],
       "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
         "implicit": {
           "type": "boolean",
           "description": "是否为系统隐式生成的默认章节。"

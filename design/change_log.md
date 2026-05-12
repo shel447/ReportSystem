@@ -8,6 +8,25 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-12 对齐外部 Dynamic Node v6 模板契约
+
+- 变更动机：
+  - 外部动态节点 v6 明确了 flow 与 paged 场景下 custom 节点的适用位置、请求体和响应体，需要避免模板侧继续沿用旧 `nodeType/nodeId/prompt` 口径。
+- 设计决策：
+  - `dynamic.custom` 模板字段保持 `{type, url}`，不新增 `method/config/dslType`。
+  - flow `CatalogDefinition.dynamic.custom` 返回 DSL `Catalog`；flow `SectionDefinition.dynamic.custom` 返回 DSL `Section`。
+  - paged `SlideDefinition.dynamic.custom` 返回 DSL `Slide`；paged slide 内 `SectionDefinition.dynamic.custom` 返回 `Components`，也允许返回可转换的 `Section`。
+  - `ChapterDefinition.dynamic` 不再允许 `custom`，仅保留 `foreach/foreachCase`。
+  - 正式外部调用协议采用 v6 `parameters/templateNode/context` 请求体与 `status/dsl/meta.dslType` 响应体。
+- 影响范围：
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/schemas/template-instance.schema.json`
+  - `report_system/examples/report-template-paged.example.json`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+  - `report_system/04-接口契约.md`
+  - `report_system/报告模板定义与使用说明书.md`
+
 ## 2026-05-12 Report DSL PPT 扩展不改变 flow 契约
 
 - 变更动机：

@@ -8,6 +8,20 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-12 外部 Dynamic Node v6 契约对齐
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-12 对齐外部 Dynamic Node v6 模板契约”
+- 实现设计调整：
+  - `report-template.schema.json` 新增 Chapter 专用 dynamic 约束，Chapter 级仅允许 `foreach/foreachCase`，不允许 `custom`。
+  - `template-instance.schema.json` 的 `DynamicContext.nodeType` 扩展为 `catalog | section | slide`。
+  - paged `SlideDefinition.dynamic.custom` 作为外部页面生成入口，实例态 custom slide 记录 `nodeType=slide`。
+  - slide 内 `SectionDefinition.dynamic.custom` 仍记录为 `nodeType=section`，后续 DSL 编译时按 v6 合并到当前 slide 组件集合。
+  - 外部请求目标协议从旧 `nodeType/nodeId/prompt` 收敛为 v6 `parameters/templateNode/context`；HTTP gateway 的完整迁移与 paged DSL 合并后续实现。
+- 验证要求：
+  - schema 覆盖 catalog/section/slide custom、section custom 必须有 outline、Chapter custom 失败。
+  - 模型测试覆盖 `DynamicContext.nodeType=slide` round-trip。
+
 ## 2026-05-12 Report DSL flow 兼容边界纠偏
 
 - 对应设计变更：
