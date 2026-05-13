@@ -147,6 +147,7 @@ class MergeColumnInfo:
 
     title: str
     columns: list[str] = field(default_factory=list)
+    is_merge_value: bool | None = _alias_field("isMergeValue", default=None)
 
 
 @dataclass(slots=True)
@@ -773,14 +774,18 @@ def merge_column_info_from_dict(payload: dict[str, Any]) -> MergeColumnInfo:
     return MergeColumnInfo(
         title=str(payload.get("title") or ""),
         columns=[str(item) for item in list(payload.get("columns") or [])],
+        is_merge_value=_as_optional_bool(get_value(payload, MergeColumnInfo, "is_merge_value")),
     )
 
 
 def merge_column_info_to_dict(merge_column: MergeColumnInfo) -> dict[str, Any]:
-    return {
+    payload = {
         "title": merge_column.title,
         "columns": list(merge_column.columns),
     }
+    if merge_column.is_merge_value is not None:
+        set_value(payload, MergeColumnInfo, "is_merge_value", merge_column.is_merge_value)
+    return payload
 
 
 def merge_row_definition_from_dict(payload: dict[str, Any]) -> MergeRowDefinition:

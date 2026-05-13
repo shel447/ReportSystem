@@ -8,6 +8,22 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-13 Report DSL 补齐 BI Engine 字段
+
+- 变更动机：
+  - 手工更新后的 `report-dsl.schema.json` 补齐了 BI Engine TypeScript 模型中已有但 schema 内缺失的字段，需要将该 schema 作为正式 DSL 契约合入。
+- 设计决策：
+  - `BasicInfo` 增加资产字段，例如 `schemaVersion/mode/subTitle/templateId/templateName/remark/createDate/modifyDate/creator/modifier/header/footer/category`。
+  - `cover.layoutTemplate` 严格收敛为 `TITLE_TOP | TITLE_CENTER`，旧示例值 `default` 不再合法。
+  - `GenerateMeta.additionalInfo` 条目扩展为至少包含 `type`，可携带 `name/value/content/appendix`，实现层兼容读取 `additionalInfos`。
+  - 表格列、合并列、图表 series、响应式 chart option、组件 basic/advance properties 按最新 schema 表达。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/examples/report-dsl-paged.example.json`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+
 ## 2026-05-12 对齐外部 Dynamic Node v6 模板契约
 
 - 变更动机：

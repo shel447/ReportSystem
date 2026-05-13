@@ -8,6 +8,18 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-13 Report DSL BI Engine 字段补齐
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-13 Report DSL 补齐 BI Engine 字段”
+- 实现设计调整：
+  - `report_runtime.domain.models` 补齐 `ReportBasicInfo`、`ReportLayout`、组件 dataProperties、表格列、图表 series/options 与 `ReportAdditionalInfo` 的 from/to dict 透传。
+  - `ReportCover.layoutTemplate` 测试数据切换为 `TITLE_TOP/TITLE_CENTER`，旧 `default` 按最新 schema 判定为非法。
+  - `ReportGenerateMeta` 继续 canonical 输出 `additionalInfo`，同时兼容读取 `additionalInfos`。
+- 验证要求：
+  - flow/paged DSL 示例通过最新 schema。
+  - 后端测试覆盖新增字段 round-trip、cover 枚举收窄和旧 `additionalInfos` 读取兼容。
+
 ## 2026-05-12 外部 Dynamic Node v6 契约对齐
 
 - 对应设计变更：

@@ -2,10 +2,16 @@
   "structureType": "paged",
   "basicInfo": {
     "id": "rpt_network_ppt_001",
+    "schemaVersion": "1.0.0",
+    "mode": "published",
     "name": "网络运行日报 PPT",
     "title": "2026-05-12 网络运行日报",
+    "subTitle": "总部网络",
+    "templateId": "tpl_network_ppt",
+    "templateName": "网络运行 PPT 汇报",
     "version": "1.0.0",
-    "status": "Success"
+    "status": "Success",
+    "category": "network_operations"
   },
   "content": [
     {
@@ -18,6 +24,7 @@
           "title": "核心指标概览",
           "layout": {
             "type": "grid",
+            "autoLayout": true,
             "grid": {
               "cols": 12,
               "rowHeight": 24

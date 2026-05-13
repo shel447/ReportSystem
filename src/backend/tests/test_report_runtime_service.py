@@ -11,11 +11,14 @@ from backend.contexts.report_runtime.domain.models import (
     DynamicContext,
     MergeRowConfig,
     ParameterConfirmation,
+    ReportAdditionalInfo,
     ReportBasicInfo,
     ReportCatalog,
+    ReportColumn,
     ReportCover,
     ReportCoverContent,
     ReportDsl,
+    ReportGenerateMeta,
     ReportLayout,
     ReportSection,
     ReportSlide,
@@ -819,7 +822,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 "title": "网络运行日报",
                 "author": "report-system",
                 "date": "2026-05-12",
-                "layoutTemplate": "default",
+                "layoutTemplate": "TITLE_TOP",
                 "contents": [{"type": "text", "content": "总部网络", "elementId": "cover_scope"}],
             },
             "catalogs": [],
@@ -831,6 +834,11 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         invalid_cover["cover"] = {"components": []}
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_cover)
+
+        invalid_layout = copy.deepcopy(payload)
+        invalid_layout["cover"]["layoutTemplate"] = "default"
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_layout)
 
     def test_report_dsl_schema_accepts_paged_content_and_rejects_mixed_content(self):
         slide = {
@@ -910,7 +918,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 title="网络运行日报",
                 author="report-system",
                 date="2026-05-12",
-                layout_template="default",
+                layout_template="TITLE_CENTER",
                 contents=[ReportCoverContent(type="text", content="总部网络", element_id="cover_scope")],
             ),
             catalogs=[ReportCatalog(id="catalog_main", name="主目录", sections=[])],
@@ -927,6 +935,136 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         restored = report_dsl_from_dict(payload)
         self.assertEqual(restored.cover.title, "网络运行日报")
         self.assertEqual(restored.cover.contents[0].element_id, "cover_scope")
+
+    def test_report_dsl_schema_enhancements_round_trip(self):
+        report = ReportDsl(
+            basic_info=ReportBasicInfo(
+                id="rpt_enhanced",
+                asset_schema_version="1.0.0",
+                schema_version="1.1.0",
+                mode="published",
+                status="Success",
+                name="增强报告",
+                title="增强报告标题",
+                sub_title="增强副标题",
+                template_id="tpl_enhanced",
+                template_name="增强模板",
+                remark="补齐 BI Engine 字段",
+                create_date="2026-05-13",
+                modify_date="2026-05-13",
+                creator="creator",
+                modifier="modifier",
+                header="页眉",
+                footer="页脚",
+                category="network_ops",
+            ),
+            catalogs=[
+                ReportCatalog(
+                    id="catalog_enhanced",
+                    name="增强目录",
+                    sections=[
+                        ReportSection(
+                            id="section_enhanced",
+                            title="增强章节",
+                            components=[
+                                TableComponent(
+                                    id="table_enhanced",
+                                    type="table",
+                                    data_properties=TableDataProperties(
+                                        data_type="static",
+                                        title="增强表格",
+                                        columns=[
+                                            ReportColumn(
+                                                key="scope",
+                                                title="范围",
+                                                type="string",
+                                                width=120,
+                                                sortable=True,
+                                                filterable=True,
+                                            )
+                                        ],
+                                        merge_columns=[
+                                            MergeColumnInfo(
+                                                title="合并列",
+                                                columns=["scope", "metric"],
+                                                is_merge_value=True,
+                                            )
+                                        ],
+                                        has_merge=True,
+                                    ),
+                                    advance_properties={
+                                        "showHeader": True,
+                                        "showTitle": True,
+                                        "pagination": {"showPagination": True, "defaultDisplayRows": 10},
+                                    },
+                                ),
+                                ChartComponent(
+                                    id="chart_enhanced",
+                                    type="chart",
+                                    data_properties=ChartDataProperties(
+                                        data_type="static",
+                                        columns=[ReportColumn(key="date", title="日期")],
+                                        data=[{"date": "2026-05-13", "availability": 99.98}],
+                                        series=[
+                                            {
+                                                "type": "line",
+                                                "name": "可用率",
+                                                "encode": {"x": "date", "y": "availability"},
+                                            }
+                                        ],
+                                        axis_group=["primary"],
+                                    ),
+                                    x_axis={"type": "category", "name": "日期"},
+                                    y_axis={"type": "value", "name": "可用率"},
+                                    options={"responsive": {"enabled": True, "aspectRatio": 1.6}},
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            ],
+            layout=ReportLayout(type="grid", auto_layout=True, grid=GridDefinition(cols=12, row_height=24)),
+            report_meta={
+                "section_enhanced": ReportGenerateMeta(
+                    id="meta_section_enhanced",
+                    status="Success",
+                    additional_infos=[
+                        ReportAdditionalInfo(
+                            type="SQL",
+                            name="核心 SQL",
+                            value="SELECT 1",
+                            appendix="执行证据",
+                        )
+                    ],
+                )
+            },
+        )
+
+        payload = report_dsl_to_dict(report)
+        _validate_report_dsl(payload)
+        self.assertEqual(payload["basicInfo"]["schemaVersion"], "1.0.0")
+        self.assertEqual(payload["basicInfo"]["subTitle"], "增强副标题")
+        self.assertTrue(payload["layout"]["autoLayout"])
+        table_data = payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]
+        self.assertTrue(table_data["columns"][0]["sortable"])
+        self.assertTrue(table_data["mergeColumns"][0]["isMergeValue"])
+        chart = payload["catalogs"][0]["sections"][0]["components"][1]
+        self.assertEqual(chart["dataProperties"]["series"][0]["type"], "line")
+        self.assertTrue(chart["options"]["responsive"]["enabled"])
+        additional_info = payload["reportMeta"]["section_enhanced"]["additionalInfo"][0]
+        self.assertEqual(additional_info["value"], "SELECT 1")
+        self.assertEqual(additional_info["appendix"], "执行证据")
+
+        restored = report_dsl_from_dict(payload)
+        restored_payload = report_dsl_to_dict(restored)
+        _validate_report_dsl(restored_payload)
+        self.assertEqual(restored_payload["basicInfo"]["schemaVersion"], "1.0.0")
+        self.assertEqual(restored_payload["catalogs"][0]["sections"][0]["components"][1]["xAxis"]["type"], "category")
+
+        legacy_payload = copy.deepcopy(payload)
+        legacy_payload["reportMeta"]["section_enhanced"]["additionalInfos"] = legacy_payload["reportMeta"]["section_enhanced"].pop("additionalInfo")
+        restored_legacy = report_dsl_from_dict(legacy_payload)
+        self.assertEqual(restored_legacy.report_meta["section_enhanced"].additional_infos[0].value, "SELECT 1")
 
     def test_schema_validates_supported_presentation_block_types(self):
         template_payload = {

@@ -2,11 +2,17 @@
   "structureType": "flow",
   "basicInfo": {
     "id": "rpt_network_daily_001",
+    "schemaVersion": "1.0.0",
+    "mode": "published",
     "name": "网络运行日报",
     "title": "2026-05-12 网络运行日报",
+    "subTitle": "总部网络",
     "description": "面向网络运维中心的统一日报。",
+    "templateId": "tpl_network_daily",
+    "templateName": "网络运行日报模板",
     "version": "1.0.0",
     "status": "Success",
+    "category": "network_operations",
     "createdAt": "2026-05-12T00:00:00Z",
     "updatedAt": "2026-05-12T00:00:00Z",
     "parameters": {
@@ -27,6 +33,20 @@
         ]
       }
     }
+  },
+  "cover": {
+    "title": "2026-05-12 网络运行日报",
+    "subTitle": "总部网络",
+    "author": "report-system",
+    "date": "2026-05-12",
+    "layoutTemplate": "TITLE_TOP",
+    "contents": [
+      {
+        "type": "text",
+        "content": "总部网络",
+        "elementId": "cover_scope"
+      }
+    ]
   },
   "catalogs": [
     {
@@ -54,7 +74,10 @@
                 "columns": [
                   {
                     "key": "scope_name",
-                    "title": "对象"
+                    "title": "对象",
+                    "sortable": true,
+                    "filterable": true,
+                    "width": 120
                   },
                   {
                     "key": "metric_name",
@@ -75,6 +98,16 @@
                     "scope_name": "总部网络",
                     "metric_name": "拥塞小区数",
                     "metric_value": "2"
+                  }
+                ],
+                "mergeColumns": [
+                  {
+                    "title": "指标信息",
+                    "columns": [
+                      "metric_name",
+                      "metric_value"
+                    ],
+                    "isMergeValue": false
                   }
                 ],
                 "mergeRows": [
@@ -109,13 +142,17 @@
       "additionalInfo": [
         {
           "type": "SQL",
-          "content": "select * from network_metrics where scope_id = 'hq-network'"
+          "name": "核心指标 SQL",
+          "content": "select * from network_metrics where scope_id = 'hq-network'",
+          "value": "select * from network_metrics where scope_id = 'hq-network'",
+          "appendix": "demo"
         }
       ]
     }
   },
   "layout": {
     "type": "grid",
+    "autoLayout": true,
     "grid": {
       "cols": 12,
       "rowHeight": 24

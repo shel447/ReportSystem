@@ -434,6 +434,7 @@
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 - `Report DSL` 需要保留足够的参数配置和大纲配置，以支持前台对已生成报告进行结构化编辑
+- 当前 schema 已补齐 BI Engine TypeScript 模型中已有而 schema 曾缺失的字段，例如 `basicInfo.schemaVersion/mode/templateId`、`layout.autoLayout`、组件 `basicProperties/advanceProperties`、图表 `series/options.responsive` 与表格列展示控制字段
 
 当前业务 profile：
 
@@ -445,7 +446,7 @@
   - 模板/实例态 `presentation.blocks[].type`：正式支持 `text`、`table`、`chart`，并兼容保留 `composite_table`
   - DSL 组件：继续允许系统生成的 `markdown` 组件承载章节说明；模板 presentation 不再直接使用 `markdown` block
   - `CompositeTable` 已作为正式模板能力启用，但只通过 `presentation.blocks[].type = composite_table` 产出
-  - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成
+  - `cover`、`signaturePage` 为可选能力，不是所有报告都必须生成；`cover.layoutTemplate` 当前严格取 `TITLE_TOP | TITLE_CENTER`
 
 `Report DSL` 的结构化编辑增强规则：
 
@@ -467,7 +468,7 @@
   - 二者允许不同值，前端和编译逻辑不得假定相等
 - `GenerateMeta.additionalInfo`
   - 使用新版单数数组字段名 `additionalInfo`
-  - 每项结构为 `{type, content}`，不再输出旧 `additionalInfos/value`
+  - 每项至少包含 `type`，可包含 `name/value/content/appendix`；实现层可兼容读取 `additionalInfos`
 
 `GenerateMeta.outline.items[*]` 规则：
 

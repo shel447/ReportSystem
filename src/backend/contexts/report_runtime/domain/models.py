@@ -285,6 +285,7 @@ class ReportBasicInfo:
     """报告 DSL 基础信息。"""
 
     id: str
+    asset_schema_version: str | None = _alias_field("schemaVersion", default=None)
     name: str | None = None
     title: str | None = None
     description: str | None = None
@@ -297,10 +298,13 @@ class ReportBasicInfo:
     sub_title: str | None = _alias_field("subTitle", default=None)
     template_id: str | None = _alias_field("templateId", default=None)
     template_name: str | None = _alias_field("templateName", default=None)
+    remark: str | None = None
     create_date: str | None = _alias_field("createDate", default=None)
     modify_date: str | None = _alias_field("modifyDate", default=None)
     creator: str | None = None
     modifier: str | None = None
+    header: str | None = None
+    footer: str | None = None
     category: str | None = None
 
 
@@ -356,6 +360,7 @@ class ReportLayout:
     """页面布局。"""
 
     type: str
+    auto_layout: bool | None = _alias_field("autoLayout", default=None)
     grid: GridDefinition | None = None
 
 
@@ -365,6 +370,11 @@ class MarkdownDataProperties:
 
     data_type: str = _alias_field("dataType")
     content: str
+    source_id: str | None = _alias_field("sourceId", default=None)
+    url: str | None = None
+    method: str | None = None
+    auto_refresh: bool | None = _alias_field("autoRefresh", default=None)
+    refresh_interval: float | None = _alias_field("refreshInterval", default=None)
 
 
 @dataclass(slots=True)
@@ -374,6 +384,10 @@ class TextDataProperties:
     data_type: str = _alias_field("dataType")
     content: str
     source_id: str | None = _alias_field("sourceId", default=None)
+    url: str | None = None
+    method: str | None = None
+    auto_refresh: bool | None = _alias_field("autoRefresh", default=None)
+    refresh_interval: float | None = _alias_field("refreshInterval", default=None)
     title: str | None = None
 
 
@@ -383,7 +397,10 @@ class ReportColumn:
 
     key: str
     title: str
-    width: str | None = None
+    type: str | None = None
+    width: str | int | float | None = None
+    sortable: bool | None = None
+    filterable: bool | None = None
     align: str | None = None
     children: list["ReportColumn"] = field(default_factory=list)
 
@@ -394,11 +411,16 @@ class TableDataProperties:
 
     data_type: str = _alias_field("dataType")
     source_id: str | None = _alias_field("sourceId", default=None)
+    url: str | None = None
+    method: str | None = None
+    auto_refresh: bool | None = _alias_field("autoRefresh", default=None)
+    refresh_interval: float | None = _alias_field("refreshInterval", default=None)
     title: str | None = None
     columns: list[ReportColumn] = field(default_factory=list)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
     merge_rows: list["MergeRowConfig"] = _alias_field("mergeRows", default_factory=list)
     data: list[dict[str, Any]] = field(default_factory=list)
+    has_merge: bool | None = _alias_field("hasMerge", default=None)
 
 
 @dataclass(slots=True)
@@ -417,7 +439,15 @@ class ChartDataProperties:
 
     data_type: str = _alias_field("dataType")
     source_id: str | None = _alias_field("sourceId", default=None)
+    url: str | None = None
+    method: str | None = None
+    auto_refresh: bool | None = _alias_field("autoRefresh", default=None)
+    refresh_interval: float | None = _alias_field("refreshInterval", default=None)
     title: str | None = None
+    columns: list[ReportColumn] = field(default_factory=list)
+    data: list[dict[str, Any]] = field(default_factory=list)
+    series: list[dict[str, Any]] = field(default_factory=list)
+    axis_group: list[str] = _alias_field("axisGroup", default_factory=list)
 
 
 @dataclass(slots=True)
@@ -425,6 +455,11 @@ class CompositeTableDataProperties:
     """复合表组件数据属性。"""
 
     data_type: str = _alias_field("dataType")
+    source_id: str | None = _alias_field("sourceId", default=None)
+    url: str | None = None
+    method: str | None = None
+    auto_refresh: bool | None = _alias_field("autoRefresh", default=None)
+    refresh_interval: float | None = _alias_field("refreshInterval", default=None)
     title: str | None = None
 
 
@@ -435,6 +470,10 @@ class MarkdownComponent:
     id: str
     type: str
     data_properties: MarkdownDataProperties = _alias_field("dataProperties")
+    layout: dict[str, Any] | None = None
+    basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
+    advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
+    interactions: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -444,6 +483,10 @@ class TextComponent:
     id: str
     type: str
     data_properties: TextDataProperties = _alias_field("dataProperties")
+    layout: dict[str, Any] | None = None
+    basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
+    advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
+    interactions: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -453,6 +496,10 @@ class TableComponent:
     id: str
     type: str
     data_properties: TableDataProperties = _alias_field("dataProperties")
+    layout: dict[str, Any] | None = None
+    basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
+    advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
+    interactions: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -462,6 +509,13 @@ class ChartComponent:
     id: str
     type: str
     data_properties: ChartDataProperties = _alias_field("dataProperties")
+    layout: dict[str, Any] | None = None
+    basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
+    advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
+    interactions: list[dict[str, Any]] = field(default_factory=list)
+    x_axis: dict[str, Any] | list[dict[str, Any]] | None = _alias_field("xAxis", default=None)
+    y_axis: dict[str, Any] | list[dict[str, Any]] | None = _alias_field("yAxis", default=None)
+    options: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -474,6 +528,10 @@ class CompositeTableComponent:
     data_properties: CompositeTableDataProperties = _alias_field(
         "dataProperties", default_factory=lambda: CompositeTableDataProperties(data_type="static")
     )
+    layout: dict[str, Any] | None = None
+    basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
+    advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
+    interactions: list[dict[str, Any]] = field(default_factory=list)
 
 
 ReportComponent = MarkdownComponent | TextComponent | TableComponent | ChartComponent | CompositeTableComponent
@@ -1132,13 +1190,26 @@ def report_dsl_from_dict(payload: dict[str, Any]) -> ReportDsl:
 def report_basic_info_to_dict(info: ReportBasicInfo) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ReportBasicInfo, "id", info.id)
-    _set_if(payload, ReportBasicInfo, "name", info.name)
-    _set_if(payload, ReportBasicInfo, "title", info.title or info.sub_title)
-    _set_if(payload, ReportBasicInfo, "description", info.description)
-    _set_if(payload, ReportBasicInfo, "schema_version", info.schema_version)
+    _set_if(payload, ReportBasicInfo, "asset_schema_version", info.asset_schema_version)
+    _set_if(payload, ReportBasicInfo, "mode", info.mode)
     _set_if(payload, ReportBasicInfo, "status", info.status)
+    _set_if(payload, ReportBasicInfo, "name", info.name)
+    _set_if(payload, ReportBasicInfo, "title", info.title)
+    _set_if(payload, ReportBasicInfo, "sub_title", info.sub_title)
+    _set_if(payload, ReportBasicInfo, "description", info.description)
+    _set_if(payload, ReportBasicInfo, "template_id", info.template_id)
+    _set_if(payload, ReportBasicInfo, "template_name", info.template_name)
+    _set_if(payload, ReportBasicInfo, "remark", info.remark)
+    _set_if(payload, ReportBasicInfo, "schema_version", info.schema_version)
+    _set_if(payload, ReportBasicInfo, "create_date", info.create_date)
+    _set_if(payload, ReportBasicInfo, "modify_date", info.modify_date)
     _set_if(payload, ReportBasicInfo, "created_at", info.created_at or info.create_date)
     _set_if(payload, ReportBasicInfo, "updated_at", info.updated_at or info.modify_date)
+    _set_if(payload, ReportBasicInfo, "creator", info.creator)
+    _set_if(payload, ReportBasicInfo, "modifier", info.modifier)
+    _set_if(payload, ReportBasicInfo, "header", info.header)
+    _set_if(payload, ReportBasicInfo, "footer", info.footer)
+    _set_if(payload, ReportBasicInfo, "category", info.category)
     if info.parameters:
         set_value(payload, ReportBasicInfo, "parameters", {key: parameter_to_dict(value) for key, value in info.parameters.items()})
     return payload
@@ -1147,10 +1218,11 @@ def report_basic_info_to_dict(info: ReportBasicInfo) -> dict[str, Any]:
 def report_basic_info_from_dict(payload: dict[str, Any]) -> ReportBasicInfo:
     return ReportBasicInfo(
         id=str(get_value(payload, ReportBasicInfo, "id") or ""),
+        asset_schema_version=_as_optional_str(get_value(payload, ReportBasicInfo, "asset_schema_version")),
         name=_as_optional_str(get_value(payload, ReportBasicInfo, "name")),
         title=_as_optional_str(get_value(payload, ReportBasicInfo, "title")),
         description=_as_optional_str(get_value(payload, ReportBasicInfo, "description")),
-        schema_version=_as_optional_str(get_value(payload, ReportBasicInfo, "schema_version") or payload.get("schemaVersion")),
+        schema_version=_as_optional_str(get_value(payload, ReportBasicInfo, "schema_version")),
         status=_as_optional_str(get_value(payload, ReportBasicInfo, "status")),
         created_at=_as_optional_str(get_value(payload, ReportBasicInfo, "created_at")),
         updated_at=_as_optional_str(get_value(payload, ReportBasicInfo, "updated_at")),
@@ -1163,10 +1235,13 @@ def report_basic_info_from_dict(payload: dict[str, Any]) -> ReportBasicInfo:
         sub_title=_as_optional_str(get_value(payload, ReportBasicInfo, "sub_title")),
         template_id=_as_optional_str(get_value(payload, ReportBasicInfo, "template_id")),
         template_name=_as_optional_str(get_value(payload, ReportBasicInfo, "template_name")),
+        remark=_as_optional_str(get_value(payload, ReportBasicInfo, "remark")),
         create_date=_as_optional_str(get_value(payload, ReportBasicInfo, "create_date")),
         modify_date=_as_optional_str(get_value(payload, ReportBasicInfo, "modify_date")),
         creator=_as_optional_str(get_value(payload, ReportBasicInfo, "creator")),
         modifier=_as_optional_str(get_value(payload, ReportBasicInfo, "modifier")),
+        header=_as_optional_str(get_value(payload, ReportBasicInfo, "header")),
+        footer=_as_optional_str(get_value(payload, ReportBasicInfo, "footer")),
         category=_as_optional_str(get_value(payload, ReportBasicInfo, "category")),
     )
 
@@ -1185,7 +1260,10 @@ def report_summary_from_dict(payload: dict[str, Any]) -> ReportSummary:
 def report_additional_info_to_dict(item: ReportAdditionalInfo) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ReportAdditionalInfo, "type", item.type)
-    set_value(payload, ReportAdditionalInfo, "content", item.content if item.content is not None else item.value or "")
+    _set_if(payload, ReportAdditionalInfo, "name", item.name)
+    _set_if(payload, ReportAdditionalInfo, "value", item.value)
+    _set_if(payload, ReportAdditionalInfo, "content", item.content)
+    _set_if(payload, ReportAdditionalInfo, "appendix", item.appendix)
     return payload
 
 
@@ -1248,6 +1326,7 @@ def report_generate_meta_from_dict(payload: dict[str, Any]) -> ReportGenerateMet
 def report_layout_to_dict(layout: ReportLayout) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ReportLayout, "type", layout.type)
+    _set_if(payload, ReportLayout, "auto_layout", layout.auto_layout)
     if layout.grid is not None:
         grid = {"cols": layout.grid.cols, get_alias(GridDefinition, "row_height"): layout.grid.row_height}
         if layout.grid.gap is not None:
@@ -1265,13 +1344,21 @@ def report_layout_from_dict(payload: dict[str, Any]) -> ReportLayout:
             row_height=int(grid_payload.get(get_alias(GridDefinition, "row_height")) or 0),
             gap=_as_optional_int(grid_payload.get("gap")),
         )
-    return ReportLayout(type=str(get_value(payload, ReportLayout, "type") or ""), grid=grid)
+    return ReportLayout(
+        type=str(get_value(payload, ReportLayout, "type") or ""),
+        auto_layout=_as_optional_bool(get_value(payload, ReportLayout, "auto_layout")),
+        grid=grid,
+    )
 
 
 def report_column_to_dict(column: ReportColumn) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ReportColumn, "key", column.key)
     set_value(payload, ReportColumn, "title", column.title)
+    _set_if(payload, ReportColumn, "type", column.type)
+    _set_if(payload, ReportColumn, "width", column.width)
+    _set_if(payload, ReportColumn, "sortable", column.sortable)
+    _set_if(payload, ReportColumn, "filterable", column.filterable)
     if column.children:
         set_value(payload, ReportColumn, "children", [report_column_to_dict(item) for item in column.children])
     return payload
@@ -1281,14 +1368,34 @@ def report_column_from_dict(payload: dict[str, Any]) -> ReportColumn:
     return ReportColumn(
         key=str(payload.get("key") or ""),
         title=str(payload.get("title") or ""),
-        width=_as_optional_str(payload.get("width")),
+        type=_as_optional_str(payload.get("type")),
+        width=payload.get("width"),
+        sortable=_as_optional_bool(payload.get("sortable")),
+        filterable=_as_optional_bool(payload.get("filterable")),
         align=_as_optional_str(payload.get("align")),
         children=[report_column_from_dict(item) for item in list(payload.get("children") or [])],
     )
 
 
-def markdown_component_to_dict(component: MarkdownComponent) -> dict[str, Any]:
+def _set_component_common(payload: dict[str, Any], model_type: type, component: Any) -> None:
+    _set_if(payload, model_type, "layout", component.layout)
+    _set_if(payload, model_type, "basic_properties", component.basic_properties)
+    _set_if(payload, model_type, "advance_properties", component.advance_properties)
+    if component.interactions:
+        set_value(payload, model_type, "interactions", component.interactions)
+
+
+def _component_common_kwargs(payload: dict[str, Any], model_type: type) -> dict[str, Any]:
     return {
+        "layout": get_value(payload, model_type, "layout") if isinstance(get_value(payload, model_type, "layout"), dict) else None,
+        "basic_properties": get_value(payload, model_type, "basic_properties") if isinstance(get_value(payload, model_type, "basic_properties"), dict) else None,
+        "advance_properties": get_value(payload, model_type, "advance_properties") if isinstance(get_value(payload, model_type, "advance_properties"), dict) else None,
+        "interactions": list(get_value(payload, model_type, "interactions") or []),
+    }
+
+
+def markdown_component_to_dict(component: MarkdownComponent) -> dict[str, Any]:
+    payload = {
         get_alias(MarkdownComponent, "id"): component.id,
         get_alias(MarkdownComponent, "type"): component.type,
         get_alias(MarkdownComponent, "data_properties"): {
@@ -1296,6 +1403,14 @@ def markdown_component_to_dict(component: MarkdownComponent) -> dict[str, Any]:
             "content": component.data_properties.content,
         },
     }
+    data_properties = payload[get_alias(MarkdownComponent, "data_properties")]
+    _set_if(data_properties, MarkdownDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, MarkdownDataProperties, "url", component.data_properties.url)
+    _set_if(data_properties, MarkdownDataProperties, "method", component.data_properties.method)
+    _set_if(data_properties, MarkdownDataProperties, "auto_refresh", component.data_properties.auto_refresh)
+    _set_if(data_properties, MarkdownDataProperties, "refresh_interval", component.data_properties.refresh_interval)
+    _set_component_common(payload, MarkdownComponent, component)
+    return payload
 
 
 def markdown_component_from_dict(payload: dict[str, Any]) -> MarkdownComponent:
@@ -1306,7 +1421,13 @@ def markdown_component_from_dict(payload: dict[str, Any]) -> MarkdownComponent:
         data_properties=MarkdownDataProperties(
             data_type=str(data.get(get_alias(MarkdownDataProperties, "data_type")) or ""),
             content=str(data.get("content") or ""),
+            source_id=_as_optional_str(data.get(get_alias(MarkdownDataProperties, "source_id"))),
+            url=_as_optional_str(data.get(get_alias(MarkdownDataProperties, "url"))),
+            method=_as_optional_str(data.get(get_alias(MarkdownDataProperties, "method"))),
+            auto_refresh=_as_optional_bool(data.get(get_alias(MarkdownDataProperties, "auto_refresh"))),
+            refresh_interval=_as_optional_float(data.get(get_alias(MarkdownDataProperties, "refresh_interval"))),
         ),
+        **_component_common_kwargs(payload, MarkdownComponent),
     )
 
 
@@ -1321,7 +1442,12 @@ def text_component_to_dict(component: TextComponent) -> dict[str, Any]:
     }
     data_properties = payload[get_alias(TextComponent, "data_properties")]
     _set_if(data_properties, TextDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, TextDataProperties, "url", component.data_properties.url)
+    _set_if(data_properties, TextDataProperties, "method", component.data_properties.method)
+    _set_if(data_properties, TextDataProperties, "auto_refresh", component.data_properties.auto_refresh)
+    _set_if(data_properties, TextDataProperties, "refresh_interval", component.data_properties.refresh_interval)
     _set_if(data_properties, TextDataProperties, "title", component.data_properties.title)
+    _set_component_common(payload, TextComponent, component)
     return payload
 
 
@@ -1334,8 +1460,13 @@ def text_component_from_dict(payload: dict[str, Any]) -> TextComponent:
             data_type=str(data.get(get_alias(TextDataProperties, "data_type")) or ""),
             content=str(data.get("content") or ""),
             source_id=_as_optional_str(data.get(get_alias(TextDataProperties, "source_id"))),
+            url=_as_optional_str(data.get(get_alias(TextDataProperties, "url"))),
+            method=_as_optional_str(data.get(get_alias(TextDataProperties, "method"))),
+            auto_refresh=_as_optional_bool(data.get(get_alias(TextDataProperties, "auto_refresh"))),
+            refresh_interval=_as_optional_float(data.get(get_alias(TextDataProperties, "refresh_interval"))),
             title=_as_optional_str(data.get(get_alias(TextDataProperties, "title"))),
         ),
+        **_component_common_kwargs(payload, TextComponent),
     )
 
 
@@ -1368,6 +1499,10 @@ def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
     }
     data_properties = payload[get_alias(TableComponent, "data_properties")]
     _set_if(data_properties, TableDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, TableDataProperties, "url", component.data_properties.url)
+    _set_if(data_properties, TableDataProperties, "method", component.data_properties.method)
+    _set_if(data_properties, TableDataProperties, "auto_refresh", component.data_properties.auto_refresh)
+    _set_if(data_properties, TableDataProperties, "refresh_interval", component.data_properties.refresh_interval)
     _set_if(data_properties, TableDataProperties, "title", component.data_properties.title)
     if component.data_properties.columns:
         data_properties["columns"] = [report_column_to_dict(item) for item in component.data_properties.columns]
@@ -1379,6 +1514,8 @@ def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
         set_value(data_properties, TableDataProperties, "merge_rows", [merge_row_config_to_dict(item) for item in component.data_properties.merge_rows])
     if component.data_properties.data:
         data_properties["data"] = list(component.data_properties.data)
+    _set_if(data_properties, TableDataProperties, "has_merge", component.data_properties.has_merge)
+    _set_component_common(payload, TableComponent, component)
     return payload
 
 
@@ -1390,6 +1527,10 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
         data_properties=TableDataProperties(
             data_type=str(data.get(get_alias(TableDataProperties, "data_type")) or ""),
             source_id=_as_optional_str(data.get(get_alias(TableDataProperties, "source_id"))),
+            url=_as_optional_str(data.get(get_alias(TableDataProperties, "url"))),
+            method=_as_optional_str(data.get(get_alias(TableDataProperties, "method"))),
+            auto_refresh=_as_optional_bool(data.get(get_alias(TableDataProperties, "auto_refresh"))),
+            refresh_interval=_as_optional_float(data.get(get_alias(TableDataProperties, "refresh_interval"))),
             title=_as_optional_str(data.get(get_alias(TableDataProperties, "title"))),
             columns=[report_column_from_dict(item) for item in list(data.get("columns") or [])],
             merge_columns=[
@@ -1398,7 +1539,9 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
             ],
             merge_rows=[merge_row_config_from_dict(item) for item in list(get_value(data, TableDataProperties, "merge_rows") or [])],
             data=list(data.get("data") or []),
+            has_merge=_as_optional_bool(get_value(data, TableDataProperties, "has_merge")),
         ),
+        **_component_common_kwargs(payload, TableComponent),
     )
 
 
@@ -1412,7 +1555,23 @@ def chart_component_to_dict(component: ChartComponent) -> dict[str, Any]:
     }
     data_properties = payload[get_alias(ChartComponent, "data_properties")]
     _set_if(data_properties, ChartDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, ChartDataProperties, "url", component.data_properties.url)
+    _set_if(data_properties, ChartDataProperties, "method", component.data_properties.method)
+    _set_if(data_properties, ChartDataProperties, "auto_refresh", component.data_properties.auto_refresh)
+    _set_if(data_properties, ChartDataProperties, "refresh_interval", component.data_properties.refresh_interval)
     _set_if(data_properties, ChartDataProperties, "title", component.data_properties.title)
+    if component.data_properties.columns:
+        data_properties["columns"] = [report_column_to_dict(item) for item in component.data_properties.columns]
+    if component.data_properties.data:
+        data_properties["data"] = list(component.data_properties.data)
+    if component.data_properties.series:
+        data_properties["series"] = list(component.data_properties.series)
+    if component.data_properties.axis_group:
+        set_value(data_properties, ChartDataProperties, "axis_group", list(component.data_properties.axis_group))
+    _set_if(payload, ChartComponent, "x_axis", component.x_axis)
+    _set_if(payload, ChartComponent, "y_axis", component.y_axis)
+    _set_if(payload, ChartComponent, "options", component.options)
+    _set_component_common(payload, ChartComponent, component)
     return payload
 
 
@@ -1424,8 +1583,20 @@ def chart_component_from_dict(payload: dict[str, Any]) -> ChartComponent:
         data_properties=ChartDataProperties(
             data_type=str(data.get(get_alias(ChartDataProperties, "data_type")) or ""),
             source_id=_as_optional_str(data.get(get_alias(ChartDataProperties, "source_id"))),
+            url=_as_optional_str(data.get(get_alias(ChartDataProperties, "url"))),
+            method=_as_optional_str(data.get(get_alias(ChartDataProperties, "method"))),
+            auto_refresh=_as_optional_bool(data.get(get_alias(ChartDataProperties, "auto_refresh"))),
+            refresh_interval=_as_optional_float(data.get(get_alias(ChartDataProperties, "refresh_interval"))),
             title=_as_optional_str(data.get(get_alias(ChartDataProperties, "title"))),
+            columns=[report_column_from_dict(item) for item in list(data.get("columns") or [])],
+            data=list(data.get("data") or []),
+            series=list(data.get("series") or []),
+            axis_group=[str(item) for item in list(get_value(data, ChartDataProperties, "axis_group") or [])],
         ),
+        x_axis=get_value(payload, ChartComponent, "x_axis"),
+        y_axis=get_value(payload, ChartComponent, "y_axis"),
+        options=get_value(payload, ChartComponent, "options") if isinstance(get_value(payload, ChartComponent, "options"), dict) else None,
+        **_component_common_kwargs(payload, ChartComponent),
     )
 
 
@@ -1438,7 +1609,14 @@ def composite_table_component_to_dict(component: CompositeTableComponent) -> dic
     payload[get_alias(CompositeTableComponent, "data_properties")] = {
         get_alias(CompositeTableDataProperties, "data_type"): component.data_properties.data_type,
     }
-    _set_if(payload[get_alias(CompositeTableComponent, "data_properties")], CompositeTableDataProperties, "title", component.data_properties.title)
+    data_properties = payload[get_alias(CompositeTableComponent, "data_properties")]
+    _set_if(data_properties, CompositeTableDataProperties, "source_id", component.data_properties.source_id)
+    _set_if(data_properties, CompositeTableDataProperties, "url", component.data_properties.url)
+    _set_if(data_properties, CompositeTableDataProperties, "method", component.data_properties.method)
+    _set_if(data_properties, CompositeTableDataProperties, "auto_refresh", component.data_properties.auto_refresh)
+    _set_if(data_properties, CompositeTableDataProperties, "refresh_interval", component.data_properties.refresh_interval)
+    _set_if(data_properties, CompositeTableDataProperties, "title", component.data_properties.title)
+    _set_component_common(payload, CompositeTableComponent, component)
     return payload
 
 
@@ -1450,8 +1628,14 @@ def composite_table_component_from_dict(payload: dict[str, Any]) -> CompositeTab
         tables=[table_component_from_dict(item) for item in list(payload.get("tables") or [])],
         data_properties=CompositeTableDataProperties(
             data_type=str(data.get(get_alias(CompositeTableDataProperties, "data_type")) or ""),
+            source_id=_as_optional_str(data.get(get_alias(CompositeTableDataProperties, "source_id"))),
+            url=_as_optional_str(data.get(get_alias(CompositeTableDataProperties, "url"))),
+            method=_as_optional_str(data.get(get_alias(CompositeTableDataProperties, "method"))),
+            auto_refresh=_as_optional_bool(data.get(get_alias(CompositeTableDataProperties, "auto_refresh"))),
+            refresh_interval=_as_optional_float(data.get(get_alias(CompositeTableDataProperties, "refresh_interval"))),
             title=_as_optional_str(data.get(get_alias(CompositeTableDataProperties, "title"))),
         ),
+        **_component_common_kwargs(payload, CompositeTableComponent),
     )
 
 
@@ -1748,6 +1932,15 @@ def _as_optional_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 
