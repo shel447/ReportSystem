@@ -21,11 +21,7 @@ from backend.contexts.report_runtime.domain.models import (
     ReportDsl,
     ReportGenerateMeta,
     ReportLayout,
-    ReportOutlineItem,
-    ReportParameter,
-    ReportParameterOption,
     ReportSection,
-    ReportSectionOutline,
     ReportSlide,
     ReportSlideSection,
     ReportSummary,
@@ -69,6 +65,7 @@ from backend.contexts.template_catalog.domain.models import (
     Parameter,
     ParameterValue,
     PresentationProperty,
+    RequirementItem,
     ReportTemplate,
     SlideLayout,
     SummaryRowDef,
@@ -860,14 +857,25 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                     "outline": {
                         "requirement": "分析 {@scope}。",
                         "renderedRequirement": "分析总部网络。",
-                        "items": [{"id": "scope", "sourceParameterId": "scope", "value": ["hq-network"]}],
+                        "items": [
+                            {
+                                "id": "scope",
+                                "label": "分析对象",
+                                "kind": "parameter_ref",
+                                "required": True,
+                                "sourceParameterId": "scope",
+                                "values": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
+                            }
+                        ],
                     },
                     "parameters": {
                         "scope": {
                             "id": "scope",
                             "label": "分析对象",
+                            "inputType": "enum",
                             "required": True,
-                            "widget": "select",
+                            "multi": False,
+                            "interactionMode": "form",
                             "options": [
                                 {"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}
                             ],
@@ -895,15 +903,24 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_content)
 
+        outline_without_rendered = copy.deepcopy(payload)
+        del outline_without_rendered["reportMeta"]["section_main"]["outline"]["renderedRequirement"]
+        _validate_report_dsl(outline_without_rendered)
+
         invalid_outline = copy.deepcopy(payload)
-        del invalid_outline["reportMeta"]["section_main"]["outline"]["renderedRequirement"]
+        del invalid_outline["reportMeta"]["section_main"]["outline"]["requirement"]
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_outline)
 
         invalid_outline_item = copy.deepcopy(payload)
-        del invalid_outline_item["reportMeta"]["section_main"]["outline"]["items"][0]["sourceParameterId"]
+        del invalid_outline_item["reportMeta"]["section_main"]["outline"]["items"][0]["label"]
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_outline_item)
+
+        invalid_parameter = copy.deepcopy(payload)
+        del invalid_parameter["reportMeta"]["section_main"]["parameters"]["scope"]["inputType"]
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_parameter)
 
     def test_report_dsl_schema_accepts_paged_content_and_rejects_mixed_content(self):
         slide = {
@@ -1102,25 +1119,30 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                             appendix="执行证据",
                         )
                     ],
-                    outline=ReportSectionOutline(
+                    outline=OutlineDefinition(
                         requirement="分析 {@scope} 的核心指标。",
                         rendered_requirement="分析总部网络的核心指标。",
                         items=[
-                            ReportOutlineItem(
+                            RequirementItem(
                                 id="scope",
+                                label="分析对象",
+                                kind="parameter_ref",
+                                required=True,
                                 source_parameter_id="scope",
-                                value=["hq-network"],
+                                values=[ParameterValue(label="总部网络", value="hq-network", query="scope_id = 'hq-network'")],
                             )
                         ],
                     ),
                     parameters={
-                        "scope": ReportParameter(
+                        "scope": Parameter(
                             id="scope",
                             label="分析对象",
+                            input_type="enum",
                             required=True,
-                            widget="select",
+                            multi=False,
+                            interaction_mode="form",
                             options=[
-                                ReportParameterOption(
+                                ParameterValue(
                                     label="总部网络",
                                     value="hq-network",
                                     query="scope_id = 'hq-network'",
@@ -1151,7 +1173,8 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(additional_info["value"], "SELECT 1")
         self.assertEqual(additional_info["appendix"], "执行证据")
         self.assertEqual(meta_payload["outline"]["items"][0]["sourceParameterId"], "scope")
-        self.assertEqual(meta_payload["parameters"]["scope"]["widget"], "select")
+        self.assertEqual(meta_payload["outline"]["items"][0]["values"][0]["value"], "hq-network")
+        self.assertEqual(meta_payload["parameters"]["scope"]["inputType"], "enum")
         self.assertNotIn("additionalInfo", meta_payload)
 
         restored = report_dsl_from_dict(payload)

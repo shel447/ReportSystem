@@ -459,15 +459,17 @@
   - 正式保存报告全局参数
   - 结构为 `Record<parameterId, Parameter>`
   - key 使用 lowerCamelCase 全局参数 id
-  - value 使用 BI Engine DSL 参数结构：`id/label/required/widget/options`
+  - value 复用模板/实例态完整 `Parameter` 结构
 - `GenerateMeta.parameters`
   - 只保存该章节本地参数
   - 结构为 `Record<parameterId, Parameter>`
   - 不重复放全局参数，也不放父 catalog 参数
-  - 不复用模板参数里的 `inputType/multi/interactionMode/priority`
+  - 复用模板参数结构，包含 `inputType/multi/interactionMode/priority/defaultValue/options/values/runtimeContext/source`
 - `GenerateMeta.outline`
   - 正式保存章节诉求骨架与实例化结果
+  - schema 定义名为 `GenerateOutline`
   - 包含：`requirement`、`renderedRequirement`、`items`
+  - `items[]` 复用完整 `RequirementItem` 结构
 - `GenerateMeta.question`
   - 继续保留
   - 与 `outline.renderedRequirement` 并存
@@ -479,13 +481,9 @@
 
 `GenerateMeta.outline.items[*]` 规则：
 
-- `id`
-  - 章节内大纲项 id
-- `sourceParameterId`
-  - 关联的上级参数 id
-- `value`
-  - 标量数组，保存参数三元组中的 `value` 集合
-  - 例如：`[\"a\", \"b\"]`
+- 使用完整 `RequirementItem`，至少包含 `id/label/kind/required`
+- `sourceParameterId` 关联上级参数 id
+- `values[]` 使用参数三通道结构 `label/value/query` 保存冻结后的诉求取值
 
 `CompositeTable` 的模板支持规则：
 

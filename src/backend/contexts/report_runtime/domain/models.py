@@ -293,7 +293,7 @@ class ReportBasicInfo:
     status: str | None = None
     created_at: str | None = _alias_field("createdAt", default=None)
     updated_at: str | None = _alias_field("updatedAt", default=None)
-    parameters: dict[str, "ReportParameter"] = field(default_factory=dict)
+    parameters: dict[str, Parameter] = field(default_factory=dict)
     mode: str | None = None
     sub_title: str | None = _alias_field("subTitle", default=None)
     template_id: str | None = _alias_field("templateId", default=None)
@@ -317,45 +317,6 @@ class ReportSummary:
 
 
 @dataclass(slots=True)
-class ReportParameterOption:
-    """Report DSL 参数选项。"""
-
-    label: str
-    value: str
-    query: str
-
-
-@dataclass(slots=True)
-class ReportParameter:
-    """Report DSL 生成元数据参数定义。"""
-
-    id: str
-    label: str
-    required: bool
-    widget: str
-    description: str | None = None
-    options: list[ReportParameterOption] = field(default_factory=list)
-
-
-@dataclass(slots=True)
-class ReportOutlineItem:
-    """Report DSL 章节大纲参数项。"""
-
-    id: str
-    source_parameter_id: str = _alias_field("sourceParameterId")
-    value: list[Any] = field(default_factory=list)
-
-
-@dataclass(slots=True)
-class ReportSectionOutline:
-    """Report DSL 章节大纲配置。"""
-
-    requirement: str
-    rendered_requirement: str = _alias_field("renderedRequirement")
-    items: list[ReportOutlineItem] = field(default_factory=list)
-
-
-@dataclass(slots=True)
 class ReportAdditionalInfo:
     """报告生成附加信息。"""
 
@@ -372,8 +333,8 @@ class ReportGenerateMeta:
     status: str
     question: str
     additional_infos: list[ReportAdditionalInfo] = _alias_field("additionalInfos", default_factory=list)
-    outline: ReportSectionOutline | None = None
-    parameters: dict[str, ReportParameter] = field(default_factory=dict)
+    outline: OutlineDefinition | None = None
+    parameters: dict[str, Parameter] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -1253,7 +1214,7 @@ def report_basic_info_to_dict(info: ReportBasicInfo) -> dict[str, Any]:
     _set_if(payload, ReportBasicInfo, "footer", info.footer)
     _set_if(payload, ReportBasicInfo, "category", info.category)
     if info.parameters:
-        set_value(payload, ReportBasicInfo, "parameters", {key: report_parameter_to_dict(value) for key, value in info.parameters.items()})
+        set_value(payload, ReportBasicInfo, "parameters", {key: parameter_to_dict(value) for key, value in info.parameters.items()})
     return payload
 
 
@@ -1269,7 +1230,7 @@ def report_basic_info_from_dict(payload: dict[str, Any]) -> ReportBasicInfo:
         created_at=_as_optional_str(get_value(payload, ReportBasicInfo, "created_at")),
         updated_at=_as_optional_str(get_value(payload, ReportBasicInfo, "updated_at")),
         parameters={
-            str(key): report_parameter_from_dict(value)
+            str(key): parameter_from_dict(value)
             for key, value in dict(get_value(payload, ReportBasicInfo, "parameters") or {}).items()
             if isinstance(value, dict)
         },
@@ -1299,88 +1260,6 @@ def report_summary_from_dict(payload: dict[str, Any]) -> ReportSummary:
     )
 
 
-def report_parameter_option_to_dict(option: ReportParameterOption) -> dict[str, Any]:
-    return {"label": option.label, "value": option.value, "query": option.query}
-
-
-def report_parameter_option_from_dict(payload: dict[str, Any]) -> ReportParameterOption:
-    return ReportParameterOption(
-        label=str(payload.get("label") or ""),
-        value=str(payload.get("value") or ""),
-        query=str(payload.get("query") or ""),
-    )
-
-
-def report_parameter_to_dict(parameter: ReportParameter) -> dict[str, Any]:
-    payload: dict[str, Any] = {
-        "id": parameter.id,
-        "label": parameter.label,
-        "required": parameter.required,
-        "widget": parameter.widget,
-    }
-    if parameter.description is not None:
-        payload["description"] = parameter.description
-    if parameter.options:
-        payload["options"] = [report_parameter_option_to_dict(item) for item in parameter.options]
-    return payload
-
-
-def report_parameter_from_dict(payload: dict[str, Any]) -> ReportParameter:
-    input_type = str(payload.get("inputType") or "")
-    widget = str(payload.get("widget") or "")
-    if not widget:
-        widget = {
-            "free_text": "input",
-            "date": "date",
-            "enum": "multi_select" if payload.get("multi") else "select",
-            "dynamic": "multi_select" if payload.get("multi") else "select",
-        }.get(input_type, "input")
-    return ReportParameter(
-        id=str(payload.get("id") or ""),
-        label=str(payload.get("label") or ""),
-        required=bool(payload.get("required")),
-        widget=widget,
-        description=_as_optional_str(payload.get("description")),
-        options=[report_parameter_option_from_dict(item) for item in list(payload.get("options") or []) if isinstance(item, dict)],
-    )
-
-
-def report_outline_item_to_dict(item: ReportOutlineItem) -> dict[str, Any]:
-    return {
-        "id": item.id,
-        get_alias(ReportOutlineItem, "source_parameter_id"): item.source_parameter_id,
-        "value": list(item.value or []),
-    }
-
-
-def report_outline_item_from_dict(payload: dict[str, Any]) -> ReportOutlineItem:
-    value = payload.get("value")
-    if value is None and isinstance(payload.get("values"), list):
-        value = [item.get("value") if isinstance(item, dict) else item for item in payload.get("values") or []]
-    return ReportOutlineItem(
-        id=str(payload.get("id") or ""),
-        source_parameter_id=str(payload.get("sourceParameterId") or payload.get("id") or ""),
-        value=list(value or []),
-    )
-
-
-def report_section_outline_to_dict(outline: ReportSectionOutline) -> dict[str, Any]:
-    return {
-        "requirement": outline.requirement,
-        get_alias(ReportSectionOutline, "rendered_requirement"): outline.rendered_requirement,
-        "items": [report_outline_item_to_dict(item) for item in outline.items],
-    }
-
-
-def report_section_outline_from_dict(payload: dict[str, Any]) -> ReportSectionOutline:
-    requirement = str(payload.get("requirement") or "")
-    return ReportSectionOutline(
-        requirement=requirement,
-        rendered_requirement=str(payload.get("renderedRequirement") or requirement),
-        items=[report_outline_item_from_dict(item) for item in list(payload.get("items") or []) if isinstance(item, dict)],
-    )
-
-
 def report_additional_info_to_dict(item: ReportAdditionalInfo) -> dict[str, Any]:
     payload: dict[str, Any] = {}
     set_value(payload, ReportAdditionalInfo, "type", item.type)
@@ -1406,9 +1285,9 @@ def report_generate_meta_to_dict(meta: ReportGenerateMeta) -> dict[str, Any]:
     if meta.additional_infos:
         set_value(payload, ReportGenerateMeta, "additional_infos", [report_additional_info_to_dict(item) for item in meta.additional_infos])
     if meta.outline is not None:
-        set_value(payload, ReportGenerateMeta, "outline", report_section_outline_to_dict(meta.outline))
+        set_value(payload, ReportGenerateMeta, "outline", outline_definition_to_dict(meta.outline))
     if meta.parameters:
-        set_value(payload, ReportGenerateMeta, "parameters", {key: report_parameter_to_dict(value) for key, value in meta.parameters.items()})
+        set_value(payload, ReportGenerateMeta, "parameters", {key: parameter_to_dict(value) for key, value in meta.parameters.items()})
     return payload
 
 
@@ -1433,9 +1312,9 @@ def report_generate_meta_from_dict(payload: dict[str, Any]) -> ReportGenerateMet
         status=str(get_value(payload, ReportGenerateMeta, "status") or ""),
         question=str(get_value(payload, ReportGenerateMeta, "question") or ""),
         additional_infos=additional_infos,
-        outline=report_section_outline_from_dict(payload.get("outline")) if isinstance(payload.get("outline"), dict) else None,
+        outline=_outline_from_any(payload.get("outline")) if isinstance(payload.get("outline"), dict) else None,
         parameters={
-            str(key): report_parameter_from_dict(value)
+            str(key): parameter_from_dict(value)
             for key, value in dict(get_value(payload, ReportGenerateMeta, "parameters") or {}).items()
             if isinstance(value, dict)
         },

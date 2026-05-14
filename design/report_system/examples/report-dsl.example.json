@@ -19,9 +19,19 @@
       "scope": {
         "id": "scope",
         "label": "分析对象",
+        "inputType": "enum",
         "required": true,
-        "widget": "select",
+        "multi": false,
+        "interactionMode": "form",
+        "priority": 0,
         "options": [
+          {
+            "label": "总部网络",
+            "value": "hq-network",
+            "query": "scope_id = 'hq-network'"
+          }
+        ],
+        "values": [
           {
             "label": "总部网络",
             "value": "hq-network",
@@ -206,10 +216,18 @@
         "items": [
           {
             "id": "scope",
+            "label": "分析对象",
+            "kind": "parameter_ref",
+            "required": true,
             "sourceParameterId": "scope",
-            "value": [
-              "hq-network"
-            ]
+            "values": [
+              {
+                "label": "总部网络",
+                "value": "hq-network",
+                "query": "scope_id = 'hq-network'"
+              }
+            ],
+            "valueSource": "parameter_ref"
           }
         ]
       },
@@ -217,9 +235,19 @@
         "scope": {
           "id": "scope",
           "label": "分析对象",
+          "inputType": "enum",
           "required": true,
-          "widget": "select",
+          "multi": false,
+          "interactionMode": "form",
+          "priority": 0,
           "options": [
+            {
+              "label": "总部网络",
+              "value": "hq-network",
+              "query": "scope_id = 'hq-network'"
+            }
+          ],
+          "values": [
             {
               "label": "总部网络",
               "value": "hq-network",

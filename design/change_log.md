@@ -8,6 +8,22 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-14 Report DSL GenerateMeta 参数与大纲结构纠偏
+
+- 变更动机：
+  - 上一轮对齐 `GenerateMeta` 时将 `parameters` 和 `outline.items` 过度简化，导致 Report DSL 与模板/实例态核心参数、大纲模型分叉。
+- 设计决策：
+  - `GenerateMeta.additionalInfos` 保持 canonical 字段名，图表轴配置继续保持 `dataProperties.xAxis/yAxis`。
+  - `GenerateMeta.parameters` 恢复为完整模板参数 `Parameter` 结构，不再使用简化参数结构，也不新增 `ParameterOption`。
+  - `GenerateMeta.outline` 引用 `GenerateOutline`，其结构复用模板/实例态 `OutlineDefinition + RequirementItem`。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+  - `report_system/04-接口契约.md`
+
 ## 2026-05-14 Report DSL GenerateMeta 契约对齐
 
 - 变更动机：

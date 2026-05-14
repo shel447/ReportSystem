@@ -8,6 +8,18 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-14 Report DSL GenerateMeta 参数与大纲结构纠偏
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-14 Report DSL GenerateMeta 参数与大纲结构纠偏”
+- 实现设计调整：
+  - 移除 DSL 专用 `ReportParameter/ReportSectionOutline/ReportOutlineItem`，`ReportGenerateMeta.parameters` 恢复使用模板侧 `Parameter`。
+  - `ReportGenerateMeta.outline` 恢复使用模板侧 `OutlineDefinition`，公开 schema 定义名为 `GenerateOutline`。
+  - `additionalInfos` canonical 输出和旧 `additionalInfo/content` 读取兼容保持不变。
+- 验证要求：
+  - schema 覆盖完整 `Parameter/RequirementItem` 通过，简化参数和简化 outline item 失败。
+  - 后端 round-trip 覆盖完整参数与大纲结构。
+
 ## 2026-05-14 Report DSL GenerateMeta 实现对齐
 
 - 对应设计变更：

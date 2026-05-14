@@ -359,8 +359,30 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
         "requirement": "分析 {@scope} 的总体运行态势。",
         "renderedRequirement": "分析总部网络的总体运行态势。",
         "items": [
-          { "id": "scope", "sourceParameterId": "scope", "value": ["hq-network"] }
+          {
+            "id": "scope",
+            "label": "分析对象",
+            "kind": "parameter_ref",
+            "required": true,
+            "sourceParameterId": "scope",
+            "values": [
+              { "label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'" }
+            ]
+          }
         ]
+      },
+      "parameters": {
+        "scope": {
+          "id": "scope",
+          "label": "分析对象",
+          "inputType": "enum",
+          "required": true,
+          "multi": false,
+          "interactionMode": "form",
+          "options": [
+            { "label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'" }
+          ]
+        }
       }
     }
   }
@@ -368,6 +390,8 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
 ```
 
 `GenerateMeta` 对齐 BI Engine TS 模型，只公开 `status/question/additionalInfos/outline/parameters`。`status` 与 `question` 必填；SQL、Prompt、Summary、API、Knowledge 等生成证据统一进入 `additionalInfos[]`。
+
+`outline` 的 schema 定义名为 `GenerateOutline`，结构复用模板/实例态的 `OutlineDefinition + RequirementItem`；`parameters` 复用完整模板参数结构，不使用简化参数结构。
 
 `additionalInfos[]` 每项必须包含 `type/value`，可包含 `name/appendix`。模型层可兼容读取历史 `additionalInfo` 或 `content` 输入，但新输出必须使用 `additionalInfos` 与 `value`。
 

@@ -272,10 +272,19 @@
     },
     "Parameter": {
       "type": "object",
-      "description": "Report DSL 生成元数据参数定义。与 BI Engine Parameter 对齐，不复用模板参数结构。",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "inputType",
+        "required",
+        "multi",
+        "interactionMode"
+      ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
         },
         "label": {
           "type": "string"
@@ -283,32 +292,95 @@
         "description": {
           "type": "string"
         },
+        "inputType": {
+          "type": "string",
+          "enum": [
+            "free_text",
+            "date",
+            "enum",
+            "dynamic"
+          ]
+        },
         "required": {
           "type": "boolean"
         },
-        "widget": {
+        "multi": {
+          "type": "boolean",
+          "default": false
+        },
+        "interactionMode": {
           "type": "string",
           "enum": [
-            "select",
-            "multi_select",
-            "date",
-            "input"
+            "form",
+            "natural_language"
           ]
+        },
+        "priority": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99,
+          "default": 99,
+          "description": "参数追问优先级。数字越小优先级越高；0 最高，99 最低。缺省按 99 处理。"
+        },
+        "placeholder": {
+          "type": "string"
+        },
+        "defaultValue": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
         },
         "options": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ParameterOption"
+            "$ref": "#/$defs/ParameterValue"
           }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "runtimeContext": {
+          "$ref": "#/$defs/ParameterRuntimeContext"
+        },
+        "source": {
+          "type": "string",
+          "description": "动态候选值来源地址。内容为 URL。"
         }
       },
-      "required": [
-        "id",
-        "label",
-        "required",
-        "widget"
-      ],
-      "additionalProperties": false
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "inputType": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "options"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "inputType": {
+                "const": "dynamic"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "source"
+            ]
+          }
+        }
+      ]
     },
     "BasicInfo": {
       "type": "object",
@@ -661,7 +733,7 @@
           }
         },
         "outline": {
-          "$ref": "#/$defs/SectionOutline"
+          "$ref": "#/$defs/GenerateOutline"
         },
         "parameters": {
           "type": "object",
@@ -2062,51 +2134,87 @@
       ],
       "additionalProperties": false
     },
-    "ParameterOption": {
+    "RequirementItem": {
       "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "kind",
+        "required"
+      ],
       "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_\\-]+$"
+        },
         "label": {
           "type": "string"
         },
-        "value": {
-          "type": "string"
+        "kind": {
+          "type": "string",
+          "enum": [
+            "search_target",
+            "search_condition",
+            "metric",
+            "time_range",
+            "filter",
+            "threshold",
+            "sort",
+            "free_text",
+            "parameter_ref"
+          ]
         },
-        "query": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "label",
-        "value",
-        "query"
-      ],
-      "additionalProperties": false
-    },
-    "OutlineItem": {
-      "type": "object",
-      "description": "Report DSL 章节大纲参数项。与 BI Engine OutlineItem 对齐。",
-      "properties": {
-        "id": {
+        "required": {
+          "type": "boolean"
+        },
+        "multi": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
           "type": "string"
         },
         "sourceParameterId": {
           "type": "string"
         },
-        "value": {
+        "widget": {
+          "type": "string",
+          "enum": [
+            "input",
+            "textarea",
+            "select",
+            "multi_select",
+            "date",
+            "date_range"
+          ]
+        },
+        "defaultValue": {
           "type": "array",
-          "items": {}
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ParameterValue"
+          }
+        },
+        "valueSource": {
+          "type": "string",
+          "enum": [
+            "user_input",
+            "default",
+            "parameter_ref",
+            "system_fill"
+          ]
         }
-      },
-      "required": [
-        "id",
-        "sourceParameterId",
-        "value"
-      ],
-      "additionalProperties": false
+      }
     },
-    "SectionOutline": {
+    "GenerateOutline": {
       "type": "object",
-      "description": "Report DSL 章节大纲配置。与 BI Engine SectionOutline 对齐。",
+      "description": "Report DSL 生成大纲快照。结构复用模板/实例态 OutlineDefinition + RequirementItem。",
       "properties": {
         "requirement": {
           "type": "string"
@@ -2117,13 +2225,12 @@
         "items": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/OutlineItem"
+            "$ref": "#/$defs/RequirementItem"
           }
         }
       },
       "required": [
         "requirement",
-        "renderedRequirement",
         "items"
       ],
       "additionalProperties": false
