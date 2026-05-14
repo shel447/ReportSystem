@@ -19,12 +19,9 @@
       "scope": {
         "id": "scope",
         "label": "分析对象",
-        "inputType": "enum",
         "required": true,
-        "multi": false,
-        "interactionMode": "form",
-        "priority": 0,
-        "values": [
+        "widget": "select",
+        "options": [
           {
             "label": "总部网络",
             "value": "hq-network",
@@ -195,16 +192,42 @@
     "section_summary": {
       "status": "Success",
       "question": "分析总部网络总体运行态势。",
-      "summary": "总部网络整体运行平稳。",
-      "additionalInfo": [
+      "additionalInfos": [
         {
           "type": "SQL",
-          "name": "核心指标 SQL",
-          "content": "select * from network_metrics where scope_id = 'hq-network'",
           "value": "select * from network_metrics where scope_id = 'hq-network'",
+          "name": "核心指标 SQL",
           "appendix": "demo"
         }
-      ]
+      ],
+      "outline": {
+        "requirement": "分析 {@scope} 的总体运行态势。",
+        "renderedRequirement": "分析总部网络的总体运行态势。",
+        "items": [
+          {
+            "id": "scope",
+            "sourceParameterId": "scope",
+            "value": [
+              "hq-network"
+            ]
+          }
+        ]
+      },
+      "parameters": {
+        "scope": {
+          "id": "scope",
+          "label": "分析对象",
+          "required": true,
+          "widget": "select",
+          "options": [
+            {
+              "label": "总部网络",
+              "value": "hq-network",
+              "query": "scope_id = 'hq-network'"
+            }
+          ]
+        }
+      }
     }
   },
   "layout": {

@@ -390,8 +390,10 @@ def _build_report_catalog(
         report_meta[section.id] = ReportGenerateMeta(
             status="Success",
             question=section.outline.rendered_requirement or section.outline.requirement or "",
-            summary=summary,
-            additional_infos=additional_infos,
+            additional_infos=[
+                ReportAdditionalInfo(type="Summary", value=summary),
+                *additional_infos,
+            ],
         )
     return ReportCatalog(
         id=catalog.id,
@@ -497,7 +499,7 @@ def _build_section_components(section) -> tuple[list[Any], str, list[ReportAddit
     for binding in list(section.runtime_context.bindings or []):
         resolved_query = str(binding.resolved_query or "").strip()
         if resolved_query:
-            additional_infos.append(ReportAdditionalInfo(type="SQL", content=resolved_query))
+            additional_infos.append(ReportAdditionalInfo(type="SQL", value=resolved_query))
 
     # 当前运行时保持确定性生成：把正式诉求状态编译成文稿区块，
     # 并把已解析的执行绑定作为证据写入附加信息。

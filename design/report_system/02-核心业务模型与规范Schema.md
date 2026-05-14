@@ -459,11 +459,12 @@
   - 正式保存报告全局参数
   - 结构为 `Record<parameterId, Parameter>`
   - key 使用 lowerCamelCase 全局参数 id
-  - value 使用实例态完整参数对象，而不是精简副本
+  - value 使用 BI Engine DSL 参数结构：`id/label/required/widget/options`
 - `GenerateMeta.parameters`
   - 只保存该章节本地参数
   - 结构为 `Record<parameterId, Parameter>`
   - 不重复放全局参数，也不放父 catalog 参数
+  - 不复用模板参数里的 `inputType/multi/interactionMode/priority`
 - `GenerateMeta.outline`
   - 正式保存章节诉求骨架与实例化结果
   - 包含：`requirement`、`renderedRequirement`、`items`
@@ -471,9 +472,10 @@
   - 继续保留
   - 与 `outline.renderedRequirement` 并存
   - 二者允许不同值，前端和编译逻辑不得假定相等
-- `GenerateMeta.additionalInfo`
-  - 使用新版单数数组字段名 `additionalInfo`
-  - 每项至少包含 `type`，可包含 `name/value/content/appendix`；实现层可兼容读取 `additionalInfos`
+- `GenerateMeta.additionalInfos`
+  - 使用 BI Engine TS 模型中的复数字段名 `additionalInfos`
+  - 每项必须包含 `type/value`，可包含 `name/appendix`
+  - `additionalInfo` 与 `content` 仅作为模型层旧输入兼容，不作为公开 schema 字段
 
 `GenerateMeta.outline.items[*]` 规则：
 

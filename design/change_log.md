@@ -8,6 +8,24 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-14 Report DSL GenerateMeta 契约对齐
+
+- 变更动机：
+  - 对照 BI Engine TypeScript 权威模型后发现 `GenerateMeta` 相关 schema 混入了模板参数、旧 `additionalInfo/content` 和散字段证据，需要优先纠正。
+- 设计决策：
+  - `GenerateMeta` 公开字段收敛为 `status/question/additionalInfos/outline/parameters`，其中 `status`、`question` 必填。
+  - `AdditionalInfo` 必须包含 `type/value`，可选 `name/appendix`；`additionalInfo` 与 `content` 不再作为公开 DSL 字段。
+  - `SectionOutline/OutlineItem` 对齐 BI Engine：`outline.items[]` 使用 `id/sourceParameterId/value[]`。
+  - `GenerateMeta.parameters` 使用 DSL 专用参数结构 `id/label/required/widget/options`，不复用模板参数结构。
+  - 图表轴配置保持项目当前下沉口径：`dataProperties.xAxis/yAxis`。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+  - `report_system/04-接口契约.md`
+
 ## 2026-05-14 Report DSL 小幅增强与说明书
 
 - 变更动机：

@@ -21,7 +21,11 @@ from backend.contexts.report_runtime.domain.models import (
     ReportDsl,
     ReportGenerateMeta,
     ReportLayout,
+    ReportOutlineItem,
+    ReportParameter,
+    ReportParameterOption,
     ReportSection,
+    ReportSectionOutline,
     ReportSlide,
     ReportSlideSection,
     ReportSummary,
@@ -841,6 +845,66 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             _validate_report_dsl(invalid_layout)
 
+    def test_report_dsl_schema_aligns_generate_meta_with_bi_engine_model(self):
+        payload = {
+            "basicInfo": {"id": "rpt_generate_meta"},
+            "catalogs": [],
+            "layout": {"type": "grid"},
+            "reportMeta": {
+                "section_main": {
+                    "status": "Success",
+                    "question": "分析总部网络总体运行态势。",
+                    "additionalInfos": [
+                        {"type": "SQL", "name": "核心指标 SQL", "value": "SELECT 1", "appendix": "demo"}
+                    ],
+                    "outline": {
+                        "requirement": "分析 {@scope}。",
+                        "renderedRequirement": "分析总部网络。",
+                        "items": [{"id": "scope", "sourceParameterId": "scope", "value": ["hq-network"]}],
+                    },
+                    "parameters": {
+                        "scope": {
+                            "id": "scope",
+                            "label": "分析对象",
+                            "required": True,
+                            "widget": "select",
+                            "options": [
+                                {"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}
+                            ],
+                        }
+                    },
+                }
+            },
+        }
+        _validate_report_dsl(payload)
+
+        for field_name in ["status", "question"]:
+            invalid_payload = copy.deepcopy(payload)
+            del invalid_payload["reportMeta"]["section_main"][field_name]
+            with self.assertRaises(ValidationError):
+                _validate_report_dsl(invalid_payload)
+
+        for field_name in ["additionalInfo", "summary", "sql", "api", "knowledge", "prompt"]:
+            invalid_payload = copy.deepcopy(payload)
+            invalid_payload["reportMeta"]["section_main"][field_name] = [] if field_name == "additionalInfo" else "legacy"
+            with self.assertRaises(ValidationError):
+                _validate_report_dsl(invalid_payload)
+
+        invalid_content = copy.deepcopy(payload)
+        invalid_content["reportMeta"]["section_main"]["additionalInfos"][0]["content"] = "SELECT 1"
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_content)
+
+        invalid_outline = copy.deepcopy(payload)
+        del invalid_outline["reportMeta"]["section_main"]["outline"]["renderedRequirement"]
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_outline)
+
+        invalid_outline_item = copy.deepcopy(payload)
+        del invalid_outline_item["reportMeta"]["section_main"]["outline"]["items"][0]["sourceParameterId"]
+        with self.assertRaises(ValidationError):
+            _validate_report_dsl(invalid_outline_item)
+
     def test_report_dsl_schema_accepts_paged_content_and_rejects_mixed_content(self):
         slide = {
             "id": "slide_overview",
@@ -1028,8 +1092,8 @@ class ReportRuntimeServiceTests(unittest.TestCase):
             back_cover=BackCoverConfig(image="https://example.test/back-cover.png", text="Thank You"),
             report_meta={
                 "section_enhanced": ReportGenerateMeta(
-                    id="meta_section_enhanced",
                     status="Success",
+                    question="分析核心指标。",
                     additional_infos=[
                         ReportAdditionalInfo(
                             type="SQL",
@@ -1038,6 +1102,32 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                             appendix="执行证据",
                         )
                     ],
+                    outline=ReportSectionOutline(
+                        requirement="分析 {@scope} 的核心指标。",
+                        rendered_requirement="分析总部网络的核心指标。",
+                        items=[
+                            ReportOutlineItem(
+                                id="scope",
+                                source_parameter_id="scope",
+                                value=["hq-network"],
+                            )
+                        ],
+                    ),
+                    parameters={
+                        "scope": ReportParameter(
+                            id="scope",
+                            label="分析对象",
+                            required=True,
+                            widget="select",
+                            options=[
+                                ReportParameterOption(
+                                    label="总部网络",
+                                    value="hq-network",
+                                    query="scope_id = 'hq-network'",
+                                )
+                            ],
+                        )
+                    },
                 )
             },
         )
@@ -1056,9 +1146,13 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(chart["dataProperties"]["xAxis"]["type"], "category")
         self.assertNotIn("xAxis", chart)
         self.assertTrue(chart["options"]["responsive"]["enabled"])
-        additional_info = payload["reportMeta"]["section_enhanced"]["additionalInfo"][0]
+        meta_payload = payload["reportMeta"]["section_enhanced"]
+        additional_info = meta_payload["additionalInfos"][0]
         self.assertEqual(additional_info["value"], "SELECT 1")
         self.assertEqual(additional_info["appendix"], "执行证据")
+        self.assertEqual(meta_payload["outline"]["items"][0]["sourceParameterId"], "scope")
+        self.assertEqual(meta_payload["parameters"]["scope"]["widget"], "select")
+        self.assertNotIn("additionalInfo", meta_payload)
 
         restored = report_dsl_from_dict(payload)
         restored_payload = report_dsl_to_dict(restored)
@@ -1077,9 +1171,18 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertNotIn("xAxis", restored_legacy_chart_payload["catalogs"][0]["sections"][0]["components"][1])
 
         legacy_payload = copy.deepcopy(payload)
-        legacy_payload["reportMeta"]["section_enhanced"]["additionalInfos"] = legacy_payload["reportMeta"]["section_enhanced"].pop("additionalInfo")
+        legacy_payload["reportMeta"]["section_enhanced"]["additionalInfo"] = legacy_payload["reportMeta"]["section_enhanced"].pop("additionalInfos")
+        legacy_payload["reportMeta"]["section_enhanced"]["additionalInfo"][0]["content"] = legacy_payload["reportMeta"]["section_enhanced"]["additionalInfo"][0].pop("value")
+        legacy_payload["reportMeta"]["section_enhanced"]["summary"] = "旧摘要字段"
+        legacy_payload["reportMeta"]["section_enhanced"]["sql"] = "SELECT 2"
         restored_legacy = report_dsl_from_dict(legacy_payload)
         self.assertEqual(restored_legacy.report_meta["section_enhanced"].additional_infos[0].value, "SELECT 1")
+        restored_legacy_payload = report_dsl_to_dict(restored_legacy)
+        self.assertIn("additionalInfos", restored_legacy_payload["reportMeta"]["section_enhanced"])
+        self.assertNotIn("additionalInfo", restored_legacy_payload["reportMeta"]["section_enhanced"])
+        self.assertNotIn("summary", restored_legacy_payload["reportMeta"]["section_enhanced"])
+        self.assertEqual(restored_legacy.report_meta["section_enhanced"].additional_infos[1].type, "Summary")
+        self.assertEqual(restored_legacy.report_meta["section_enhanced"].additional_infos[2].type, "SQL")
 
     def test_schema_validates_supported_presentation_block_types(self):
         template_payload = {

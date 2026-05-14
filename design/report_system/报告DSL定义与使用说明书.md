@@ -347,21 +347,29 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
     "section_summary": {
       "status": "Success",
       "question": "分析总部网络总体运行态势。",
-      "additionalInfo": [
+      "additionalInfos": [
         {
           "type": "SQL",
           "name": "核心指标 SQL",
-          "content": "select * from network_metrics",
           "value": "select * from network_metrics",
           "appendix": "demo"
         }
-      ]
+      ],
+      "outline": {
+        "requirement": "分析 {@scope} 的总体运行态势。",
+        "renderedRequirement": "分析总部网络的总体运行态势。",
+        "items": [
+          { "id": "scope", "sourceParameterId": "scope", "value": ["hq-network"] }
+        ]
+      }
     }
   }
 }
 ```
 
-`additionalInfo[]` 每项至少包含 `type`，可包含 `name/value/content/appendix`。实现层可兼容读取历史 `additionalInfos`，但新输出使用 `additionalInfo`。
+`GenerateMeta` 对齐 BI Engine TS 模型，只公开 `status/question/additionalInfos/outline/parameters`。`status` 与 `question` 必填；SQL、Prompt、Summary、API、Knowledge 等生成证据统一进入 `additionalInfos[]`。
+
+`additionalInfos[]` 每项必须包含 `type/value`，可包含 `name/appendix`。模型层可兼容读取历史 `additionalInfo` 或 `content` 输入，但新输出必须使用 `additionalInfos` 与 `value`。
 
 ---
 

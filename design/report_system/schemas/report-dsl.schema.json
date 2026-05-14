@@ -272,6 +272,7 @@
     },
     "Parameter": {
       "type": "object",
+      "description": "Report DSL 生成元数据参数定义。与 BI Engine Parameter 对齐，不复用模板参数结构。",
       "properties": {
         "id": {
           "type": "string"
@@ -282,35 +283,8 @@
         "description": {
           "type": "string"
         },
-        "inputType": {
-          "type": "string",
-          "enum": [
-            "free_text",
-            "date",
-            "enum",
-            "dynamic"
-          ]
-        },
         "required": {
           "type": "boolean"
-        },
-        "multi": {
-          "type": "boolean"
-        },
-        "interactionMode": {
-          "type": "string",
-          "enum": [
-            "form",
-            "natural_language"
-          ]
-        },
-        "priority": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 99
-        },
-        "placeholder": {
-          "type": "string"
         },
         "widget": {
           "type": "string",
@@ -321,39 +295,18 @@
             "input"
           ]
         },
-        "defaultValue": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
         "options": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ParameterValue"
+            "$ref": "#/$defs/ParameterOption"
           }
-        },
-        "values": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
-        "runtimeContext": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "source": {
-          "type": "string"
         }
       },
       "required": [
         "id",
         "label",
-        "inputType",
         "required",
-        "multi",
-        "interactionMode"
+        "widget"
       ],
       "additionalProperties": false
     },
@@ -693,46 +646,13 @@
     },
     "GenerateMeta": {
       "type": "object",
-      "description": "生成元数据。用于挂载 prompt、summary、SQL、API、Knowledge、参数和大纲等生成证据；兼容 TS 中 additionalInfos 命名。",
+      "description": "生成元数据。与 BI Engine GenerateMeta 对齐：记录生成状态、原始问题、附加证据、大纲快照和章节级参数。",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "status": {
           "$ref": "#/$defs/Status"
         },
         "question": {
           "type": "string"
-        },
-        "summary": {
-          "type": "string"
-        },
-        "sql": {
-          "type": "string"
-        },
-        "api": {
-          "type": "string"
-        },
-        "knowledge": {
-          "type": "string"
-        },
-        "prompt": {
-          "type": "string"
-        },
-        "parameters": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/Parameter"
-          }
-        },
-        "outline": {
-          "$ref": "#/$defs/Outline"
-        },
-        "additionalInfo": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/AdditionalInfo"
-          }
         },
         "additionalInfos": {
           "type": "array",
@@ -740,19 +660,25 @@
             "$ref": "#/$defs/AdditionalInfo"
           }
         },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
+        "outline": {
+          "$ref": "#/$defs/SectionOutline"
         },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
+        "parameters": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Parameter"
+          }
         }
       },
+      "required": [
+        "status",
+        "question"
+      ],
       "additionalProperties": false
     },
     "AdditionalInfo": {
       "type": "object",
+      "description": "生成附加信息。证据正文统一使用 value。",
       "properties": {
         "type": {
           "$ref": "#/$defs/AdditionalInfoType"
@@ -763,119 +689,13 @@
         "value": {
           "type": "string"
         },
-        "content": {
-          "type": "string"
-        },
         "appendix": {
           "type": "string"
         }
       },
       "required": [
-        "type"
-      ],
-      "additionalProperties": false
-    },
-    "Outline": {
-      "type": "object",
-      "properties": {
-        "requirement": {
-          "type": "string"
-        },
-        "renderedRequirement": {
-          "type": "string"
-        },
-        "items": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/RequirementItem"
-          }
-        }
-      },
-      "required": [
-        "requirement",
-        "items"
-      ],
-      "additionalProperties": false
-    },
-    "RequirementItem": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "label": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string",
-          "enum": [
-            "search_target",
-            "search_condition",
-            "metric",
-            "time_range",
-            "filter",
-            "threshold",
-            "sort",
-            "free_text",
-            "parameter_ref"
-          ]
-        },
-        "required": {
-          "type": "boolean"
-        },
-        "multi": {
-          "type": "boolean"
-        },
-        "description": {
-          "type": "string"
-        },
-        "sourceParameterId": {
-          "type": "string"
-        },
-        "widget": {
-          "type": "string",
-          "enum": [
-            "input",
-            "textarea",
-            "select",
-            "multi_select",
-            "date",
-            "date_range"
-          ]
-        },
-        "defaultValue": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
-        "values": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ParameterValue"
-          }
-        },
-        "valueSource": {
-          "type": "string",
-          "enum": [
-            "user_input",
-            "default",
-            "parameter_ref",
-            "system_fill"
-          ]
-        },
-        "value": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Scalar"
-          }
-        }
-      },
-      "required": [
-        "id",
-        "label",
-        "kind",
-        "required"
+        "type",
+        "value"
       ],
       "additionalProperties": false
     },
@@ -2239,6 +2059,72 @@
       },
       "required": [
         "name"
+      ],
+      "additionalProperties": false
+    },
+    "ParameterOption": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value",
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "OutlineItem": {
+      "type": "object",
+      "description": "Report DSL 章节大纲参数项。与 BI Engine OutlineItem 对齐。",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "sourceParameterId": {
+          "type": "string"
+        },
+        "value": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "required": [
+        "id",
+        "sourceParameterId",
+        "value"
+      ],
+      "additionalProperties": false
+    },
+    "SectionOutline": {
+      "type": "object",
+      "description": "Report DSL 章节大纲配置。与 BI Engine SectionOutline 对齐。",
+      "properties": {
+        "requirement": {
+          "type": "string"
+        },
+        "renderedRequirement": {
+          "type": "string"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/OutlineItem"
+          }
+        }
+      },
+      "required": [
+        "requirement",
+        "renderedRequirement",
+        "items"
       ],
       "additionalProperties": false
     }

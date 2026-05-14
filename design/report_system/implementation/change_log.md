@@ -8,6 +8,18 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-14 Report DSL GenerateMeta 实现对齐
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-14 Report DSL GenerateMeta 契约对齐”
+- 实现设计调整：
+  - `report_runtime.domain.models` 新增 DSL 专用 `ReportParameter/ReportSectionOutline/ReportOutlineItem`，避免 `GenerateMeta` 复用模板参数与模板 outline 模型。
+  - `ReportGenerateMeta` canonical 输出 `additionalInfos`，条目输出 `type/value/name/appendix`；模型层兼容读取旧 `additionalInfo`、`content` 和旧散字段 `summary/sql/api/knowledge/prompt`。
+  - 运行时 SQL 与 Summary 证据统一写入 `additionalInfos[]`，不再输出 `reportMeta[sectionId].summary`。
+- 验证要求：
+  - schema 覆盖 `status/question` 必填、旧公开字段失败、TS 风格 `parameters/outline` 通过。
+  - 后端测试覆盖新 canonical round-trip 和旧输入兼容读取。
+
 ## 2026-05-14 Report DSL 小幅增强实现对齐
 
 - 对应设计变更：
