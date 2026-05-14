@@ -17,6 +17,7 @@
 - [examples/report-template.example.json](examples/report-template.example.json)
 - [examples/template-instance.example.json](examples/template-instance.example.json)
 - [examples/report-dsl.example.json](examples/report-dsl.example.json)
+- [examples/report-dsl-paged.example.json](examples/report-dsl-paged.example.json)
 
 原则：
 
@@ -24,6 +25,7 @@
 2. 开发、测试、导入导出、文档生成都必须围绕这些 Schema 工作。
 3. 代码实现如需引用 Schema，统一直接引用本目录下的正式文件，不再在 `src/backend` 维护镜像副本。
 4. `Report DSL` 必须严格遵循 [schemas/report-dsl.schema.json](schemas/report-dsl.schema.json)。
+5. Report DSL 使用说明见 [报告DSL定义与使用说明书.md](报告DSL定义与使用说明书.md)。
 
 ## 2. ReportTemplate
 
@@ -435,6 +437,9 @@
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 - `Report DSL` 需要保留足够的参数配置和大纲配置，以支持前台对已生成报告进行结构化编辑
 - 当前 schema 已补齐 BI Engine TypeScript 模型中已有而 schema 曾缺失的字段，例如 `basicInfo.schemaVersion/mode/templateId`、`layout.autoLayout`、组件 `basicProperties/advanceProperties`、图表 `series/options.responsive` 与表格列展示控制字段
+- `backCover` 是 paged/PPT 封底配置，公开结构为 `{image?, text?}`
+- 表格行合并信息统一命名为 `MergeRowInfo`，字段仍为 `startRowIndex/rowSpan/column/mergedText`
+- 图表轴配置位于 `ChartDataProperty.xAxis/yAxis`，不再作为 `ChartComponent` 顶层字段输出
 
 当前业务 profile：
 

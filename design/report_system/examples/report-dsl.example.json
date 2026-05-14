@@ -119,6 +119,63 @@
                   }
                 ]
               }
+            },
+            {
+              "id": "component_availability_chart",
+              "type": "chart",
+              "advanceProperties": {
+                "eChartOption": {
+                  "legend": {
+                    "show": true
+                  }
+                },
+                "responsive": {
+                  "enabled": true,
+                  "aspectRatio": 1.6
+                }
+              },
+              "dataProperties": {
+                "dataType": "static",
+                "title": "可用率趋势",
+                "columns": [
+                  {
+                    "key": "stat_date",
+                    "title": "日期"
+                  },
+                  {
+                    "key": "availability_rate",
+                    "title": "可用率"
+                  }
+                ],
+                "data": [
+                  {
+                    "stat_date": "2026-05-11",
+                    "availability_rate": 99.95
+                  },
+                  {
+                    "stat_date": "2026-05-12",
+                    "availability_rate": 99.98
+                  }
+                ],
+                "series": [
+                  {
+                    "type": "line",
+                    "name": "可用率",
+                    "encode": {
+                      "x": "stat_date",
+                      "y": "availability_rate"
+                    }
+                  }
+                ],
+                "xAxis": {
+                  "type": "category",
+                  "name": "日期"
+                },
+                "yAxis": {
+                  "type": "value",
+                  "name": "可用率"
+                }
+              }
             }
           ],
           "summary": {

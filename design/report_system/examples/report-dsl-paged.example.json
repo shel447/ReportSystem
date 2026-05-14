@@ -47,5 +47,9 @@
   "summary": {
     "id": "summary_paged_report",
     "overview": "分页报告已生成。"
+  },
+  "backCover": {
+    "image": "https://example.test/assets/back-cover.png",
+    "text": "Thank You"
   }
 }

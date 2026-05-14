@@ -8,7 +8,7 @@ export type ReportColumn = {
   children?: ReportColumn[];
 };
 
-export type ReportMergeRowConfig = {
+export type ReportMergeRowInfo = {
   startRowIndex: number;
   rowSpan: number;
   column: string;
@@ -21,7 +21,7 @@ export type ReportTableDataProperties = {
   title?: string;
   columns?: ReportColumn[];
   data?: Array<Record<string, unknown>>;
-  mergeRows?: ReportMergeRowConfig[];
+  mergeRows?: ReportMergeRowInfo[];
 };
 
 export type ReportDocument = {

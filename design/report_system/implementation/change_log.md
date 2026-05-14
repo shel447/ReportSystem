@@ -8,6 +8,19 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-14 Report DSL 小幅增强实现对齐
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-14 Report DSL 小幅增强与说明书”
+- 实现设计调整：
+  - `report_runtime.domain.models.ReportDsl` 增加 `back_cover`，公开字段为 `backCover`。
+  - DSL 行合并模型统一为 `MergeRowInfo`，不再保留额外 `MergeRowConfig` 定义。
+  - `ChartDataProperties` 增加 `x_axis/y_axis`，输出到 `dataProperties.xAxis/yAxis`；模型层兼容读取历史顶层 `ChartComponent.xAxis/yAxis`。
+  - 新增 Report DSL 说明书，解释 flow/paged、组件、图表、表格和 `reportMeta` 的使用方式。
+- 验证要求：
+  - flow/paged DSL 示例通过最新 schema。
+  - 后端测试覆盖 `backCover`、`MergeRowInfo` 和图表轴配置迁移。
+
 ## 2026-05-13 Report DSL BI Engine 字段补齐
 
 - 对应设计变更：

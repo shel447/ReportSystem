@@ -8,6 +8,23 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-14 Report DSL 小幅增强与说明书
+
+- 变更动机：
+  - 手工更新后的 `report-dsl.schema.json` 增强了 PPT 封底、图表轴配置和行合并命名，需要同步正式设计文档和说明书。
+- 设计决策：
+  - 新增顶层 `backCover`，用于 paged/PPT 封底配置。
+  - 行合并信息统一命名为 `MergeRowInfo`，不再保留额外 `MergeRowConfig` 定义。
+  - 图表轴配置迁移到 `ChartDataProperty.xAxis/yAxis`，`ChartComponent` 顶层不再输出 `xAxis/yAxis`。
+  - 新增 `报告DSL定义与使用说明书.md`，作为 Report DSL 的使用说明入口。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/examples/report-dsl-paged.example.json`
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/03-运行时流程与状态机.md`
+
 ## 2026-05-13 Report DSL 补齐 BI Engine 字段
 
 - 变更动机：

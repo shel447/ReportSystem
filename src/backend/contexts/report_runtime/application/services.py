@@ -43,7 +43,7 @@ from ..domain.models import (
     ReportDsl,
     ReportGenerateMeta,
     ReportLayout,
-    MergeRowConfig,
+    MergeRowInfo,
     ReportSection,
     ReportSummary,
     TableComponent,
@@ -707,11 +707,11 @@ def _layout_merge_rows(table_layout):
     return list(table_layout.merge_rows or [])
 
 
-def _build_merge_rows(*, data: list[dict[str, Any]], columns: list[ReportColumn], definitions) -> list[MergeRowConfig]:
+def _build_merge_rows(*, data: list[dict[str, Any]], columns: list[ReportColumn], definitions) -> list[MergeRowInfo]:
     if not data or not definitions:
         return []
     column_keys = {str(column.key or "") for column in columns if str(column.key or "")}
-    configs: list[MergeRowConfig] = []
+    configs: list[MergeRowInfo] = []
     for definition in definitions:
         column = str(getattr(definition, "column", "") or "")
         if not column or column not in column_keys:
@@ -720,8 +720,8 @@ def _build_merge_rows(*, data: list[dict[str, Any]], columns: list[ReportColumn]
     return configs
 
 
-def _build_default_merge_rows(*, data: list[dict[str, Any]], column: str) -> list[MergeRowConfig]:
-    configs: list[MergeRowConfig] = []
+def _build_default_merge_rows(*, data: list[dict[str, Any]], column: str) -> list[MergeRowInfo]:
+    configs: list[MergeRowInfo] = []
     start_index = 0
     while start_index < len(data):
         current_value = data[start_index].get(column)
@@ -731,7 +731,7 @@ def _build_default_merge_rows(*, data: list[dict[str, Any]], column: str) -> lis
         row_span = end_index - start_index
         if row_span > 1:
             configs.append(
-                MergeRowConfig(
+                MergeRowInfo(
                     start_row_index=start_index,
                     row_span=row_span,
                     column=column,

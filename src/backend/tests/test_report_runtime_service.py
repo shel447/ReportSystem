@@ -5,11 +5,12 @@ from types import SimpleNamespace
 
 from backend.contexts.report_runtime.application.services import ReportRuntimeService, _validate_report_dsl, build_report_dsl
 from backend.contexts.report_runtime.domain.models import (
+    BackCoverConfig,
     ChartComponent,
     ChartDataProperties,
     CompositeTableComponent,
     DynamicContext,
-    MergeRowConfig,
+    MergeRowInfo,
     ParameterConfirmation,
     ReportAdditionalInfo,
     ReportBasicInfo,
@@ -453,7 +454,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 data_type="datasource",
                 source_id="dataset_metrics",
                 merge_columns=[MergeColumnInfo(title="范围指标", columns=["scope_name", "metric_name"])],
-                merge_rows=[MergeRowConfig(start_row_index=0, row_span=2, column="scope_name", merged_text="总部网络")],
+                merge_rows=[MergeRowInfo(start_row_index=0, row_span=2, column="scope_name", merged_text="总部网络")],
             ),
         )
         table_payload = table_component_to_dict(table)
@@ -1013,9 +1014,9 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                                             }
                                         ],
                                         axis_group=["primary"],
+                                        x_axis={"type": "category", "name": "日期"},
+                                        y_axis={"type": "value", "name": "可用率"},
                                     ),
-                                    x_axis={"type": "category", "name": "日期"},
-                                    y_axis={"type": "value", "name": "可用率"},
                                     options={"responsive": {"enabled": True, "aspectRatio": 1.6}},
                                 ),
                             ],
@@ -1024,6 +1025,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 )
             ],
             layout=ReportLayout(type="grid", auto_layout=True, grid=GridDefinition(cols=12, row_height=24)),
+            back_cover=BackCoverConfig(image="https://example.test/back-cover.png", text="Thank You"),
             report_meta={
                 "section_enhanced": ReportGenerateMeta(
                     id="meta_section_enhanced",
@@ -1042,6 +1044,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
 
         payload = report_dsl_to_dict(report)
         _validate_report_dsl(payload)
+        self.assertEqual(payload["backCover"]["text"], "Thank You")
         self.assertEqual(payload["basicInfo"]["schemaVersion"], "1.0.0")
         self.assertEqual(payload["basicInfo"]["subTitle"], "增强副标题")
         self.assertTrue(payload["layout"]["autoLayout"])
@@ -1050,6 +1053,8 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertTrue(table_data["mergeColumns"][0]["isMergeValue"])
         chart = payload["catalogs"][0]["sections"][0]["components"][1]
         self.assertEqual(chart["dataProperties"]["series"][0]["type"], "line")
+        self.assertEqual(chart["dataProperties"]["xAxis"]["type"], "category")
+        self.assertNotIn("xAxis", chart)
         self.assertTrue(chart["options"]["responsive"]["enabled"])
         additional_info = payload["reportMeta"]["section_enhanced"]["additionalInfo"][0]
         self.assertEqual(additional_info["value"], "SELECT 1")
@@ -1059,7 +1064,17 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         restored_payload = report_dsl_to_dict(restored)
         _validate_report_dsl(restored_payload)
         self.assertEqual(restored_payload["basicInfo"]["schemaVersion"], "1.0.0")
-        self.assertEqual(restored_payload["catalogs"][0]["sections"][0]["components"][1]["xAxis"]["type"], "category")
+        self.assertEqual(restored_payload["backCover"]["image"], "https://example.test/back-cover.png")
+        self.assertEqual(restored_payload["catalogs"][0]["sections"][0]["components"][1]["dataProperties"]["xAxis"]["type"], "category")
+
+        legacy_chart_payload = copy.deepcopy(payload)
+        legacy_chart = legacy_chart_payload["catalogs"][0]["sections"][0]["components"][1]
+        legacy_chart["xAxis"] = legacy_chart["dataProperties"].pop("xAxis")
+        legacy_chart["yAxis"] = legacy_chart["dataProperties"].pop("yAxis")
+        restored_legacy_chart = report_dsl_from_dict(legacy_chart_payload)
+        restored_legacy_chart_payload = report_dsl_to_dict(restored_legacy_chart)
+        self.assertEqual(restored_legacy_chart_payload["catalogs"][0]["sections"][0]["components"][1]["dataProperties"]["xAxis"]["type"], "category")
+        self.assertNotIn("xAxis", restored_legacy_chart_payload["catalogs"][0]["sections"][0]["components"][1])
 
         legacy_payload = copy.deepcopy(payload)
         legacy_payload["reportMeta"]["section_enhanced"]["additionalInfos"] = legacy_payload["reportMeta"]["section_enhanced"].pop("additionalInfo")

@@ -20,6 +20,10 @@
     "cover": {
       "$ref": "#/$defs/Cover"
     },
+    "backCover": {
+      "$ref": "#/$defs/BackCoverConfig",
+      "description": "PPT/分页报告封底配置。与 BI Engine PPT.backCover 对齐；structureType=paged 时使用。"
+    },
     "signaturePage": {
       "$ref": "#/$defs/SignaturePage"
     },
@@ -160,6 +164,21 @@
         "type",
         "slides"
       ],
+      "additionalProperties": false
+    },
+    "BackCoverConfig": {
+      "type": "object",
+      "description": "PPT 封底配置。与 BI Engine BackCoverConfig 对齐。",
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "背景图片，支持 URL 或 base64。"
+        },
+        "text": {
+          "type": "string",
+          "description": "封底显示文本，默认可由渲染端处理为 Thank You。"
+        }
+      },
       "additionalProperties": false
     },
     "ReportMeta": {
@@ -1075,7 +1094,7 @@
       ],
       "additionalProperties": false
     },
-    "MergeRowConfig": {
+    "MergeRowInfo": {
       "type": "object",
       "properties": {
         "startRowIndex": {
@@ -1099,7 +1118,8 @@
         "rowSpan",
         "column"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "行合并信息。连续多行相同值合并后的渲染配置。"
     },
     "InteractionTrigger": {
       "type": "object",
@@ -1305,7 +1325,7 @@
         "mergeRows": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/MergeRowConfig"
+            "$ref": "#/$defs/MergeRowInfo"
           }
         },
         "hasMerge": {
@@ -1704,6 +1724,34 @@
           "items": {
             "type": "string"
           }
+        },
+        "xAxis": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Axis"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Axis"
+              }
+            }
+          ],
+          "description": "x 轴配置。与 BI Engine ChartDataProperty.xAxis 对齐；饼图通常不需要。"
+        },
+        "yAxis": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Axis"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Axis"
+              }
+            }
+          ],
+          "description": "y 轴配置。与 BI Engine ChartDataProperty.yAxis 对齐；饼图通常不需要。"
         }
       },
       "required": [
@@ -1902,6 +1950,24 @@
     },
     "ChartAdvanceProperties": {
       "type": "object",
+      "properties": {
+        "eChartOption": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "ECharts 原生配置覆盖。"
+        },
+        "centerText": {
+          "type": "string",
+          "description": "中心主文本，用于饼图或仪表盘。"
+        },
+        "subCenterText": {
+          "type": "string",
+          "description": "中心副文本。"
+        },
+        "responsive": {
+          "$ref": "#/$defs/ResponsiveConfig"
+        }
+      },
       "additionalProperties": true
     },
     "TextBasicProperties": {
@@ -2024,32 +2090,6 @@
         },
         "dataProperties": {
           "$ref": "#/$defs/ChartDataProperty"
-        },
-        "xAxis": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/Axis"
-            },
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Axis"
-              }
-            }
-          ]
-        },
-        "yAxis": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/Axis"
-            },
-            {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/Axis"
-              }
-            }
-          ]
         },
         "options": {
           "$ref": "#/$defs/ChartOption"

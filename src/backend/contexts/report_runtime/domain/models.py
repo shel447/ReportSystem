@@ -418,13 +418,13 @@ class TableDataProperties:
     title: str | None = None
     columns: list[ReportColumn] = field(default_factory=list)
     merge_columns: list[MergeColumnInfo] = _alias_field("mergeColumns", default_factory=list)
-    merge_rows: list["MergeRowConfig"] = _alias_field("mergeRows", default_factory=list)
+    merge_rows: list["MergeRowInfo"] = _alias_field("mergeRows", default_factory=list)
     data: list[dict[str, Any]] = field(default_factory=list)
     has_merge: bool | None = _alias_field("hasMerge", default=None)
 
 
 @dataclass(slots=True)
-class MergeRowConfig:
+class MergeRowInfo:
     """表格行合并渲染配置。"""
 
     start_row_index: int = _alias_field("startRowIndex")
@@ -448,6 +448,8 @@ class ChartDataProperties:
     data: list[dict[str, Any]] = field(default_factory=list)
     series: list[dict[str, Any]] = field(default_factory=list)
     axis_group: list[str] = _alias_field("axisGroup", default_factory=list)
+    x_axis: dict[str, Any] | list[dict[str, Any]] | None = _alias_field("xAxis", default=None)
+    y_axis: dict[str, Any] | list[dict[str, Any]] | None = _alias_field("yAxis", default=None)
 
 
 @dataclass(slots=True)
@@ -513,8 +515,6 @@ class ChartComponent:
     basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
     advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
     interactions: list[dict[str, Any]] = field(default_factory=list)
-    x_axis: dict[str, Any] | list[dict[str, Any]] | None = _alias_field("xAxis", default=None)
-    y_axis: dict[str, Any] | list[dict[str, Any]] | None = _alias_field("yAxis", default=None)
     options: dict[str, Any] | None = None
 
 
@@ -604,6 +604,14 @@ class ReportSignaturePage:
 
 
 @dataclass(slots=True)
+class BackCoverConfig:
+    """PPT/分页报告封底配置。"""
+
+    image: str | None = None
+    text: str | None = None
+
+
+@dataclass(slots=True)
 class ReportSlide:
     """分页/PPT 报告中的单页。"""
 
@@ -635,6 +643,7 @@ class ReportDsl:
     basic_info: ReportBasicInfo = _alias_field("basicInfo")
     structure_type: str = _alias_field("structureType", default="flow")
     cover: ReportCover | None = None
+    back_cover: BackCoverConfig | None = _alias_field("backCover", default=None)
     signature_page: ReportSignaturePage | None = _alias_field("signaturePage", default=None)
     catalogs: list[ReportCatalog] = field(default_factory=list)
     layout: ReportLayout | None = None
@@ -1154,6 +1163,8 @@ def report_dsl_to_dict(report: ReportDsl) -> dict[str, Any]:
     set_value(payload, ReportDsl, "basic_info", report_basic_info_to_dict(report.basic_info))
     if report.cover is not None:
         set_value(payload, ReportDsl, "cover", report_cover_to_dict(report.cover))
+    if report.back_cover is not None:
+        set_value(payload, ReportDsl, "back_cover", back_cover_config_to_dict(report.back_cover))
     if report.signature_page is not None:
         set_value(payload, ReportDsl, "signature_page", report_signature_page_to_dict(report.signature_page))
     if structure_type == "paged":
@@ -1174,6 +1185,7 @@ def report_dsl_from_dict(payload: dict[str, Any]) -> ReportDsl:
         structure_type=structure_type,
         basic_info=report_basic_info_from_dict(get_value(payload, ReportDsl, "basic_info") or {}),
         cover=report_cover_from_dict(get_value(payload, ReportDsl, "cover")) if isinstance(get_value(payload, ReportDsl, "cover"), dict) else None,
+        back_cover=back_cover_config_from_dict(get_value(payload, ReportDsl, "back_cover")) if isinstance(get_value(payload, ReportDsl, "back_cover"), dict) else None,
         signature_page=report_signature_page_from_dict(get_value(payload, ReportDsl, "signature_page")) if isinstance(get_value(payload, ReportDsl, "signature_page"), dict) else None,
         catalogs=[report_catalog_from_dict(item) for item in list(get_value(payload, ReportDsl, "catalogs") or [])],
         layout=report_layout_from_dict(get_value(payload, ReportDsl, "layout") or {}) if isinstance(get_value(payload, ReportDsl, "layout"), dict) else None,
@@ -1470,22 +1482,22 @@ def text_component_from_dict(payload: dict[str, Any]) -> TextComponent:
     )
 
 
-def merge_row_config_to_dict(config: MergeRowConfig) -> dict[str, Any]:
+def merge_row_info_to_dict(config: MergeRowInfo) -> dict[str, Any]:
     payload: dict[str, Any] = {}
-    set_value(payload, MergeRowConfig, "start_row_index", config.start_row_index)
-    set_value(payload, MergeRowConfig, "row_span", config.row_span)
+    set_value(payload, MergeRowInfo, "start_row_index", config.start_row_index)
+    set_value(payload, MergeRowInfo, "row_span", config.row_span)
     payload["column"] = config.column
     if config.merged_text is not None:
-        set_value(payload, MergeRowConfig, "merged_text", config.merged_text)
+        set_value(payload, MergeRowInfo, "merged_text", config.merged_text)
     return payload
 
 
-def merge_row_config_from_dict(payload: dict[str, Any]) -> MergeRowConfig:
-    return MergeRowConfig(
-        start_row_index=int(get_value(payload, MergeRowConfig, "start_row_index") or 0),
-        row_span=int(get_value(payload, MergeRowConfig, "row_span") or 0),
+def merge_row_info_from_dict(payload: dict[str, Any]) -> MergeRowInfo:
+    return MergeRowInfo(
+        start_row_index=int(get_value(payload, MergeRowInfo, "start_row_index") or 0),
+        row_span=int(get_value(payload, MergeRowInfo, "row_span") or 0),
         column=str(payload.get("column") or ""),
-        merged_text=_as_optional_str(get_value(payload, MergeRowConfig, "merged_text")),
+        merged_text=_as_optional_str(get_value(payload, MergeRowInfo, "merged_text")),
     )
 
 
@@ -1511,7 +1523,7 @@ def table_component_to_dict(component: TableComponent) -> dict[str, Any]:
 
         set_value(data_properties, TableDataProperties, "merge_columns", [merge_column_info_to_dict(item) for item in component.data_properties.merge_columns])
     if component.data_properties.merge_rows:
-        set_value(data_properties, TableDataProperties, "merge_rows", [merge_row_config_to_dict(item) for item in component.data_properties.merge_rows])
+        set_value(data_properties, TableDataProperties, "merge_rows", [merge_row_info_to_dict(item) for item in component.data_properties.merge_rows])
     if component.data_properties.data:
         data_properties["data"] = list(component.data_properties.data)
     _set_if(data_properties, TableDataProperties, "has_merge", component.data_properties.has_merge)
@@ -1537,7 +1549,7 @@ def table_component_from_dict(payload: dict[str, Any]) -> TableComponent:
                 _merge_column_info_from_any(item)
                 for item in list(get_value(data, TableDataProperties, "merge_columns") or [])
             ],
-            merge_rows=[merge_row_config_from_dict(item) for item in list(get_value(data, TableDataProperties, "merge_rows") or [])],
+            merge_rows=[merge_row_info_from_dict(item) for item in list(get_value(data, TableDataProperties, "merge_rows") or [])],
             data=list(data.get("data") or []),
             has_merge=_as_optional_bool(get_value(data, TableDataProperties, "has_merge")),
         ),
@@ -1568,8 +1580,8 @@ def chart_component_to_dict(component: ChartComponent) -> dict[str, Any]:
         data_properties["series"] = list(component.data_properties.series)
     if component.data_properties.axis_group:
         set_value(data_properties, ChartDataProperties, "axis_group", list(component.data_properties.axis_group))
-    _set_if(payload, ChartComponent, "x_axis", component.x_axis)
-    _set_if(payload, ChartComponent, "y_axis", component.y_axis)
+    _set_if(data_properties, ChartDataProperties, "x_axis", component.data_properties.x_axis)
+    _set_if(data_properties, ChartDataProperties, "y_axis", component.data_properties.y_axis)
     _set_if(payload, ChartComponent, "options", component.options)
     _set_component_common(payload, ChartComponent, component)
     return payload
@@ -1592,9 +1604,9 @@ def chart_component_from_dict(payload: dict[str, Any]) -> ChartComponent:
             data=list(data.get("data") or []),
             series=list(data.get("series") or []),
             axis_group=[str(item) for item in list(get_value(data, ChartDataProperties, "axis_group") or [])],
+            x_axis=get_value(data, ChartDataProperties, "x_axis") or payload.get("xAxis"),
+            y_axis=get_value(data, ChartDataProperties, "y_axis") or payload.get("yAxis"),
         ),
-        x_axis=get_value(payload, ChartComponent, "x_axis"),
-        y_axis=get_value(payload, ChartComponent, "y_axis"),
         options=get_value(payload, ChartComponent, "options") if isinstance(get_value(payload, ChartComponent, "options"), dict) else None,
         **_component_common_kwargs(payload, ChartComponent),
     )
@@ -1734,6 +1746,20 @@ def report_signature_page_from_dict(payload: dict[str, Any]) -> ReportSignatureP
         title=_as_optional_str(payload.get("title")),
         signers=[report_signer_from_dict(item) for item in list(payload.get("signers") or [])],
         layout_template=_as_optional_str(get_value(payload, ReportSignaturePage, "layout_template")),
+    )
+
+
+def back_cover_config_to_dict(config: BackCoverConfig) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    _set_if(payload, BackCoverConfig, "image", config.image)
+    _set_if(payload, BackCoverConfig, "text", config.text)
+    return payload
+
+
+def back_cover_config_from_dict(payload: dict[str, Any]) -> BackCoverConfig:
+    return BackCoverConfig(
+        image=_as_optional_str(get_value(payload, BackCoverConfig, "image")),
+        text=_as_optional_str(get_value(payload, BackCoverConfig, "text")),
     )
 
 
