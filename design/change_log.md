@@ -16,6 +16,7 @@
   - `TemplateSummary` 必须返回 `structureType`；模板详情中 flow 使用 `catalogs -> sections`，paged 使用 `chapters -> slides -> sections`，两者互斥。
   - `reply.reportContext.templateInstance` 在 paged 场景下返回完整 `chapters -> slides -> sections` 实例态结构，确认参数、二次编辑和重新生成不得降级为 flow。
   - `REPORT.answer.report` 中 paged 最小合法结构为 `structureType = "paged" + basicInfo + content`，不得同时返回 `catalogs`；完成态 `/reports/{reportId}` 不新增 paged 专用包络。
+  - 流式 `init_report.report` 必须携带 `structureType = flow | paged`，用于前端在收到后续增量前初始化正确的报告骨架。
   - 流式 `delta.action` 扩展为 `init_report | add_catalog | add_chapter | add_slide | add_section`；paged 仅新增 `add_chapter/add_slide`，`add_section` 与 flow 共用并通过定位字段区分。
   - 文档生成中 `ppt` 主要消费 paged Report DSL；`pdfSource` 支持 `word | ppt | null`，paged 报告导出 PDF 可使用 `pdfSource = "ppt"`。
 - 影响范围：
