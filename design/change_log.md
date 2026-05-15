@@ -8,6 +8,19 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-15 接口契约补齐 PPT/paged 公开 I/O
+
+- 变更动机：
+  - 模板和 Report DSL 已支持 PPT/paged 结构后，接口契约还缺少模板摘要、模板实例、流式增量、报告详情和文档生成接口中的公开 I/O 约束。
+- 设计决策：
+  - `TemplateSummary` 必须返回 `structureType`；模板详情中 flow 使用 `catalogs -> sections`，paged 使用 `chapters -> slides -> sections`，两者互斥。
+  - `reply.reportContext.templateInstance` 在 paged 场景下返回完整 `chapters -> slides -> sections` 实例态结构，确认参数、二次编辑和重新生成不得降级为 flow。
+  - `REPORT.answer.report` 中 paged 最小合法结构为 `structureType = "paged" + basicInfo + content`，不得同时返回 `catalogs`；完成态 `/reports/{reportId}` 不新增 paged 专用包络。
+  - 流式 `delta.action` 扩展为 `init_report | add_catalog | add_chapter | add_slide | add_section`；paged 仅新增 `add_chapter/add_slide`，`add_section` 与 flow 共用并通过定位字段区分。
+  - 文档生成中 `ppt` 主要消费 paged Report DSL；`pdfSource` 支持 `word | ppt | null`，paged 报告导出 PDF 可使用 `pdfSource = "ppt"`。
+- 影响范围：
+  - `report_system/04-接口契约.md`
+
 ## 2026-05-14 Report DSL GenerateMeta 参数与大纲结构纠偏
 
 - 变更动机：
