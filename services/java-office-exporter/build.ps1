@@ -1,9 +1,16 @@
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$srcDir = Join-Path $root 'src'
-$buildDir = Join-Path $root 'build\classes'
-New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
-$javaFiles = Get-ChildItem -Path $srcDir -Recurse -Filter *.java | ForEach-Object { $_.FullName }
-if (-not $javaFiles) { throw 'No Java source files found.' }
-& javac -encoding UTF-8 -d $buildDir $javaFiles
-Write-Output $buildDir
+Push-Location $root
+try {
+    if (Get-Command mvn -ErrorAction SilentlyContinue) {
+        & mvn clean package -q -DskipTests
+    } elseif (Test-Path .\mvnw.cmd) {
+        & .\mvnw.cmd clean package -q -DskipTests
+    } else {
+        Write-Error 'Maven not found. Install Maven or add mvnw.cmd to this directory.'
+        exit 1
+    }
+    Write-Output "Build complete: target\java-office-exporter-0.1.0.jar"
+} finally {
+    Pop-Location
+}
