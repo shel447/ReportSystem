@@ -197,6 +197,14 @@
         "Failed"
       ]
     },
+    "ReportType": {
+      "type": "string",
+      "enum": [
+        "PPT",
+        "Word",
+        "Dashboard"
+      ]
+    },
     "LayoutType": {
       "type": "string",
       "enum": [
@@ -406,10 +414,10 @@
         "name": {
           "type": "string"
         },
-        "title": {
-          "type": "string"
+        "reportType": {
+          "$ref": "#/$defs/ReportType"
         },
-        "subTitle": {
+        "title": {
           "type": "string"
         },
         "description": {
@@ -909,6 +917,51 @@
       ],
       "additionalProperties": false
     },
+    "ColumnLineageSource": {
+      "type": "object",
+      "properties": {
+        "dataSourceName": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "businessName": {
+          "type": "string"
+        },
+        "businessName_cn": {
+          "type": "string"
+        },
+        "enumValues": {
+          "type": "string"
+        },
+        "ui": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "dataSourceName",
+        "field",
+        "businessName",
+        "businessName_cn"
+      ],
+      "additionalProperties": false
+    },
+    "ColumnLineageTracing": {
+      "type": "object",
+      "properties": {
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ColumnLineageSource"
+          }
+        }
+      },
+      "required": [
+        "sources"
+      ],
+      "additionalProperties": false
+    },
     "Column": {
       "type": "object",
       "properties": {
@@ -929,6 +982,12 @@
         },
         "uiConfig": {
           "$ref": "#/$defs/FieldUI"
+        },
+        "lineageTracing": {
+          "$ref": "#/$defs/ColumnLineageTracing"
+        },
+        "order": {
+          "type": "number"
         },
         "colSpan": {
           "type": "number"
@@ -1559,6 +1618,25 @@
         }
       ]
     },
+    "ChartOption": {
+      "type": "object",
+      "properties": {
+        "eChartOption": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "centerText": {
+          "type": "string"
+        },
+        "subCenterText": {
+          "type": "string"
+        },
+        "responsive": {
+          "$ref": "#/$defs/ResponsiveConfig"
+        }
+      },
+      "additionalProperties": false
+    },
     "ChartDataProperty": {
       "type": "object",
       "properties": {
@@ -1775,25 +1853,6 @@
       "required": [
         "enabled"
       ],
-      "additionalProperties": false
-    },
-    "ChartOption": {
-      "type": "object",
-      "properties": {
-        "eChartOption": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "centerText": {
-          "type": "string"
-        },
-        "subCenterText": {
-          "type": "string"
-        },
-        "responsive": {
-          "$ref": "#/$defs/ResponsiveConfig"
-        }
-      },
       "additionalProperties": false
     },
     "TablePaginationProperties": {

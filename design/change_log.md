@@ -8,6 +8,28 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-26 报告 DSL schema 微调
+
+- 变更动机：
+  - `ChartOption` 定义位置不够直观，应紧跟 `Series` 定义之后，与图表相关定义集中放置。
+  - 报告需要区分输出类型（PPT/Word/Dashboard），`BasicInfo` 缺少 `reportType` 属性。
+  - `BasicInfo.subTitle` 与 `Cover.subTitle` 语义重复，应去掉 `BasicInfo` 中的副本。
+  - 表格列需要支持数据血缘追溯能力，`Column` 缺少 `lineageTracing` 和排序 `order` 属性。
+- 设计决策：
+  - `ChartOption` 从 `ResponsiveConfig` 之后移到 `Series` 之后、`ChartDataProperty` 之前。
+  - 新增 `ReportType` 枚举（`PPT | Word | Dashboard`），定义在 `Status` 之后。
+  - `BasicInfo` 中 `name` 字段下方新增 `reportType` 属性，引用 `ReportType` 枚举。
+  - `BasicInfo` 中删除 `subTitle` 字段；`Cover.subTitle` 保留不动。
+  - 在 `EnumValue` 之后新增 `ColumnLineageSource` 和 `ColumnLineageTracing` 两个定义。
+  - `Column` 中 `uiConfig` 字段下方新增 `lineageTracing`（引用 `ColumnLineageTracing`）和 `order`（`number`）两个属性。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/examples/report-dsl.example.json`
+  - `report_system/examples/report-dsl-paged.example.json`
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/03-运行时流程与状态机.md`
+  - `report_system/implementation/报告运行时实现.md`
+
 ## 2026-05-26 报告模板 schema 微调
 
 - 变更动机：

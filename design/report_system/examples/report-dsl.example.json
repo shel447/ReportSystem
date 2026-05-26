@@ -6,7 +6,6 @@
     "mode": "published",
     "name": "网络运行日报",
     "title": "2026-05-12 网络运行日报",
-    "subTitle": "总部网络",
     "description": "面向网络运维中心的统一日报。",
     "templateId": "tpl_network_daily",
     "templateName": "网络运行日报模板",

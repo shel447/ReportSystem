@@ -90,8 +90,8 @@ Report
 | `mode` | `"draft" | "published"` | 报告资产模式 |
 | `status` | `Running | Success | Aborted | Failed` | DSL 内部状态 |
 | `name` | string | 报告名称 |
+| `reportType` | `PPT | Word | Dashboard` | 报告类型 |
 | `title` | string | 报告主标题 |
-| `subTitle` | string | 报告副标题 |
 | `templateId` | string | 来源模板 ID |
 | `templateName` | string | 来源模板名称 |
 | `version` | string | 报告内容版本 |

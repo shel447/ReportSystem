@@ -8,6 +8,20 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-26 报告 DSL schema 微调
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-26 报告 DSL schema 微调"
+- 实现设计调整：
+  - `report_runtime.domain.models` 新增 `ReportType` 枚举映射，`ReportBasicInfo` 新增 `report_type` 属性（公开字段 `reportType`），删除 `sub_title` 属性。
+  - `report_runtime.domain.models` 新增 `ColumnLineageSource` 和 `ColumnLineageTracing` dataclass，`Column` 新增 `lineage_tracing` 和 `order` 属性。
+  - `ChartOption` 定义位置调整不影响运行时模型。
+  - 示例文件同步删除 `basicInfo.subTitle`。
+- 验证要求：
+  - schema 校验覆盖 `reportType` 枚举值、`ColumnLineageSource` 必填字段、`Column.lineageTracing` 引用
+  - 后端模型测试覆盖 `ReportBasicInfo` 无 `subTitle`、有 `reportType`
+  - flow/paged DSL 示例通过最新 schema
+
 ## 2026-05-26 报告模板 schema 微调
 
 - 对应设计变更：
