@@ -8,6 +8,57 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-26 Java 导出器完整实现 (Word + PPT)
+
+- 背景问题：
+  - 旧 Java 导出器为单文件骨架实现 (`JavaOfficeExporterServer.java`)，仅生成最小有效 OOXML 文件 (标题+原始 JSON 文本)，无法渲染报告 DSL 的完整结构 (封面/目录/章节/表格/图表/签署页)。
+- 实现设计调整：
+  - 构建系统从 `javac` 直编切换为 Maven + maven-shade-plugin fat jar。
+  - 依赖引入：Apache POI 5.4.0 (poi-ooxml)、Jackson 2.18.2。
+  - Java 版本要求从 17 提升至 21。
+  - 代码组织从单文件重构为分层架构 (core/model/style/chart/docx/pptx)，共 20+ Java 文件。
+  - DOCX 导出 (`ReportDocxExporter`)：封面、目录、递归章节 (Heading1/2/3)、文本/Markdown (粗体/斜体/列表)、表格 (表头着色/交替行/合并)、图表 (XDDF 原生 line/bar/pie + 降级表格)、签署页、页眉/页脚。
+  - PPTX 导出 (`ReportPptxExporter`)：封面幻灯片、目录幻灯片、章节标题页、内容页 (文本框/表格/图表)、摘要页、封底，支持 flow 和 paged 两种结构。
+  - 图表规范层 (`ChartSpecParser`)：从 ChartComponent.dataProperties 解析 categories/series，line/bar/pie 使用 XDDF 原生图表，其他类型降级为数据表格+说明。
+  - 主题系统 (`ThemeTokens + StyleResolver`)：内置 enterprise-light/enterprise-dark 两套主题，支持通过请求 options.theme 切换。
+  - HTTP 入口 (`HttpServerMain`) 替换旧 `JavaOfficeExporterServer`，保持 `/health` 和 `/exports/{word|ppt}` 协议不变。
+  - Python 端 (`java_office.py`) 更新为 Maven 构建 + `java -jar` 启动，自动检测 JAR 过期并触发构建。
+- 受影响的实现设计主题：
+  - [外部集成与导出实现.md](外部集成与导出实现.md)
+- 验证要求：
+  - 安装 JDK 21 + Maven 后执行 `mvn clean package` 构建成功。
+  - 启动 Java 服务后 `/health` 返回 ok。
+  - 通过 `POST /rest/chatbi/v1/reports/{reportId}/document-generations` 生成 Word/PPT 文件可用 Office 打开。
+  - 生成的文档包含封面、目录、章节标题、表格数据、图表 (或降级表格)。
+
+## 2026-05-26 报告 DSL schema 微调
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-26 报告 DSL schema 微调"
+- 实现设计调整：
+  - `report_runtime.domain.models` 新增 `ReportType` 枚举映射，`ReportBasicInfo` 新增 `report_type` 属性（公开字段 `reportType`），删除 `sub_title` 属性。
+  - `report_runtime.domain.models` 新增 `ColumnLineageSource` 和 `ColumnLineageTracing` dataclass，`Column` 新增 `lineage_tracing` 和 `order` 属性。
+  - `ChartOption` 定义位置调整不影响运行时模型。
+  - 示例文件同步删除 `basicInfo.subTitle`。
+- 验证要求：
+  - schema 校验覆盖 `reportType` 枚举值、`ColumnLineageSource` 必填字段、`Column.lineageTracing` 引用
+  - 后端模型测试覆盖 `ReportBasicInfo` 无 `subTitle`、有 `reportType`
+  - flow/paged DSL 示例通过最新 schema
+
+## 2026-05-26 报告模板 schema 微调
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-26 报告模板 schema 微调"
+- 实现设计调整：
+  - `report-template.schema.json` 顶层 `required` 去掉 `id` 和 `parameters`，后端模板 upsert DTO 和校验逻辑需同步放宽。
+  - `CompositeTableColumn` 从 schema `$defs` 中删除。后端待清理项：
+    - `template_catalog.domain.models`：删除 `CompositeTableColumn = TableColumn` 别名及 `composite_table_column_from_dict` / `composite_table_column_to_dict` wrapper 函数
+    - `report_runtime.domain.models`：删除无用 `CompositeTableColumn` import
+    - `tests/test_report_runtime_service.py`：5 处 `CompositeTableColumn` 改为 `TableColumn`
+- 验证要求：
+  - schema 校验覆盖无 `id` / 无 `parameters` 的模板通过，旧 `CompositeTableColumn` 引用失败
+  - 后端代码清理后运行现有测试确认无回归
+
 ## 2026-05-26 `generate_report_segment` 章节重新生成实现设计
 
 - 对应设计变更：

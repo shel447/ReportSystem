@@ -15,13 +15,12 @@ from ...contexts.report_runtime.domain.models import ReportDsl, report_dsl_to_di
 EXPORTER_BASE_URL = os.environ.get("REPORT_EXPORTER_BASE_URL", "http://127.0.0.1:18500").rstrip("/")
 EXPORTER_HOST = os.environ.get("REPORT_EXPORTER_HOST", "127.0.0.1")
 EXPORTER_PORT = int(os.environ.get("REPORT_EXPORTER_PORT", "18500"))
-EXPORTER_TIMEOUT_SECONDS = float(os.environ.get("REPORT_EXPORTER_TIMEOUT_SECONDS", "30"))
+EXPORTER_TIMEOUT_SECONDS = float(os.environ.get("REPORT_EXPORTER_TIMEOUT_SECONDS", "60"))
 EXPORTER_DIR = Path(__file__).resolve().parents[4] / "services" / "java-office-exporter"
-EXPORTER_SOURCE_DIR = EXPORTER_DIR / "src"
-EXPORTER_BUILD_DIR = EXPORTER_DIR / "build" / "classes"
+EXPORTER_SOURCE_DIR = EXPORTER_DIR / "src" / "main" / "java"
+EXPORTER_JAR_PATH = EXPORTER_DIR / "target" / "java-office-exporter-0.1.0.jar"
 EXPORTER_ARTIFACTS_DIR = EXPORTER_DIR / "artifacts"
 EXPORTER_LOG_DIR = Path(__file__).resolve().parents[4] / "output" / "runtime"
-EXPORTER_MAIN_CLASS = "report.system.exporter.JavaOfficeExporterServer"
 
 _START_LOCK = threading.Lock()
 _EXPORTER_PROCESS: subprocess.Popen[bytes] | None = None
@@ -68,9 +67,9 @@ class JavaOfficeExporterGateway:
         with _START_LOCK:
             if self._is_healthy():
                 return
-            self._compile_sources_if_needed()
+            self._build_if_needed()
             self._start_local_process_if_needed()
-            deadline = time.time() + 20
+            deadline = time.time() + 30
             while time.time() < deadline:
                 if self._is_healthy():
                     return
@@ -88,25 +87,28 @@ class JavaOfficeExporterGateway:
         except Exception:
             return False
 
-    def _compile_sources_if_needed(self) -> None:
+    def _build_if_needed(self) -> None:
         java_files = list(EXPORTER_SOURCE_DIR.rglob("*.java"))
         if not java_files:
             raise RuntimeError("Java office exporter source files not found")
-        class_file = EXPORTER_BUILD_DIR / "report" / "system" / "exporter" / "JavaOfficeExporterServer.class"
         latest_source_mtime = max(item.stat().st_mtime for item in java_files)
-        if class_file.exists() and class_file.stat().st_mtime >= latest_source_mtime:
+        if EXPORTER_JAR_PATH.exists() and EXPORTER_JAR_PATH.stat().st_mtime >= latest_source_mtime:
             return
-        EXPORTER_BUILD_DIR.mkdir(parents=True, exist_ok=True)
+        mvn_cmd = _find_maven()
         subprocess.run(
-            ["javac", "-encoding", "UTF-8", "-d", str(EXPORTER_BUILD_DIR), *[str(item) for item in java_files]],
+            [mvn_cmd, "clean", "package", "-q", "-DskipTests"],
             check=True,
             cwd=str(EXPORTER_DIR),
         )
+        if not EXPORTER_JAR_PATH.exists():
+            raise RuntimeError(f"Maven build succeeded but JAR not found: {EXPORTER_JAR_PATH}")
 
     def _start_local_process_if_needed(self) -> None:
         global _EXPORTER_PROCESS
         if _EXPORTER_PROCESS is not None and _EXPORTER_PROCESS.poll() is None:
             return
+        if not EXPORTER_JAR_PATH.exists():
+            raise RuntimeError(f"Exporter JAR not found: {EXPORTER_JAR_PATH}. Run build first.")
         EXPORTER_ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
         EXPORTER_LOG_DIR.mkdir(parents=True, exist_ok=True)
         stdout_path = EXPORTER_LOG_DIR / "java-office-exporter.out.log"
@@ -116,9 +118,8 @@ class JavaOfficeExporterGateway:
         _EXPORTER_PROCESS = subprocess.Popen(
             [
                 "java",
-                "-cp",
-                str(EXPORTER_BUILD_DIR),
-                EXPORTER_MAIN_CLASS,
+                "-jar",
+                str(EXPORTER_JAR_PATH),
                 "--host",
                 EXPORTER_HOST,
                 "--port",
@@ -130,3 +131,13 @@ class JavaOfficeExporterGateway:
             stdout=stdout_handle,
             stderr=stderr_handle,
         )
+
+
+def _find_maven() -> str:
+    mvnw = EXPORTER_DIR / "mvnw"
+    if mvnw.exists():
+        return str(mvnw)
+    mvnw_cmd = EXPORTER_DIR / "mvnw.cmd"
+    if mvnw_cmd.exists():
+        return str(mvnw_cmd)
+    return "mvn"
