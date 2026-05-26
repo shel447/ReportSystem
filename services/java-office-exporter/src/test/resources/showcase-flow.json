@@ -1,0 +1,416 @@
+{
+  "structureType": "flow",
+  "basicInfo": {
+    "id": "showcase-flow-001",
+    "title": "完整导出功能演示报告",
+    "subTitle": "Word文档导出测试",
+    "description": "本报告用于测试所有组件类型和图表类型的导出功能",
+    "schemaVersion": "1.0",
+    "status": "success",
+    "createdAt": "2026-05-26",
+    "updatedAt": "2026-05-26",
+    "creator": "测试系统",
+    "modifier": "测试系统",
+    "remark": "自动化测试生成",
+    "header": "报告系统导出测试",
+    "footer": "© 2026 Report System",
+    "category": "测试报告",
+    "templateId": "tpl-showcase",
+    "templateName": "展示模板",
+    "mode": "normal",
+    "parameters": {}
+  },
+  "cover": {
+    "title": "完整导出功能演示",
+    "author": "报告系统",
+    "date": "2026年5月26日",
+    "layoutTemplate": "center",
+    "contents": [
+      {
+        "type": "text",
+        "content": "测试所有组件和图表类型",
+        "elementId": "subtitle"
+      }
+    ]
+  },
+  "signaturePage": {
+    "title": "签署页",
+    "layoutTemplate": "standard",
+    "signers": [
+      {
+        "name": "张三",
+        "role": "项目经理",
+        "signature": "",
+        "date": "2026-05-26"
+      },
+      {
+        "name": "李四",
+        "role": "技术负责人",
+        "signature": "",
+        "date": "2026-05-26"
+      }
+    ]
+  },
+  "catalogs": [
+    {
+      "id": "cat-text",
+      "name": "第一章 文本与Markdown",
+      "description": "测试文本组件和Markdown组件",
+      "order": 1,
+      "sections": [
+        {
+          "id": "sec-text",
+          "title": "1.1 文本组件测试",
+          "order": 1,
+          "components": [
+            {
+              "id": "text-1",
+              "type": "text",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "普通文本标题",
+                "content": "这是一段普通文本，用于测试TextComponent的导出功能。\n支持换行显示。"
+              }
+            },
+            {
+              "id": "markdown-1",
+              "type": "markdown",
+              "dataProperties": {
+                "dataType": "static",
+                "content": "# Markdown标题1\n\n## Markdown标题2\n\n### Markdown标题3\n\n这是**粗体**文本和*斜体*文本。\n\n- 列表项1\n- 列表项2\n- 列表项3\n\n普通段落文本。"
+              }
+            }
+          ],
+          "summary": {
+            "id": "summary-text",
+            "overview": "本章测试了文本组件和Markdown组件的导出功能"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cat-table",
+      "name": "第二章 表格展示",
+      "description": "测试表格组件和复合表组件",
+      "order": 2,
+      "sections": [
+        {
+          "id": "sec-table",
+          "title": "2.1 表格组件测试",
+          "order": 1,
+          "components": [
+            {
+              "id": "table-1",
+              "type": "table",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "销售数据表",
+                "columns": [
+                  { "key": "month", "title": "月份", "type": "dimension" },
+                  { "key": "sales", "title": "销售额", "type": "measure" },
+                  { "key": "profit", "title": "利润", "type": "measure" },
+                  { "key": "rate", "title": "利润率", "type": "measure" }
+                ],
+                "data": [
+                  { "month": "1月", "sales": 100000, "profit": 20000, "rate": "20%" },
+                  { "month": "2月", "sales": 120000, "profit": 25000, "rate": "20.8%" },
+                  { "month": "3月", "sales": 150000, "profit": 35000, "rate": "23.3%" },
+                  { "month": "4月", "sales": 130000, "profit": 28000, "rate": "21.5%" },
+                  { "month": "5月", "sales": 180000, "profit": 45000, "rate": "25%" }
+                ],
+                "mergeRows": [
+                  {
+                    "startRowIndex": 0,
+                    "rowSpan": 2,
+                    "column": "month",
+                    "mergedText": "第一季度"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "composite-1",
+              "type": "compositeTable",
+              "tables": [
+                {
+                  "id": "sub-table-1",
+                  "type": "table",
+                  "dataProperties": {
+                    "dataType": "static",
+                    "title": "子表1 - 产品A",
+                    "columns": [
+                      { "key": "quarter", "title": "季度" },
+                      { "key": "value", "title": "数值" }
+                    ],
+                    "data": [
+                      { "quarter": "Q1", "value": 1000 },
+                      { "quarter": "Q2", "value": 1500 }
+                    ]
+                  }
+                },
+                {
+                  "id": "sub-table-2",
+                  "type": "table",
+                  "dataProperties": {
+                    "dataType": "static",
+                    "title": "子表2 - 产品B",
+                    "columns": [
+                      { "key": "quarter", "title": "季度" },
+                      { "key": "value", "title": "数值" }
+                    ],
+                    "data": [
+                      { "quarter": "Q1", "value": 800 },
+                      { "quarter": "Q2", "value": 1200 }
+                    ]
+                  }
+                }
+              ],
+              "dataProperties": {
+                "dataType": "static",
+                "title": "复合表 - 多产品对比"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cat-native-charts",
+      "name": "第三章 原生图表",
+      "description": "测试支持原生渲染的图表类型",
+      "order": 3,
+      "sections": [
+        {
+          "id": "sec-line-chart",
+          "title": "3.1 折线图",
+          "order": 1,
+          "components": [
+            {
+              "id": "chart-line",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "月度趋势图",
+                "columns": [
+                  { "key": "month", "title": "月份", "type": "dimension" },
+                  { "key": "sales", "title": "销售额", "type": "measure" },
+                  { "key": "target", "title": "目标", "type": "measure" }
+                ],
+                "data": [
+                  { "month": "1月", "sales": 100, "target": 120 },
+                  { "month": "2月", "sales": 120, "target": 130 },
+                  { "month": "3月", "sales": 150, "target": 140 },
+                  { "month": "4月", "sales": 130, "target": 150 },
+                  { "month": "5月", "sales": 180, "target": 160 }
+                ],
+                "series": [
+                  { "type": "line", "name": "实际销售", "encode": { "x": "month", "y": "sales" } },
+                  { "type": "line", "name": "目标销售", "encode": { "x": "month", "y": "target" } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "sec-bar-chart",
+          "title": "3.2 柱状图",
+          "order": 2,
+          "components": [
+            {
+              "id": "chart-bar",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "产品销量对比",
+                "columns": [
+                  { "key": "product", "title": "产品", "type": "dimension" },
+                  { "key": "q1", "title": "Q1", "type": "measure" },
+                  { "key": "q2", "title": "Q2", "type": "measure" }
+                ],
+                "data": [
+                  { "product": "产品A", "q1": 100, "q2": 150 },
+                  { "product": "产品B", "q1": 80, "q2": 120 },
+                  { "product": "产品C", "q1": 120, "q2": 180 }
+                ],
+                "series": [
+                  { "type": "bar", "name": "第一季度", "encode": { "x": "product", "y": "q1" } },
+                  { "type": "bar", "name": "第二季度", "encode": { "x": "product", "y": "q2" } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "sec-pie-chart",
+          "title": "3.3 饼图",
+          "order": 3,
+          "components": [
+            {
+              "id": "chart-pie",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "市场份额分布",
+                "columns": [
+                  { "key": "brand", "title": "品牌", "type": "dimension" },
+                  { "key": "share", "title": "份额", "type": "measure" }
+                ],
+                "data": [
+                  { "brand": "品牌A", "share": 35 },
+                  { "brand": "品牌B", "share": 25 },
+                  { "brand": "品牌C", "share": 20 },
+                  { "brand": "其他", "share": 20 }
+                ],
+                "series": [
+                  { "type": "pie", "name": "市场份额", "encode": { "name": "brand", "value": "share" } }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cat-fallback-charts",
+      "name": "第四章 降级图表",
+      "description": "测试降级为表格显示的图表类型",
+      "order": 4,
+      "sections": [
+        {
+          "id": "sec-scatter",
+          "title": "4.1 散点图（降级）",
+          "order": 1,
+          "components": [
+            {
+              "id": "chart-scatter",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "散点图示例",
+                "columns": [
+                  { "key": "x", "title": "X轴", "type": "measure" },
+                  { "key": "y", "title": "Y轴", "type": "measure" }
+                ],
+                "data": [
+                  { "x": 10, "y": 20 },
+                  { "x": 20, "y": 35 },
+                  { "x": 30, "y": 50 }
+                ],
+                "series": [
+                  { "type": "scatter", "name": "数据点", "encode": { "x": "x", "y": "y" } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "sec-radar",
+          "title": "4.2 雷达图（降级）",
+          "order": 2,
+          "components": [
+            {
+              "id": "chart-radar",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "雷达图示例",
+                "columns": [
+                  { "key": "dimension", "title": "维度", "type": "dimension" },
+                  { "key": "value", "title": "数值", "type": "measure" }
+                ],
+                "data": [
+                  { "dimension": "质量", "value": 80 },
+                  { "dimension": "价格", "value": 70 },
+                  { "dimension": "服务", "value": 90 }
+                ],
+                "series": [
+                  { "type": "radar", "name": "评分", "encode": { "name": "dimension", "value": "value" } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "sec-gauge",
+          "title": "4.3 仪表盘（降级）",
+          "order": 3,
+          "components": [
+            {
+              "id": "chart-gauge",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "仪表盘示例",
+                "columns": [
+                  { "key": "metric", "title": "指标", "type": "dimension" },
+                  { "key": "value", "title": "数值", "type": "measure" }
+                ],
+                "data": [
+                  { "metric": "完成率", "value": 85 }
+                ],
+                "series": [
+                  { "type": "gauge", "name": "完成率", "encode": { "name": "metric", "value": "value" } }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "sec-candlestick",
+          "title": "4.4 K线图（降级）",
+          "order": 4,
+          "components": [
+            {
+              "id": "chart-candlestick",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "K线图示例",
+                "columns": [
+                  { "key": "date", "title": "日期", "type": "dimension" },
+                  { "key": "open", "title": "开盘", "type": "measure" },
+                  { "key": "close", "title": "收盘", "type": "measure" },
+                  { "key": "low", "title": "最低", "type": "measure" },
+                  { "key": "high", "title": "最高", "type": "measure" }
+                ],
+                "data": [
+                  { "date": "05-20", "open": 100, "close": 105, "low": 98, "high": 108 },
+                  { "date": "05-21", "open": 105, "close": 102, "low": 100, "high": 110 }
+                ],
+                "series": [
+                  { "type": "candlestick", "name": "股价", "encode": { "x": "date", "y": ["open", "close", "low", "high"] } }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "id": "report-summary",
+    "overview": "本报告完整展示了Word导出功能支持的所有组件类型（文本、Markdown、表格、复合表）和图表类型（折线图、柱状图、饼图、散点图、雷达图、仪表盘、K线图）。原生支持的图表类型（折线、柱状、饼图）将渲染为图表对象，其他类型降级为数据表格显示。"
+  },
+  "layout": {
+    "type": "A4",
+    "autoLayout": true,
+    "grid": {
+      "cols": 12,
+      "rowHeight": 20,
+      "gap": 10
+    }
+  },
+  "reportMeta": {
+    "sec-text": {
+      "status": "success",
+      "question": "文本组件测试",
+      "additionalInfos": [
+        {
+          "type": "note",
+          "value": "测试文本和Markdown渲染",
+          "name": "备注"
+        }
+      ]
+    }
+  }
+}

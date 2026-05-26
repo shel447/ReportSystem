@@ -1,0 +1,209 @@
+{
+  "structureType": "paged",
+  "basicInfo": {
+    "id": "showcase-paged-001",
+    "title": "PPT导出功能演示",
+    "subTitle": "分页报告测试",
+    "description": "测试PPT格式的所有组件和图表导出",
+    "schemaVersion": "1.0",
+    "status": "success",
+    "createdAt": "2026-05-26",
+    "updatedAt": "2026-05-26",
+    "creator": "测试系统",
+    "modifier": "测试系统",
+    "remark": "PPT导出测试",
+    "header": "PPT导出测试",
+    "footer": "© 2026",
+    "category": "演示文稿",
+    "templateId": "tpl-ppt-showcase",
+    "templateName": "PPT展示模板",
+    "mode": "presentation",
+    "parameters": {}
+  },
+  "cover": {
+    "title": "PPT导出功能演示",
+    "author": "报告系统",
+    "date": "2026年5月26日",
+    "layoutTemplate": "title",
+    "contents": [
+      {
+        "type": "text",
+        "content": "测试所有PPT组件渲染",
+        "elementId": "subtitle"
+      }
+    ]
+  },
+  "backCover": {
+    "image": "",
+    "text": "谢谢观看"
+  },
+  "content": [
+    {
+      "id": "slide-intro",
+      "type": "slide",
+      "title": "简介",
+      "description": "报告简介页",
+      "layout": {
+        "type": "title-content",
+        "autoLayout": true
+      },
+      "components": [
+        {
+          "id": "text-intro",
+          "type": "text",
+          "dataProperties": {
+            "dataType": "static",
+            "title": "报告概述",
+            "content": "本演示文稿用于测试PPT导出功能，包括：\n• 文本组件\n• 表格组件\n• 各类图表\n• 复合表组件"
+          }
+        }
+      ]
+    },
+    {
+      "id": "section-data",
+      "type": "section",
+      "title": "数据展示",
+      "description": "表格和图表展示",
+      "slides": [
+        {
+          "id": "slide-table",
+          "type": "slide",
+          "title": "数据表格",
+          "layout": {
+            "type": "content",
+            "autoLayout": true
+          },
+          "components": [
+            {
+              "id": "table-ppt",
+              "type": "table",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "季度业绩表",
+                "columns": [
+                  { "key": "quarter", "title": "季度", "type": "dimension" },
+                  { "key": "revenue", "title": "营收(万)", "type": "measure" },
+                  { "key": "growth", "title": "增长率", "type": "measure" }
+                ],
+                "data": [
+                  { "quarter": "Q1", "revenue": 500, "growth": "15%" },
+                  { "quarter": "Q2", "revenue": 620, "growth": "24%" },
+                  { "quarter": "Q3", "revenue": 580, "growth": "-6%" },
+                  { "quarter": "Q4", "revenue": 750, "growth": "29%" }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "slide-charts",
+          "type": "slide",
+          "title": "图表展示",
+          "layout": {
+            "type": "two-column",
+            "autoLayout": true
+          },
+          "components": [
+            {
+              "id": "chart-bar-ppt",
+              "type": "chart",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "营收趋势",
+                "columns": [
+                  { "key": "quarter", "title": "季度", "type": "dimension" },
+                  { "key": "revenue", "title": "营收", "type": "measure" }
+                ],
+                "data": [
+                  { "quarter": "Q1", "revenue": 500 },
+                  { "quarter": "Q2", "revenue": 620 },
+                  { "quarter": "Q3", "revenue": 580 },
+                  { "quarter": "Q4", "revenue": 750 }
+                ],
+                "series": [
+                  { "type": "bar", "name": "营收", "encode": { "x": "quarter", "y": "revenue" } }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slide-markdown",
+      "type": "slide",
+      "title": "Markdown内容",
+      "layout": {
+        "type": "content",
+        "autoLayout": true
+      },
+      "components": [
+        {
+          "id": "md-ppt",
+          "type": "markdown",
+          "dataProperties": {
+            "dataType": "static",
+            "content": "## 关键要点\n\n1. **第一季度**：稳步增长\n2. **第二季度**：加速扩张\n3. **第三季度**：短暂调整\n4. **第四季度**：强势反弹\n\n### 总结\n\n全年营收*2450万*，同比增长**18%**。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "slide-composite",
+      "type": "slide",
+      "title": "复合表展示",
+      "layout": {
+        "type": "content",
+        "autoLayout": true
+      },
+      "components": [
+        {
+          "id": "composite-ppt",
+          "type": "compositeTable",
+          "tables": [
+            {
+              "id": "sub-1",
+              "type": "table",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "产品线A",
+                "columns": [
+                  { "key": "month", "title": "月份" },
+                  { "key": "sales", "title": "销量" }
+                ],
+                "data": [
+                  { "month": "1月", "sales": 100 },
+                  { "month": "2月", "sales": 120 }
+                ]
+              }
+            },
+            {
+              "id": "sub-2",
+              "type": "table",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "产品线B",
+                "columns": [
+                  { "key": "month", "title": "月份" },
+                  { "key": "sales", "title": "销量" }
+                ],
+                "data": [
+                  { "month": "1月", "sales": 80 },
+                  { "month": "2月", "sales": 95 }
+                ]
+              }
+            }
+          ],
+          "dataProperties": {
+            "dataType": "static",
+            "title": "多产品线对比"
+          }
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "id": "ppt-summary",
+    "overview": "本PPT完整展示了分页报告的所有组件类型，包括文本、Markdown、表格、图表和复合表。所有内容均已成功导出为PPT格式。"
+  }
+}

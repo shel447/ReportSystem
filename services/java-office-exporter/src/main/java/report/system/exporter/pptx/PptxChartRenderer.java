@@ -1,11 +1,14 @@
 package report.system.exporter.pptx;
 
 import org.apache.poi.xslf.usermodel.*;
+import org.apache.poi.xddf.usermodel.chart.*;
 import report.system.exporter.chart.ChartSpec;
 import report.system.exporter.chart.ChartSpecParser;
 import report.system.exporter.model.ChartDataProperties;
 import report.system.exporter.model.TableDataProperties;
 import report.system.exporter.style.ThemeTokens;
+
+import java.awt.geom.Rectangle2D;
 
 public final class PptxChartRenderer {
 
@@ -35,7 +38,8 @@ public final class PptxChartRenderer {
         }
 
         try {
-            renderNativeChart(slide, spec, nativeType, x, yOffset, width, height, theme);
+            XMLSlideShow pptx = slide.getSlideShow();
+            renderNativeChart(pptx, slide, spec, nativeType, x, yOffset, width, height, theme);
             return yOffset + height + 10;
         } catch (Exception e) {
             String errMsg = "[图表渲染失败: " + e.getMessage() + "]";
@@ -46,24 +50,60 @@ public final class PptxChartRenderer {
         }
     }
 
-    private static void renderNativeChart(XSLFSlide slide, ChartSpec spec, ChartSpec.NativeType nativeType,
-                                          int x, int y, int width, int height, ThemeTokens theme) {
-        String chartType = spec.chartType() != null ? spec.chartType() : "unknown";
-        StringBuilder info = new StringBuilder();
-        info.append("图表类型: ").append(chartType).append("\n");
-        info.append("类别: ").append(String.join(", ", spec.categories().subList(0, Math.min(5, spec.categories().size()))));
-        if (spec.categories().size() > 5) info.append("...");
-        info.append("\n");
-        for (ChartSpec.Series s : spec.seriesList()) {
-            info.append("系列 ").append(s.name()).append(": ");
-            for (int i = 0; i < Math.min(5, s.values().size()); i++) {
-                if (i > 0) info.append(", ");
-                info.append(s.values().get(i));
+    private static void renderNativeChart(XMLSlideShow pptx, XSLFSlide slide, ChartSpec spec, ChartSpec.NativeType nativeType,
+                                          int x, int y, int width, int height, ThemeTokens theme) throws Exception {
+        XSLFChart chart = pptx.createChart(slide);
+        chart.setTitleText(spec.title() != null ? spec.title() : "");
+
+        XDDFChartLegend legend = chart.getOrAddLegend();
+        legend.setPosition(LegendPosition.BOTTOM);
+
+        String[] categoryArray = spec.categories().toArray(new String[0]);
+        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromArray(categoryArray);
+
+        XDDFChartData chartData;
+        switch (nativeType) {
+            case LINE -> {
+                XDDFCategoryAxis catAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+                XDDFValueAxis valAxis = chart.createValueAxis(AxisPosition.LEFT);
+                chartData = chart.createData(ChartTypes.LINE, catAxis, valAxis);
+                ((XDDFLineChartData) chartData).setGrouping(Grouping.STANDARD);
+                for (ChartSpec.Series s : spec.seriesList()) {
+                    Double[] valueArray = s.values().toArray(new Double[0]);
+                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
+                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                    series.setTitle(s.name(), null);
+                }
+                chart.plot(chartData);
             }
-            if (s.values().size() > 5) info.append("...");
-            info.append("\n");
+            case BAR -> {
+                XDDFCategoryAxis catAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+                XDDFValueAxis valAxis = chart.createValueAxis(AxisPosition.LEFT);
+                chartData = chart.createData(ChartTypes.BAR, catAxis, valAxis);
+                ((XDDFBarChartData) chartData).setBarDirection(BarDirection.COL);
+                for (ChartSpec.Series s : spec.seriesList()) {
+                    Double[] valueArray = s.values().toArray(new Double[0]);
+                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
+                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                    series.setTitle(s.name(), null);
+                }
+                chart.plot(chartData);
+            }
+            case PIE -> {
+                chartData = chart.createData(ChartTypes.PIE, null, null);
+                if (!spec.seriesList().isEmpty()) {
+                    ChartSpec.Series first = spec.seriesList().get(0);
+                    Double[] valueArray = first.values().toArray(new Double[0]);
+                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
+                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                    series.setTitle(first.name(), null);
+                }
+                chart.plot(chartData);
+            }
+            default -> {
+                // fallback already handled above
+            }
         }
-        ReportPptxExporter.addTextBox(slide, info.toString(), x, y, width, height, theme.fontPrimary(), theme.smallSizePt(), false, null, false);
     }
 
     private static TableDataProperties toTableDataProperties(ChartDataProperties chartProps) {

@@ -83,10 +83,12 @@ public final class DocxTableRenderer {
     }
 
     private static void setCellText(XWPFTableCell cell, String text, String fontFamily, int fontSize, boolean bold, String fontColor) {
+        XWPFParagraph p;
         if (cell.getParagraphs().isEmpty()) {
-            cell.addNewParagraph();
+            p = cell.addParagraph();
+        } else {
+            p = cell.getParagraphs().get(0);
         }
-        XWPFParagraph p = cell.getParagraphs().get(0);
         p.setAlignment(ParagraphAlignment.LEFT);
         for (int i = p.getRuns().size() - 1; i >= 0; i--) {
             p.removeRun(i);

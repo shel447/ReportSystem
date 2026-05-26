@@ -1,6 +1,7 @@
 package report.system.exporter.docx;
 
 import org.apache.poi.xwpf.usermodel.*;
+import org.apache.poi.wp.usermodel.HeaderFooterType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import report.system.exporter.core.DocumentExporter;
 import report.system.exporter.core.ExportRequest;
@@ -210,7 +211,7 @@ public final class ReportDocxExporter implements DocumentExporter {
         String footerText = basicInfo.footer;
 
         if (headerText != null && !headerText.isBlank()) {
-            XWPFHeader header = doc.createHeader();
+            XWPFHeader header = doc.createHeader(HeaderFooterType.DEFAULT);
             XWPFParagraph p = header.createParagraph();
             p.setAlignment(ParagraphAlignment.CENTER);
             XWPFRun run = p.createRun();
@@ -220,7 +221,7 @@ public final class ReportDocxExporter implements DocumentExporter {
         }
 
         if (footerText != null && !footerText.isBlank()) {
-            XWPFFooter footer = doc.createFooter();
+            XWPFFooter footer = doc.createFooter(HeaderFooterType.DEFAULT);
             XWPFParagraph p = footer.createParagraph();
             p.setAlignment(ParagraphAlignment.CENTER);
             XWPFRun run = p.createRun();

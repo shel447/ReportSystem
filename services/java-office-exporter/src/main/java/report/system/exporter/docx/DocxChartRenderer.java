@@ -6,7 +6,6 @@ import report.system.exporter.chart.ChartSpec;
 import report.system.exporter.chart.ChartSpecParser;
 import report.system.exporter.model.ChartDataProperties;
 import report.system.exporter.model.TableDataProperties;
-import report.system.exporter.model.ReportColumn;
 import report.system.exporter.style.ThemeTokens;
 
 import java.util.*;
@@ -43,30 +42,37 @@ public final class DocxChartRenderer {
         XWPFChart chart = doc.createChart();
         chart.setTitleText(spec.title() != null ? spec.title() : "");
 
-        XDDFDataSource<String> categories = XDDFDataSources.fromStringArray(
-                spec.categories().toArray(new String[0])
-        );
+        XDDFChartLegend legend = chart.getOrAddLegend();
+        legend.setPosition(LegendPosition.BOTTOM);
+
+        String[] categoryArray = spec.categories().toArray(new String[0]);
+        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromArray(categoryArray);
 
         XDDFChartData chartData;
         switch (nativeType) {
             case LINE -> {
-                chartData = chart.createData(ChartTypes.LINE, null, null);
+                XDDFCategoryAxis catAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+                XDDFValueAxis valAxis = chart.createValueAxis(AxisPosition.LEFT);
+                chartData = chart.createData(ChartTypes.LINE, catAxis, valAxis);
+                ((XDDFLineChartData) chartData).setGrouping(Grouping.STANDARD);
                 for (ChartSpec.Series s : spec.seriesList()) {
-                    XDDFNumericalDataSource<Double> values = XDDFDataSources.fromDoubleArray(
-                            s.values().toArray(new Double[0])
-                    );
-                    chartData.addSeries(categories, values);
+                    Double[] valueArray = s.values().toArray(new Double[0]);
+                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
+                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                    series.setTitle(s.name(), null);
                 }
                 chart.plot(chartData);
             }
             case BAR -> {
-                chartData = chart.createData(ChartTypes.BAR, null, null);
+                XDDFCategoryAxis catAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
+                XDDFValueAxis valAxis = chart.createValueAxis(AxisPosition.LEFT);
+                chartData = chart.createData(ChartTypes.BAR, catAxis, valAxis);
                 ((XDDFBarChartData) chartData).setBarDirection(BarDirection.COL);
                 for (ChartSpec.Series s : spec.seriesList()) {
-                    XDDFNumericalDataSource<Double> values = XDDFDataSources.fromDoubleArray(
-                            s.values().toArray(new Double[0])
-                    );
-                    chartData.addSeries(categories, values);
+                    Double[] valueArray = s.values().toArray(new Double[0]);
+                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
+                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                    series.setTitle(s.name(), null);
                 }
                 chart.plot(chartData);
             }
@@ -74,15 +80,15 @@ public final class DocxChartRenderer {
                 chartData = chart.createData(ChartTypes.PIE, null, null);
                 if (!spec.seriesList().isEmpty()) {
                     ChartSpec.Series first = spec.seriesList().get(0);
-                    XDDFNumericalDataSource<Double> values = XDDFDataSources.fromDoubleArray(
-                            first.values().toArray(new Double[0])
-                    );
-                    chartData.addSeries(categories, values);
+                    Double[] valueArray = first.values().toArray(new Double[0]);
+                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
+                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                    series.setTitle(first.name(), null);
                 }
                 chart.plot(chartData);
             }
             default -> {
-                return;
+                renderFallback(doc, spec, null, theme);
             }
         }
     }
@@ -93,9 +99,11 @@ public final class DocxChartRenderer {
                 "[图表: " + chartType + " - " + spec.categories().size() + " 类别, " + spec.seriesList().size() + " 系列]",
                 theme.fontSecondary(), theme.smallSizePt(), false, theme.secondary());
 
-        TableDataProperties tableProps = toTableDataProperties(dataProps);
-        if (tableProps != null) {
-            DocxTableRenderer.renderTable(doc, tableProps, theme);
+        if (dataProps != null) {
+            TableDataProperties tableProps = toTableDataProperties(dataProps);
+            if (tableProps != null) {
+                DocxTableRenderer.renderTable(doc, tableProps, theme);
+            }
         }
     }
 

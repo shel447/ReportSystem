@@ -148,7 +148,7 @@ public final class ReportPptxExporter implements DocumentExporter {
 
     private int renderComponent(XSLFSlide slide, ReportComponent component, int yOffset, ThemeTokens theme) {
         switch (component) {
-            case TextComponent text -> {
+            case report.system.exporter.model.TextComponent text -> {
                 if (text.dataProperties != null) {
                     String content = str(text.dataProperties.content);
                     if (!content.isEmpty()) {
@@ -232,7 +232,7 @@ public final class ReportPptxExporter implements DocumentExporter {
 
         XSLFTextParagraph paragraph = textBox.addNewTextParagraph();
         if (centered) {
-            paragraph.setTextAlign(org.apache.poi.sl.usermodel.TextAlign.CENTER);
+            paragraph.setTextAlign(org.apache.poi.sl.usermodel.TextParagraph.TextAlign.CENTER);
         }
 
         String[] lines = text.split("\n");
@@ -240,7 +240,7 @@ public final class ReportPptxExporter implements DocumentExporter {
             if (i > 0) {
                 paragraph = textBox.addNewTextParagraph();
                 if (centered) {
-                    paragraph.setTextAlign(org.apache.poi.sl.usermodel.TextAlign.CENTER);
+                    paragraph.setTextAlign(org.apache.poi.sl.usermodel.TextParagraph.TextAlign.CENTER);
                 }
             }
             XSLFTextRun run = paragraph.addNewTextRun();

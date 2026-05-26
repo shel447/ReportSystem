@@ -1,6 +1,5 @@
 package report.system.exporter.pptx;
 
-import org.apache.poi.sl.usermodel.TextAlign;
 import org.apache.poi.xslf.usermodel.*;
 import report.system.exporter.model.ReportColumn;
 import report.system.exporter.model.TableDataProperties;
@@ -49,7 +48,7 @@ public final class PptxTableRenderer {
             cell.setText(colTitle);
             cell.setFillColor(ReportPptxExporter.hexToColor(theme.tableHeaderBg()));
             for (XSLFTextParagraph p : cell.getTextParagraphs()) {
-                p.setTextAlign(TextAlign.CENTER);
+                p.setTextAlign(org.apache.poi.sl.usermodel.TextParagraph.TextAlign.CENTER);
                 for (XSLFTextRun r : p.getTextRuns()) {
                     r.setFontFamily(theme.fontPrimary());
                     r.setFontSize((double) theme.tableHeaderSizePt());
