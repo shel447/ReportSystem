@@ -575,7 +575,7 @@
 
 ```json
 {
-  "source": "https://example.internal/api/network/scopes/options"
+  "source": "/rest/parameter-options/network/scopes"
 }
 ```
 

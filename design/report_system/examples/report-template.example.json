@@ -33,7 +33,7 @@
       "required": true,
       "multi": true,
       "interactionMode": "natural_language",
-      "source": "https://example.internal/api/network/scopes/options",
+      "source": "/rest/parameter-options/network/scopes",
       "priority": 10
     }
   ],
@@ -500,7 +500,7 @@
       "title": "{$scope}外部专题分析",
       "dynamic": {
         "type": "custom",
-        "url": "https://report-content.example.com/api/report/catalog"
+        "url": "/rest/report-content/catalog"
       }
     },
     {
@@ -511,7 +511,7 @@
           "id": "section_external_recommendation",
           "dynamic": {
             "type": "custom",
-            "url": "https://report-content.example.com/api/report/section"
+            "url": "/rest/report-content/section"
           },
           "outline": {
             "requirement": "基于{$scope}在{$report_date}的运行数据生成外部分析建议。",

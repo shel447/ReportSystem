@@ -79,7 +79,7 @@
           "title": "外部生成概览页",
           "dynamic": {
             "type": "custom",
-            "url": "https://report-content.example.com/api/report/custom/slides/network-overview"
+            "url": "/rest/report-content/custom/slides/network-overview"
           },
           "layout": {
             "layoutId": "title_content",
@@ -96,7 +96,7 @@
               "id": "section_external_components",
               "dynamic": {
                 "type": "custom",
-                "url": "https://report-content.example.com/api/report/custom/slide-sections/network-summary"
+                "url": "/rest/report-content/custom/slide-sections/network-summary"
               },
               "outline": {
                 "requirement": "基于{$report_date}的网络运行数据生成可并入当前页面的组件。",

@@ -8,6 +8,27 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-26 `generate_report_segment` 章节重新生成实现设计
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-26 `/chat` 新增 `generate_report_segment` 指令"
+- 实现设计调整：
+  - `ConversationService.send_message` 新增 `generate_report_segment` 分派分支，调用 `_generate_report_segment` 方法。
+  - `_generate_report_segment` 负责加载 `ReportInstance` 与关联 `TemplateInstance`，解析 `template` 字段中的 `reportId`、`sectionId`、`outline`，委托 `ReportRuntimeService.preview_section_regeneration` 完成章节编译。
+  - `ReportRuntimeService` 新增 `preview_section_regeneration` 方法，复用现有纯函数：
+    - 在 `TemplateInstance.catalogs` 树中按 `sectionId` 递归定位 `TemplateInstanceSection`
+    - 应用新 `outline`，标记 `user_edited = true`，评估 `skeleton_status`
+    - 调用 `build_execution_bindings()` 重建执行绑定
+    - 调用 `_build_section_components(section)` 生成新 components、summary、additional_infos
+    - 返回 `ReportSection` DSL 片段与 `ReportGenerateMeta`
+  - 不持久化 `ReportInstance`、`TemplateInstance`，不使文档产物失效
+  - 流式 `delta` 复用 `add_section` 动作
+- 验证要求：
+  - 后端测试覆盖 `preview_section_regeneration` 的章节定位、大纲应用、绑定重建、组件编译
+  - 后端测试覆盖 `REPORT_SEGMENT` 响应结构
+  - 后端测试覆盖 `sectionId` 不存在时返回 `SECTION_NOT_FOUND` 错误
+  - 后端测试覆盖 `reportId` 不存在或状态非 `available` 时的错误处理
+
 ## 2026-05-14 Report DSL GenerateMeta 参数与大纲结构纠偏
 
 - 对应设计变更：

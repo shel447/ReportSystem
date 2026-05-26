@@ -58,7 +58,7 @@
           "query": "scope_id = 'branch-network'"
         }
       ],
-      "source": "https://example.internal/api/network/scopes/options",
+      "source": "/rest/parameter-options/network/scopes",
       "options": [
         {
           "label": "总部网络",
@@ -83,7 +83,7 @@
         },
         "confirmed": true,
         "confirmedAt": "2026-04-18T09:15:00Z",
-        "optionSource": "https://example.internal/api/network/scopes/options",
+        "optionSource": "/rest/parameter-options/network/scopes",
         "optionsFetchedAt": "2026-04-18T09:11:00Z"
       },
       "priority": 10
@@ -448,7 +448,7 @@
       "renderedTitle": "总部网络外部专题分析",
       "dynamicContext": {
         "type": "custom",
-        "url": "https://report-content.example.com/api/report/catalog",
+        "url": "/rest/report-content/catalog",
         "nodeType": "catalog"
       },
       "sections": []
@@ -462,7 +462,7 @@
           "id": "section_external_recommendation",
           "dynamicContext": {
             "type": "custom",
-            "url": "https://report-content.example.com/api/report/section",
+            "url": "/rest/report-content/section",
             "nodeType": "section"
           },
           "outline": {
@@ -523,7 +523,7 @@
         "required": true,
         "multi": true,
         "interactionMode": "natural_language",
-        "source": "https://example.internal/api/network/scopes/options",
+        "source": "/rest/parameter-options/network/scopes",
         "priority": 10
       }
     ],
@@ -731,7 +731,7 @@
         "title": "{$scope}外部专题分析",
         "dynamic": {
           "type": "custom",
-          "url": "https://report-content.example.com/api/report/catalog"
+          "url": "/rest/report-content/catalog"
         }
       },
       {
@@ -742,7 +742,7 @@
             "id": "section_external_recommendation",
             "dynamic": {
               "type": "custom",
-              "url": "https://report-content.example.com/api/report/section"
+              "url": "/rest/report-content/section"
             },
             "outline": {
               "requirement": "基于{$scope}在{$report_date}的运行数据生成外部分析建议。",

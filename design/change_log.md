@@ -8,6 +8,50 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-26 接口契约文档结构重构
+
+- 变更动机：
+  - `04-接口契约.md` 中 Dynamic Custom 外部内容协议被错误地放在 `/chat` 请求契约章节下，但它实际上是独立的外部接口协议，URL 由模板定义。
+  - `parameter-options/resolve` 同样是服务端内部调用协议（服务端向模板 `parameter.source` 定义的外部 URL 发起请求），不是客户端直接调用的接口。
+  - Dynamic Custom 和 Parameter Options 属于同一大类（服务端内部调用协议），与 `/chat`、`/reports` 等客户端接口需要按大类分开。
+  - Dynamic Custom 段落末尾混入了与 `/chat` 响应和 Report DSL 相关的规则（ask 优先级、presentation 属性、表格行合并、图表轴配置等），不属于 Dynamic Custom 协议。
+  - `ChatRequest` 的子结构（`reply`、`template`）缺少明确的从属关系说明。
+  - `ChatRequest` JSON 示例缺少 `template` 字段。
+  - `/chat` 请求契约和响应契约分散在不同顶级章节，应合并到同一 `/chat 契约` 父章节下。
+- 设计决策：
+  - 整体按两大类重组：`## 2. 客户端接口` 和 `## 3. 服务端内部调用协议`。
+  - `## 1. 接口分类总览` 替代原"公开接口面"，按两类列出接口清单，`parameter-options/resolve` 从客户端接口列表中移除。
+  - 客户端接口下：`2.1 模板接口`、`2.2 /chat 契约`（请求与响应合并到同一父章节）、`2.3 /reports 契约`。
+  - `/chat 契约` 下按"请求"和"响应"两个子章节组织。
+  - `POST /chat` 是流式接口，原 `ChatResponse` 与 `ChatStreamEvent` 合并为统一的 `ChatResponse（事件包络）`，每个 SSE 事件都是 ChatResponse。去掉 `sequence`、`requestId`、`apiVersion` 字段。
+  - 请求下：ChatRequest 及其子结构（reply、template），标题明确从属关系。
+  - 响应下：`ChatResponse（事件包络）` 及四个子结构（`ChatResponse.steps`、`ChatResponse.ask`、`ChatResponse.answer`、`ChatResponse.delta`），标题统一明确从属关系。
+  - 链路约束新增 `generate_report_segment` 链路。
+  - 服务端内部调用协议下：`3.1 Parameter Options 外部数据源`（排在前面）、`3.2 Dynamic Custom 外部内容生成`。
+  - Parameter Options 补充说明：服务端向外部数据源发起请求，前端不直接调用。
+  - `ChatRequest` JSON 示例补充 `template` 字段，`template` 子结构 JSON 示例精简为只展示子结构本身。
+  - 混入 Dynamic Custom 的 7 条规则迁移到正确位置：`ask.parameters[].priority` 迁入 Ask；presentation 和 DSL 规则迁入 Answer。
+- 影响范围：
+  - `report_system/04-接口契约.md`
+
+## 2026-05-26 `/chat` 新增 `generate_report_segment` 指令
+
+- 变更动机：
+  - 报告生成完成后，用户需要对单个章节的大纲（诉求）进行编辑并重新生成该章节内容，当前只有全量报告生成路径，缺少章节级重新生成能力。
+  - 原始需求 `biz_requirement.md` 2.5 节明确要求"用户修改后，可以对局部内容重新生成，更新报告实例"。
+- 设计决策：
+  - `/chat` 接口 `instruction` 新增 `generate_report_segment`，复用现有对话通道。
+  - `ChatRequest` 新增顶层可选字段 `template`，仅在 `generate_report_segment` 时必填，包含 `reportId`、`sectionId`、`outline` 三个子字段。
+  - `outline` 复用 `OutlineDefinition` 结构（`requirement` + `renderedRequirement` + `items[]`），用户可编辑后提交。
+  - 后端加载已有 `ReportInstance` 与关联 `TemplateInstance`，定位目标章节，应用新大纲，重新构建执行绑定，重新编译章节组件。
+  - 返回 `answerType = REPORT_SEGMENT`，载荷只包含 `reportId`、`section`（Report DSL Section 片段）、`generateMeta`（章节生成证据）。
+  - 该结果不自动更新 `ReportInstance`，不更新 `TemplateInstance`，不使已有文档产物失效；确认更新接口待后续设计。
+  - 流式 `delta` 复用 `add_section` 动作，前端根据 `sectionId` 是否已存在区分"新增"与"替换"语义。
+  - 数据查询基于新大纲重新执行，不复用已有查询结果。
+- 影响范围：
+  - `report_system/04-接口契约.md`
+  - `report_system/03-运行时流程与状态机.md`
+
 ## 2026-05-15 接口契约补齐 PPT/paged 公开 I/O
 
 - 变更动机：
