@@ -8,6 +8,20 @@
 - 聚焦“实现上怎么落、改了哪些实现约束、验证如何变化”
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-26 报告模板 schema 微调
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-26 报告模板 schema 微调"
+- 实现设计调整：
+  - `report-template.schema.json` 顶层 `required` 去掉 `id` 和 `parameters`，后端模板 upsert DTO 和校验逻辑需同步放宽。
+  - `CompositeTableColumn` 从 schema `$defs` 中删除。后端待清理项：
+    - `template_catalog.domain.models`：删除 `CompositeTableColumn = TableColumn` 别名及 `composite_table_column_from_dict` / `composite_table_column_to_dict` wrapper 函数
+    - `report_runtime.domain.models`：删除无用 `CompositeTableColumn` import
+    - `tests/test_report_runtime_service.py`：5 处 `CompositeTableColumn` 改为 `TableColumn`
+- 验证要求：
+  - schema 校验覆盖无 `id` / 无 `parameters` 的模板通过，旧 `CompositeTableColumn` 引用失败
+  - 后端代码清理后运行现有测试确认无回归
+
 ## 2026-05-26 `generate_report_segment` 章节重新生成实现设计
 
 - 对应设计变更：

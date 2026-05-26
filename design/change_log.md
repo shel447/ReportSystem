@@ -8,6 +8,19 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-26 报告模板 schema 微调
+
+- 变更动机：
+  - 报告模板顶层 `id` 和 `parameters` 在实际使用场景中不一定需要在模板定义阶段就提供，强制必填不利于模板草案的渐进式构建。
+  - `CompositeTableColumn` 兼容模型已无任何 `$ref` 引用，属于废弃的兼容别名，应清理。
+- 设计决策：
+  - `report-template.schema.json` 顶层 `required` 数组去掉 `id` 和 `parameters`，保留为可选属性。
+  - `report-template.schema.json` `$defs` 中删除 `CompositeTableColumn` 定义。
+  - 说明书同步调整：`id` 和 `parameters` 从必填字段表移到可选字段表；删除 `CompositeTableColumn` 兼容说明。
+- 影响范围：
+  - `report_system/schemas/report-template.schema.json`
+  - `report_system/报告模板定义与使用说明书.md`
+
 ## 2026-05-26 接口契约文档结构重构
 
 - 变更动机：

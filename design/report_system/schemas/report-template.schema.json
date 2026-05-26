@@ -6,12 +6,10 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "id",
     "category",
     "name",
     "description",
-    "schemaVersion",
-    "parameters"
+    "schemaVersion"
   ],
   "properties": {
     "id": {
@@ -802,10 +800,6 @@
           ]
         }
       }
-    },
-    "CompositeTableColumn": {
-      "description": "兼容旧名称，等价于 TableColumn。",
-      "$ref": "#/$defs/TableColumn"
     },
     "MergeColumnInfo": {
       "type": "object",
