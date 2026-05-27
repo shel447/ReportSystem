@@ -732,7 +732,7 @@ private void renderSectionSlide(XMLSlideShow pptx, ReportSection section,
 private int renderComponent(XSLFSlide slide, ReportComponent component, 
                            int yOffset, ThemeTokens theme) {
     switch (component) {
-        case report.system.exporter.model.TextComponent text -> {
+        case com.bi.report.generation.model.TextComponent text -> {
             if (text.dataProperties != null) {
                 String content = str(text.dataProperties.content);
                 if (!content.isEmpty()) {
@@ -1088,7 +1088,7 @@ static Color hexToColor(String hex) {
 ### 8.1 测试文件
 
 ```
-src/test/java/report/system/exporter/
+src/test/java/com/bi/report/generation/
 ├── model/
 │   └── ReportDslModelTest.java          # 模型反序列化测试 (6 个用例)
 ├── chart/
