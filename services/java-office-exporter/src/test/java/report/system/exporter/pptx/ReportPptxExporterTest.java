@@ -7,9 +7,12 @@ import org.junit.jupiter.api.io.TempDir;
 import report.system.exporter.core.ExportRequest;
 import report.system.exporter.model.ReportDslModel;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -80,6 +83,7 @@ class ReportPptxExporterTest {
 
             assertTrue(Files.exists(output));
             assertTrue(Files.size(output) > 0);
+            verifyPptxChartHasSlideAnchor(output);
         }
     }
 
@@ -148,5 +152,87 @@ class ReportPptxExporterTest {
                    contentStr.contains("ppt/presentation.xml") ||
                    content.length > 1000,
                    "Invalid PPTX structure");
+    }
+
+    private void verifyPptxChartHasSlideAnchor(Path pptxPath) throws Exception {
+        try (ZipFile zip = new ZipFile(pptxPath.toFile())) {
+            boolean hasChartPart = zip.stream().map(ZipEntry::getName)
+                    .anyMatch(name -> name.startsWith("ppt/charts/chart") && name.endsWith(".xml"));
+            boolean hasChartRelationship = zip.stream().map(ZipEntry::getName)
+                    .filter(name -> name.startsWith("ppt/slides/_rels/slide") && name.endsWith(".xml.rels"))
+                    .map(name -> readZipEntry(zip, name))
+                    .anyMatch(xml -> xml.contains("/relationships/chart"));
+            boolean hasChartShape = zip.stream().map(ZipEntry::getName)
+                    .filter(name -> name.startsWith("ppt/slides/slide") && name.endsWith(".xml"))
+                    .map(name -> readZipEntry(zip, name))
+                    .anyMatch(xml -> xml.contains("<p:graphicFrame")
+                            && xml.contains("drawingml/2006/chart")
+                            && xml.contains("cx=\"11176000\"")
+                            && xml.contains("cy=\"3810000\""));
+
+            assertTrue(hasChartPart, "PPTX should contain native chart parts");
+            assertTrue(hasChartRelationship, "Slides should relate to native chart parts");
+            assertTrue(hasChartShape, "Slides should place native charts in a visible graphic frame using EMU coordinates");
+            assertTrue(hasEmbeddedWorkbookCells(zip, "ppt/embeddings/"), "Embedded chart workbook should contain source data");
+            assertTrue(hasStyledChartSeries(zip, "ppt/charts/"), "Native chart series should have visible fill/line styling");
+            assertTrue(hasPositiveAxisIds(zip, "ppt/charts/"), "Category/value axes should use positive non-zero ids");
+        }
+    }
+
+    private boolean hasStyledChartSeries(ZipFile zip, String prefix) {
+        return zip.stream()
+                .filter(entry -> entry.getName().startsWith(prefix) && entry.getName().endsWith(".xml"))
+                .map(entry -> {
+                    try {
+                        return new String(zip.getInputStream(entry).readAllBytes());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .anyMatch(xml -> xml.contains("<c:spPr>") && xml.contains("<a:solidFill>"));
+    }
+
+    private boolean hasPositiveAxisIds(ZipFile zip, String prefix) {
+        return zip.stream()
+                .filter(entry -> entry.getName().startsWith(prefix) && entry.getName().endsWith(".xml"))
+                .map(entry -> {
+                    try {
+                        return new String(zip.getInputStream(entry).readAllBytes());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .anyMatch(xml -> xml.contains("<c:axId val=\"12345001\"")
+                        && xml.contains("<c:axId val=\"12345002\""));
+    }
+
+    private String readZipEntry(ZipFile zip, String name) {
+        try {
+            return new String(zip.getInputStream(zip.getEntry(name)).readAllBytes());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private boolean hasEmbeddedWorkbookCells(ZipFile outerZip, String prefix) {
+        return outerZip.stream()
+                .filter(entry -> entry.getName().startsWith(prefix) && entry.getName().endsWith(".xlsx"))
+                .map(entry -> {
+                    try {
+                        byte[] bytes = outerZip.getInputStream(entry).readAllBytes();
+                        try (java.util.zip.ZipInputStream workbookZip = new java.util.zip.ZipInputStream(new ByteArrayInputStream(bytes))) {
+                            java.util.zip.ZipEntry workbookEntry;
+                            while ((workbookEntry = workbookZip.getNextEntry()) != null) {
+                                if (workbookEntry.getName().startsWith("xl/worksheets/sheet") && workbookEntry.getName().endsWith(".xml")) {
+                                    return new String(workbookZip.readAllBytes()).contains("<c ");
+                                }
+                            }
+                            return false;
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .anyMatch(Boolean::booleanValue);
     }
 }

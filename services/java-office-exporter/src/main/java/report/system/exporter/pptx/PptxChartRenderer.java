@@ -2,6 +2,9 @@ package report.system.exporter.pptx;
 
 import org.apache.poi.xslf.usermodel.*;
 import org.apache.poi.xddf.usermodel.chart.*;
+import report.system.exporter.chart.ChartAxisNormalizer;
+import report.system.exporter.chart.ChartWorkbookBinder;
+import report.system.exporter.chart.ChartSeriesStyler;
 import report.system.exporter.chart.ChartSpec;
 import report.system.exporter.chart.ChartSpecParser;
 import report.system.exporter.model.ChartDataProperties;
@@ -11,6 +14,7 @@ import report.system.exporter.style.ThemeTokens;
 import java.awt.geom.Rectangle2D;
 
 public final class PptxChartRenderer {
+    private static final int EMU_PER_POINT = 12700;
 
     private PptxChartRenderer() {}
 
@@ -52,14 +56,22 @@ public final class PptxChartRenderer {
 
     private static void renderNativeChart(XMLSlideShow pptx, XSLFSlide slide, ChartSpec spec, ChartSpec.NativeType nativeType,
                                           int x, int y, int width, int height, ThemeTokens theme) throws Exception {
-        XSLFChart chart = pptx.createChart(slide);
+        XSLFChart chart = pptx.createChart();
+        slide.addChart(chart, new Rectangle2D.Double(
+                (double) x * EMU_PER_POINT,
+                (double) y * EMU_PER_POINT,
+                (double) width * EMU_PER_POINT,
+                (double) height * EMU_PER_POINT
+        ));
         chart.setTitleText(spec.title() != null ? spec.title() : "");
 
         XDDFChartLegend legend = chart.getOrAddLegend();
         legend.setPosition(LegendPosition.BOTTOM);
 
-        String[] categoryArray = spec.categories().toArray(new String[0]);
-        XDDFDataSource<String> categories = XDDFDataSourcesFactory.fromArray(categoryArray);
+        ChartWorkbookBinder.BoundChartData boundData = ChartWorkbookBinder.bind(
+                chart, spec, nativeType == ChartSpec.NativeType.PIE
+        );
+        XDDFDataSource<String> categories = boundData.categories();
 
         XDDFChartData chartData;
         switch (nativeType) {
@@ -68,41 +80,49 @@ public final class PptxChartRenderer {
                 XDDFValueAxis valAxis = chart.createValueAxis(AxisPosition.LEFT);
                 chartData = chart.createData(ChartTypes.LINE, catAxis, valAxis);
                 ((XDDFLineChartData) chartData).setGrouping(Grouping.STANDARD);
-                for (ChartSpec.Series s : spec.seriesList()) {
-                    Double[] valueArray = s.values().toArray(new Double[0]);
-                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
-                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                for (ChartWorkbookBinder.BoundSeries s : boundData.seriesList()) {
+                    XDDFChartData.Series series = chartData.addSeries(categories, s.values());
                     series.setTitle(s.name(), null);
                 }
                 chart.plot(chartData);
+                styleSeries(chartData, true);
+                ChartAxisNormalizer.normalizeCategoryValueAxes(chart);
+                chart.saveWorkbook(boundData.workbook());
             }
             case BAR -> {
                 XDDFCategoryAxis catAxis = chart.createCategoryAxis(AxisPosition.BOTTOM);
                 XDDFValueAxis valAxis = chart.createValueAxis(AxisPosition.LEFT);
                 chartData = chart.createData(ChartTypes.BAR, catAxis, valAxis);
                 ((XDDFBarChartData) chartData).setBarDirection(BarDirection.COL);
-                for (ChartSpec.Series s : spec.seriesList()) {
-                    Double[] valueArray = s.values().toArray(new Double[0]);
-                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
-                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                for (ChartWorkbookBinder.BoundSeries s : boundData.seriesList()) {
+                    XDDFChartData.Series series = chartData.addSeries(categories, s.values());
                     series.setTitle(s.name(), null);
                 }
                 chart.plot(chartData);
+                styleSeries(chartData, false);
+                ChartAxisNormalizer.normalizeCategoryValueAxes(chart);
+                chart.saveWorkbook(boundData.workbook());
             }
             case PIE -> {
                 chartData = chart.createData(ChartTypes.PIE, null, null);
-                if (!spec.seriesList().isEmpty()) {
-                    ChartSpec.Series first = spec.seriesList().get(0);
-                    Double[] valueArray = first.values().toArray(new Double[0]);
-                    XDDFNumericalDataSource<Double> values = XDDFDataSourcesFactory.fromArray(valueArray);
-                    XDDFChartData.Series series = chartData.addSeries(categories, values);
+                if (!boundData.seriesList().isEmpty()) {
+                    ChartWorkbookBinder.BoundSeries first = boundData.seriesList().get(0);
+                    XDDFChartData.Series series = chartData.addSeries(categories, first.values());
                     series.setTitle(first.name(), null);
                 }
                 chart.plot(chartData);
+                styleSeries(chartData, false);
+                chart.saveWorkbook(boundData.workbook());
             }
             default -> {
                 // fallback already handled above
             }
+        }
+    }
+
+    private static void styleSeries(XDDFChartData chartData, boolean lineChart) {
+        for (int i = 0; i < chartData.getSeriesCount(); i++) {
+            ChartSeriesStyler.apply(chartData.getSeries(i), i, lineChart);
         }
     }
 
