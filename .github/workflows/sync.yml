@@ -1,0 +1,32 @@
+name: Sync to jishu-Data/report_system
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]' && github.actor != 'sync-bot'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "sync-bot"
+          git config user.email "sync-bot@noreply.github.com"
+
+      - name: Fetch all branches
+        run: |
+          git fetch --all --prune
+
+      - name: Push to jishu-Data/report_system
+        run: |
+          git remote add target https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/jishu-Data/report_system.git 2>/dev/null || true
+          git push target --all
+          git push target --tags
