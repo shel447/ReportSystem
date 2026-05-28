@@ -411,7 +411,7 @@ public class ReportDocxExporter implements DocumentExporter {
         String summaryTitle = str(props.get("summaryTitle"), "执行摘要");
         String summaryText = str(props.get("summaryText"), buildDefaultSummary(sections));
         addHeading(context, summaryTitle, 1);
-        addCalloutParagraph(context, summaryText);
+        addBodyTextParagraph(context, summaryText);
     }
 
     /**
@@ -422,7 +422,7 @@ public class ReportDocxExporter implements DocumentExporter {
         addHeading(context, str(props.get("signatureTitle"), "签字确认"), 1);
         List<Map<String, Object>> signers = mapList(props.get("signers"));
         if (signers.isEmpty()) {
-            addCalloutParagraph(context, "暂无签字人配置。");
+            addBodyTextParagraph(context, "暂无签字人配置。");
             return;
         }
 
@@ -478,15 +478,12 @@ public class ReportDocxExporter implements DocumentExporter {
     }
 
     /**
-     * 输出强调段（callout）文本块。
+     * 输出正文文本块。
      */
-    private void addCalloutParagraph(DocxRenderContext context, String text) {
-        XWPFTable table = context.document.createTable(1, 1);
-        table.setWidth("100%");
-        XWPFTableCell cell = table.getRow(0).getCell(0);
-        cell.setColor(VisualStyle.toHexNoHash(context.theme.panelAlt()));
-        XWPFParagraph p = cell.getParagraphArray(0);
-        p.setSpacingAfter(0);
+    private void addBodyTextParagraph(DocxRenderContext context, String text) {
+        XWPFParagraph p = context.document.createParagraph();
+        p.setSpacingBefore(0);
+        p.setSpacingAfter(120);
         XWPFRun run = p.createRun();
         run.setText(text);
         run.setFontFamily(context.theme.fontPrimary());
@@ -1097,7 +1094,7 @@ public class ReportDocxExporter implements DocumentExporter {
 
         @Override
         public void render(DocxRenderContext context, VNode node) {
-            addCalloutParagraph(context, node.propString("text", ""));
+            addBodyTextParagraph(context, node.propString("text", ""));
         }
     }
 

@@ -8,6 +8,16 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 Office Exporter 默认视觉样式优化
+
+- 变更动机：
+  - 当前 Word 普通文本块带有文本框边框/底色，PPT 每页上下蓝色装饰线影响报告观感。
+- 设计决策：
+  - Word 普通文本块按纯正文段落输出，不再呈现文本框边框或浅底。
+  - PPT 默认去除页眉下方和页脚上方的蓝色装饰线，保留页眉、页脚和页码文字。
+- 影响范围：
+  - `report_system/implementation/外部集成与导出实现.md`
+
 ## 2026-05-28 Report DSL Java 模型支持 JSON round-trip
 
 - 变更动机：

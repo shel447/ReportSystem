@@ -276,13 +276,6 @@ public class DeckPptxExporter implements DocumentExporter {
         int horizontalPadding = masterLayout.paddingX();
         int top = masterLayout.headerTop();
         int headerHeight = masterLayout.headerHeight();
-        int lineTop = top + headerHeight + 1;
-
-        XSLFAutoShape line = slide.createAutoShape();
-        line.setShapeType(ShapeType.RECT);
-        line.setAnchor(new Rectangle(horizontalPadding, lineTop, Math.max(10, pageWidth - horizontalPadding * 2), 1));
-        line.setFillColor(masterSpec.accentColor());
-        line.setLineColor(masterSpec.accentColor());
 
         XSLFTextBox box = slide.createTextBox();
         box.setAnchor(new Rectangle(horizontalPadding, top, Math.max(100, pageWidth - horizontalPadding * 2), headerHeight));
@@ -323,13 +316,6 @@ public class DeckPptxExporter implements DocumentExporter {
         int horizontalPadding = masterLayout.paddingX();
         int footerHeight = masterLayout.footerHeight();
         int top = Math.max(0, pageHeight - footerHeight - masterLayout.footerBottom());
-        int lineTop = Math.max(0, top - 2);
-
-        XSLFAutoShape line = slide.createAutoShape();
-        line.setShapeType(ShapeType.RECT);
-        line.setAnchor(new Rectangle(horizontalPadding, lineTop, Math.max(10, pageWidth - horizontalPadding * 2), 1));
-        line.setFillColor(masterSpec.accentColor());
-        line.setLineColor(masterSpec.accentColor());
 
         XSLFTextBox box = slide.createTextBox();
         box.setAnchor(new Rectangle(horizontalPadding, top, Math.max(100, pageWidth - horizontalPadding * 2), footerHeight));

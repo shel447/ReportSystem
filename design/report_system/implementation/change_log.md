@@ -8,6 +8,17 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-28 Office Exporter 默认视觉样式优化
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Office Exporter 默认视觉样式优化"
+- 实现设计调整：
+  - DOCX text 节点由 1x1 表格样式改为普通段落，去除文本框边框和背景底色。
+  - PPTX master header/footer 不再绘制 1px accent 装饰线，页眉、页脚和页码文字保持输出。
+- 验证要求：
+  - 增加样式回归测试，覆盖 Word 文本不生成额外表格、PPT 页眉页脚文字保留且不输出 accent 线条。
+  - Maven 测试、打包和样例导出通过，并用 Office/WPS 视觉确认。
+
 ## 2026-05-28 Report DSL Java 模型 JSON round-trip
 
 - 对应设计变更：
