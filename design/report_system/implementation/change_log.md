@@ -8,15 +8,6 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
-## 2026-05-28 Report DSL ColumnLineageSource 校验修正
-
-- 对应设计变更：
-  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Report DSL ColumnLineageSource 字段类型修正"
-- 实现设计调整：
-  - Report DSL schema 校验中，`ColumnLineageSource.enumValues` 按 `EnumValue[]` 校验，`ui` 按 `FieldUI` 校验。
-- 验证要求：
-  - 契约测试覆盖结构化 `enumValues/ui` 可通过，旧字符串形态会被拒绝。
-
 ## 2026-05-26 报告导出 POI 转换实现文档
 
 - 背景问题：
