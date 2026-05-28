@@ -54,6 +54,19 @@ class OfficeExporterStyleTest {
         assertFalse(slideXml.toLowerCase().contains("1d4ed8"));
     }
 
+    @Test
+    void pptxTextBoxesDoNotRenderBorders() throws Exception {
+        Path output = tempDir.resolve("text-without-border.pptx");
+
+        new DeckPptxExporter().export(textBoxDeck(), output, ExportRequest.defaults());
+
+        String slideXml = zipEntry(output, "ppt/slides/slide1.xml").toLowerCase();
+        String textShapeXml = enclosingShape(slideXml, "ppt 正文");
+        assertTrue(slideXml.contains("ppt 正文"));
+        assertFalse(textShapeXml.contains("<a:ln"));
+        assertFalse(textShapeXml.contains("d7e3f7"));
+    }
+
     private static VDoc textOnlyReport() {
         VDoc doc = new VDoc();
         doc.docId = "plain-text";
@@ -116,6 +129,38 @@ class OfficeExporterStyleTest {
         return doc;
     }
 
+    private static VDoc textBoxDeck() {
+        VDoc doc = new VDoc();
+        doc.docId = "text-box";
+        doc.docType = "ppt";
+        doc.schemaVersion = "1.0.0";
+        doc.title = "文本框样式测试";
+
+        VNode text = new VNode();
+        text.id = "text";
+        text.kind = "text";
+        text.props = Map.of("text", "PPT 正文");
+        text.layout = Map.of("mode", "absolute", "x", 80, "y", 120, "w", 420, "h", 120);
+
+        VNode slide = new VNode();
+        slide.id = "slide";
+        slide.kind = "slide";
+        slide.props = Map.of("title", "文本框");
+        slide.children = List.of(text);
+
+        VNode root = new VNode();
+        root.id = "root";
+        root.kind = "container";
+        root.props = Map.of(
+                "masterShowHeader", false,
+                "masterShowFooter", false,
+                "masterShowSlideNumber", false
+        );
+        root.children = List.of(slide);
+        doc.root = root;
+        return doc;
+    }
+
     private static String zipEntry(Path zipPath, String entryName) throws IOException {
         try (ZipFile zip = new ZipFile(zipPath.toFile())) {
             ZipEntry entry = zip.getEntry(entryName);
@@ -126,5 +171,18 @@ class OfficeExporterStyleTest {
                 return new String(input.readAllBytes(), StandardCharsets.UTF_8);
             }
         }
+    }
+
+    private static String enclosingShape(String xml, String text) {
+        int textIndex = xml.indexOf(text);
+        if (textIndex < 0) {
+            return "";
+        }
+        int shapeStart = xml.lastIndexOf("<p:sp", textIndex);
+        int shapeEnd = xml.indexOf("</p:sp>", textIndex);
+        if (shapeStart < 0 || shapeEnd < 0) {
+            return "";
+        }
+        return xml.substring(shapeStart, shapeEnd);
     }
 }

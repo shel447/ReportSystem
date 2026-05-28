@@ -346,8 +346,6 @@ public class DeckPptxExporter implements DocumentExporter {
         box.setAnchor(rect);
         Color bg = parseStyleColor(textNode.styleOrEmpty().get("bg"), context.theme.panel());
         box.setFillColor(bg);
-        box.setLineColor(context.theme.border());
-        box.setLineWidth(1.0);
 
         String text = textNode.propString("text", "");
         XSLFTextParagraph p = box.addNewTextParagraph();
