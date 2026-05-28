@@ -8,6 +8,22 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 Word Catalog 目录编号、封面与宽表自适应
+
+- 变更动机：
+  - Word 导出需要按 Report DSL 的 `catalogs/subCatalogs` 呈现正式目录层级，而不是把 section 当作目录节点。
+  - 表格列数较多时，默认 Word 排版可能被内容撑开并超出页面范围。
+  - Word 封面需要背景图片铺满首页，并让标题、报告人、时间等封面信息叠加在明确位置。
+- 设计决策：
+  - Word 目录与正文标题只根据 `catalogs -> subCatalogs` 自动生成层级编号。
+  - `section` 是正式内容承载单元，不进入目录、不渲染 `section.title`。
+  - Word 封面采用整页布局；`cover.image` 铺满首页作为背景图，标题、副标题和封面内容叠加在首页不同区域，报告人和时间分两行放在左下角。
+  - Word 表格固定在页面可用宽度内，列宽按声明宽度比例压缩，单元格内容允许换行。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
 ## 2026-05-28 Office Exporter 默认视觉样式优化
 
 - 变更动机：

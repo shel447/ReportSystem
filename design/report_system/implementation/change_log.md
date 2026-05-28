@@ -8,6 +8,20 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-28 Word Catalog 目录编号、封面与宽表自适应
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Word Catalog 目录编号、封面与宽表自适应"
+- 实现设计调整：
+  - `BiEngineDslNormalizer` 将 flow DSL 归一化为 catalog 树，catalog/subCatalog 带 `outlineNumber/outlineLevel`，section 只保留组件内容。
+  - `BiEngineDslNormalizer` 将 `cover.author/date` 拆成独立封面字段，DOCX 封面不再拼接为居中 note。
+  - `ReportDocxExporter` 递归渲染 catalog/subCatalog 目录和正文标题，不再输出 section title。
+  - `ReportDocxExporter` 使用 `cover.image` 生成相对 page 的 behind-text anchor 图片并铺满首页，再用整页封面画布叠加标题、说明、报告人与时间。
+  - DOCX 表格使用固定布局，按页面可用宽度写入 `tblW/tblGrid/tcW`，宽表按列声明宽度比例压缩并降低字号。
+- 验证要求：
+  - 测试覆盖 catalog 编号、section title 不输出、封面背景图 behind-text 铺满首页、封面左下角报告人/时间、宽表列宽不超过页面可用宽度。
+  - Maven 测试和打包通过，样例 Word 视觉确认目录层级与宽表效果。
+
 ## 2026-05-28 Office Exporter 默认视觉样式优化
 
 - 对应设计变更：

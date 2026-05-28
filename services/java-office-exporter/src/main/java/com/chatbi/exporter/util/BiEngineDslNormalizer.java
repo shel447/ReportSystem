@@ -54,7 +54,7 @@ public final class BiEngineDslNormalizer {
         rootNode.kind = "container";
         rootNode.layout = normalizeLayout(root.get("layout"), mapper);
         rootNode.props = reportRootProps(root, basic, mapper, doc.title);
-        rootNode.children = collectReportSections(root.get("catalogs"), mapper);
+        rootNode.children = collectReportCatalogs(root.get("catalogs"), mapper);
         doc.root = rootNode;
         return doc;
     }
@@ -80,7 +80,9 @@ public final class BiEngineDslNormalizer {
         props.put("coverEnabled", !cover.isEmpty());
         props.put("coverTitle", str(cover.get("title"), title));
         props.put("coverSubtitle", str(cover.get("subTitle"), str(basic.get("subTitle"), "Report")));
-        props.put("coverNote", coverNote(cover, basic));
+        props.put("coverAuthor", str(cover.get("author"), str(basic.get("creator"), "")));
+        props.put("coverDate", str(cover.get("date"), str(basic.get("createdAt"), "")));
+        props.put("coverNote", str(basic.get("description"), ""));
         if (cover.containsKey("image")) {
             props.put("coverImage", cover.get("image"));
         }
@@ -138,55 +140,70 @@ public final class BiEngineDslNormalizer {
         return String.join(" | ", parts);
     }
 
-    private static List<VNode> collectReportSections(JsonNode catalogs, ObjectMapper mapper) {
-        ArrayList<VNode> sections = new ArrayList<>();
+    private static List<VNode> collectReportCatalogs(JsonNode catalogs, ObjectMapper mapper) {
+        ArrayList<VNode> nodes = new ArrayList<>();
         if (catalogs == null || !catalogs.isArray()) {
-            return sections;
+            return nodes;
         }
         List<JsonNode> catalogNodes = sortedNodes(catalogs);
-        for (JsonNode catalog : catalogNodes) {
-            collectCatalogSections(catalog, mapper, sections, List.of());
+        for (int i = 0; i < catalogNodes.size(); i++) {
+            VNode catalog = normalizeCatalog(catalogNodes.get(i), mapper, List.of(i + 1));
+            if (catalog != null) {
+                nodes.add(catalog);
+            }
         }
-        return sections;
+        return nodes;
     }
 
-    private static void collectCatalogSections(
+    private static VNode normalizeCatalog(
             JsonNode catalog,
             ObjectMapper mapper,
-            List<VNode> out,
-            List<String> parentPath
+            List<Integer> outlinePath
     ) {
         Map<String, Object> catalogMap = map(catalog, mapper);
         String catalogName = str(catalogMap.get("name"), "");
-        ArrayList<String> path = new ArrayList<>(parentPath);
-        if (!catalogName.isBlank()) {
-            path.add(catalogName);
+        VNode node = new VNode();
+        node.id = str(catalogMap.get("id"), "catalog_" + outlineNumber(outlinePath));
+        node.kind = "catalog";
+        LinkedHashMap<String, Object> props = new LinkedHashMap<>();
+        props.put("title", catalogName.isBlank() ? "目录 " + outlineNumber(outlinePath) : catalogName);
+        props.put("outlineNumber", outlineNumber(outlinePath));
+        props.put("outlineLevel", outlinePath.size());
+        if (catalogMap.containsKey("order")) {
+            props.put("order", catalogMap.get("order"));
         }
+        node.props = props;
+        node.children = new ArrayList<>();
+
         JsonNode sections = catalog.get("sections");
         if (sections != null && sections.isArray()) {
             for (JsonNode section : sortedNodes(sections)) {
-                out.add(normalizeSection(section, mapper, path));
+                node.children.add(normalizeSection(section, mapper));
             }
         }
         JsonNode subCatalogs = catalog.get("subCatalogs");
         if (subCatalogs != null && subCatalogs.isArray()) {
-            for (JsonNode subCatalog : sortedNodes(subCatalogs)) {
-                collectCatalogSections(subCatalog, mapper, out, path);
+            List<JsonNode> sortedSubCatalogs = sortedNodes(subCatalogs);
+            for (int i = 0; i < sortedSubCatalogs.size(); i++) {
+                ArrayList<Integer> childPath = new ArrayList<>(outlinePath);
+                childPath.add(i + 1);
+                VNode subCatalog = normalizeCatalog(sortedSubCatalogs.get(i), mapper, childPath);
+                if (subCatalog != null) {
+                    node.children.add(subCatalog);
+                }
             }
         }
+        return node;
     }
 
-    private static VNode normalizeSection(JsonNode section, ObjectMapper mapper, List<String> catalogPath) {
+    private static VNode normalizeSection(JsonNode section, ObjectMapper mapper) {
         Map<String, Object> sectionMap = map(section, mapper);
         String sectionTitle = str(sectionMap.get("title"), "章节");
         VNode node = new VNode();
         node.id = str(sectionMap.get("id"), "section");
         node.kind = "section";
         LinkedHashMap<String, Object> props = new LinkedHashMap<>();
-        props.put("title", sectionTitle(catalogPath, sectionTitle));
-        if (!catalogPath.isEmpty()) {
-            props.put("catalogPath", String.join(" / ", catalogPath));
-        }
+        props.put("title", sectionTitle);
         if (sectionMap.containsKey("order")) {
             props.put("order", sectionMap.get("order"));
         }
@@ -210,18 +227,12 @@ public final class BiEngineDslNormalizer {
         return node;
     }
 
-    private static String sectionTitle(List<String> catalogPath, String title) {
-        if (catalogPath == null || catalogPath.isEmpty()) {
-            return title;
+    private static String outlineNumber(List<Integer> outlinePath) {
+        ArrayList<String> parts = new ArrayList<>();
+        for (Integer item : outlinePath) {
+            parts.add(String.valueOf(item));
         }
-        String path = String.join(" / ", catalogPath);
-        if (title == null || title.isBlank()) {
-            return path;
-        }
-        if (title.startsWith(path)) {
-            return title;
-        }
-        return path + " - " + title;
+        return String.join(".", parts);
     }
 
     private static VDoc normalizePpt(JsonNode root, ObjectMapper mapper) {

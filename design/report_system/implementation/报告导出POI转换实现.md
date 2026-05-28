@@ -181,8 +181,9 @@ flowchart TB
     PAGE_BREAK_1 --> TOC[渲染目录]
     TOC --> PAGE_BREAK_2[分页]
     PAGE_BREAK_2 --> CATALOGS[遍历 catalogs]
-    CATALOGS --> SECTION[渲染章节]
-    SECTION --> COMPONENTS[遍历组件]
+    CATALOGS --> CATALOG_TITLE[渲染 catalog/subCatalog 标题]
+    CATALOG_TITLE --> SECTION_CONTENT[渲染 section 内容]
+    SECTION_CONTENT --> COMPONENTS[遍历组件]
     COMPONENTS --> SWITCH{组件类型}
     SWITCH -->|text| TEXT[TextRenderer]
     SWITCH -->|markdown| MD[MarkdownRenderer]
@@ -207,38 +208,37 @@ flowchart TB
 ```java
 public static void renderCover(XWPFDocument doc, ReportCover cover, 
                                ReportBasicInfo basicInfo, ThemeTokens theme) {
-    // 1. 创建封面段落（垂直居中）
-    for (int i = 0; i < 6; i++) doc.createParagraph();
-    
-    // 2. 渲染标题
-    String title = cover.title != null ? cover.title : basicInfo.title;
-    addCenteredTitle(doc, title, theme.titleSizePt(), theme.primary());
-    
-    // 3. 渲染副标题
-    if (basicInfo.subTitle != null) {
-        addCenteredText(doc, basicInfo.subTitle, theme.heading2SizePt());
-    }
-    
-    // 4. 渲染作者和日期
-    if (cover.author != null) addCenteredText(doc, cover.author);
-    if (cover.date != null) addCenteredText(doc, cover.date);
-    
-    // 5. 渲染封面内容项
-    if (cover.contents != null) {
-        for (ReportCoverContent item : cover.contents) {
-            addCenteredText(doc, item.content);
-        }
-    }
+    // 1. 创建整页封面画布
+    addCoverBackgroundAsBehindTextImage(doc, cover.image);
+
+    // 2. 创建透明文字画布
+    XWPFTable canvas = doc.createTable(4, 1);
+    canvas.setWidth("100%");
+    canvas.removeBorders();
+
+    // 3. 上半部渲染标题和副标题
+    addCoverTitle(canvas.getRow(1).getCell(0), cover.title, cover.subTitle, theme);
+
+    // 4. 中部渲染封面内容项/报告说明
+    addCoverNotes(canvas.getRow(2).getCell(0), cover.contents, basicInfo.description, theme);
+
+    // 5. 左下角分两行渲染报告人和时间
+    addBottomLeftMeta(canvas.getRow(3).getCell(0), cover.author, cover.date, theme);
 }
 ```
+
+封面按首页整页视觉区域处理；`cover.image` 以 `wp:anchor behindDoc=true` 方式相对页面左上角定位，尺寸等于当前纸张大小，作为首页铺满背景图。报告人和时间不再拼接为居中文本，而是分别输出为“报告人：...”和“时间：...”两行，放在页面左下角。
 
 **POI 对象映射：**
 
 | DSL 字段 | POI 对象 | 样式 |
 |---------|---------|------|
-| `cover.title` | `XWPFParagraph` + `XWPFRun` | 居中，22pt，主色，粗体 |
-| `cover.author` | `XWPFParagraph` + `XWPFRun` | 居中，11pt，次色 |
-| `cover.date` | `XWPFParagraph` + `XWPFRun` | 居中，11pt，次色 |
+| `cover.title` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 页面上半部居中，34pt，粗体 |
+| `cover.subTitle` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 标题下方居中，16pt，次色 |
+| `cover.image` | `wp:anchor` drawing | 相对 page 定位，铺满首页，behind text |
+| `cover.contents` / `basicInfo.description` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 页面中部居中 |
+| `cover.author` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 左下角，“报告人：...” |
+| `cover.date` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 左下角，“时间：...” |
 
 ### 4.3 目录渲染
 
@@ -251,22 +251,16 @@ private void renderTableOfContents(XWPFDocument doc, ReportDslModel dsl, ThemeTo
 private void renderTocEntries(XWPFDocument doc, List<ReportCatalog> catalogs, 
                               int indent, ThemeTokens theme) {
     for (ReportCatalog catalog : catalogs) {
-        String prefix = "    ".repeat(indent);
-        addParagraph(doc, prefix + catalog.resolvedTitle(), theme.fontPrimary());
-        
-        // 渲染章节标题
-        if (catalog.sections != null) {
-            for (ReportSection section : catalog.sections) {
-                String secPrefix = "    ".repeat(indent + 1);
-                addParagraph(doc, secPrefix + section.title, theme.fontSecondary());
-            }
-        }
+        String outlineNumber = nextOutlineNumber(indent);
+        addParagraph(doc, outlineNumber + " " + catalog.resolvedTitle(), theme.fontPrimary());
         
         // 递归渲染子目录
         renderTocEntries(doc, catalog.subCatalogs, indent + 1, theme);
     }
 }
 ```
+
+目录页只输出 `catalogs/subCatalogs` 层级；`sections` 是正式内容承载单元，不作为目录项输出。
 
 **POI 对象映射：**
 
@@ -275,29 +269,23 @@ private void renderTocEntries(XWPFDocument doc, List<ReportCatalog> catalogs,
 | 目录标题 | `XWPFParagraph` (Heading1) | 16pt，主色，粗体 |
 | 一级目录 | `XWPFParagraph` | 11pt，无缩进 |
 | 二级目录 | `XWPFParagraph` | 11pt，缩进 4 空格 |
-| 章节 | `XWPFParagraph` | 9pt，次色，缩进 8 空格 |
 
 ### 4.4 章节渲染
 
 ```java
-private void renderSection(XWPFDocument doc, ReportSection section, 
-                          int depth, ThemeTokens theme) {
-    // 1. 渲染章节标题
-    if (section.title != null) {
-        int headingLevel = Math.min(depth + 1, 3);
-        addHeading(doc, section.title, headingLevel, theme);
+private void renderCatalog(XWPFDocument doc, ReportCatalog catalog,
+                           String outlineNumber, int depth, ThemeTokens theme) {
+    addHeading(doc, outlineNumber + " " + catalog.resolvedTitle(), depth, theme);
+    for (ReportSection section : catalog.sections) {
+        renderSectionContent(doc, section, theme);
     }
-    
-    // 2. 渲染章节摘要
-    if (section.summary != null && section.summary.overview != null) {
-        XWPFParagraph p = doc.createParagraph();
-        XWPFRun run = p.createRun();
-        run.setText(section.summary.overview);
-        run.setItalic(true);
-        run.setColor(theme.secondary());
+    for (ReportCatalog subCatalog : catalog.subCatalogs) {
+        renderCatalog(doc, subCatalog, nextOutlineNumber(depth), depth + 1, theme);
     }
-    
-    // 3. 遍历渲染组件
+}
+
+private void renderSectionContent(XWPFDocument doc, ReportSection section, ThemeTokens theme) {
+    // section.title 不渲染，section 只承载正式内容组件
     if (section.components != null) {
         for (ReportComponent component : section.components) {
             renderComponent(doc, component, theme);
@@ -415,7 +403,7 @@ public static void renderTable(XWPFDocument doc, TableDataProperties dataProps, 
     int colCount = columns.size();
     int rowCount = dataProps.data.size() + 1;  // +1 for header
     XWPFTable table = doc.createTable(rowCount, colCount);
-    table.setWidth("100%");
+    setFixedTableWidth(table, pageWritableWidthTwips, scaledColumnWidths(columns));
     
     // 4. 渲染表头
     styleTableHeader(table, 0, theme);
@@ -457,6 +445,11 @@ public static void renderTable(XWPFDocument doc, TableDataProperties dataProps, 
 **表格样式细节：**
 
 ```java
+private static void setFixedTableWidth(XWPFTable table, int writableWidthTwips, int[] colWidths) {
+    // tblW 固定为页面可用宽度，tblLayout=fixed
+    // tblGrid/gridCol 与每个 tcW 使用压缩后的列宽，避免宽表超出页面
+}
+
 private static void setCellBackground(XWPFTableCell cell, String hexColor) {
     CTShd shd = cell.getCTTc().addNewTcPr().addNewShd();
     shd.setFill(hexColor);
