@@ -732,7 +732,7 @@ private void renderSectionSlide(XMLSlideShow pptx, ReportSection section,
 private int renderComponent(XSLFSlide slide, ReportComponent component, 
                            int yOffset, ThemeTokens theme) {
     switch (component) {
-        case com.bi.report.generation.model.TextComponent text -> {
+        case TextComponent text -> {
             if (text.dataProperties != null) {
                 String content = str(text.dataProperties.content);
                 if (!content.isEmpty()) {
@@ -1169,15 +1169,12 @@ src/test/resources/
 ### 9.1 构建命令
 
 ```bash
-export JAVA_HOME=/opt/homebrew/Cellar/openjdk@21/21.0.11/libexec/openjdk.jdk/Contents/Home
-export PATH=$JAVA_HOME/bin:/opt/homebrew/bin:$PATH
-
 cd services/java-office-exporter
 mvn clean package
 ```
 
 **产物：**
-- `target/java-office-exporter-0.1.0.jar` (21 MB fat jar)
+- `target/java-office-exporter-0.1.0.jar` fat jar，入口为 `com.chatbi.exporter.CliMain`
 
 ### 9.2 运行测试
 
@@ -1185,25 +1182,16 @@ mvn clean package
 mvn test
 ```
 
-**测试结果：**
-```
-Tests run: 35, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
-
-### 9.3 启动 HTTP 服务
+### 9.3 CLI 运行
 
 ```bash
 java -jar target/java-office-exporter-0.1.0.jar \
-  --host 127.0.0.1 \
-  --port 18500 \
-  --artifacts-dir ./artifacts
+  --input <dsl.json> \
+  --output <out.docx|out.pptx> \
+  --target docx|pptx|auto
 ```
 
-**API 端点：**
-- `GET /health` → `{"status":"ok"}`
-- `POST /exports/word` → 生成 Word 文档
-- `POST /exports/ppt` → 生成 PPT 文档
+说明：当前 `java-office-exporter` 已照搬 `poi-dsl-exporter` 的 `com.chatbi` CLI/库式实现，不再内置 `/health` 和 `/exports/{word|ppt}` HTTP 服务。
 
 ## 10. 已知限制与未来改进
 

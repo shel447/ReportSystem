@@ -8,6 +8,18 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 Java Office Exporter 切换为 poi-dsl-exporter 实现
+
+- 变更动机：
+  - 报告文档生成能力需要对齐 `chat_bi_ui/tools/poi-dsl-exporter` 中已经沉淀的 POI 导出实现，减少两套 Java 导出代码分叉。
+- 设计决策：
+  - `services/java-office-exporter/src/main/java` 完整替换为 `poi-dsl-exporter/src/main/java/com/chatbi` 源码树。
+  - Java 入口切换为 `com.chatbi.exporter.CliMain`，导出器以 CLI/库式编排能力为主。
+  - 原 `com.bi.report.generation` HTTP 服务入口与 `com.bi.report.model` 契约模型包不再保留在 Java Office Exporter 中。
+- 影响范围：
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
 ## 2026-05-28 Java 侧新增 Report DSL 契约模型
 
 - 变更动机：

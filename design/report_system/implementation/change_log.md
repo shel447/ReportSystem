@@ -8,6 +8,18 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-28 Java Office Exporter 照搬 poi-dsl-exporter
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Java Office Exporter 切换为 poi-dsl-exporter 实现"
+- 实现设计调整：
+  - `services/java-office-exporter/src/main/java` 替换为 `chat_bi_ui/tools/poi-dsl-exporter/src/main/java/com/chatbi`。
+  - Maven shade 入口改为 `com.chatbi.exporter.CliMain`，模块坐标和 JAR 名称暂保持 `java-office-exporter`。
+  - 删除旧 `com.bi.report.generation` 运行时和 `com.bi.report.model` 契约模型包，避免同一模块内保留两套导出实现。
+- 验证要求：
+  - Maven 编译和打包通过。
+  - 静态检查确认 `src/main/java` 中只保留 `com/chatbi` Java 源码树。
+
 ## 2026-05-28 Java Report DSL 契约模型包
 
 - 对应设计变更：
