@@ -386,18 +386,33 @@ public final class BiEngineDslNormalizer {
             ObjectMapper mapper,
             Map<String, Object> pageLayout
     ) {
-        ArrayList<VNode> nodes = new ArrayList<>();
+        VNode composite = new VNode();
+        composite.id = component.path("id").asText("composite_table");
+        composite.kind = "compositeTable";
+        composite.layout = normalizeLayout(component.get("layout"), mapper, pageLayout);
+        composite.style = styleMap(component, mapper);
+        Map<String, Object> data = map(component.get("dataProperties"), mapper);
+        LinkedHashMap<String, Object> props = mergedProps(component, mapper);
+        props.put("titleText", str(data.get("title"), str(props.get("titleText"), "复合表")));
+        composite.props = props;
+        composite.children = new ArrayList<>();
+
         JsonNode tables = component.get("tables");
         if (tables == null || !tables.isArray()) {
-            return nodes;
+            return List.of(composite);
         }
         int index = 0;
         for (JsonNode table : tables) {
-            VNode node = normalizeComponent(table, mapper, pageLayout).get(0);
-            node.id = component.path("id").asText("composite_table") + "_" + (++index);
-            nodes.add(node);
+            List<VNode> tableNodes = normalizeComponent(table, mapper, pageLayout);
+            for (VNode node : tableNodes) {
+                if (!"table".equalsIgnoreCase(node.kind)) {
+                    continue;
+                }
+                node.id = component.path("id").asText("composite_table") + "_" + (++index);
+                composite.children.add(node);
+            }
         }
-        return nodes;
+        return List.of(composite);
     }
 
     private static String normalizeKind(String type) {

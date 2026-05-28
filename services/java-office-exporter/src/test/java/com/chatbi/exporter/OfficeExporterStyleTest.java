@@ -154,6 +154,69 @@ class OfficeExporterStyleTest {
         assertTrue(gridWidth <= availableWidth);
     }
 
+    @Test
+    void compositeTablesStaySingleNodeWithTableChildren() throws Exception {
+        Path input = tempDir.resolve("composite-flow.json");
+        Files.writeString(input, compositeFlowDsl(), StandardCharsets.UTF_8);
+
+        VDoc doc = DslReader.read(input);
+        VNode composite = doc.root.children.getFirst().children.getFirst().children.getFirst();
+
+        assertEquals("compositeTable", composite.kind);
+        assertEquals(2, composite.children.size());
+        assertEquals("table", composite.children.get(0).kind);
+        assertEquals("table", composite.children.get(1).kind);
+    }
+
+    @Test
+    void docxCompositeTablesRenderContiguouslyWithAlignedTotalWidth() throws Exception {
+        Path input = tempDir.resolve("composite-flow.json");
+        Path output = tempDir.resolve("composite-flow.docx");
+        Files.writeString(input, compositeFlowDsl(), StandardCharsets.UTF_8);
+
+        new ReportDocxExporter().export(DslReader.read(input), output, ExportRequest.defaults());
+
+        try (InputStream inputStream = Files.newInputStream(output);
+             XWPFDocument document = new XWPFDocument(inputStream)) {
+            assertEquals(2, document.getTables().size());
+        }
+
+        String documentXml = zipEntry(output, "word/document.xml");
+        Matcher tableMatcher = Pattern.compile("<w:tbl>.*?</w:tbl>", Pattern.DOTALL).matcher(documentXml);
+        List<String> tables = new ArrayList<>();
+        while (tableMatcher.find()) {
+            tables.add(tableMatcher.group());
+        }
+        assertEquals(2, tables.size());
+
+        int firstWidth = tableWidth(tables.get(0));
+        int secondWidth = tableWidth(tables.get(1));
+        assertTrue(firstWidth > 0);
+        assertEquals(firstWidth, secondWidth);
+
+        int firstEnd = documentXml.indexOf(tables.get(0)) + tables.get(0).length();
+        int secondStart = documentXml.indexOf(tables.get(1));
+        String betweenTables = documentXml.substring(firstEnd, secondStart);
+        assertFalse(betweenTables.contains("<w:p"));
+    }
+
+    @Test
+    void pptxCompositeTablesRenderStackedWithAlignedTotalWidth() throws Exception {
+        Path input = tempDir.resolve("composite-paged.json");
+        Path output = tempDir.resolve("composite-paged.pptx");
+        Files.writeString(input, compositePagedDsl(), StandardCharsets.UTF_8);
+
+        new DeckPptxExporter().export(DslReader.read(input), output, ExportRequest.defaults());
+
+        String slideXml = zipEntry(output, "ppt/slides/slide1.xml");
+        List<TableAnchor> anchors = tableAnchors(slideXml);
+        assertEquals(2, anchors.size());
+        assertEquals(anchors.get(0).x(), anchors.get(1).x());
+        assertEquals(anchors.get(0).width(), anchors.get(1).width());
+        assertEquals(anchors.get(0).y() + anchors.get(0).height(), anchors.get(1).y());
+        assertTrue(anchors.get(1).height() > 0);
+    }
+
     private static VDoc textOnlyReport() {
         VDoc doc = new VDoc();
         doc.docId = "plain-text";
@@ -409,6 +472,128 @@ class OfficeExporterStyleTest {
                 """;
     }
 
+    private static String compositeFlowDsl() {
+        return """
+                {
+                  "structureType": "flow",
+                  "basicInfo": {"id": "composite-flow", "name": "组合表格验证", "schemaVersion": "1.0.0"},
+                  "layout": {"type": "flow", "grid": {"gap": 12}},
+                  "catalogs": [
+                    {
+                      "id": "cat_composite",
+                      "name": "组合表格",
+                      "order": 1,
+                      "sections": [
+                        {
+                          "id": "sec_composite",
+                          "title": "不应输出为小标题",
+                          "order": 1,
+                          "components": [
+                            {
+                              "id": "composite_sales",
+                              "type": "compositeTable",
+                              "dataProperties": {"dataType": "static", "title": "渠道经营组合表"},
+                              "tables": [
+                                {
+                                  "id": "online_table",
+                                  "type": "table",
+                                  "dataProperties": {
+                                    "dataType": "static",
+                                    "columns": [
+                                      {"key": "channel", "title": "渠道"},
+                                      {"key": "revenue", "title": "收入"},
+                                      {"key": "profit", "title": "利润"}
+                                    ],
+                                    "data": [
+                                      {"channel": "官网", "revenue": 1280, "profit": 320},
+                                      {"channel": "小程序", "revenue": 960, "profit": 210}
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "offline_table",
+                                  "type": "table",
+                                  "dataProperties": {
+                                    "dataType": "static",
+                                    "columns": [
+                                      {"key": "channel", "title": "渠道"},
+                                      {"key": "orders", "title": "订单数"}
+                                    ],
+                                    "data": [
+                                      {"channel": "门店", "orders": 310},
+                                      {"channel": "经销商", "orders": 180}
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private static String compositePagedDsl() {
+        return """
+                {
+                  "structureType": "paged",
+                  "basicInfo": {"id": "composite-paged", "name": "组合表格验证PPT", "schemaVersion": "1.0.0"},
+                  "layout": {"type": "paged", "page": {"size": "16:9"}},
+                  "content": [
+                    {
+                      "id": "slide_composite",
+                      "type": "slide",
+                      "title": "组合表格",
+                      "components": [
+                        {
+                          "id": "composite_ppt",
+                          "type": "compositeTable",
+                          "layout": {"type": "absolute", "x": 80, "y": 90, "w": 760, "h": 300},
+                          "dataProperties": {"dataType": "static", "title": "渠道经营组合表"},
+                          "tables": [
+                            {
+                              "id": "online_table",
+                              "type": "table",
+                              "dataProperties": {
+                                "dataType": "static",
+                                "columns": [
+                                  {"key": "channel", "title": "渠道"},
+                                  {"key": "revenue", "title": "收入"},
+                                  {"key": "profit", "title": "利润"}
+                                ],
+                                "data": [
+                                  {"channel": "官网", "revenue": 1280, "profit": 320},
+                                  {"channel": "小程序", "revenue": 960, "profit": 210}
+                                ]
+                              }
+                            },
+                            {
+                              "id": "offline_table",
+                              "type": "table",
+                              "dataProperties": {
+                                "dataType": "static",
+                                "columns": [
+                                  {"key": "channel", "title": "渠道"},
+                                  {"key": "orders", "title": "订单数"}
+                                ],
+                                "data": [
+                                  {"channel": "门店", "orders": 310},
+                                  {"channel": "经销商", "orders": 180}
+                                ]
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+    }
+
     private static String zipEntry(Path zipPath, String entryName) throws IOException {
         try (ZipFile zip = new ZipFile(zipPath.toFile())) {
             ZipEntry entry = zip.getEntry(entryName);
@@ -432,5 +617,30 @@ class OfficeExporterStyleTest {
             return "";
         }
         return xml.substring(shapeStart, shapeEnd);
+    }
+
+    private static int tableWidth(String tableXml) {
+        Matcher matcher = Pattern.compile("<w:tblW[^>]*w:w=\"(\\d+)\"[^>]*w:type=\"dxa\"").matcher(tableXml);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
+    }
+
+    private static List<TableAnchor> tableAnchors(String slideXml) {
+        Matcher matcher = Pattern.compile(
+                "<p:graphicFrame>.*?<a:off x=\"(\\d+)\" y=\"(\\d+)\"/>\\s*<a:ext cx=\"(\\d+)\" cy=\"(\\d+)\"/>.*?<a:tbl>",
+                Pattern.DOTALL
+        ).matcher(slideXml);
+        List<TableAnchor> anchors = new ArrayList<>();
+        while (matcher.find()) {
+            anchors.add(new TableAnchor(
+                    Long.parseLong(matcher.group(1)),
+                    Long.parseLong(matcher.group(2)),
+                    Long.parseLong(matcher.group(3)),
+                    Long.parseLong(matcher.group(4))
+            ));
+        }
+        return anchors;
+    }
+
+    private record TableAnchor(long x, long y, long width, long height) {
     }
 }

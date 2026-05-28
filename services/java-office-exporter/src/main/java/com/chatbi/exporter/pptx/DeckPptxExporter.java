@@ -100,7 +100,8 @@ public class DeckPptxExporter implements DocumentExporter {
         this.nodeRenderers = new RendererRegistry<>(new UnsupportedNodeRenderer())
                 .register(new TextNodeRenderer())
                 .register(new ChartNodeRenderer())
-                .register(new TableNodeRenderer());
+                .register(new TableNodeRenderer())
+                .register(new CompositeTableNodeRenderer());
     }
 
     /**
@@ -402,6 +403,10 @@ public class DeckPptxExporter implements DocumentExporter {
         }
 
         Rectangle rect = resolveRect(tableNode, 100, 100, 520, 260);
+        addTableShape(context, table, rect);
+    }
+
+    private void addTableShape(PptxRenderContext context, TableModel table, Rectangle rect) {
         XSLFTable xslfTable = context.slide().createTable();
         xslfTable.setAnchor(rect);
 
@@ -421,6 +426,48 @@ public class DeckPptxExporter implements DocumentExporter {
         applyTableMerges(xslfTable, table);
         normalizeTableCellTextBodies(xslfTable);
         xslfTable.updateCellAnchor();
+        xslfTable.setAnchor(rect);
+    }
+
+    /**
+     * 渲染复合表：父布局决定整体区域，子表按行数比例纵向贴合，共享 x/w。
+     */
+    private void addCompositeTableShape(PptxRenderContext context, VNode compositeNode) {
+        Rectangle rect = resolveRect(compositeNode, 100, 100, 520, 260);
+        List<CompositeTableSegment> segments = new ArrayList<>();
+        int totalRows = 0;
+        for (VNode tableNode : compositeNode.childrenOrEmpty()) {
+            if (!"table".equalsIgnoreCase(tableNode.kind)) {
+                continue;
+            }
+            List<Map<String, Object>> rows = chartRowResolver.resolve(context.doc(), tableNode, null);
+            TableModel table = tableSpecParser.parse(tableNode, rows);
+            if (table.columnCount() <= 0) {
+                continue;
+            }
+            int rowCount = Math.max(1, table.totalRowCount());
+            totalRows += rowCount;
+            segments.add(new CompositeTableSegment(table, rowCount));
+        }
+        if (segments.isEmpty()) {
+            addUnsupportedShape(context, compositeNode);
+            return;
+        }
+
+        int currentY = rect.y;
+        int remainingHeight = rect.height;
+        int remainingRows = Math.max(1, totalRows);
+        for (int i = 0; i < segments.size(); i++) {
+            CompositeTableSegment segment = segments.get(i);
+            int height = i == segments.size() - 1
+                    ? remainingHeight
+                    : Math.max(40, (int) Math.round((segment.rowCount() / (double) remainingRows) * remainingHeight));
+            Rectangle segmentRect = new Rectangle(rect.x, currentY, rect.width, Math.max(40, height));
+            addTableShape(context, segment.table(), segmentRect);
+            currentY += height;
+            remainingHeight = Math.max(0, rect.y + rect.height - currentY);
+            remainingRows = Math.max(1, remainingRows - segment.rowCount());
+        }
     }
 
     /**
@@ -857,6 +904,9 @@ public class DeckPptxExporter implements DocumentExporter {
     ) {
     }
 
+    private record CompositeTableSegment(TableModel table, int rowCount) {
+    }
+
     /**
      * PPT 渲染上下文。
      */
@@ -979,6 +1029,21 @@ public class DeckPptxExporter implements DocumentExporter {
         public void render(PptxRenderContext context, VNode node) {
             List<Map<String, Object>> rows = chartRowResolver.resolve(context.doc(), node, null);
             addTableShape(context, node, rows);
+        }
+    }
+
+    /**
+     * 节点 kind=compositeTable 渲染器。
+     */
+    private final class CompositeTableNodeRenderer implements NodeRenderer<PptxRenderContext> {
+        @Override
+        public String kind() {
+            return "compositeTable";
+        }
+
+        @Override
+        public void render(PptxRenderContext context, VNode node) {
+            addCompositeTableShape(context, node);
         }
     }
 

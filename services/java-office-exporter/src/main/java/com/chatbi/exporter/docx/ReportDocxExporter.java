@@ -108,7 +108,8 @@ public class ReportDocxExporter implements DocumentExporter {
         this.nodeRenderers = new RendererRegistry<>(new UnsupportedNodeRenderer())
                 .register(new TextNodeRenderer())
                 .register(new ChartNodeRenderer())
-                .register(new TableNodeRenderer());
+                .register(new TableNodeRenderer())
+                .register(new CompositeTableNodeRenderer());
     }
 
     /**
@@ -745,6 +746,19 @@ public class ReportDocxExporter implements DocumentExporter {
         applyDocxMerges(table, model);
         if (model.repeatHeader()) {
             markHeaderRowsRepeat(table, model.headerRowCount());
+        }
+    }
+
+    /**
+     * 渲染复合表：多个子表纵向贴合输出，各子表保持自身列结构但共享同一页面宽度。
+     */
+    private void addCompositeTableBlock(DocxRenderContext context, VNode compositeNode) {
+        for (VNode tableNode : compositeNode.childrenOrEmpty()) {
+            if (!"table".equalsIgnoreCase(tableNode.kind)) {
+                continue;
+            }
+            List<Map<String, Object>> rows = chartRowResolver.resolve(context.doc(), tableNode, null);
+            addTableBlock(context, tableNode, rows);
         }
     }
 
@@ -1442,6 +1456,21 @@ public class ReportDocxExporter implements DocumentExporter {
         public void render(DocxRenderContext context, VNode node) {
             List<Map<String, Object>> rows = chartRowResolver.resolve(context.doc(), node, null);
             addTableBlock(context, node, rows);
+        }
+    }
+
+    /**
+     * 节点 kind=compositeTable 渲染器。
+     */
+    private final class CompositeTableNodeRenderer implements NodeRenderer<DocxRenderContext> {
+        @Override
+        public String kind() {
+            return "compositeTable";
+        }
+
+        @Override
+        public void render(DocxRenderContext context, VNode node) {
+            addCompositeTableBlock(context, node);
         }
     }
 

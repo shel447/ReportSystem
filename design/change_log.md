@@ -8,6 +8,19 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 CompositeTable 无缝拼接导出
+
+- 变更动机：
+  - `compositeTable` 表示多个子表组成的组合表格，导出时应呈现为连续表格，而不是拆成有间距或重叠的独立块。
+- 设计决策：
+  - `CompositeTable.tables[]` 按顺序纵向拼接；子表允许不同列结构。
+  - Word/PPT 导出必须让多个子表总宽度对齐，子表之间不插入默认空白，不强制合并成一个物理 Office 表。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
 ## 2026-05-28 Word Catalog 目录编号、封面与宽表自适应
 
 - 变更动机：

@@ -333,7 +333,7 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
 }
 ```
 
-`tables[]` 内部复用 `TableComponent`。
+`tables[]` 内部复用 `TableComponent`。导出时按数组顺序纵向拼接多个子表；子表可以拥有不同列结构，但 Word/PPT 输出必须保持组合表格的总宽度对齐，子表之间不插入额外空白。
 
 ---
 

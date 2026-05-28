@@ -318,7 +318,7 @@ private void renderComponent(XWPFDocument doc, ReportComponent component, ThemeT
         case CompositeTableComponent composite -> {
             if (composite.tables != null) {
                 for (TableComponent subTable : composite.tables) {
-                    DocxTableRenderer.renderTable(doc, subTable.dataProperties, theme);
+                    DocxTableRenderer.renderTable(doc, subTable.dataProperties, theme, /* gapAfter */ 0);
                 }
             }
         }
@@ -326,6 +326,8 @@ private void renderComponent(XWPFDocument doc, ReportComponent component, ThemeT
     }
 }
 ```
+
+`compositeTable` 在 VDoc 归一化阶段保留为单个 `kind=compositeTable` 节点，`tables[]` 转成子 `table` 节点。DOCX 渲染时逐个创建子表，但不插入段落间距；每个子表仍按自身列定义计算列宽，并统一压缩到页面可用总宽度，因此允许不同列结构但保持总宽度对齐。
 
 ### 4.6 文本组件渲染 (DocxTextRenderer)
 
@@ -753,9 +755,10 @@ private int renderComponent(XSLFSlide slide, ReportComponent component,
         }
         case CompositeTableComponent composite -> {
             if (composite.tables != null) {
+                Rect parent = resolveCompositeRect(composite);
                 for (TableComponent subTable : composite.tables) {
-                    yOffset = PptxTableRenderer.renderTable(slide, subTable.dataProperties, 
-                                                           40, yOffset, 880, theme);
+                    yOffset = PptxTableRenderer.renderTable(slide, subTable.dataProperties,
+                                                           parent.x, yOffset, parent.w, theme);
                 }
             }
         }
@@ -764,6 +767,8 @@ private int renderComponent(XSLFSlide slide, ReportComponent component,
     return yOffset;
 }
 ```
+
+PPTX 渲染时父 `compositeTable.layout` 决定整体区域，子表根据各自表头/数据行数按比例分配高度；所有子表使用相同 `x/w`，`y` 坐标连续递增，避免重叠或默认间距。
 
 ### 5.7 表格渲染 (PptxTableRenderer)
 
