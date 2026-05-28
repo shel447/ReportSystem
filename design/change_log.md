@@ -8,6 +8,19 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 Java 侧新增 Report DSL 契约模型
+
+- 变更动机：
+  - 报告文档生成能力后续需要迁移到其他项目，迁移目标只消费 Java 代码，不直接复用当前 Python 后端模型。
+  - 当前 Java 导出器已有运行时模型，但该模型服务于现有导出流程，不适合作为未来迁移时的独立 Report DSL 契约模型。
+- 设计决策：
+  - 在 Reporter Java 模块中新增 `com.bi.report.model` 包，按当前 `report-dsl.schema.json` 定义 Report DSL Java 模型。
+  - 新模型暂不接入现有导出流程，不替换 `com.bi.report.generation.model`。
+  - 多态、开放对象和 schema 未稳定结构在首版 Java 模型中以 `Object`、`Map` 或开放集合表达。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/implementation/外部集成与导出实现.md`
+
 ## 2026-05-26 报告 DSL schema 微调
 
 - 变更动机：

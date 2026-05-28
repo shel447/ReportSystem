@@ -8,6 +8,18 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-28 Java Report DSL 契约模型包
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Java 侧新增 Report DSL 契约模型"
+- 实现设计调整：
+  - `services/java-office-exporter/src/main/java/com/bi/report/model/` 新增独立 Report DSL Java 模型包。
+  - 该模型包按当前 `report-dsl.schema.json` 定义 `ReportDsl`、对象模型和枚举模型，使用 Jackson 注解保留 DSL 字段名。
+  - 该模型包暂不被 `com.bi.report.generation.*` 引用，现有导出运行时继续使用 `com.bi.report.generation.model`。
+- 验证要求：
+  - Java 编译通过。
+  - 静态检查确认现有导出包没有引用 `com.bi.report.model`。
+
 ## 2026-05-26 报告导出 POI 转换实现文档
 
 - 背景问题：
