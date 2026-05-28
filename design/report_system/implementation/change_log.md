@@ -8,6 +8,81 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-28 CompositeTable 无缝拼接导出
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 CompositeTable 无缝拼接导出"
+- 实现设计调整：
+  - `BiEngineDslNormalizer` 保留 `compositeTable` 为单个 VDoc 节点，子表作为 `children` 挂载，不再展开成多个普通 block。
+  - DOCX 新增 `compositeTable` renderer，用单个物理表格承载多个子表，基于统一底层网格和 `gridSpan` 表达不同列数；每个子表 header 行保留浅蓝底色。
+  - PPTX 新增 `compositeTable` renderer，使用父布局作为整体区域，按子表行数比例纵向切分高度，并保持所有子表 `x/w` 一致。
+- 验证要求：
+  - 测试覆盖归一化保留组合节点、DOCX 子表连续且总宽度一致、PPTX 子表同宽且纵向相接。
+  - Maven 测试和打包通过，样例 Word/PPT 视觉确认组合表格不再留白或重叠。
+
+## 2026-05-28 Word Catalog 目录编号、封面与宽表自适应
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Word Catalog 目录编号、封面与宽表自适应"
+- 实现设计调整：
+  - `BiEngineDslNormalizer` 将 flow DSL 归一化为 catalog 树，catalog/subCatalog 带 `outlineNumber/outlineLevel`，section 只保留组件内容。
+  - `BiEngineDslNormalizer` 将 `cover.author/date` 拆成独立封面字段，DOCX 封面不再拼接为居中 note。
+  - `ReportDocxExporter` 递归渲染 catalog/subCatalog 目录和正文标题，不再输出 section title。
+  - `ReportDocxExporter` 使用 `cover.image` 生成相对 page 的 behind-text anchor 图片并铺满首页，再用整页封面画布叠加标题、说明、报告人与时间。
+  - DOCX 表格使用固定布局，按页面可用宽度写入 `tblW/tblGrid/tcW`，宽表按列声明宽度比例压缩并降低字号。
+- 验证要求：
+  - 测试覆盖 catalog 编号、section title 不输出、封面背景图 behind-text 铺满首页、封面左下角报告人/时间、宽表列宽不超过页面可用宽度。
+  - Maven 测试和打包通过，样例 Word 视觉确认目录层级与宽表效果。
+
+## 2026-05-28 Office Exporter 默认视觉样式优化
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Office Exporter 默认视觉样式优化"
+- 实现设计调整：
+  - DOCX text 节点由 1x1 表格样式改为普通段落，去除文本框边框和背景底色。
+  - PPTX text 节点不再设置边框线，保留原文本、字体、位置和背景填充。
+  - PPTX master header/footer 不再绘制 1px accent 装饰线，页眉、页脚和页码文字保持输出。
+- 验证要求：
+  - 增加样式回归测试，覆盖 Word 文本不生成额外表格、PPT 文本框不输出边框、PPT 页眉页脚文字保留且不输出 accent 线条。
+  - Maven 测试、打包和样例导出通过，并用 Office/WPS 视觉确认。
+
+## 2026-05-28 Report DSL Java 模型 JSON round-trip
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Report DSL Java 模型支持 JSON round-trip"
+- 实现设计调整：
+  - `com.chatbi.report.dsl` 普通模型类支持 Jackson 忽略未知字段。
+  - enum 通过稳定 wire value 序列化和反序列化。
+  - `BIEngineComponent`、`Series`、`ComponentLayout`、`ValueFormat` 和 `PagedContentItem` 补齐多态反序列化映射。
+  - 新增 `ReportDslJson` 作为契约模型默认 JSON 入口；现有 `DslReader` 与导出运行时不切换。
+- 验证要求：
+  - 测试覆盖 flow/paged、组件、series、layout、valueFormat、枚举输出和未知字段兼容。
+  - Maven 测试与打包通过。
+
+## 2026-05-28 Java Office Exporter 照搬 poi-dsl-exporter
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Java Office Exporter 切换为 poi-dsl-exporter 实现"
+- 实现设计调整：
+  - `services/java-office-exporter/src/main/java` 替换为 `chat_bi_ui/tools/poi-dsl-exporter/src/main/java/com/chatbi`。
+  - Maven shade 入口改为 `com.chatbi.exporter.CliMain`，模块坐标和 JAR 名称暂保持 `java-office-exporter`。
+  - 删除旧 `com.bi.report.generation` 运行时和 `com.bi.report.model` 契约模型包，避免同一模块内保留两套导出实现。
+- 验证要求：
+  - Maven 编译和打包通过。
+  - 静态检查确认 `src/main/java` 中只保留 `com/chatbi` Java 源码树。
+
+## 2026-05-28 Java Report DSL 契约模型包
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Java 侧新增 Report DSL 契约模型"
+- 实现设计调整：
+  - `services/java-office-exporter/src/main/java/com/bi/report/model/` 新增独立 Report DSL Java 模型包。
+  - 该模型包按当前 `report-dsl.schema.json` 定义 `ReportDsl`、对象模型和枚举模型，使用 Jackson 注解保留 DSL 字段名。
+  - 该模型包暂不被 `com.bi.report.generation.*` 引用，现有导出运行时继续使用 `com.bi.report.generation.model`。
+- 验证要求：
+  - Java 编译通过。
+  - 静态检查确认现有导出包没有引用 `com.bi.report.model`。
+
 ## 2026-05-26 报告导出 POI 转换实现文档
 
 - 背景问题：

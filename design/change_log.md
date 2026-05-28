@@ -8,6 +8,82 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 CompositeTable 无缝拼接导出
+
+- 变更动机：
+  - `compositeTable` 表示多个子表组成的组合表格，导出时应呈现为连续表格，而不是拆成有间距或重叠的独立块。
+- 设计决策：
+  - `CompositeTable.tables[]` 按顺序纵向拼接；子表允许不同列结构。
+  - Word/PPT 导出必须让多个子表总宽度对齐，子表之间不插入默认空白；Word 可使用单个物理表格和 `gridSpan` 保证视觉对齐。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
+## 2026-05-28 Word Catalog 目录编号、封面与宽表自适应
+
+- 变更动机：
+  - Word 导出需要按 Report DSL 的 `catalogs/subCatalogs` 呈现正式目录层级，而不是把 section 当作目录节点。
+  - 表格列数较多时，默认 Word 排版可能被内容撑开并超出页面范围。
+  - Word 封面需要背景图片铺满首页，并让标题、报告人、时间等封面信息叠加在明确位置。
+- 设计决策：
+  - Word 目录与正文标题只根据 `catalogs -> subCatalogs` 自动生成层级编号。
+  - `section` 是正式内容承载单元，不进入目录、不渲染 `section.title`。
+  - Word 封面采用整页布局；`cover.image` 铺满首页作为背景图，标题、副标题和封面内容叠加在首页不同区域，报告人和时间分两行放在左下角。
+  - Word 表格固定在页面可用宽度内，列宽按声明宽度比例压缩，单元格内容允许换行。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
+## 2026-05-28 Office Exporter 默认视觉样式优化
+
+- 变更动机：
+  - 当前 Word 普通文本块带有文本框边框/底色，PPT 每页上下蓝色装饰线影响报告观感。
+- 设计决策：
+  - Word 普通文本块按纯正文段落输出，不再呈现文本框边框或浅底。
+  - PPT 普通文本框不再呈现边框；默认去除页眉下方和页脚上方的蓝色装饰线，保留页眉、页脚和页码文字。
+- 影响范围：
+  - `report_system/implementation/外部集成与导出实现.md`
+
+## 2026-05-28 Report DSL Java 模型支持 JSON round-trip
+
+- 变更动机：
+  - `com.chatbi.report.dsl` 已作为 Java 侧 Report DSL 契约模型进入 Java Office Exporter，但多态接口字段缺少明确的 JSON 反序列化规则。
+  - 外部项目集成该模型时需要直接完成 Report DSL JSON 的序列化和反序列化，而不是只依赖导出器内部 VDoc 归一化链路。
+- 设计决策：
+  - `com.chatbi.report.dsl` 模型支持 Jackson JSON round-trip。
+  - 组件、图表系列、组件布局、值格式和 paged content 使用明确的多态映射。
+  - 新增独立 JSON 工具入口，现有 CLI/exporter 读取链路保持不变。
+- 影响范围：
+  - `report_system/implementation/外部集成与导出实现.md`
+
+## 2026-05-28 Java Office Exporter 切换为 poi-dsl-exporter 实现
+
+- 变更动机：
+  - 报告文档生成能力需要对齐 `chat_bi_ui/tools/poi-dsl-exporter` 中已经沉淀的 POI 导出实现，减少两套 Java 导出代码分叉。
+- 设计决策：
+  - `services/java-office-exporter/src/main/java` 完整替换为 `poi-dsl-exporter/src/main/java/com/chatbi` 源码树。
+  - Java 入口切换为 `com.chatbi.exporter.CliMain`，导出器以 CLI/库式编排能力为主。
+  - 原 `com.bi.report.generation` HTTP 服务入口与 `com.bi.report.model` 契约模型包不再保留在 Java Office Exporter 中。
+- 影响范围：
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
+## 2026-05-28 Java 侧新增 Report DSL 契约模型
+
+- 变更动机：
+  - 报告文档生成能力后续需要迁移到其他项目，迁移目标只消费 Java 代码，不直接复用当前 Python 后端模型。
+  - 当前 Java 导出器已有运行时模型，但该模型服务于现有导出流程，不适合作为未来迁移时的独立 Report DSL 契约模型。
+- 设计决策：
+  - 在 Reporter Java 模块中新增 `com.bi.report.model` 包，按当前 `report-dsl.schema.json` 定义 Report DSL Java 模型。
+  - 新模型暂不接入现有导出流程，不替换 `com.bi.report.generation.model`。
+  - 多态、开放对象和 schema 未稳定结构在首版 Java 模型中以 `Object`、`Map` 或开放集合表达。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+  - `report_system/implementation/外部集成与导出实现.md`
+
 ## 2026-05-26 报告 DSL schema 微调
 
 - 变更动机：
