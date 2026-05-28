@@ -933,10 +933,13 @@
           "type": "string"
         },
         "enumValues": {
-          "type": "string"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnumValue"
+          }
         },
         "ui": {
-          "type": "string"
+          "$ref": "#/$defs/FieldUI"
         }
       },
       "required": [

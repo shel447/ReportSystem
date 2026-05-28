@@ -8,6 +8,16 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 Report DSL ColumnLineageSource 字段类型修正
+
+- 变更动机：
+  - `ColumnLineageSource.enumValues` 和 `ColumnLineageSource.ui` 原 schema 类型过窄，无法表达枚举值列表与字段 UI 配置的结构化信息。
+- 设计决策：
+  - `ColumnLineageSource.enumValues` 从字符串调整为 `EnumValue[]`。
+  - `ColumnLineageSource.ui` 从字符串调整为 `FieldUI`。
+- 影响范围：
+  - `report_system/schemas/report-dsl.schema.json`
+
 ## 2026-05-26 报告 DSL schema 微调
 
 - 变更动机：
