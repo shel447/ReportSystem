@@ -178,7 +178,7 @@ class OfficeExporterStyleTest {
 
         try (InputStream inputStream = Files.newInputStream(output);
              XWPFDocument document = new XWPFDocument(inputStream)) {
-            assertEquals(2, document.getTables().size());
+            assertEquals(1, document.getTables().size());
         }
 
         String documentXml = zipEntry(output, "word/document.xml");
@@ -187,17 +187,16 @@ class OfficeExporterStyleTest {
         while (tableMatcher.find()) {
             tables.add(tableMatcher.group());
         }
-        assertEquals(2, tables.size());
+        assertEquals(1, tables.size());
 
-        int firstWidth = tableWidth(tables.get(0));
-        int secondWidth = tableWidth(tables.get(1));
-        assertTrue(firstWidth > 0);
-        assertEquals(firstWidth, secondWidth);
-
-        int firstEnd = documentXml.indexOf(tables.get(0)) + tables.get(0).length();
-        int secondStart = documentXml.indexOf(tables.get(1));
-        String betweenTables = documentXml.substring(firstEnd, secondStart);
-        assertFalse(betweenTables.contains("<w:p"));
+        String tableXml = tables.get(0);
+        assertTrue(tableWidth(tableXml) > 0);
+        assertEquals(6, countMatches(tableXml, "<w:gridCol"));
+        assertTrue(tableXml.contains("<w:gridSpan w:val=\"2\""));
+        assertTrue(tableXml.contains("<w:gridSpan w:val=\"3\""));
+        assertTrue(countMatches(tableXml, "w:fill=\"DBEAFE\"") >= 5);
+        assertTrue(tableXml.contains("官网"));
+        assertTrue(tableXml.contains("经销商"));
     }
 
     @Test
@@ -622,6 +621,16 @@ class OfficeExporterStyleTest {
     private static int tableWidth(String tableXml) {
         Matcher matcher = Pattern.compile("<w:tblW[^>]*w:w=\"(\\d+)\"[^>]*w:type=\"dxa\"").matcher(tableXml);
         return matcher.find() ? Integer.parseInt(matcher.group(1)) : -1;
+    }
+
+    private static int countMatches(String text, String pattern) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(pattern, index)) >= 0) {
+            count++;
+            index += pattern.length();
+        }
+        return count;
     }
 
     private static List<TableAnchor> tableAnchors(String slideXml) {

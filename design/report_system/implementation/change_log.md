@@ -14,7 +14,7 @@
   - [../../change_log.md](../../change_log.md) 中"2026-05-28 CompositeTable 无缝拼接导出"
 - 实现设计调整：
   - `BiEngineDslNormalizer` 保留 `compositeTable` 为单个 VDoc 节点，子表作为 `children` 挂载，不再展开成多个普通 block。
-  - DOCX 新增 `compositeTable` renderer，连续渲染多个子表且不插入 gap paragraph；每个子表都使用页面可用总宽度。
+  - DOCX 新增 `compositeTable` renderer，用单个物理表格承载多个子表，基于统一底层网格和 `gridSpan` 表达不同列数；每个子表 header 行保留浅蓝底色。
   - PPTX 新增 `compositeTable` renderer，使用父布局作为整体区域，按子表行数比例纵向切分高度，并保持所有子表 `x/w` 一致。
 - 验证要求：
   - 测试覆盖归一化保留组合节点、DOCX 子表连续且总宽度一致、PPTX 子表同宽且纵向相接。

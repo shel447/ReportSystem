@@ -327,7 +327,7 @@ private void renderComponent(XWPFDocument doc, ReportComponent component, ThemeT
 }
 ```
 
-`compositeTable` 在 VDoc 归一化阶段保留为单个 `kind=compositeTable` 节点，`tables[]` 转成子 `table` 节点。DOCX 渲染时逐个创建子表，但不插入段落间距；每个子表仍按自身列定义计算列宽，并统一压缩到页面可用总宽度，因此允许不同列结构但保持总宽度对齐。
+`compositeTable` 在 VDoc 归一化阶段保留为单个 `kind=compositeTable` 节点，`tables[]` 转成子 `table` 节点。DOCX 渲染时使用单个物理表格承载所有子表，先计算统一底层网格，再通过 `gridSpan` 表达各子表自身列结构；每个子表 header 行保留浅蓝底色，整体右边界保持对齐。
 
 ### 4.6 文本组件渲染 (DocxTextRenderer)
 

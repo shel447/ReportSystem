@@ -753,13 +753,150 @@ public class ReportDocxExporter implements DocumentExporter {
      * 渲染复合表：多个子表纵向贴合输出，各子表保持自身列结构但共享同一页面宽度。
      */
     private void addCompositeTableBlock(DocxRenderContext context, VNode compositeNode) {
+        List<TableModel> models = new ArrayList<>();
         for (VNode tableNode : compositeNode.childrenOrEmpty()) {
             if (!"table".equalsIgnoreCase(tableNode.kind)) {
                 continue;
             }
             List<Map<String, Object>> rows = chartRowResolver.resolve(context.doc(), tableNode, null);
-            addTableBlock(context, tableNode, rows);
+            TableModel model = tableSpecParser.parse(tableNode, rows);
+            if (model.columnCount() > 0) {
+                models.add(model);
+            }
         }
+        if (models.isEmpty()) {
+            XWPFParagraph p = context.document.createParagraph();
+            XWPFRun run = p.createRun();
+            run.setText("未能解析有效复合表。");
+            run.setFontFamily(context.theme.fontPrimary());
+            run.setColor(VisualStyle.toHexNoHash(context.theme.muted()));
+            run.setFontSize(10);
+            return;
+        }
+
+        int baseColumns = compositeBaseColumnCount(models);
+        int totalRows = models.stream().mapToInt(TableModel::totalRowCount).sum();
+        XWPFTable table = context.document.createTable(Math.max(1, totalRows), baseColumns);
+        int tableWidth = resolveWritablePageWidthTwips(context.rootProps());
+        int[] columnWidths = equalColumnWidths(baseColumns, tableWidth);
+        setFixedTableWidth(table, tableWidth, columnWidths);
+        applyCellWidths(table, columnWidths);
+
+        int rowOffset = 0;
+        int fontSize = tableFontSize(models.stream().mapToInt(TableModel::columnCount).max().orElse(baseColumns));
+        for (TableModel model : models) {
+            fillCompositeRows(context, table, model, rowOffset, true, fontSize, baseColumns, columnWidths);
+            fillCompositeRows(context, table, model, rowOffset + model.headerRowCount(), false, fontSize, baseColumns, columnWidths);
+            rowOffset += model.totalRowCount();
+        }
+    }
+
+    private void fillCompositeRows(
+            DocxRenderContext context,
+            XWPFTable table,
+            TableModel model,
+            int rowOffset,
+            boolean header,
+            int fontSize,
+            int baseColumns,
+            int[] columnWidths
+    ) {
+        List<List<TableCell>> rows = header ? model.headerRows() : model.bodyRows();
+        for (int r = 0; r < rows.size(); r++) {
+            XWPFTableRow tableRow = table.getRow(rowOffset + r);
+            List<TableCell> cells = rows.get(r);
+            List<CompositeCellSpan> spans = new ArrayList<>();
+            Color bg = header || !model.zebra() || (r % 2 == 0) ? context.theme.panel() : context.theme.panelAlt();
+            if (header) {
+                bg = context.theme.primarySoft();
+            }
+            for (int c = 0; c < model.columnCount(); c++) {
+                TableCell cell = cells.get(c);
+                if (cell.hidden()) {
+                    continue;
+                }
+                int start = compositeGridPosition(c, model.columnCount(), baseColumns);
+                int end = compositeGridPosition(Math.min(model.columnCount(), c + cell.colSpan()), model.columnCount(), baseColumns);
+                int span = Math.max(1, end - start);
+                XWPFTableCell tableCell = tableRow.getCell(start);
+                styleCell(tableCell, bg);
+                writeCellText(tableCell, cell.text(), context.theme, header, fontSize, context.theme.text());
+                setParagraphAlign(tableCell, cell.align());
+                for (int physical = start + 1; physical < start + span; physical++) {
+                    XWPFTableCell follower = tableRow.getCell(physical);
+                    styleCell(follower, bg);
+                    writeCellText(follower, "", context.theme, header, fontSize, context.theme.text());
+                }
+                if (span > 1) {
+                    spans.add(new CompositeCellSpan(start, span, sumWidths(columnWidths, start, span)));
+                }
+                if (cell.rowSpan() > 1) {
+                    applyDocxMerge(table, rowOffset + r, start, cell.rowSpan(), 1);
+                }
+            }
+            applyCompositeCellSpans(tableRow, spans);
+            if (header && model.repeatHeader()) {
+                markTableRowRepeat(table.getRow(rowOffset + r));
+            }
+        }
+    }
+
+    private void applyCompositeCellSpans(XWPFTableRow row, List<CompositeCellSpan> spans) {
+        for (int i = spans.size() - 1; i >= 0; i--) {
+            CompositeCellSpan span = spans.get(i);
+            XWPFTableCell anchor = row.getCell(span.start());
+            CTTcPr tcPr = ensureTcPr(anchor);
+            if (tcPr.isSetGridSpan()) {
+                tcPr.getGridSpan().setVal(BigInteger.valueOf(span.span()));
+            } else {
+                tcPr.addNewGridSpan().setVal(BigInteger.valueOf(span.span()));
+            }
+            CTTblWidth tcW = tcPr.isSetTcW() ? tcPr.getTcW() : tcPr.addNewTcW();
+            tcW.setType(STTblWidth.DXA);
+            tcW.setW(BigInteger.valueOf(Math.max(1, span.widthTwips())));
+            for (int physical = span.start() + span.span() - 1; physical > span.start(); physical--) {
+                row.removeCell(physical);
+            }
+        }
+    }
+
+    private int compositeBaseColumnCount(List<TableModel> models) {
+        int result = 1;
+        for (TableModel model : models) {
+            result = lcm(result, Math.max(1, model.columnCount()));
+            if (result > 36) {
+                return models.stream().mapToInt(TableModel::columnCount).max().orElse(1);
+            }
+        }
+        return Math.max(1, result);
+    }
+
+    private int compositeGridPosition(int logicalColumn, int logicalColumnCount, int baseColumns) {
+        int count = Math.max(1, logicalColumnCount);
+        return Math.min(baseColumns, (int) Math.floor((logicalColumn / (double) count) * baseColumns));
+    }
+
+    private int sumWidths(int[] columnWidths, int start, int span) {
+        int total = 0;
+        for (int i = start; i < start + span && i < columnWidths.length; i++) {
+            total += columnWidths[i];
+        }
+        return total;
+    }
+
+    private int lcm(int a, int b) {
+        return Math.abs(a / gcd(a, b) * b);
+    }
+
+    private int gcd(int a, int b) {
+        int x = Math.abs(a);
+        int y = Math.abs(b);
+        while (y != 0) {
+            int next = x % y;
+            x = y;
+            y = next;
+        }
+        return Math.max(1, x);
     }
 
     /**
@@ -853,6 +990,19 @@ public class ReportDocxExporter implements DocumentExporter {
         if (assigned != availableWidth && columnCount > 0) {
             widths[columnCount - 1] = Math.max(1, widths[columnCount - 1] + availableWidth - assigned);
         }
+        return widths;
+    }
+
+    private int[] equalColumnWidths(int columnCount, int availableWidth) {
+        int safeColumnCount = Math.max(1, columnCount);
+        int[] widths = new int[safeColumnCount];
+        int baseWidth = Math.max(1, availableWidth / safeColumnCount);
+        int assigned = 0;
+        for (int i = 0; i < safeColumnCount; i++) {
+            widths[i] = baseWidth;
+            assigned += baseWidth;
+        }
+        widths[safeColumnCount - 1] = Math.max(1, widths[safeColumnCount - 1] + availableWidth - assigned);
         return widths;
     }
 
@@ -998,10 +1148,13 @@ public class ReportDocxExporter implements DocumentExporter {
      */
     private void markHeaderRowsRepeat(XWPFTable table, int headerRows) {
         for (int r = 0; r < headerRows && r < table.getNumberOfRows(); r++) {
-            XWPFTableRow row = table.getRow(r);
-            CTTrPr trPr = row.getCtRow().isSetTrPr() ? row.getCtRow().getTrPr() : row.getCtRow().addNewTrPr();
-            trPr.addNewTblHeader();
+            markTableRowRepeat(table.getRow(r));
         }
+    }
+
+    private void markTableRowRepeat(XWPFTableRow row) {
+        CTTrPr trPr = row.getCtRow().isSetTrPr() ? row.getCtRow().getTrPr() : row.getCtRow().addNewTrPr();
+        trPr.addNewTblHeader();
     }
 
     private void setParagraphAlign(XWPFTableCell cell, String align) {
@@ -1441,6 +1594,9 @@ public class ReportDocxExporter implements DocumentExporter {
     }
 
     private record PageMargins(long topTwips, long rightTwips, long bottomTwips, long leftTwips) {
+    }
+
+    private record CompositeCellSpan(int start, int span, int widthTwips) {
     }
 
     /**

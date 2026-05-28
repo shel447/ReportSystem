@@ -14,7 +14,7 @@
   - `compositeTable` 表示多个子表组成的组合表格，导出时应呈现为连续表格，而不是拆成有间距或重叠的独立块。
 - 设计决策：
   - `CompositeTable.tables[]` 按顺序纵向拼接；子表允许不同列结构。
-  - Word/PPT 导出必须让多个子表总宽度对齐，子表之间不插入默认空白，不强制合并成一个物理 Office 表。
+  - Word/PPT 导出必须让多个子表总宽度对齐，子表之间不插入默认空白；Word 可使用单个物理表格和 `gridSpan` 保证视觉对齐。
 - 影响范围：
   - `report_system/06-文档生成与导出架构.md`
   - `report_system/报告DSL定义与使用说明书.md`
