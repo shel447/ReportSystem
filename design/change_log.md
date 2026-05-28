@@ -8,6 +8,18 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-28 Report DSL Java 模型支持 JSON round-trip
+
+- 变更动机：
+  - `com.chatbi.report.dsl` 已作为 Java 侧 Report DSL 契约模型进入 Java Office Exporter，但多态接口字段缺少明确的 JSON 反序列化规则。
+  - 外部项目集成该模型时需要直接完成 Report DSL JSON 的序列化和反序列化，而不是只依赖导出器内部 VDoc 归一化链路。
+- 设计决策：
+  - `com.chatbi.report.dsl` 模型支持 Jackson JSON round-trip。
+  - 组件、图表系列、组件布局、值格式和 paged content 使用明确的多态映射。
+  - 新增独立 JSON 工具入口，现有 CLI/exporter 读取链路保持不变。
+- 影响范围：
+  - `report_system/implementation/外部集成与导出实现.md`
+
 ## 2026-05-28 Java Office Exporter 切换为 poi-dsl-exporter 实现
 
 - 变更动机：

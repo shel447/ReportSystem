@@ -1,20 +1,46 @@
 package com.chatbi.report.dsl;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum SeriesType {
     @JsonProperty("line")
-    LINE,
+    LINE("line"),
     @JsonProperty("bar")
-    BAR,
+    BAR("bar"),
     @JsonProperty("pie")
-    PIE,
+    PIE("pie"),
     @JsonProperty("scatter")
-    SCATTER,
+    SCATTER("scatter"),
     @JsonProperty("radar")
-    RADAR,
+    RADAR("radar"),
     @JsonProperty("gauge")
-    GAUGE,
+    GAUGE("gauge"),
     @JsonProperty("candlestick")
-    CANDLESTICK
+    CANDLESTICK("candlestick");
+
+    private final String value;
+
+    SeriesType(String value) {
+        this.value = value;
+    }
+
+    @JsonValue
+    public String value() {
+        return value;
+    }
+
+    @JsonCreator
+    public static SeriesType fromValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        for (SeriesType item : values()) {
+            if (item.value.equals(value)) {
+                return item;
+            }
+        }
+        throw new IllegalArgumentException("Unknown SeriesType value: " + value);
+    }
 }

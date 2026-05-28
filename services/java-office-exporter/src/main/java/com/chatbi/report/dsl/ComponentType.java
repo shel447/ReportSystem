@@ -1,16 +1,42 @@
 package com.chatbi.report.dsl;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ComponentType {
     @JsonProperty("text")
-    TEXT,
+    TEXT("text"),
     @JsonProperty("table")
-    TABLE,
+    TABLE("table"),
     @JsonProperty("chart")
-    CHART,
+    CHART("chart"),
     @JsonProperty("markdown")
-    MARKDOWN,
+    MARKDOWN("markdown"),
     @JsonProperty("compositeTable")
-    COMPOSITE_TABLE
+    COMPOSITE_TABLE("compositeTable");
+
+    private final String value;
+
+    ComponentType(String value) {
+        this.value = value;
+    }
+
+    @JsonValue
+    public String value() {
+        return value;
+    }
+
+    @JsonCreator
+    public static ComponentType fromValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        for (ComponentType item : values()) {
+            if (item.value.equals(value)) {
+                return item;
+            }
+        }
+        throw new IllegalArgumentException("Unknown ComponentType value: " + value);
+    }
 }

@@ -8,6 +8,19 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-28 Report DSL Java 模型 JSON round-trip
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-28 Report DSL Java 模型支持 JSON round-trip"
+- 实现设计调整：
+  - `com.chatbi.report.dsl` 普通模型类支持 Jackson 忽略未知字段。
+  - enum 通过稳定 wire value 序列化和反序列化。
+  - `BIEngineComponent`、`Series`、`ComponentLayout`、`ValueFormat` 和 `PagedContentItem` 补齐多态反序列化映射。
+  - 新增 `ReportDslJson` 作为契约模型默认 JSON 入口；现有 `DslReader` 与导出运行时不切换。
+- 验证要求：
+  - 测试覆盖 flow/paged、组件、series、layout、valueFormat、枚举输出和未知字段兼容。
+  - Maven 测试与打包通过。
+
 ## 2026-05-28 Java Office Exporter 照搬 poi-dsl-exporter
 
 - 对应设计变更：
