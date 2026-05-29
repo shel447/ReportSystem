@@ -1,4 +1,4 @@
-name: Sync to jishu-Data/report_system
+name: Sync to shel447/ReportSystem
 
 on:
   push:
@@ -25,8 +25,8 @@ jobs:
         run: |
           git fetch --all --prune
 
-      - name: Push to jishu-Data/report_system
+      - name: Force push to shel447/ReportSystem (jishu-Data is primary)
         run: |
-          git remote add target https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/jishu-Data/report_system.git 2>/dev/null || true
-          git push target --all
-          git push target --tags
+          git remote add target https://x-access-token:${{ secrets.SYNC_TOKEN }}@github.com/shel447/ReportSystem.git 2>/dev/null || true
+          git push target --all --force
+          git push target --tags --force
