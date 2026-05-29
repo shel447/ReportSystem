@@ -1,5 +1,6 @@
 package com.chatbi.exporter.table;
 
+import com.chatbi.exporter.conf.DocumentExportConfiguration;
 import com.chatbi.exporter.model.VNode;
 
 import java.util.ArrayList;
@@ -22,6 +23,16 @@ import java.util.Set;
  * </p>
  */
 public final class TableSpecParser {
+    private final boolean defaultRepeatHeaderOnPageBreak;
+
+    public TableSpecParser() {
+        this(DocumentExportConfiguration.defaults().word().table().repeatHeaderOnPageBreak());
+    }
+
+    public TableSpecParser(boolean defaultRepeatHeaderOnPageBreak) {
+        this.defaultRepeatHeaderOnPageBreak = defaultRepeatHeaderOnPageBreak;
+    }
+
     /**
      * 将 table 节点解析为统一 TableModel。
      *
@@ -31,7 +42,7 @@ public final class TableSpecParser {
     public TableModel parse(VNode tableNode, List<Map<String, Object>> resolvedRows) {
         Map<String, Object> props = tableNode == null ? Collections.emptyMap() : tableNode.propsOrEmpty();
         String title = str(props.get("titleText"), "表格");
-        boolean repeatHeader = bool(props.get("repeatHeader"), bool(props.get("headerRepeat"), true));
+        boolean repeatHeader = bool(props.get("repeatHeader"), bool(props.get("headerRepeat"), defaultRepeatHeaderOnPageBreak));
         boolean zebra = bool(props.get("zebra"), true);
         int maxRows = (int) Math.max(1, Math.round(num(props.get("maxRows"), 200)));
 

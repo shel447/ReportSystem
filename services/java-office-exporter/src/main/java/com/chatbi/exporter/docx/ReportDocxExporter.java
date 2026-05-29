@@ -5,6 +5,8 @@ import com.chatbi.exporter.chart.ChartSpecParser;
 import com.chatbi.exporter.chart.PoiChartRenderer;
 import com.chatbi.exporter.chart.ChartRowResolver;
 import com.chatbi.exporter.chart.ChartTypeCatalog;
+import com.chatbi.exporter.conf.CoverMetaPosition;
+import com.chatbi.exporter.conf.DocumentExportConfiguration;
 import com.chatbi.exporter.core.DocumentExporter;
 import com.chatbi.exporter.core.ExportRequest;
 import com.chatbi.exporter.core.ExportTarget;
@@ -34,6 +36,11 @@ import org.apache.poi.xwpf.usermodel.XWPFChart;
 import org.apache.poi.xwpf.usermodel.TableRowHeightRule;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageMar;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBookmark;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTHyperlink;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTMarkupRange;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGrid;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblGridCol;
@@ -47,6 +54,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHdrFtr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STUnderline;
 import org.openxmlformats.schemas.drawingml.x2006.wordprocessingDrawing.CTAnchor;
 import org.openxmlformats.schemas.drawingml.x2006.wordprocessingDrawing.CTInline;
 import org.openxmlformats.schemas.drawingml.x2006.wordprocessingDrawing.STRelFromH;
@@ -76,6 +84,7 @@ public class ReportDocxExporter implements DocumentExporter {
     private final ChartRowResolver chartRowResolver;
     private final PoiChartRenderer poiChartRenderer;
     private final TableSpecParser tableSpecParser;
+    private final DocumentExportConfiguration configuration;
     private final List<DocxChartFlavorRenderer> chartFlavorRenderers;
     private final RendererRegistry<DocxRenderContext> nodeRenderers;
 
@@ -90,11 +99,20 @@ public class ReportDocxExporter implements DocumentExporter {
      * 允许注入样式/图表解析器，便于测试与扩展。
      */
     public ReportDocxExporter(StyleResolver styleResolver, ChartSpecParser chartSpecParser) {
+        this(styleResolver, chartSpecParser, DocumentExportConfiguration.defaults());
+    }
+
+    public ReportDocxExporter(
+            StyleResolver styleResolver,
+            ChartSpecParser chartSpecParser,
+            DocumentExportConfiguration configuration
+    ) {
         this.styleResolver = styleResolver;
         this.chartSpecParser = chartSpecParser;
+        this.configuration = configuration == null ? DocumentExportConfiguration.defaults() : configuration;
         this.chartRowResolver = new ChartRowResolver();
         this.poiChartRenderer = new PoiChartRenderer();
-        this.tableSpecParser = new TableSpecParser();
+        this.tableSpecParser = new TableSpecParser(this.configuration.word().table().repeatHeaderOnPageBreak());
         this.chartFlavorRenderers = new ArrayList<>();
         registerChartFlavorRenderer(new TrendFlavorRenderer());
         registerChartFlavorRenderer(new ComparisonFlavorRenderer());
@@ -179,7 +197,7 @@ public class ReportDocxExporter implements DocumentExporter {
             setupHeaderFooter(document, props, str(props.get("reportTitle"), defaultReportTitle(doc)), theme);
 
             boolean coverEnabled = bool(props.get("coverEnabled"), true);
-            boolean tocShow = bool(props.get("tocShow"), true);
+            boolean tocShow = bool(props.get("tocShow"), configuration.word().toc().enabled());
             boolean summaryEnabled = bool(props.get("summaryEnabled"), true);
             List<VNode> contentNodes = contentNodes(doc.root);
 
@@ -289,13 +307,18 @@ public class ReportDocxExporter implements DocumentExporter {
         addCoverBackgroundIfPresent(context, coverImage);
 
         XWPFTable cover = context.document.createTable(4, 1);
-        cover.setWidth("100%");
         cover.removeBorders();
-        int coverHeight = resolveWritablePageHeightTwips(props);
-        int topHeight = (int) Math.round(coverHeight * 0.25);
-        int titleHeight = (int) Math.round(coverHeight * 0.21);
-        int noteHeight = (int) Math.round(coverHeight * 0.28);
-        int metaHeight = Math.max(2400, coverHeight - topHeight - titleHeight - noteHeight);
+        int coverWidth = resolveWritablePageWidthTwips(props);
+        setFixedTableWidth(cover, coverWidth, new int[]{coverWidth});
+        applyCellWidths(cover, new int[]{coverWidth});
+        int coverHeight = Math.max(
+                7200,
+                resolveWritablePageHeightTwips(props) - (configuration.word().cover().keepMetaOnFirstPage() ? 520 : 0)
+        );
+        int topHeight = (int) Math.round(coverHeight * 0.22);
+        int titleHeight = (int) Math.round(coverHeight * 0.20);
+        int noteHeight = (int) Math.round(coverHeight * 0.24);
+        int metaHeight = Math.max(1800, coverHeight - topHeight - titleHeight - noteHeight);
         setCoverRow(cover.getRow(0), topHeight, hasCoverImage ? null : context.theme.panel());
         setCoverRow(cover.getRow(1), titleHeight, hasCoverImage ? null : context.theme.panel());
         setCoverRow(cover.getRow(2), noteHeight, hasCoverImage ? null : context.theme.panel());
@@ -303,7 +326,7 @@ public class ReportDocxExporter implements DocumentExporter {
 
         XWPFTableCell titleCell = cover.getRow(1).getCell(0);
         titleCell.setVerticalAlignment(XWPFTableCell.XWPFVertAlign.CENTER);
-        writeCoverParagraph(titleCell, coverTitle, context.theme, true, 34, context.theme.text(), ParagraphAlignment.CENTER, 0, 140);
+        writeCoverParagraph(titleCell, coverTitle, context.theme, true, 32, context.theme.text(), ParagraphAlignment.CENTER, 0, 80);
         if (!coverSubtitle.isBlank()) {
             writeCoverParagraph(titleCell, coverSubtitle, context.theme, false, 16, context.theme.muted(), ParagraphAlignment.CENTER, 0, 0);
         }
@@ -311,7 +334,7 @@ public class ReportDocxExporter implements DocumentExporter {
         XWPFTableCell noteCell = cover.getRow(2).getCell(0);
         noteCell.setVerticalAlignment(XWPFTableCell.XWPFVertAlign.CENTER);
         if (!coverNote.isBlank()) {
-            writeCoverParagraph(noteCell, coverNote, context.theme, false, 12, context.theme.muted(), ParagraphAlignment.CENTER, 0, 80);
+            writeCoverParagraph(noteCell, coverNote, context.theme, false, 11, context.theme.muted(), ParagraphAlignment.CENTER, 0, 40);
         }
         for (String item : stringList(props.get("coverContents"))) {
             writeCoverParagraph(noteCell, item, context.theme, false, 11, context.theme.muted(), ParagraphAlignment.CENTER, 0, 0);
@@ -319,14 +342,22 @@ public class ReportDocxExporter implements DocumentExporter {
 
         XWPFTableCell metaCell = cover.getRow(3).getCell(0);
         metaCell.setVerticalAlignment(XWPFTableCell.XWPFVertAlign.BOTTOM);
+        int metaIndentation = coverMetaIndentationLeft(props);
         if (!coverAuthor.isBlank()) {
-            writeCoverParagraph(metaCell, "报告人：" + coverAuthor, context.theme, false, 12, context.theme.text(), ParagraphAlignment.LEFT, 720, 60);
+            writeCoverParagraph(metaCell, "报告人：" + coverAuthor, context.theme, false, 12, context.theme.text(), ParagraphAlignment.RIGHT, metaIndentation, 60);
         }
         if (!coverDate.isBlank()) {
-            writeCoverParagraph(metaCell, "时间：" + coverDate, context.theme, false, 12, context.theme.text(), ParagraphAlignment.LEFT, 720, 0);
+            writeCoverParagraph(metaCell, "时间：" + coverDate, context.theme, false, 12, context.theme.text(), ParagraphAlignment.RIGHT, metaIndentation, 0);
         }
 
         pageBreak(context.document);
+    }
+
+    private int coverMetaIndentationLeft(Map<String, Object> props) {
+        if (configuration.word().cover().metaPosition() == CoverMetaPosition.BOTTOM_RIGHT) {
+            return (int) Math.round(resolveWritablePageWidthTwips(props) * 0.58);
+        }
+        return 0;
     }
 
     private void addCoverBackgroundIfPresent(DocxRenderContext context, String rawImage) {
@@ -342,6 +373,7 @@ public class ReportDocxExporter implements DocumentExporter {
             XWPFParagraph paragraph = context.document.createParagraph();
             paragraph.setSpacingBefore(0);
             paragraph.setSpacingAfter(0);
+            paragraph.setPageBreak(false);
             XWPFRun run = paragraph.createRun();
             run.addPicture(in, image.pictureType(), "cover-background" + image.extension(), (int) widthEmu, (int) heightEmu);
             convertLastInlinePictureToPageBackground(run, widthEmu, heightEmu);
@@ -395,6 +427,8 @@ public class ReportDocxExporter implements DocumentExporter {
     private void setCoverRow(XWPFTableRow row, int heightTwips, Color background) {
         row.setHeight(heightTwips);
         row.setHeightRule(TableRowHeightRule.EXACT);
+        CTTrPr trPr = row.getCtRow().isSetTrPr() ? row.getCtRow().getTrPr() : row.getCtRow().addNewTrPr();
+        trPr.addNewCantSplit();
         XWPFTableCell cell = row.getCell(0);
         if (background != null) {
             cell.setColor(VisualStyle.toHexNoHash(background));
@@ -429,6 +463,7 @@ public class ReportDocxExporter implements DocumentExporter {
      * 生成目录页（当前为静态文本目录）。
      */
     private void addTocPage(DocxRenderContext context, List<VNode> contentNodes) {
+        addTocTopSpacer(context);
         addHeading(context, "目录", 1);
         if (hasCatalogNodes(contentNodes)) {
             for (VNode node : contentNodes) {
@@ -439,14 +474,19 @@ public class ReportDocxExporter implements DocumentExporter {
                 VNode section = contentNodes.get(i);
                 String title = section.propString("title", "章节 " + (i + 1));
                 XWPFParagraph p = context.document.createParagraph();
-                XWPFRun run = p.createRun();
-                run.setText(tocLabel(i + 1, title));
-                run.setFontFamily(context.theme.fontPrimary());
-                run.setFontSize(11);
-                run.setColor(VisualStyle.toHexNoHash(context.theme.text()));
+                addTocEntryText(p, bookmarkNameFor(section, "section_" + (i + 1)), tocLabel(i + 1, title), context.theme, 11);
             }
         }
         pageBreak(context.document);
+    }
+
+    private void addTocTopSpacer(DocxRenderContext context) {
+        XWPFParagraph spacer = context.document.createParagraph();
+        spacer.setSpacingBefore(0);
+        spacer.setSpacingAfter(Math.max(
+                900,
+                (int) Math.round(resolveWritablePageHeightTwips(context.rootProps()) * configuration.word().toc().topOffsetRatio())
+        ));
     }
 
     private void addCatalogTocEntry(DocxRenderContext context, VNode node) {
@@ -456,11 +496,8 @@ public class ReportDocxExporter implements DocumentExporter {
         int level = outlineLevel(node);
         XWPFParagraph p = context.document.createParagraph();
         p.setIndentationLeft(Math.max(0, level - 1) * 360);
-        XWPFRun run = p.createRun();
-        run.setText(numberedTitle(node, "目录"));
-        run.setFontFamily(context.theme.fontPrimary());
-        run.setFontSize(11);
-        run.setColor(VisualStyle.toHexNoHash(context.theme.text()));
+        p.setSpacingAfter(80);
+        addTocEntryText(p, bookmarkNameFor(node, "catalog"), numberedTitle(node, "目录"), context.theme, 11);
         for (VNode child : node.childrenOrEmpty()) {
             addCatalogTocEntry(context, child);
         }
@@ -487,7 +524,7 @@ public class ReportDocxExporter implements DocumentExporter {
     }
 
     private void addCatalogContent(DocxRenderContext context, VNode catalog, int blockGapTwips) throws IOException {
-        addHeading(context, numberedTitle(catalog, "目录"), Math.min(outlineLevel(catalog), 4));
+        addHeading(context, numberedTitle(catalog, "目录"), Math.min(outlineLevel(catalog), 4), bookmarkNameFor(catalog, "catalog"));
         List<VNode> children = catalog.childrenOrEmpty();
         for (int i = 0; i < children.size(); i++) {
             VNode child = children.get(i);
@@ -506,7 +543,7 @@ public class ReportDocxExporter implements DocumentExporter {
 
     private void addFlatSectionContent(DocxRenderContext context, VNode section, int index, int blockGapTwips) throws IOException {
         String title = section.propString("title", "章节 " + (index + 1));
-        addHeading(context, title, 1);
+        addHeading(context, title, 1, bookmarkNameFor(section, "section_" + (index + 1)));
         renderSectionBlocks(context, section, blockGapTwips);
     }
 
@@ -631,18 +668,33 @@ public class ReportDocxExporter implements DocumentExporter {
      * 输出标准标题段落（章节标题/小节标题）。
      */
     private void addHeading(DocxRenderContext context, String text, int level) {
+        addHeading(context, text, level, null);
+    }
+
+    private void addHeading(DocxRenderContext context, String text, int level, String bookmarkName) {
         int sectionGapTwips = resolveSectionGapTwips(context.rootProps());
         int bodyPaddingTwips = resolveBodyPaddingTwips(context.rootProps());
         XWPFParagraph p = context.document.createParagraph();
         p.setAlignment(ParagraphAlignment.LEFT);
         p.setSpacingBefore(level <= 1 ? Math.max(100, bodyPaddingTwips / 2) : Math.max(60, bodyPaddingTwips / 3));
         p.setSpacingAfter(Math.max(80, sectionGapTwips));
+        BigInteger bookmarkId = null;
+        if (bookmarkName != null && !bookmarkName.isBlank()) {
+            bookmarkId = context.nextBookmarkId();
+            CTBookmark bookmarkStart = p.getCTP().insertNewBookmarkStart(0);
+            bookmarkStart.setName(bookmarkName);
+            bookmarkStart.setId(bookmarkId);
+        }
         XWPFRun run = p.createRun();
         run.setText(text);
         run.setBold(true);
         run.setFontFamily(context.theme.fontPrimary());
         run.setColor(VisualStyle.toHexNoHash(context.theme.text()));
         run.setFontSize(level <= 1 ? 18 : 14);
+        if (bookmarkId != null) {
+            CTMarkupRange bookmarkEnd = p.getCTP().addNewBookmarkEnd();
+            bookmarkEnd.setId(bookmarkId);
+        }
     }
 
     /**
@@ -721,7 +773,7 @@ public class ReportDocxExporter implements DocumentExporter {
     }
 
     /**
-     * 渲染表格块（含多级表头/合并/重复表头）。
+     * 渲染表格块（含多级表头/合并/空数据行）。
      */
     private void addTableBlock(DocxRenderContext context, VNode tableNode, List<Map<String, Object>> rows) {
         TableModel model = tableSpecParser.parse(tableNode, rows);
@@ -735,16 +787,20 @@ public class ReportDocxExporter implements DocumentExporter {
             return;
         }
 
-        int totalRows = Math.max(1, model.totalRowCount());
+        boolean hasDataRows = model.bodyRowCount() > 0;
+        int totalRows = model.headerRowCount() + Math.max(1, model.bodyRowCount());
         XWPFTable table = context.document.createTable(totalRows, model.columnCount());
         int[] columnWidths = fitTableToPage(table, model, context.rootProps());
         int fontSize = tableFontSize(model.columnCount());
 
         fillDocxHeaderRows(context, table, model, fontSize);
-        fillDocxBodyRows(context, table, model, fontSize);
-        applyCellWidths(table, columnWidths);
+        if (hasDataRows) {
+            fillDocxBodyRows(context, table, model, fontSize);
+        } else {
+            fillNoDataRow(context, table.getRow(model.headerRowCount()), model.columnCount(), columnWidths, fontSize);
+        }
         applyDocxMerges(table, model);
-        if (model.repeatHeader()) {
+        if (configuration.word().table().repeatHeaderOnPageBreak() && model.repeatHeader()) {
             markHeaderRowsRepeat(table, model.headerRowCount());
         }
     }
@@ -775,7 +831,7 @@ public class ReportDocxExporter implements DocumentExporter {
         }
 
         int baseColumns = compositeBaseColumnCount(models);
-        int totalRows = models.stream().mapToInt(TableModel::totalRowCount).sum();
+        int totalRows = models.stream().mapToInt(this::renderedRowCount).sum();
         XWPFTable table = context.document.createTable(Math.max(1, totalRows), baseColumns);
         int tableWidth = resolveWritablePageWidthTwips(context.rootProps());
         int[] columnWidths = equalColumnWidths(baseColumns, tableWidth);
@@ -786,9 +842,17 @@ public class ReportDocxExporter implements DocumentExporter {
         int fontSize = tableFontSize(models.stream().mapToInt(TableModel::columnCount).max().orElse(baseColumns));
         for (TableModel model : models) {
             fillCompositeRows(context, table, model, rowOffset, true, fontSize, baseColumns, columnWidths);
-            fillCompositeRows(context, table, model, rowOffset + model.headerRowCount(), false, fontSize, baseColumns, columnWidths);
-            rowOffset += model.totalRowCount();
+            if (model.bodyRowCount() > 0) {
+                fillCompositeRows(context, table, model, rowOffset + model.headerRowCount(), false, fontSize, baseColumns, columnWidths);
+            } else {
+                fillCompositeNoDataRow(context, table.getRow(rowOffset + model.headerRowCount()), baseColumns, columnWidths, fontSize);
+            }
+            rowOffset += renderedRowCount(model);
         }
+    }
+
+    private int renderedRowCount(TableModel model) {
+        return model.headerRowCount() + Math.max(1, model.bodyRowCount());
     }
 
     private void fillCompositeRows(
@@ -808,7 +872,7 @@ public class ReportDocxExporter implements DocumentExporter {
             List<CompositeCellSpan> spans = new ArrayList<>();
             Color bg = header || !model.zebra() || (r % 2 == 0) ? context.theme.panel() : context.theme.panelAlt();
             if (header) {
-                bg = context.theme.primarySoft();
+                bg = tableHeaderBackground(context);
             }
             for (int c = 0; c < model.columnCount(); c++) {
                 TableCell cell = cells.get(c);
@@ -835,10 +899,39 @@ public class ReportDocxExporter implements DocumentExporter {
                 }
             }
             applyCompositeCellSpans(tableRow, spans);
-            if (header && model.repeatHeader()) {
+            if (header && configuration.word().table().repeatHeaderOnPageBreak() && model.repeatHeader()) {
                 markTableRowRepeat(table.getRow(rowOffset + r));
             }
         }
+    }
+
+    private void fillNoDataRow(
+            DocxRenderContext context,
+            XWPFTableRow row,
+            int columnCount,
+            int[] columnWidths,
+            int fontSize
+    ) {
+        int safeColumnCount = Math.max(1, columnCount);
+        for (int c = 0; c < safeColumnCount; c++) {
+            XWPFTableCell cell = row.getCell(c);
+            styleCell(cell, context.theme.panel());
+            writeCellText(cell, c == 0 ? configuration.word().table().emptyText() : "", context.theme, false, fontSize, context.theme.muted());
+            setParagraphAlign(cell, "center");
+        }
+        if (safeColumnCount > 1) {
+            applyCompositeCellSpans(row, List.of(new CompositeCellSpan(0, safeColumnCount, sumWidths(columnWidths, 0, safeColumnCount))));
+        }
+    }
+
+    private void fillCompositeNoDataRow(
+            DocxRenderContext context,
+            XWPFTableRow row,
+            int baseColumns,
+            int[] columnWidths,
+            int fontSize
+    ) {
+        fillNoDataRow(context, row, baseColumns, columnWidths, fontSize);
     }
 
     private void applyCompositeCellSpans(XWPFTableRow row, List<CompositeCellSpan> spans) {
@@ -909,7 +1002,7 @@ public class ReportDocxExporter implements DocumentExporter {
             for (int c = 0; c < model.columnCount(); c++) {
                 TableCell cell = header.get(c);
                 XWPFTableCell tableCell = row.getCell(c);
-                styleCell(tableCell, context.theme.primarySoft());
+                styleCell(tableCell, tableHeaderBackground(context));
                 if (cell.hidden()) {
                     writeCellText(tableCell, "", context.theme, true, fontSize, context.theme.text());
                     continue;
@@ -1236,6 +1329,12 @@ public class ReportDocxExporter implements DocumentExporter {
         cell.setColor(VisualStyle.toHexNoHash(background));
     }
 
+    private Color tableHeaderBackground(DocxRenderContext context) {
+        return switch (configuration.word().table().headerBackground()) {
+            case THEME_PRIMARY_SOFT -> context.theme.primarySoft();
+        };
+    }
+
     private void writeCellText(
             XWPFTableCell cell,
             String text,
@@ -1491,6 +1590,51 @@ public class ReportDocxExporter implements DocumentExporter {
         return index + ". " + trimmed;
     }
 
+    private void addTocEntryText(XWPFParagraph paragraph, String anchor, String text, ThemeTokens theme, int fontSize) {
+        if (configuration.word().toc().linkEnabled()) {
+            addInternalHyperlink(paragraph, anchor, text, theme, fontSize);
+            return;
+        }
+        XWPFRun run = paragraph.createRun();
+        run.setText(text);
+        run.setFontFamily(theme.fontPrimary());
+        run.setFontSize(fontSize);
+        run.setColor(VisualStyle.toHexNoHash(theme.text()));
+    }
+
+    private void addInternalHyperlink(XWPFParagraph paragraph, String anchor, String text, ThemeTokens theme, int fontSize) {
+        CTHyperlink hyperlink = paragraph.getCTP().addNewHyperlink();
+        hyperlink.setAnchor(anchor);
+        CTR ctr = hyperlink.addNewR();
+        CTRPr rPr = ctr.addNewRPr();
+        rPr.addNewColor().setVal(VisualStyle.toHexNoHash(theme.text()));
+        rPr.addNewU().setVal(STUnderline.NONE);
+        var fonts = rPr.addNewRFonts();
+        fonts.setAscii(theme.fontPrimary());
+        fonts.setEastAsia(theme.fontPrimary());
+        rPr.addNewSz().setVal(BigInteger.valueOf(fontSize * 2L));
+        ctr.addNewT().setStringValue(text);
+    }
+
+    private String bookmarkNameFor(VNode node, String fallback) {
+        String raw = node == null ? fallback : VNode.asString(node.id, "");
+        if (raw.isBlank() && node != null) {
+            raw = node.propString("title", fallback);
+        }
+        if (raw.isBlank()) {
+            raw = fallback;
+        }
+        String cleaned = raw.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_+", "_");
+        if (cleaned.isBlank() || "_".equals(cleaned)) {
+            cleaned = "node";
+        }
+        if (cleaned.length() > 36) {
+            cleaned = cleaned.substring(0, 36);
+        }
+        String hash = Integer.toHexString(raw.hashCode()).replace('-', 'n');
+        return "rs_" + cleaned + "_" + hash;
+    }
+
     /**
      * DOCX 渲染上下文。
      */
@@ -1500,6 +1644,7 @@ public class ReportDocxExporter implements DocumentExporter {
         private final ChartSpecParser chartSpecParser;
         private final Map<String, Object> rootProps;
         private final VDoc doc;
+        private int bookmarkSequence = 0;
 
         private DocxRenderContext(
                 XWPFDocument document,
@@ -1533,6 +1678,11 @@ public class ReportDocxExporter implements DocumentExporter {
 
         public VDoc doc() {
             return doc;
+        }
+
+        private BigInteger nextBookmarkId() {
+            bookmarkSequence += 1;
+            return BigInteger.valueOf(bookmarkSequence);
         }
     }
 

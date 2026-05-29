@@ -5,6 +5,7 @@ import com.chatbi.exporter.chart.ChartSpecParser;
 import com.chatbi.exporter.chart.ChartRowResolver;
 import com.chatbi.exporter.chart.ChartTypeCatalog;
 import com.chatbi.exporter.chart.PoiChartRenderer;
+import com.chatbi.exporter.conf.DocumentExportConfiguration;
 import com.chatbi.exporter.core.DocumentExporter;
 import com.chatbi.exporter.core.ExportRequest;
 import com.chatbi.exporter.core.ExportTarget;
@@ -68,6 +69,7 @@ public class DeckPptxExporter implements DocumentExporter {
     private final ChartRowResolver chartRowResolver;
     private final PoiChartRenderer poiChartRenderer;
     private final TableSpecParser tableSpecParser;
+    private final DocumentExportConfiguration configuration;
     private final List<PptxChartFlavorRenderer> chartFlavorRenderers;
     private final RendererRegistry<PptxRenderContext> nodeRenderers;
 
@@ -82,11 +84,20 @@ public class DeckPptxExporter implements DocumentExporter {
      * 允许注入样式/图表解析器，便于测试与扩展。
      */
     public DeckPptxExporter(StyleResolver styleResolver, ChartSpecParser chartSpecParser) {
+        this(styleResolver, chartSpecParser, DocumentExportConfiguration.defaults());
+    }
+
+    public DeckPptxExporter(
+            StyleResolver styleResolver,
+            ChartSpecParser chartSpecParser,
+            DocumentExportConfiguration configuration
+    ) {
         this.styleResolver = styleResolver;
         this.chartSpecParser = chartSpecParser;
+        this.configuration = configuration == null ? DocumentExportConfiguration.defaults() : configuration;
         this.chartRowResolver = new ChartRowResolver();
         this.poiChartRenderer = new PoiChartRenderer();
-        this.tableSpecParser = new TableSpecParser();
+        this.tableSpecParser = new TableSpecParser(this.configuration.word().table().repeatHeaderOnPageBreak());
         this.chartFlavorRenderers = new ArrayList<>();
         registerChartFlavorRenderer(new TrendFlavorRenderer());
         registerChartFlavorRenderer(new ComparisonFlavorRenderer());
@@ -242,7 +253,15 @@ public class DeckPptxExporter implements DocumentExporter {
         String headerText = VNode.asString(rootProps.get("masterHeaderText"), doc.title == null ? "" : doc.title);
         String footerText = VNode.asString(rootProps.get("masterFooterText"), "Visual Document OS");
         Color accent = parseStyleColor(rootProps.get("masterAccentColor"), theme.primary());
-        return new MasterSpec(showHeader, showFooter, showSlideNo, headerText, footerText, accent);
+        return new MasterSpec(
+                showHeader,
+                showFooter,
+                showSlideNo,
+                headerText,
+                footerText,
+                accent,
+                configuration.ppt().master().showAccentLines()
+        );
     }
 
     private MasterLayoutMetrics resolveMasterLayoutMetrics(Map<String, Object> rootProps, int pageWidth, int pageHeight) {
@@ -347,6 +366,10 @@ public class DeckPptxExporter implements DocumentExporter {
         box.setAnchor(rect);
         Color bg = parseStyleColor(textNode.styleOrEmpty().get("bg"), context.theme.panel());
         box.setFillColor(bg);
+        if (configuration.ppt().textBox().showBorder()) {
+            box.setLineColor(context.theme.border());
+            box.setLineWidth(0.75);
+        }
 
         String text = textNode.propString("text", "");
         XSLFTextParagraph p = box.addNewTextParagraph();
@@ -891,7 +914,8 @@ public class DeckPptxExporter implements DocumentExporter {
             boolean showSlideNumber,
             String headerText,
             String footerText,
-            Color accentColor
+            Color accentColor,
+            boolean showAccentLines
     ) {
     }
 

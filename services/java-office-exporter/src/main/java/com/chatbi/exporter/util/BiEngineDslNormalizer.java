@@ -1,5 +1,6 @@
 package com.chatbi.exporter.util;
 
+import com.chatbi.exporter.conf.DocumentExportConfiguration;
 import com.chatbi.exporter.model.VDoc;
 import com.chatbi.exporter.model.VNode;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -450,7 +451,10 @@ public final class BiEngineDslNormalizer {
         if (!rows.isEmpty()) {
             props.put("rows", rows);
         }
-        props.put("repeatHeader", bool(advance.get("showHeader"), true));
+        props.put("repeatHeader", bool(
+                advance.get("showHeader"),
+                DocumentExportConfiguration.defaults().word().table().repeatHeaderOnPageBreak()
+        ));
         Map<String, Object> pagination = objectMap(advance.get("pagination"));
         if (pagination.containsKey("defaultDisplayRows")) {
             props.put("maxRows", pagination.get("defaultDisplayRows"));

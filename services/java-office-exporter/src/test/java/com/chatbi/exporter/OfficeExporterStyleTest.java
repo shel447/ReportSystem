@@ -1,5 +1,8 @@
 package com.chatbi.exporter;
 
+import com.chatbi.exporter.conf.CoverMetaPosition;
+import com.chatbi.exporter.conf.DocumentExportConfiguration;
+import com.chatbi.exporter.conf.TableHeaderBackground;
 import com.chatbi.exporter.core.ExportRequest;
 import com.chatbi.exporter.docx.ReportDocxExporter;
 import com.chatbi.exporter.model.VDoc;
@@ -31,6 +34,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OfficeExporterStyleTest {
     @TempDir
     Path tempDir;
+
+    @Test
+    void documentExportConfigurationDefaultsCollectExporterStyleDefaults() {
+        DocumentExportConfiguration configuration = DocumentExportConfiguration.defaults();
+
+        assertEquals(null, configuration.global().themeOverride());
+        assertFalse(configuration.global().strictValidation());
+        assertEquals(CoverMetaPosition.BOTTOM_RIGHT, configuration.word().cover().metaPosition());
+        assertTrue(configuration.word().cover().keepMetaOnFirstPage());
+        assertTrue(configuration.word().toc().enabled());
+        assertEquals(0.12, configuration.word().toc().topOffsetRatio(), 0.0001);
+        assertTrue(configuration.word().toc().linkEnabled());
+        assertTrue(configuration.word().table().fitToPage());
+        assertFalse(configuration.word().table().repeatHeaderOnPageBreak());
+        assertEquals("无数据", configuration.word().table().emptyText());
+        assertEquals(TableHeaderBackground.THEME_PRIMARY_SOFT, configuration.word().table().headerBackground());
+        assertFalse(configuration.ppt().master().showAccentLines());
+        assertFalse(configuration.ppt().textBox().showBorder());
+    }
 
     @Test
     void docxTextBlocksRenderAsPlainParagraphs() throws Exception {
@@ -89,6 +111,12 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("1 运营分析"));
         assertTrue(documentXml.contains("1.1 异常归因"));
         assertTrue(documentXml.contains("2 建议"));
+        assertTrue(documentXml.contains("<w:hyperlink w:anchor=\"rs_cat_1_"));
+        assertTrue(documentXml.contains("<w:hyperlink w:anchor=\"rs_cat_1_1_"));
+        assertTrue(documentXml.contains("<w:bookmarkStart"));
+        assertTrue(documentXml.contains("w:name=\"rs_cat_1_"));
+        assertTrue(documentXml.contains("w:name=\"rs_cat_1_1_"));
+        assertTrue(documentXml.contains("<w:spacing w:after=\""));
         assertTrue(documentXml.contains("正文一"));
         assertTrue(documentXml.contains("正文二"));
         assertFalse(documentXml.contains("不要显示的章节标题"));
@@ -96,7 +124,7 @@ class OfficeExporterStyleTest {
     }
 
     @Test
-    void docxCoverUsesFullPageLayoutWithBottomLeftAuthorAndDate() throws Exception {
+    void docxCoverUsesFullPageLayoutWithBottomRightAuthorAndDate() throws Exception {
         Path output = tempDir.resolve("cover-layout.docx");
 
         new ReportDocxExporter().export(coverReport(), output, ExportRequest.defaults());
@@ -107,8 +135,12 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("时间：2026年5月28日"));
         assertFalse(documentXml.contains("张三 | 2026年5月28日"));
         assertTrue(documentXml.contains("<w:trHeight"));
+        assertTrue(documentXml.contains("<w:cantSplit"));
         assertTrue(documentXml.contains("<w:vAlign w:val=\"bottom\""));
-        assertTrue(documentXml.contains("<w:ind w:left=\"720\""));
+        assertTrue(documentXml.contains("<w:jc w:val=\"right\""));
+        assertFalse(documentXml.contains("<w:ind w:left=\"720\""));
+        assertBeforeCoverPageBreak(documentXml, "报告人：张三");
+        assertBeforeCoverPageBreak(documentXml, "时间：2026年5月28日");
     }
 
     @Test
@@ -125,7 +157,30 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("<wp:positionV relativeFrom=\"page\"><wp:posOffset>0</wp:posOffset></wp:positionV>"));
         assertTrue(documentXml.contains("<wp:extent cx=\"7560310\" cy=\"10692130\""));
         assertTrue(documentXml.contains("背景封面"));
+        assertBeforeCoverPageBreak(documentXml, "报告人：张三");
+        assertBeforeCoverPageBreak(documentXml, "时间：2026年5月28日");
         assertTrue(relsXml.contains("image"));
+    }
+
+    @Test
+    void docxFlatSectionTocEntriesLinkToSectionHeadings() throws Exception {
+        Path output = tempDir.resolve("flat-section-toc.docx");
+
+        VDoc doc = textOnlyReport();
+        doc.root.props = Map.of(
+                "coverEnabled", false,
+                "tocShow", true,
+                "summaryEnabled", false,
+                "signatureEnabled", false,
+                "headerShow", false,
+                "footerShow", false
+        );
+        new ReportDocxExporter().export(doc, output, ExportRequest.defaults());
+
+        String documentXml = zipEntry(output, "word/document.xml");
+        assertTrue(documentXml.contains("<w:hyperlink w:anchor=\"rs_section_"));
+        assertTrue(documentXml.contains("<w:bookmarkStart"));
+        assertTrue(documentXml.contains("正文章节"));
     }
 
     @Test
@@ -152,6 +207,19 @@ class OfficeExporterStyleTest {
         }
         assertEquals(12, gridColumns);
         assertTrue(gridWidth <= availableWidth);
+        assertFalse(documentXml.contains("<w:tblHeader"));
+    }
+
+    @Test
+    void docxEmptyTablesRenderMergedNoDataRowWithoutRepeatedHeader() throws Exception {
+        Path output = tempDir.resolve("empty-table.docx");
+
+        new ReportDocxExporter().export(emptyTableReport(), output, ExportRequest.defaults());
+
+        String documentXml = zipEntry(output, "word/document.xml");
+        assertTrue(documentXml.contains("无数据"));
+        assertTrue(documentXml.contains("<w:gridSpan w:val=\"3\""));
+        assertFalse(documentXml.contains("<w:tblHeader"));
     }
 
     @Test
@@ -197,6 +265,19 @@ class OfficeExporterStyleTest {
         assertTrue(countMatches(tableXml, "w:fill=\"DBEAFE\"") >= 5);
         assertTrue(tableXml.contains("官网"));
         assertTrue(tableXml.contains("经销商"));
+        assertFalse(tableXml.contains("<w:tblHeader"));
+    }
+
+    @Test
+    void docxCompositeTablesRenderEmptySegmentsAsMergedNoDataRows() throws Exception {
+        Path output = tempDir.resolve("empty-composite.docx");
+
+        new ReportDocxExporter().export(emptyCompositeTableReport(), output, ExportRequest.defaults());
+
+        String documentXml = zipEntry(output, "word/document.xml");
+        assertTrue(documentXml.contains("无数据"));
+        assertTrue(documentXml.contains("<w:gridSpan w:val=\"6\""));
+        assertFalse(documentXml.contains("<w:tblHeader"));
     }
 
     @Test
@@ -346,6 +427,104 @@ class OfficeExporterStyleTest {
                 "footerShow", false,
                 "pageSize", "A4",
                 "marginPreset", "normal"
+        );
+        root.children = List.of(section);
+        doc.root = root;
+        return doc;
+    }
+
+    private static VDoc emptyTableReport() {
+        VDoc doc = new VDoc();
+        doc.docId = "empty-table";
+        doc.docType = "report";
+        doc.schemaVersion = "1.0.0";
+        doc.title = "空表测试";
+
+        VNode table = new VNode();
+        table.id = "empty-table";
+        table.kind = "table";
+        table.props = Map.of(
+                "columns", List.of(
+                        Map.of("key", "region", "title", "区域"),
+                        Map.of("key", "revenue", "title", "收入"),
+                        Map.of("key", "profit", "title", "利润")
+                ),
+                "rows", List.of()
+        );
+
+        VNode section = new VNode();
+        section.id = "section";
+        section.kind = "section";
+        section.props = Map.of("title", "空表章节");
+        section.children = List.of(table);
+
+        VNode root = new VNode();
+        root.id = "root";
+        root.kind = "container";
+        root.props = Map.of(
+                "coverEnabled", false,
+                "tocShow", false,
+                "summaryEnabled", false,
+                "signatureEnabled", false,
+                "headerShow", false,
+                "footerShow", false
+        );
+        root.children = List.of(section);
+        doc.root = root;
+        return doc;
+    }
+
+    private static VDoc emptyCompositeTableReport() {
+        VDoc doc = new VDoc();
+        doc.docId = "empty-composite";
+        doc.docType = "report";
+        doc.schemaVersion = "1.0.0";
+        doc.title = "组合空表测试";
+
+        VNode emptyTable = new VNode();
+        emptyTable.id = "empty-segment";
+        emptyTable.kind = "table";
+        emptyTable.props = Map.of(
+                "columns", List.of(
+                        Map.of("key", "channel", "title", "渠道"),
+                        Map.of("key", "orders", "title", "订单数")
+                ),
+                "rows", List.of()
+        );
+
+        VNode dataTable = new VNode();
+        dataTable.id = "data-segment";
+        dataTable.kind = "table";
+        dataTable.props = Map.of(
+                "columns", List.of(
+                        Map.of("key", "channel", "title", "渠道"),
+                        Map.of("key", "revenue", "title", "收入"),
+                        Map.of("key", "profit", "title", "利润")
+                ),
+                "rows", List.of(Map.of("channel", "官网", "revenue", 1280, "profit", 320))
+        );
+
+        VNode composite = new VNode();
+        composite.id = "composite";
+        composite.kind = "compositeTable";
+        composite.children = List.of(emptyTable, dataTable);
+
+        VNode section = new VNode();
+        section.id = "section";
+        section.kind = "section";
+        section.props = Map.of("title", "组合空表章节");
+        section.children = List.of(composite);
+
+        VNode root = new VNode();
+        root.id = "root";
+        root.kind = "container";
+        root.props = Map.of(
+                "coverEnabled", false,
+                "tocShow", false,
+                "summaryEnabled", false,
+                "signatureEnabled", false,
+                "headerShow", false,
+                "footerShow", false
         );
         root.children = List.of(section);
         doc.root = root;
@@ -603,6 +782,14 @@ class OfficeExporterStyleTest {
                 return new String(input.readAllBytes(), StandardCharsets.UTF_8);
             }
         }
+    }
+
+    private static void assertBeforeCoverPageBreak(String documentXml, String text) {
+        int textIndex = documentXml.indexOf(text);
+        int pageBreakIndex = documentXml.indexOf("<w:br w:type=\"page\"");
+        assertTrue(textIndex >= 0, text);
+        assertTrue(pageBreakIndex >= 0);
+        assertTrue(textIndex < pageBreakIndex, text);
     }
 
     private static String enclosingShape(String xml, String text) {

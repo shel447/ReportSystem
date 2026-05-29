@@ -8,6 +8,22 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-29 Word 封面首页约束与静态链接目录
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-29 Word 封面首页约束与静态链接目录"
+- 实现设计调整：
+  - 新增 `com.chatbi.exporter.conf` 作为 exporter 默认文档配置包，集中维护独立于 Report DSL 的 `DocumentExportConfiguration` 默认值。
+  - 当前不修改 CLI、HTTP 或 `ExportRequest` public API；DOCX/PPTX 导出器只读取内部默认配置，后续外部 `Document Configuration` 由适配层映射接入。
+  - `ReportDocxExporter` 的封面表格使用保守可写高度和固定行高，封面背景图仍铺满页面但不参与文本流高度计算。
+  - 封面报告人和报告时间固定写入最后一行右下角，并通过测试确认它们出现在封面分页符之前。
+  - DOCX 目录页增加顶部留白；正文 catalog/subCatalog 标题生成 bookmark，目录项使用内部 hyperlink 指向对应 bookmark。
+  - 旧扁平 section 输入继续生成可跳转目录，section title 只在无 catalog 输入时作为目录目标。
+  - DOCX 表格默认不写入跨页重复 header 标记；空数据表格和组合表子表使用横向合并数据行输出“无数据”。
+- 验证要求：
+  - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退、目录顶部留白、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
+  - Maven 测试和打包通过，样例 Word 可在 Office/WPS 中点击目录跳转。
+
 ## 2026-05-28 CompositeTable 无缝拼接导出
 
 - 对应设计变更：
@@ -31,7 +47,7 @@
   - `ReportDocxExporter` 使用 `cover.image` 生成相对 page 的 behind-text anchor 图片并铺满首页，再用整页封面画布叠加标题、说明、报告人与时间。
   - DOCX 表格使用固定布局，按页面可用宽度写入 `tblW/tblGrid/tcW`，宽表按列声明宽度比例压缩并降低字号。
 - 验证要求：
-  - 测试覆盖 catalog 编号、section title 不输出、封面背景图 behind-text 铺满首页、封面左下角报告人/时间、宽表列宽不超过页面可用宽度。
+  - 测试覆盖 catalog 编号、section title 不输出、封面背景图 behind-text 铺满首页、封面右下角报告人/时间、宽表列宽不超过页面可用宽度。
   - Maven 测试和打包通过，样例 Word 视觉确认目录层级与宽表效果。
 
 ## 2026-05-28 Office Exporter 默认视觉样式优化

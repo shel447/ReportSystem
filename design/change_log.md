@@ -8,6 +8,25 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-29 Word 封面首页约束与静态链接目录
+
+- 变更动机：
+  - Word 封面中的报告人和报告时间在部分文档中可能被挤到第 2 页，破坏封面信息完整性。
+  - Word 目录页位置偏上，且目录项不能点击跳转到正文。
+  - Word/PPT 导出样式默认值需要与 Report DSL 分离，避免把导出器开关混入报告内容契约。
+- 设计决策：
+  - 新增独立 `Document Configuration` 概念，作为生成文档时的可选配置；它不属于 Report DSL，不进入 Report DSL schema。
+  - 配置按 `global` 与 `word/ppt/pdf` 文档类型分组；当前 Java exporter 先使用内置默认值，后续再接入外部可选传入。
+  - Word 封面必须保证标题、说明、报告人和报告时间都位于首页；封面布局需要预留安全高度，避免文字溢出到下一页。
+  - Word 封面报告人和报告时间默认位于右下角。
+  - Word 目录页增加顶部留白，让目录整体位置更居中、更接近正式报告排版。
+  - 目录采用静态链接目录：目录项可点击跳转到对应正文 catalog/subCatalog 标题；不显示动态页码，不依赖 Word 更新域。
+  - Word 表格默认不跨页重复 header；无数据表格使用合并数据行显示“无数据”。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
 ## 2026-05-28 CompositeTable 无缝拼接导出
 
 - 变更动机：
@@ -30,7 +49,7 @@
 - 设计决策：
   - Word 目录与正文标题只根据 `catalogs -> subCatalogs` 自动生成层级编号。
   - `section` 是正式内容承载单元，不进入目录、不渲染 `section.title`。
-  - Word 封面采用整页布局；`cover.image` 铺满首页作为背景图，标题、副标题和封面内容叠加在首页不同区域，报告人和时间分两行放在左下角。
+  - Word 封面采用整页布局；`cover.image` 铺满首页作为背景图，标题、副标题和封面内容叠加在首页不同区域，报告人和时间分两行放在右下角。
   - Word 表格固定在页面可用宽度内，列宽按声明宽度比例压缩，单元格内容允许换行。
 - 影响范围：
   - `report_system/06-文档生成与导出架构.md`

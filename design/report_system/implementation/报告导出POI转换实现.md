@@ -203,7 +203,26 @@ flowchart TB
     SAVE --> END[结束]
 ```
 
-### 4.2 封面渲染 (DocxCoverRenderer)
+### 4.2 Document Configuration 到 POI 默认值
+
+文档导出样式配置独立于 Report DSL，当前 Java exporter 先通过 `com.chatbi.exporter.conf.DocumentExportConfiguration.defaults()` 提供默认值，不改变现有导出边界 API。后续外部生成文档时可选传入 `Document Configuration`，由导出网关或适配层映射到 exporter 内部配置对象。
+
+当前 POI 转换层使用的默认配置：
+
+| 配置项 | 默认值 | POI 落点 |
+|---|---|---|
+| `word.cover.metaPosition` | `bottomRight` | 封面最后一行 cell 垂直底部对齐，报告人/时间段落右对齐 |
+| `word.cover.keepMetaOnFirstPage` | `true` | 封面表格固定高度、行不可拆分，元信息位于封面分页符之前 |
+| `word.toc.topOffsetRatio` | `0.12` | 目录页标题前插入顶部留白段落 |
+| `word.toc.linkEnabled` | `true` | 目录项写入 `w:hyperlink`，正文标题写入 bookmark |
+| `word.table.fitToPage` | `true` | 表格使用 fixed layout、`tblW/tblGrid/tcW` 固定到页面可用宽度 |
+| `word.table.repeatHeaderOnPageBreak` | `false` | 默认不写入 `w:tblHeader` |
+| `word.table.emptyText` | `无数据` | 空表数据区写入一行横向合并单元格 |
+| `word.table.headerBackground` | `theme.primarySoft` | 表头使用主题浅色背景 |
+| `ppt.master.showAccentLines` | `false` | master 页眉/页脚不绘制 accent 线 |
+| `ppt.textBox.showBorder` | `false` | 文本框不设置边框线 |
+
+### 4.3 封面渲染 (DocxCoverRenderer)
 
 ```java
 public static void renderCover(XWPFDocument doc, ReportCover cover, 
@@ -222,12 +241,12 @@ public static void renderCover(XWPFDocument doc, ReportCover cover,
     // 4. 中部渲染封面内容项/报告说明
     addCoverNotes(canvas.getRow(2).getCell(0), cover.contents, basicInfo.description, theme);
 
-    // 5. 左下角分两行渲染报告人和时间
-    addBottomLeftMeta(canvas.getRow(3).getCell(0), cover.author, cover.date, theme);
+    // 5. 右下角分两行渲染报告人和时间
+    addBottomRightMeta(canvas.getRow(3).getCell(0), cover.author, cover.date, theme);
 }
 ```
 
-封面按首页整页视觉区域处理；`cover.image` 以 `wp:anchor behindDoc=true` 方式相对页面左上角定位，尺寸等于当前纸张大小，作为首页铺满背景图。报告人和时间不再拼接为居中文本，而是分别输出为“报告人：...”和“时间：...”两行，放在页面左下角。
+封面按首页整页视觉区域处理；`cover.image` 以 `wp:anchor behindDoc=true` 方式相对页面左上角定位，尺寸等于当前纸张大小，作为首页铺满背景图。报告人和时间不再拼接为居中文本，而是分别输出为“报告人：...”和“时间：...”两行，放在页面右下角。
 
 **POI 对象映射：**
 
@@ -237,10 +256,10 @@ public static void renderCover(XWPFDocument doc, ReportCover cover,
 | `cover.subTitle` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 标题下方居中，16pt，次色 |
 | `cover.image` | `wp:anchor` drawing | 相对 page 定位，铺满首页，behind text |
 | `cover.contents` / `basicInfo.description` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 页面中部居中 |
-| `cover.author` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 左下角，“报告人：...” |
-| `cover.date` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 左下角，“时间：...” |
+| `cover.author` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 右下角，“报告人：...” |
+| `cover.date` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 右下角，“时间：...” |
 
-### 4.3 目录渲染
+### 4.4 目录渲染
 
 ```java
 private void renderTableOfContents(XWPFDocument doc, ReportDslModel dsl, ThemeTokens theme) {

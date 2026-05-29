@@ -1,5 +1,8 @@
 package com.chatbi.exporter.core;
 
+import com.chatbi.exporter.conf.DocumentExportConfiguration;
+import com.chatbi.exporter.conf.GlobalExportConfiguration;
+
 /**
  * 导出请求参数。
  * <p>
@@ -33,6 +36,7 @@ public final class ExportRequest {
      * - 非严格校验（只告警不抛错）
      */
     public static ExportRequest defaults() {
-        return new ExportRequest(null, false);
+        GlobalExportConfiguration defaults = DocumentExportConfiguration.defaults().global();
+        return new ExportRequest(defaults.themeOverride(), defaults.strictValidation());
     }
 }
