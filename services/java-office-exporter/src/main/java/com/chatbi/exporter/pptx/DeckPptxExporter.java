@@ -232,6 +232,7 @@ public class DeckPptxExporter implements DocumentExporter {
         for (VNode child : slideNode.childrenOrEmpty()) {
             nodeRenderers.render(context, child);
         }
+        addMasterSlideNumber(slide, masterSpec, masterLayout, theme, slideIndex, slideCount, pageWidth, pageHeight);
     }
 
     /**
@@ -253,7 +254,7 @@ public class DeckPptxExporter implements DocumentExporter {
         boolean showFooter = VNode.asBoolean(rootProps.get("masterShowFooter"), true);
         boolean showSlideNo = VNode.asBoolean(rootProps.get("masterShowSlideNumber"), true);
         String headerText = VNode.asString(rootProps.get("masterHeaderText"), doc.title == null ? "" : doc.title);
-        String footerText = VNode.asString(rootProps.get("masterFooterText"), "Visual Document OS");
+        String footerText = VNode.asString(rootProps.get("masterFooterText"), "ChatBI");
         Color accent = parseStyleColor(rootProps.get("masterAccentColor"), theme.primary());
         return new MasterSpec(
                 showHeader,
@@ -312,14 +313,6 @@ public class DeckPptxExporter implements DocumentExporter {
         run.setBold(true);
         run.setFontColor(theme.muted());
 
-        if (masterSpec.showSlideNumber() && !masterSpec.showFooter()) {
-            XSLFTextRun rightRun = p.addNewTextRun();
-            rightRun.setText("    " + slideIndex + "/" + slideCount);
-            rightRun.setFontSize(Math.max(10.0, pageHeight / 48.0));
-            rightRun.setFontFamily(theme.fontPrimary());
-            rightRun.setBold(false);
-            rightRun.setFontColor(theme.muted());
-        }
     }
 
     private void addMasterFooter(
@@ -350,13 +343,36 @@ public class DeckPptxExporter implements DocumentExporter {
         run.setFontSize(Math.max(10.0, pageHeight / 50.0));
         run.setFontColor(theme.muted());
 
-        if (masterSpec.showSlideNumber()) {
-            XSLFTextRun rightRun = p.addNewTextRun();
-            rightRun.setText("    #" + slideIndex + "/" + slideCount);
-            rightRun.setFontFamily(theme.fontPrimary());
-            rightRun.setFontSize(Math.max(9.5, pageHeight / 54.0));
-            rightRun.setFontColor(theme.muted());
+    }
+
+    private void addMasterSlideNumber(
+            XSLFSlide slide,
+            MasterSpec masterSpec,
+            MasterLayoutMetrics masterLayout,
+            ThemeTokens theme,
+            int slideIndex,
+            int slideCount,
+            int pageWidth,
+            int pageHeight
+    ) {
+        if (!masterSpec.showSlideNumber()) {
+            return;
         }
+        int width = Math.max(64, Math.round(pageWidth * 0.12f));
+        int height = Math.max(18, masterLayout.footerHeight());
+        int right = Math.max(0, pageWidth - masterLayout.paddingX());
+        int bottom = Math.max(0, pageHeight - masterLayout.footerBottom());
+
+        XSLFTextBox box = slide.createTextBox();
+        box.setAnchor(new Rectangle(Math.max(0, right - width), Math.max(0, bottom - height), width, height));
+        box.setFillColor(new Color(255, 255, 255, 0));
+        XSLFTextParagraph p = box.addNewTextParagraph();
+        p.setTextAlign(TextParagraph.TextAlign.RIGHT);
+        XSLFTextRun run = p.addNewTextRun();
+        run.setText(slideIndex + "/" + slideCount);
+        run.setFontFamily(theme.fontPrimary());
+        run.setFontSize(Math.max(9.5, pageHeight / 54.0));
+        run.setFontColor(theme.muted());
     }
 
     /**

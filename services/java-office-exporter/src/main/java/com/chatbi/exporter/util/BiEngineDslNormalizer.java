@@ -120,7 +120,7 @@ public final class BiEngineDslNormalizer {
         Map<String, Object> layout = map(root.get("layout"), mapper);
         Map<String, Object> grid = objectMap(layout.get("grid"));
         String header = str(basic.get("header"), title);
-        String footer = str(basic.get("footer"), "Visual Document OS");
+        String footer = str(basic.get("footer"), "ChatBI");
         String layoutType = str(layout.get("type"), "flow");
 
         props.put("reportTitle", title);
@@ -309,7 +309,7 @@ public final class BiEngineDslNormalizer {
 
     private static Map<String, Object> pptRootProps(Map<String, Object> basic, String title) {
         String header = str(basic.get("header"), title);
-        String footer = str(basic.get("footer"), "Visual Document OS");
+        String footer = str(basic.get("footer"), "ChatBI");
         LinkedHashMap<String, Object> props = new LinkedHashMap<>();
         props.put("size", "16:9");
         props.put("defaultBg", "#ffffff");

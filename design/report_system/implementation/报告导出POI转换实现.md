@@ -225,6 +225,7 @@ flowchart TB
 | `word.table.repeatHeaderOnPageBreak` | `false` | 默认不写入 `w:tblHeader` |
 | `word.table.emptyText` | `无数据` | 空表数据区写入一行横向合并单元格 |
 | `word.table.headerBackground` | `theme.primarySoft` | 表头使用主题浅色背景 |
+| Word/PPT 默认 footer | `ChatBI` | `basicInfo.footer` 缺省时写入页脚文本 |
 | `ppt.master.showAccentLines` | `false` | master 页眉/页脚不绘制 accent 线 |
 | `ppt.textBox.showBorder` | `false` | 文本框不设置边框线 |
 | `ppt.table.fitToSlide` | `true` | 表格 anchor 限制在幻灯片安全区域内 |
@@ -235,6 +236,8 @@ flowchart TB
 | `ppt.table.headerFontSize` | `7.5` | PPT 表头默认字号 |
 | `ppt.table.bodyFontSize` | `6.5` | PPT 数据区默认字号 |
 | `ppt.table.cellInsetPt` | `1.5` | PPT 单元格四边内边距 |
+
+PPT 页码独立于页脚文本渲染，默认锚定到右下角；页脚文本仍左对齐显示。`masterShowSlideNumber=false` 时不输出页码。
 
 ### 4.3 封面渲染 (DocxCoverRenderer)
 

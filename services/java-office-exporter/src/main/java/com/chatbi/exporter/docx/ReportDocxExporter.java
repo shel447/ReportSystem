@@ -259,7 +259,7 @@ public class ReportDocxExporter implements DocumentExporter {
         boolean footerShow = bool(props.get("footerShow"), true);
         boolean showPageNumber = bool(props.get("showPageNumber"), true);
         String headerText = str(props.get("headerText"), reportTitle);
-        String footerText = str(props.get("footerText"), "Visual Document OS");
+        String footerText = str(props.get("footerText"), "ChatBI");
 
         XWPFHeaderFooterPolicy policy = document.createHeaderFooterPolicy();
         if (headerShow) {

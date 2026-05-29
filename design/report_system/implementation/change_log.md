@@ -26,6 +26,17 @@
   - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退且不额外占流、封面后无空白页分页控制、目录顶部留白、真实 Heading 样式与行前距、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
   - Maven 测试和打包通过，样例 Word 可在 Office/WPS 中点击目录跳转。
 
+## 2026-05-29 默认页脚与 PPT 页码位置
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-29 默认页脚与 PPT 页码位置"
+- 实现设计调整：
+  - `BiEngineDslNormalizer` 和 DOCX/PPTX 导出兜底 footer 从 `Visual Document OS` 改为 `ChatBI`，但仍允许 `basicInfo.footer` 或 VDoc root props 覆盖。
+  - `DeckPptxExporter` 将页码从 footer 文本框中拆出，单独渲染到右下角；footer 文本仍保持左下角。
+- 验证要求：
+  - 测试覆盖 flow/paged DSL 未传 footer 时归一化为 `ChatBI`。
+  - 测试覆盖 PPT 页码文本不带 `#`，且页码 shape 位于右下角区域。
+
 ## 2026-05-29 PPT 表格紧凑默认样式
 
 - 对应设计变更：

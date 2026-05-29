@@ -87,7 +87,11 @@ class OfficeExporterStyleTest {
         String slideXml = zipEntry(output, "ppt/slides/slide1.xml");
         assertTrue(slideXml.contains("页眉"));
         assertTrue(slideXml.contains("页脚"));
-        assertTrue(slideXml.contains("#1/1"));
+        assertTrue(slideXml.contains("1/1"));
+        assertFalse(slideXml.contains("#1/1"));
+        TableAnchor pageNumberAnchor = textShapeAnchor(slideXml, "1/1");
+        assertTrue(pageNumberAnchor.x() + pageNumberAnchor.width() > Units.toEMU(880));
+        assertTrue(pageNumberAnchor.y() + pageNumberAnchor.height() > Units.toEMU(500));
         assertFalse(slideXml.toLowerCase().contains("1d4ed8"));
     }
 
@@ -117,6 +121,8 @@ class OfficeExporterStyleTest {
 
         assertEquals("ppt", pagedDoc.docType);
         assertEquals("report", flowDoc.docType);
+        assertEquals("ChatBI", pagedDoc.root.propString("masterFooterText", ""));
+        assertEquals("ChatBI", flowDoc.root.propString("footerText", ""));
         new DeckPptxExporter().export(pagedDoc, output, ExportRequest.defaults());
         assertTrue(zipEntry(output, "ppt/slides/slide1.xml").contains("这是 PPT 页面"));
         assertEquals("", zipEntry(output, "word/document.xml"));
@@ -1070,6 +1076,18 @@ class OfficeExporterStyleTest {
             return "";
         }
         return xml.substring(shapeStart, shapeEnd);
+    }
+
+    private static TableAnchor textShapeAnchor(String xml, String text) {
+        String shape = enclosingShape(xml, text);
+        Matcher matcher = Pattern.compile("<a:off x=\"(\\d+)\" y=\"(\\d+)\"/>\\s*<a:ext cx=\"(\\d+)\" cy=\"(\\d+)\"/>").matcher(shape);
+        assertTrue(matcher.find(), shape);
+        return new TableAnchor(
+                Long.parseLong(matcher.group(1)),
+                Long.parseLong(matcher.group(2)),
+                Long.parseLong(matcher.group(3)),
+                Long.parseLong(matcher.group(4))
+        );
     }
 
     private static int tableWidth(String tableXml) {

@@ -34,6 +34,18 @@
   - `report_system/implementation/外部集成与导出实现.md`
   - `report_system/implementation/报告导出POI转换实现.md`
 
+## 2026-05-29 默认页脚与 PPT 页码位置
+
+- 变更动机：
+  - 旧默认页脚 `Visual Document OS` 不符合当前产品标识；PPT 页码与页脚文本拼接在左侧，不符合右下角页码习惯。
+- 设计决策：
+  - Word/PPT 导出在 `basicInfo.footer` 缺省时默认使用 `ChatBI`。
+  - PPT 页码独立渲染在右下角，不再拼接到左侧页脚文本后。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
 ## 2026-05-29 PPT 表格紧凑默认样式
 
 - 变更动机：
