@@ -44,7 +44,7 @@ class OfficeExporterStyleTest {
         assertEquals(CoverMetaPosition.BOTTOM_RIGHT, configuration.word().cover().metaPosition());
         assertTrue(configuration.word().cover().keepMetaOnFirstPage());
         assertTrue(configuration.word().toc().enabled());
-        assertEquals(0.12, configuration.word().toc().topOffsetRatio(), 0.0001);
+        assertEquals(0.05, configuration.word().toc().topOffsetRatio(), 0.0001);
         assertTrue(configuration.word().toc().linkEnabled());
         assertTrue(configuration.word().table().fitToPage());
         assertFalse(configuration.word().table().repeatHeaderOnPageBreak());
@@ -108,6 +108,7 @@ class OfficeExporterStyleTest {
         new ReportDocxExporter().export(doc, output, ExportRequest.defaults());
 
         String documentXml = zipEntry(output, "word/document.xml");
+        String stylesXml = zipEntry(output, "word/styles.xml");
         assertTrue(documentXml.contains("1 运营分析"));
         assertTrue(documentXml.contains("1.1 异常归因"));
         assertTrue(documentXml.contains("2 建议"));
@@ -116,7 +117,12 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("<w:bookmarkStart"));
         assertTrue(documentXml.contains("w:name=\"rs_cat_1_"));
         assertTrue(documentXml.contains("w:name=\"rs_cat_1_1_"));
-        assertTrue(documentXml.contains("<w:spacing w:after=\""));
+        assertTrue(spacingAfterValues(documentXml).stream().anyMatch(value -> value >= 360 && value < 900));
+        assertFalse(documentXml.contains("<w:spacing w:after=\"900\""));
+        assertHeadingParagraph(documentXml, "1 运营分析", "Heading1", "0");
+        assertHeadingParagraph(documentXml, "1.1 异常归因", "Heading2", "1");
+        assertTrue(stylesXml.contains("w:styleId=\"Heading1\""));
+        assertTrue(stylesXml.contains("w:styleId=\"Heading2\""));
         assertTrue(documentXml.contains("正文一"));
         assertTrue(documentXml.contains("正文二"));
         assertFalse(documentXml.contains("不要显示的章节标题"));
@@ -157,6 +163,7 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("<wp:positionV relativeFrom=\"page\"><wp:posOffset>0</wp:posOffset></wp:positionV>"));
         assertTrue(documentXml.contains("<wp:extent cx=\"7560310\" cy=\"10692130\""));
         assertTrue(documentXml.contains("背景封面"));
+        assertAnchorInsideFirstTable(documentXml);
         assertBeforeCoverPageBreak(documentXml, "报告人：张三");
         assertBeforeCoverPageBreak(documentXml, "时间：2026年5月28日");
         assertTrue(relsXml.contains("image"));
@@ -180,6 +187,7 @@ class OfficeExporterStyleTest {
         String documentXml = zipEntry(output, "word/document.xml");
         assertTrue(documentXml.contains("<w:hyperlink w:anchor=\"rs_section_"));
         assertTrue(documentXml.contains("<w:bookmarkStart"));
+        assertHeadingParagraph(documentXml, "正文章节", "Heading1", "0");
         assertTrue(documentXml.contains("正文章节"));
     }
 
@@ -380,6 +388,11 @@ class OfficeExporterStyleTest {
         props.put("coverAuthor", "张三");
         props.put("coverDate", "2026年5月28日");
         props.put("coverImage", "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=");
+        props.put("coverContents", List.of(
+                "封面图背景不应占用正文流高度",
+                "报告人和时间必须仍停留在首页",
+                "即使封面说明有多行，也不能把元信息挤到第二页"
+        ));
         props.put("tocShow", false);
         props.put("summaryEnabled", false);
         props.put("signatureEnabled", false);
@@ -790,6 +803,41 @@ class OfficeExporterStyleTest {
         assertTrue(textIndex >= 0, text);
         assertTrue(pageBreakIndex >= 0);
         assertTrue(textIndex < pageBreakIndex, text);
+    }
+
+    private static void assertAnchorInsideFirstTable(String documentXml) {
+        int tableStart = documentXml.indexOf("<w:tbl>");
+        int tableEnd = documentXml.indexOf("</w:tbl>", tableStart);
+        int anchor = documentXml.indexOf("<wp:anchor");
+        assertTrue(tableStart >= 0);
+        assertTrue(tableEnd > tableStart);
+        assertTrue(anchor > tableStart && anchor < tableEnd);
+    }
+
+    private static void assertHeadingParagraph(String documentXml, String text, String styleId, String outlineLevel) {
+        String paragraph = paragraphContaining(documentXml, text, true);
+        assertTrue(paragraph.contains("<w:pStyle w:val=\"" + styleId + "\""), paragraph);
+        assertTrue(paragraph.contains("<w:outlineLvl w:val=\"" + outlineLevel + "\""), paragraph);
+    }
+
+    private static String paragraphContaining(String documentXml, String text, boolean requireBookmark) {
+        Matcher matcher = Pattern.compile("<w:p[ >].*?</w:p>", Pattern.DOTALL).matcher(documentXml);
+        while (matcher.find()) {
+            String paragraph = matcher.group();
+            if (paragraph.contains(text) && (!requireBookmark || paragraph.contains("<w:bookmarkStart"))) {
+                return paragraph;
+            }
+        }
+        return "";
+    }
+
+    private static List<Integer> spacingAfterValues(String documentXml) {
+        Matcher matcher = Pattern.compile("<w:spacing[^>]*w:after=\"(\\d+)\"").matcher(documentXml);
+        List<Integer> values = new ArrayList<>();
+        while (matcher.find()) {
+            values.add(Integer.parseInt(matcher.group(1)));
+        }
+        return values;
     }
 
     private static String enclosingShape(String xml, String text) {

@@ -29,6 +29,8 @@ import org.apache.poi.xwpf.usermodel.XWPFFooter;
 import org.apache.poi.xwpf.usermodel.XWPFHeader;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.xwpf.usermodel.XWPFStyle;
+import org.apache.poi.xwpf.usermodel.XWPFStyles;
 import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.apache.poi.xwpf.usermodel.XWPFTableCell;
 import org.apache.poi.xwpf.usermodel.XWPFTableRow;
@@ -39,6 +41,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPageSz;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTBookmark;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTHyperlink;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTMarkupRange;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSectPr;
@@ -52,6 +55,7 @@ import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTrPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTSimpleField;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STMerge;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STHdrFtr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STStyleType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblLayoutType;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STTblWidth;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STUnderline;
@@ -194,6 +198,7 @@ public class ReportDocxExporter implements DocumentExporter {
             DocxRenderContext context = new DocxRenderContext(document, theme, chartSpecParser, props, doc);
 
             configurePage(document, props);
+            ensureHeadingStyles(document, theme);
             setupHeaderFooter(document, props, str(props.get("reportTitle"), defaultReportTitle(doc)), theme);
 
             boolean coverEnabled = bool(props.get("coverEnabled"), true);
@@ -291,6 +296,43 @@ public class ReportDocxExporter implements DocumentExporter {
         }
     }
 
+    private void ensureHeadingStyles(XWPFDocument document, ThemeTokens theme) {
+        XWPFStyles styles = document.getStyles();
+        if (styles == null) {
+            styles = document.createStyles();
+        }
+        for (int level = 1; level <= 6; level++) {
+            String styleId = headingStyleId(level);
+            if (!styles.styleExist(styleId)) {
+                styles.addStyle(new XWPFStyle(createHeadingStyle(styleId, level, theme), styles));
+            }
+        }
+    }
+
+    private CTStyle createHeadingStyle(String styleId, int level, ThemeTokens theme) {
+        CTStyle style = CTStyle.Factory.newInstance();
+        style.setStyleId(styleId);
+        style.setType(STStyleType.PARAGRAPH);
+        style.addNewName().setVal("heading " + level);
+        style.addNewBasedOn().setVal("Normal");
+        style.addNewNext().setVal("Normal");
+        style.addNewUiPriority().setVal(BigInteger.valueOf(level <= 3 ? 9L + level : 20L + level));
+        style.addNewQFormat();
+
+        var pPr = style.addNewPPr();
+        pPr.addNewOutlineLvl().setVal(BigInteger.valueOf(level - 1L));
+        pPr.addNewSpacing().setAfter(BigInteger.valueOf(level <= 1 ? 160L : 120L));
+
+        var rPr = style.addNewRPr();
+        rPr.addNewB();
+        rPr.addNewColor().setVal(VisualStyle.toHexNoHash(theme.text()));
+        var fonts = rPr.addNewRFonts();
+        fonts.setAscii(theme.fontPrimary());
+        fonts.setEastAsia(theme.fontPrimary());
+        rPr.addNewSz().setVal(BigInteger.valueOf((level <= 1 ? 18L : level == 2 ? 16L : 14L) * 2L));
+        return style;
+    }
+
     /**
      * 生成封面页。
      */
@@ -303,8 +345,6 @@ public class ReportDocxExporter implements DocumentExporter {
         String coverNote = str(props.get("coverNote"), "");
         String coverImage = str(props.get("coverImage"), "");
         boolean hasCoverImage = !coverImage.isBlank();
-
-        addCoverBackgroundIfPresent(context, coverImage);
 
         XWPFTable cover = context.document.createTable(4, 1);
         cover.removeBorders();
@@ -323,6 +363,7 @@ public class ReportDocxExporter implements DocumentExporter {
         setCoverRow(cover.getRow(1), titleHeight, hasCoverImage ? null : context.theme.panel());
         setCoverRow(cover.getRow(2), noteHeight, hasCoverImage ? null : context.theme.panel());
         setCoverRow(cover.getRow(3), metaHeight, hasCoverImage ? null : context.theme.panel());
+        addCoverBackgroundIfPresent(context, cover.getRow(0).getCell(0), coverImage);
 
         XWPFTableCell titleCell = cover.getRow(1).getCell(0);
         titleCell.setVerticalAlignment(XWPFTableCell.XWPFVertAlign.CENTER);
@@ -360,7 +401,7 @@ public class ReportDocxExporter implements DocumentExporter {
         return 0;
     }
 
-    private void addCoverBackgroundIfPresent(DocxRenderContext context, String rawImage) {
+    private void addCoverBackgroundIfPresent(DocxRenderContext context, XWPFTableCell cell, String rawImage) {
         DecodedImage image = decodeImage(rawImage);
         if (image == null) {
             return;
@@ -370,7 +411,10 @@ public class ReportDocxExporter implements DocumentExporter {
         long widthEmu = ("Letter".equalsIgnoreCase(pageSize) ? 12240L : 11906L) * 635L;
         long heightEmu = ("Letter".equalsIgnoreCase(pageSize) ? 15840L : 16838L) * 635L;
         try (ByteArrayInputStream in = new ByteArrayInputStream(image.bytes())) {
-            XWPFParagraph paragraph = context.document.createParagraph();
+            XWPFParagraph paragraph = cell.getParagraphArray(0);
+            if (paragraph == null) {
+                paragraph = cell.addParagraph();
+            }
             paragraph.setSpacingBefore(0);
             paragraph.setSpacingAfter(0);
             paragraph.setPageBreak(false);
@@ -484,7 +528,7 @@ public class ReportDocxExporter implements DocumentExporter {
         XWPFParagraph spacer = context.document.createParagraph();
         spacer.setSpacingBefore(0);
         spacer.setSpacingAfter(Math.max(
-                900,
+                360,
                 (int) Math.round(resolveWritablePageHeightTwips(context.rootProps()) * configuration.word().toc().topOffsetRatio())
         ));
     }
@@ -675,6 +719,7 @@ public class ReportDocxExporter implements DocumentExporter {
         int sectionGapTwips = resolveSectionGapTwips(context.rootProps());
         int bodyPaddingTwips = resolveBodyPaddingTwips(context.rootProps());
         XWPFParagraph p = context.document.createParagraph();
+        setHeadingParagraphStyle(p, level);
         p.setAlignment(ParagraphAlignment.LEFT);
         p.setSpacingBefore(level <= 1 ? Math.max(100, bodyPaddingTwips / 2) : Math.max(60, bodyPaddingTwips / 3));
         p.setSpacingAfter(Math.max(80, sectionGapTwips));
@@ -695,6 +740,21 @@ public class ReportDocxExporter implements DocumentExporter {
             CTMarkupRange bookmarkEnd = p.getCTP().addNewBookmarkEnd();
             bookmarkEnd.setId(bookmarkId);
         }
+    }
+
+    private void setHeadingParagraphStyle(XWPFParagraph paragraph, int level) {
+        int safeLevel = clampInt(level, 1, 6);
+        String styleId = headingStyleId(safeLevel);
+        paragraph.setStyle(styleId);
+        var pPr = paragraph.getCTP().isSetPPr() ? paragraph.getCTP().getPPr() : paragraph.getCTP().addNewPPr();
+        var pStyle = pPr.isSetPStyle() ? pPr.getPStyle() : pPr.addNewPStyle();
+        pStyle.setVal(styleId);
+        var outline = pPr.isSetOutlineLvl() ? pPr.getOutlineLvl() : pPr.addNewOutlineLvl();
+        outline.setVal(BigInteger.valueOf(safeLevel - 1L));
+    }
+
+    private String headingStyleId(int level) {
+        return "Heading" + clampInt(level, 1, 6);
     }
 
     /**

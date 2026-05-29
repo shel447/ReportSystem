@@ -9,6 +9,6 @@ public record WordTocConfiguration(
         boolean linkEnabled
 ) {
     public static WordTocConfiguration defaults() {
-        return new WordTocConfiguration(true, 0.12, true);
+        return new WordTocConfiguration(true, 0.05, true);
     }
 }

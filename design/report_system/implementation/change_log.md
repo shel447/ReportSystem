@@ -15,13 +15,14 @@
 - 实现设计调整：
   - 新增 `com.chatbi.exporter.conf` 作为 exporter 默认文档配置包，集中维护独立于 Report DSL 的 `DocumentExportConfiguration` 默认值。
   - 当前不修改 CLI、HTTP 或 `ExportRequest` public API；DOCX/PPTX 导出器只读取内部默认配置，后续外部 `Document Configuration` 由适配层映射接入。
-  - `ReportDocxExporter` 的封面表格使用保守可写高度和固定行高，封面背景图仍铺满页面但不参与文本流高度计算。
+  - `ReportDocxExporter` 的封面表格使用保守可写高度和固定行高，封面背景图仍铺满页面；带图封面将背景图 anchor 写入封面表格内部，避免表格前独立段落占用首页文本流高度。
   - 封面报告人和报告时间固定写入最后一行右下角，并通过测试确认它们出现在封面分页符之前。
-  - DOCX 目录页增加顶部留白；正文 catalog/subCatalog 标题生成 bookmark，目录项使用内部 hyperlink 指向对应 bookmark。
+  - DOCX 目录页增加适度顶部留白，默认 `word.toc.topOffsetRatio = 0.05`；正文 catalog/subCatalog 标题生成 bookmark，目录项使用内部 hyperlink 指向对应 bookmark。
+  - DOCX 正文 catalog/subCatalog 标题写入 Word 原生 Heading 样式和 outline level，不能只通过字号和粗体模拟标题。
   - 旧扁平 section 输入继续生成可跳转目录，section title 只在无 catalog 输入时作为目录目标。
   - DOCX 表格默认不写入跨页重复 header 标记；空数据表格和组合表子表使用横向合并数据行输出“无数据”。
 - 验证要求：
-  - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退、目录顶部留白、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
+  - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退且不额外占流、目录顶部留白、真实 Heading 样式、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
   - Maven 测试和打包通过，样例 Word 可在 Office/WPS 中点击目录跳转。
 
 ## 2026-05-28 CompositeTable 无缝拼接导出

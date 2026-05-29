@@ -12,15 +12,18 @@
 
 - 变更动机：
   - Word 封面中的报告人和报告时间在部分文档中可能被挤到第 2 页，破坏封面信息完整性。
-  - Word 目录页位置偏上，且目录项不能点击跳转到正文。
+  - Word 目录页位置需要适度下移，但默认留白过大会造成目录过度下沉；目录项需要能点击跳转到正文。
   - Word/PPT 导出样式默认值需要与 Report DSL 分离，避免把导出器开关混入报告内容契约。
+  - Word 正文中的 catalog 标题如果只靠字号/粗体模拟，无法被 Word 样式、导航窗格和后续目录能力识别为真正标题。
 - 设计决策：
   - 新增独立 `Document Configuration` 概念，作为生成文档时的可选配置；它不属于 Report DSL，不进入 Report DSL schema。
   - 配置按 `global` 与 `word/ppt/pdf` 文档类型分组；当前 Java exporter 先使用内置默认值，后续再接入外部可选传入。
   - Word 封面必须保证标题、说明、报告人和报告时间都位于首页；封面布局需要预留安全高度，避免文字溢出到下一页。
+  - `cover.image` 作为铺满首页的 behind-text anchor 时，不能作为封面表格前的独立正文段落占用首页文本流高度。
   - Word 封面报告人和报告时间默认位于右下角。
-  - Word 目录页增加顶部留白，让目录整体位置更居中、更接近正式报告排版。
+  - Word 目录页增加适度顶部留白，默认 `word.toc.topOffsetRatio = 0.05`。
   - 目录采用静态链接目录：目录项可点击跳转到对应正文 catalog/subCatalog 标题；不显示动态页码，不依赖 Word 更新域。
+  - catalog/subCatalog 正文标题必须使用 Word 原生 Heading 样式和 outline level。
   - Word 表格默认不跨页重复 header；无数据表格使用合并数据行显示“无数据”。
 - 影响范围：
   - `report_system/06-文档生成与导出架构.md`

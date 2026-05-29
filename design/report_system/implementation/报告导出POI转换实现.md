@@ -213,7 +213,7 @@ flowchart TB
 |---|---|---|
 | `word.cover.metaPosition` | `bottomRight` | 封面最后一行 cell 垂直底部对齐，报告人/时间段落右对齐 |
 | `word.cover.keepMetaOnFirstPage` | `true` | 封面表格固定高度、行不可拆分，元信息位于封面分页符之前 |
-| `word.toc.topOffsetRatio` | `0.12` | 目录页标题前插入顶部留白段落 |
+| `word.toc.topOffsetRatio` | `0.05` | 目录页标题前插入适度顶部留白段落 |
 | `word.toc.linkEnabled` | `true` | 目录项写入 `w:hyperlink`，正文标题写入 bookmark |
 | `word.table.fitToPage` | `true` | 表格使用 fixed layout、`tblW/tblGrid/tcW` 固定到页面可用宽度 |
 | `word.table.repeatHeaderOnPageBreak` | `false` | 默认不写入 `w:tblHeader` |
@@ -246,7 +246,7 @@ public static void renderCover(XWPFDocument doc, ReportCover cover,
 }
 ```
 
-封面按首页整页视觉区域处理；`cover.image` 以 `wp:anchor behindDoc=true` 方式相对页面左上角定位，尺寸等于当前纸张大小，作为首页铺满背景图。报告人和时间不再拼接为居中文本，而是分别输出为“报告人：...”和“时间：...”两行，放在页面右下角。
+封面按首页整页视觉区域处理；`cover.image` 以 `wp:anchor behindDoc=true` 方式相对页面左上角定位，尺寸等于当前纸张大小，作为首页铺满背景图。背景图 anchor 应写入封面表格内部，不能作为封面表格前的独立正文段落占用首页文本流高度。报告人和时间不再拼接为居中文本，而是分别输出为“报告人：...”和“时间：...”两行，放在页面右下角。
 
 **POI 对象映射：**
 
@@ -320,6 +320,8 @@ private void renderSectionContent(XWPFDocument doc, ReportSection section, Theme
 | 1 | 2 | Heading2 | 14pt |
 | 2 | 3 | Heading3 | 12pt |
 | 3+ | 3 | Heading3 | 12pt |
+
+DOCX 正文中的 catalog/subCatalog 标题必须写入真实 Word 段落样式 (`w:pStyle=Heading1/2/3...`) 和 `w:outlineLvl`，以便 Word 导航窗格、样式识别和后续目录能力把它识别为标题；不能只通过字号和粗体模拟。
 
 ### 4.5 组件分发
 
