@@ -23,7 +23,6 @@ import com.chatbi.exporter.table.TableModel;
 import com.chatbi.exporter.table.TableSpecParser;
 import org.apache.poi.xwpf.model.XWPFHeaderFooterPolicy;
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
-import org.apache.poi.xwpf.usermodel.BreakType;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFFooter;
 import org.apache.poi.xwpf.usermodel.XWPFHeader;
@@ -321,7 +320,9 @@ public class ReportDocxExporter implements DocumentExporter {
 
         var pPr = style.addNewPPr();
         pPr.addNewOutlineLvl().setVal(BigInteger.valueOf(level - 1L));
-        pPr.addNewSpacing().setAfter(BigInteger.valueOf(level <= 1 ? 160L : 120L));
+        var spacing = pPr.addNewSpacing();
+        spacing.setBefore(BigInteger.valueOf(headingSpacingBeforeTwips(level)));
+        spacing.setAfter(BigInteger.valueOf(level <= 1 ? 160L : 120L));
 
         var rPr = style.addNewRPr();
         rPr.addNewB();
@@ -417,7 +418,6 @@ public class ReportDocxExporter implements DocumentExporter {
             }
             paragraph.setSpacingBefore(0);
             paragraph.setSpacingAfter(0);
-            paragraph.setPageBreak(false);
             XWPFRun run = paragraph.createRun();
             run.addPicture(in, image.pictureType(), "cover-background" + image.extension(), (int) widthEmu, (int) heightEmu);
             convertLastInlinePictureToPageBackground(run, widthEmu, heightEmu);
@@ -721,7 +721,7 @@ public class ReportDocxExporter implements DocumentExporter {
         XWPFParagraph p = context.document.createParagraph();
         setHeadingParagraphStyle(p, level);
         p.setAlignment(ParagraphAlignment.LEFT);
-        p.setSpacingBefore(level <= 1 ? Math.max(100, bodyPaddingTwips / 2) : Math.max(60, bodyPaddingTwips / 3));
+        p.setSpacingBefore(Math.max(headingSpacingBeforeTwips(level), level <= 1 ? bodyPaddingTwips / 2 : bodyPaddingTwips / 3));
         p.setSpacingAfter(Math.max(80, sectionGapTwips));
         BigInteger bookmarkId = null;
         if (bookmarkName != null && !bookmarkName.isBlank()) {
@@ -755,6 +755,10 @@ public class ReportDocxExporter implements DocumentExporter {
 
     private String headingStyleId(int level) {
         return "Heading" + clampInt(level, 1, 6);
+    }
+
+    private static int headingSpacingBeforeTwips(int level) {
+        return level <= 1 ? 360 : 240;
     }
 
     /**
@@ -1633,7 +1637,9 @@ public class ReportDocxExporter implements DocumentExporter {
      */
     private static void pageBreak(XWPFDocument document) {
         XWPFParagraph p = document.createParagraph();
-        p.createRun().addBreak(BreakType.PAGE);
+        p.setSpacingBefore(0);
+        p.setSpacingAfter(0);
+        p.setPageBreak(true);
     }
 
     /**

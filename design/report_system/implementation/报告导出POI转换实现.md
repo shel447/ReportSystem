@@ -65,6 +65,12 @@ flowchart TB
 | `ReportPptxExporter` | PPT 导出主流程 | DSL | XMLSlideShow |
 | `*Renderer` | 组件级渲染 | Component | POI 对象 |
 
+### 2.3 BI Engine DSL 类型路由
+
+当前导出运行时通过 `DslReader -> BiEngineDslNormalizer -> VDoc` 兼容 BI Engine Report DSL。归一化时必须先读取 `basicInfo.reportType` 来决定目标文档语义：`PPT/PPTX/Presentation` 归一化为 `docType=ppt`，`Word/DOCX/Report` 归一化为 `docType=report`。只有缺失 `reportType` 时，才依次使用顶层 `reportType`、`structureType` 和结构字段兜底。
+
+`structureType` 仍用于描述 DSL 主体结构，但不应在 `basicInfo.reportType` 已明确时反向覆盖导出格式；因此即使 paged/PPT DSL 中兼容性携带了 `catalogs`，也不能被误归一化为 Word。CLI `--target auto` 发现 `docType` 与输出扩展名冲突时应报错，避免把 PPT DSL 静默生成 DOCX。
+
 ## 3. 数据模型映射
 
 ### 3.1 Report DSL 结构
@@ -248,6 +254,8 @@ public static void renderCover(XWPFDocument doc, ReportCover cover,
 
 封面按首页整页视觉区域处理；`cover.image` 以 `wp:anchor behindDoc=true` 方式相对页面左上角定位，尺寸等于当前纸张大小，作为首页铺满背景图。背景图 anchor 应写入封面表格内部，不能作为封面表格前的独立正文段落占用首页文本流高度。报告人和时间不再拼接为居中文本，而是分别输出为“报告人：...”和“时间：...”两行，放在页面右下角。
 
+封面后的分页控制使用零间距段落 `pageBreakBefore`，不使用独立 run 的 `w:br type=page`；这样当封面表格占满首页可写高度时，分页控制段落会作为下一页起始段落承载后续内容，避免形成空白第二页。
+
 **POI 对象映射：**
 
 | DSL 字段 | POI 对象 | 样式 |
@@ -322,6 +330,8 @@ private void renderSectionContent(XWPFDocument doc, ReportSection section, Theme
 | 3+ | 3 | Heading3 | 12pt |
 
 DOCX 正文中的 catalog/subCatalog 标题必须写入真实 Word 段落样式 (`w:pStyle=Heading1/2/3...`) 和 `w:outlineLvl`，以便 Word 导航窗格、样式识别和后续目录能力把它识别为标题；不能只通过字号和粗体模拟。
+
+正文 Heading 段落应显式写入行前距，避免 catalog 标题紧贴上一段内容；默认一级标题行前距不少于 360twips，二级及以下不少于 240twips。
 
 ### 4.5 组件分发
 

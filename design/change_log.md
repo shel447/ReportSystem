@@ -12,19 +12,36 @@
 
 - 变更动机：
   - Word 封面中的报告人和报告时间在部分文档中可能被挤到第 2 页，破坏封面信息完整性。
+  - 带封面的报告虽然元信息已回到首页，但封面后仍可能因为独立 page-break run 被挤出而多出空白第二页。
   - Word 目录页位置需要适度下移，但默认留白过大会造成目录过度下沉；目录项需要能点击跳转到正文。
   - Word/PPT 导出样式默认值需要与 Report DSL 分离，避免把导出器开关混入报告内容契约。
   - Word 正文中的 catalog 标题如果只靠字号/粗体模拟，无法被 Word 样式、导航窗格和后续目录能力识别为真正标题。
+  - catalog 标题成为真实 Heading 后仍需要合适行前距，避免紧贴上一段正文。
 - 设计决策：
   - 新增独立 `Document Configuration` 概念，作为生成文档时的可选配置；它不属于 Report DSL，不进入 Report DSL schema。
   - 配置按 `global` 与 `word/ppt/pdf` 文档类型分组；当前 Java exporter 先使用内置默认值，后续再接入外部可选传入。
   - Word 封面必须保证标题、说明、报告人和报告时间都位于首页；封面布局需要预留安全高度，避免文字溢出到下一页。
   - `cover.image` 作为铺满首页的 behind-text anchor 时，不能作为封面表格前的独立正文段落占用首页文本流高度。
+  - 封面后的分页控制采用 `pageBreakBefore` 段落，避免空白第二页。
   - Word 封面报告人和报告时间默认位于右下角。
   - Word 目录页增加适度顶部留白，默认 `word.toc.topOffsetRatio = 0.05`。
   - 目录采用静态链接目录：目录项可点击跳转到对应正文 catalog/subCatalog 标题；不显示动态页码，不依赖 Word 更新域。
   - catalog/subCatalog 正文标题必须使用 Word 原生 Heading 样式和 outline level。
+  - catalog/subCatalog 正文标题默认写入行前距：一级不少于 360twips，二级及以下不少于 240twips。
   - Word 表格默认不跨页重复 header；无数据表格使用合并数据行显示“无数据”。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
+## 2026-05-29 Java 导出器按 reportType 判定 Word/PPT
+
+- 变更动机：
+  - paged/PPT DSL 在兼容或测试场景中可能同时携带 `catalogs` 等 flow 字段，若导出器只按结构字段判断，会把本应生成 PPT 的 DSL 误归一化为 Word。
+- 设计决策：
+  - Java Office Exporter 归一化 Report DSL 时优先读取 `basicInfo.reportType` 判定 Word/PPT。
+  - `structureType` 只作为 `reportType` 缺失时的第二层语义提示；`content/catalogs` 只作为最后兜底。
+  - CLI 自动推断导出目标时，如果 DSL 类型与输出文件扩展名冲突，应直接报错，不再静默生成错误格式。
 - 影响范围：
   - `report_system/06-文档生成与导出架构.md`
   - `report_system/implementation/外部集成与导出实现.md`

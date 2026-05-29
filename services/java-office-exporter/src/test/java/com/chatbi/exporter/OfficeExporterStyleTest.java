@@ -29,6 +29,7 @@ import java.util.zip.ZipFile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OfficeExporterStyleTest {
@@ -95,6 +96,37 @@ class OfficeExporterStyleTest {
     }
 
     @Test
+    void biEngineNormalizerUsesBasicInfoReportTypeBeforeShapeHints() throws Exception {
+        Path pagedInput = tempDir.resolve("paged-with-catalogs.json");
+        Path flowInput = tempDir.resolve("flow-with-content.json");
+        Path output = tempDir.resolve("paged-with-catalogs.pptx");
+        Files.writeString(pagedInput, pagedDslWithCatalogsAndReportTypePpt(), StandardCharsets.UTF_8);
+        Files.writeString(flowInput, flowDslWithContentAndReportTypeWord(), StandardCharsets.UTF_8);
+
+        VDoc pagedDoc = DslReader.read(pagedInput);
+        VDoc flowDoc = DslReader.read(flowInput);
+
+        assertEquals("ppt", pagedDoc.docType);
+        assertEquals("report", flowDoc.docType);
+        new DeckPptxExporter().export(pagedDoc, output, ExportRequest.defaults());
+        assertTrue(zipEntry(output, "ppt/slides/slide1.xml").contains("这是 PPT 页面"));
+        assertEquals("", zipEntry(output, "word/document.xml"));
+    }
+
+    @Test
+    void cliAutoRejectsOutputExtensionThatConflictsWithDslReportType() throws Exception {
+        Path input = tempDir.resolve("paged-with-catalogs.json");
+        Path output = tempDir.resolve("wrong-extension.docx");
+        Files.writeString(input, pagedDslWithCatalogsAndReportTypePpt(), StandardCharsets.UTF_8);
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class,
+                () -> CliMain.main(new String[]{"--input", input.toString(), "--output", output.toString()})
+        );
+        assertTrue(error.getMessage().contains("Output extension conflicts with DSL report type"));
+    }
+
+    @Test
     void docxCatalogsRenderNumberedTocAndContentWithoutSectionTitles() throws Exception {
         Path input = tempDir.resolve("catalog-flow.json");
         Path output = tempDir.resolve("catalog-flow.docx");
@@ -121,8 +153,12 @@ class OfficeExporterStyleTest {
         assertFalse(documentXml.contains("<w:spacing w:after=\"900\""));
         assertHeadingParagraph(documentXml, "1 运营分析", "Heading1", "0");
         assertHeadingParagraph(documentXml, "1.1 异常归因", "Heading2", "1");
+        assertHeadingSpacingBefore(documentXml, "1 运营分析", 360);
+        assertHeadingSpacingBefore(documentXml, "1.1 异常归因", 240);
         assertTrue(stylesXml.contains("w:styleId=\"Heading1\""));
         assertTrue(stylesXml.contains("w:styleId=\"Heading2\""));
+        assertTrue(stylesXml.contains("w:before=\"360\""));
+        assertTrue(stylesXml.contains("w:before=\"240\""));
         assertTrue(documentXml.contains("正文一"));
         assertTrue(documentXml.contains("正文二"));
         assertFalse(documentXml.contains("不要显示的章节标题"));
@@ -145,8 +181,10 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("<w:vAlign w:val=\"bottom\""));
         assertTrue(documentXml.contains("<w:jc w:val=\"right\""));
         assertFalse(documentXml.contains("<w:ind w:left=\"720\""));
-        assertBeforeCoverPageBreak(documentXml, "报告人：张三");
-        assertBeforeCoverPageBreak(documentXml, "时间：2026年5月28日");
+        assertFalse(documentXml.contains("<w:br w:type=\"page\""));
+        assertTrue(documentXml.contains("<w:pageBreakBefore"));
+        assertBeforeCoverPageBreakControl(documentXml, "报告人：张三");
+        assertBeforeCoverPageBreakControl(documentXml, "时间：2026年5月28日");
     }
 
     @Test
@@ -164,8 +202,10 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("<wp:extent cx=\"7560310\" cy=\"10692130\""));
         assertTrue(documentXml.contains("背景封面"));
         assertAnchorInsideFirstTable(documentXml);
-        assertBeforeCoverPageBreak(documentXml, "报告人：张三");
-        assertBeforeCoverPageBreak(documentXml, "时间：2026年5月28日");
+        assertFalse(documentXml.contains("<w:br w:type=\"page\""));
+        assertTrue(documentXml.contains("<w:pageBreakBefore"));
+        assertBeforeCoverPageBreakControl(documentXml, "报告人：张三");
+        assertBeforeCoverPageBreakControl(documentXml, "时间：2026年5月28日");
         assertTrue(relsXml.contains("image"));
     }
 
@@ -188,6 +228,7 @@ class OfficeExporterStyleTest {
         assertTrue(documentXml.contains("<w:hyperlink w:anchor=\"rs_section_"));
         assertTrue(documentXml.contains("<w:bookmarkStart"));
         assertHeadingParagraph(documentXml, "正文章节", "Heading1", "0");
+        assertHeadingSpacingBefore(documentXml, "正文章节", 360);
         assertTrue(documentXml.contains("正文章节"));
     }
 
@@ -785,6 +826,84 @@ class OfficeExporterStyleTest {
                 """;
     }
 
+    private static String pagedDslWithCatalogsAndReportTypePpt() {
+        return """
+                {
+                  "structureType": "flow",
+                  "basicInfo": {
+                    "id": "paged-with-catalogs",
+                    "name": "按 reportType 路由的 PPT",
+                    "schemaVersion": "1.0.0",
+                    "reportType": "PPT"
+                  },
+                  "catalogs": [
+                    {
+                      "id": "cat_should_not_win",
+                      "name": "不应作为 Word 目录",
+                      "sections": [
+                        {
+                          "id": "sec_should_not_win",
+                          "components": [
+                            {"id": "wrong_text", "type": "text", "dataProperties": {"content": "不应导出到 Word"}}
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "content": [
+                    {
+                      "id": "slide_report_type",
+                      "type": "slide",
+                      "title": "ReportType PPT",
+                      "components": [
+                        {
+                          "id": "ppt_text",
+                          "type": "text",
+                          "layout": {"type": "absolute", "x": 80, "y": 120, "w": 720, "h": 80},
+                          "dataProperties": {"content": "这是 PPT 页面"}
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private static String flowDslWithContentAndReportTypeWord() {
+        return """
+                {
+                  "structureType": "paged",
+                  "basicInfo": {
+                    "id": "flow-with-content",
+                    "name": "按 reportType 路由的 Word",
+                    "schemaVersion": "1.0.0",
+                    "reportType": "Word"
+                  },
+                  "content": [
+                    {
+                      "id": "slide_should_not_win",
+                      "type": "slide",
+                      "title": "不应作为 PPT"
+                    }
+                  ],
+                  "catalogs": [
+                    {
+                      "id": "cat_report_type",
+                      "name": "Word 目录",
+                      "sections": [
+                        {
+                          "id": "sec_report_type",
+                          "components": [
+                            {"id": "word_text", "type": "text", "dataProperties": {"content": "这是 Word 正文"}}
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+    }
+
     private static String zipEntry(Path zipPath, String entryName) throws IOException {
         try (ZipFile zip = new ZipFile(zipPath.toFile())) {
             ZipEntry entry = zip.getEntry(entryName);
@@ -797,9 +916,9 @@ class OfficeExporterStyleTest {
         }
     }
 
-    private static void assertBeforeCoverPageBreak(String documentXml, String text) {
+    private static void assertBeforeCoverPageBreakControl(String documentXml, String text) {
         int textIndex = documentXml.indexOf(text);
-        int pageBreakIndex = documentXml.indexOf("<w:br w:type=\"page\"");
+        int pageBreakIndex = documentXml.indexOf("<w:pageBreakBefore");
         assertTrue(textIndex >= 0, text);
         assertTrue(pageBreakIndex >= 0);
         assertTrue(textIndex < pageBreakIndex, text);
@@ -818,6 +937,13 @@ class OfficeExporterStyleTest {
         String paragraph = paragraphContaining(documentXml, text, true);
         assertTrue(paragraph.contains("<w:pStyle w:val=\"" + styleId + "\""), paragraph);
         assertTrue(paragraph.contains("<w:outlineLvl w:val=\"" + outlineLevel + "\""), paragraph);
+    }
+
+    private static void assertHeadingSpacingBefore(String documentXml, String text, int minimumTwips) {
+        String paragraph = paragraphContaining(documentXml, text, true);
+        Matcher matcher = Pattern.compile("<w:spacing[^>]*w:before=\"(\\d+)\"").matcher(paragraph);
+        assertTrue(matcher.find(), paragraph);
+        assertTrue(Integer.parseInt(matcher.group(1)) >= minimumTwips, paragraph);
     }
 
     private static String paragraphContaining(String documentXml, String text, boolean requireBookmark) {

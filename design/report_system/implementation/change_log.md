@@ -16,14 +16,28 @@
   - 新增 `com.chatbi.exporter.conf` 作为 exporter 默认文档配置包，集中维护独立于 Report DSL 的 `DocumentExportConfiguration` 默认值。
   - 当前不修改 CLI、HTTP 或 `ExportRequest` public API；DOCX/PPTX 导出器只读取内部默认配置，后续外部 `Document Configuration` 由适配层映射接入。
   - `ReportDocxExporter` 的封面表格使用保守可写高度和固定行高，封面背景图仍铺满页面；带图封面将背景图 anchor 写入封面表格内部，避免表格前独立段落占用首页文本流高度。
+  - 封面后的分页控制改为零间距段落 `pageBreakBefore`，避免封面表格后独立 page-break run 被挤到下一页后再分页，造成空白第二页。
   - 封面报告人和报告时间固定写入最后一行右下角，并通过测试确认它们出现在封面分页符之前。
   - DOCX 目录页增加适度顶部留白，默认 `word.toc.topOffsetRatio = 0.05`；正文 catalog/subCatalog 标题生成 bookmark，目录项使用内部 hyperlink 指向对应 bookmark。
-  - DOCX 正文 catalog/subCatalog 标题写入 Word 原生 Heading 样式和 outline level，不能只通过字号和粗体模拟标题。
+  - DOCX 正文 catalog/subCatalog 标题写入 Word 原生 Heading 样式和 outline level，不能只通过字号和粗体模拟标题；Heading 段落默认行前距一级不少于 360twips，二级及以下不少于 240twips。
   - 旧扁平 section 输入继续生成可跳转目录，section title 只在无 catalog 输入时作为目录目标。
   - DOCX 表格默认不写入跨页重复 header 标记；空数据表格和组合表子表使用横向合并数据行输出“无数据”。
 - 验证要求：
-  - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退且不额外占流、目录顶部留白、真实 Heading 样式、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
+  - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退且不额外占流、封面后无空白页分页控制、目录顶部留白、真实 Heading 样式与行前距、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
   - Maven 测试和打包通过，样例 Word 可在 Office/WPS 中点击目录跳转。
+
+## 2026-05-29 BI Engine DSL 导出类型路由修正
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-29 Java 导出器按 reportType 判定 Word/PPT"
+- 实现设计调整：
+  - `BiEngineDslNormalizer` 的入口路由从“先看 `catalogs` 再看 `content`”调整为“先看 `basicInfo.reportType`，再看顶层 `reportType`、`structureType`，最后按结构字段兜底”。
+  - `basicInfo.reportType = PPT/PPTX/Presentation` 时归一化为 `docType=ppt`；`Word/DOCX/Report` 时归一化为 `docType=report`。
+  - CLI `--target auto` 对比归一化后的 `docType` 与输出扩展名；冲突时抛出明确错误，避免 paged/PPT DSL 被静默导出成 DOCX。
+- 验证要求：
+  - 测试覆盖同时包含 `catalogs` 与 `content` 的 DSL：`basicInfo.reportType=PPT` 必须进入 PPTX 链路，`basicInfo.reportType=Word` 必须进入 DOCX 链路。
+  - 测试覆盖 `--target auto` 的扩展名冲突报错。
+  - 生成 PPTX 样例并检查 Office 包中存在 `ppt/slides/*` 且不存在 `word/document.xml`。
 
 ## 2026-05-28 CompositeTable 无缝拼接导出
 

@@ -33,13 +33,60 @@ public final class BiEngineDslNormalizer {
         if (root == null || root.isNull() || !root.isObject()) {
             throw new IllegalArgumentException("Unsupported DSL: root must be an object.");
         }
-        if (root.has("catalogs")) {
+        String targetType = resolveTargetType(root, mapper);
+        if ("word".equals(targetType)) {
             return normalizeReport(root, mapper);
         }
-        if (root.has("content")) {
+        if ("ppt".equals(targetType)) {
             return normalizePpt(root, mapper);
         }
         throw new IllegalArgumentException("Unsupported DSL: expected VDoc, BI Engine Report, or BI Engine PPT.");
+    }
+
+    private static String resolveTargetType(JsonNode root, ObjectMapper mapper) {
+        Map<String, Object> basic = map(root.get("basicInfo"), mapper);
+        String reportType = str(basic.get("reportType"), "");
+        String byReportType = normalizeReportType(reportType);
+        if (!byReportType.isBlank()) {
+            return byReportType;
+        }
+
+        String topLevelReportType = root.path("reportType").asText("");
+        byReportType = normalizeReportType(topLevelReportType);
+        if (!byReportType.isBlank()) {
+            return byReportType;
+        }
+
+        String byStructureType = normalizeStructureType(root.path("structureType").asText(""));
+        if (!byStructureType.isBlank()) {
+            return byStructureType;
+        }
+
+        if (root.has("content")) {
+            return "ppt";
+        }
+        if (root.has("catalogs")) {
+            return "word";
+        }
+        return "";
+    }
+
+    private static String normalizeReportType(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase().replace('_', '-');
+        return switch (normalized) {
+            case "ppt", "pptx", "presentation", "presentations", "slide", "slides", "paged" -> "ppt";
+            case "word", "doc", "docx", "report", "flow" -> "word";
+            default -> "";
+        };
+    }
+
+    private static String normalizeStructureType(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase();
+        return switch (normalized) {
+            case "paged" -> "ppt";
+            case "flow" -> "word";
+            default -> "";
+        };
     }
 
     private static VDoc normalizeReport(JsonNode root, ObjectMapper mapper) {

@@ -66,6 +66,26 @@ public final class CliMain {
             return ExportTarget.fromCli(requested);
         }
 
+        ExportTarget docTypeTarget = targetFromDocType(doc.docType);
+        ExportTarget extensionTarget = targetFromExtension(output);
+        if (docTypeTarget != null && extensionTarget != null && docTypeTarget != extensionTarget) {
+            throw new IllegalArgumentException(
+                    "Output extension conflicts with DSL report type: docType="
+                            + doc.docType
+                            + ", output="
+                            + output.getFileName()
+            );
+        }
+        if (docTypeTarget != null) {
+            return docTypeTarget;
+        }
+        if (extensionTarget != null) {
+            return extensionTarget;
+        }
+        throw new IllegalArgumentException("Cannot infer target from docType/output extension. Use --target docx|pptx");
+    }
+
+    private static ExportTarget targetFromExtension(Path output) {
         String fileName = output.getFileName().toString().toLowerCase();
         if (fileName.endsWith(".docx")) {
             return ExportTarget.DOCX;
@@ -73,13 +93,17 @@ public final class CliMain {
         if (fileName.endsWith(".pptx")) {
             return ExportTarget.PPTX;
         }
-        if ("report".equalsIgnoreCase(doc.docType)) {
+        return null;
+    }
+
+    private static ExportTarget targetFromDocType(String docType) {
+        if ("report".equalsIgnoreCase(docType)) {
             return ExportTarget.DOCX;
         }
-        if ("ppt".equalsIgnoreCase(doc.docType)) {
+        if ("ppt".equalsIgnoreCase(docType)) {
             return ExportTarget.PPTX;
         }
-        throw new IllegalArgumentException("Cannot infer target from docType/output extension. Use --target docx|pptx");
+        return null;
     }
 
     /**
