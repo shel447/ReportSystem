@@ -26,6 +26,19 @@
   - 测试覆盖默认配置对象、封面元信息首页约束、背景封面不回退且不额外占流、封面后无空白页分页控制、目录顶部留白、真实 Heading 样式与行前距、目录 hyperlink 与正文 bookmark 匹配、表格不重复 header、空表“无数据”。
   - Maven 测试和打包通过，样例 Word 可在 Office/WPS 中点击目录跳转。
 
+## 2026-05-29 PPT 表格紧凑默认样式
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-29 PPT 表格紧凑默认样式"
+- 实现设计调整：
+  - `com.chatbi.exporter.conf` 新增 `PptTableConfiguration`，并挂到 `PptExportConfiguration.table`，集中维护 PPT 表格默认字号、行高、内边距和安全边距。
+  - `DeckPptxExporter` 渲染普通 table 与 compositeTable 子表时读取 `ppt.table` 默认值，按行数计算实际 anchor 高度，避免表格区域过大时把每行拉得过高。
+  - PPT 表格 anchor 限制在当前幻灯片尺寸内，保留安全边距；文本启用换行和 autofit。
+- 验证要求：
+  - 测试覆盖 `DocumentExportConfiguration.defaults().ppt().table()` 默认值。
+  - 测试构造同一页左上、右上、下方 3 个 10 行表格，断言 3 个 table shape 均在页面范围内且互不重叠。
+  - Maven 测试和打包通过，生成 PPT 样例视觉确认。
+
 ## 2026-05-29 BI Engine DSL 导出类型路由修正
 
 - 对应设计变更：

@@ -10,6 +10,7 @@ import com.chatbi.exporter.model.VNode;
 import com.chatbi.exporter.pptx.DeckPptxExporter;
 import com.chatbi.exporter.util.DslReader;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.util.Units;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -53,6 +54,14 @@ class OfficeExporterStyleTest {
         assertEquals(TableHeaderBackground.THEME_PRIMARY_SOFT, configuration.word().table().headerBackground());
         assertFalse(configuration.ppt().master().showAccentLines());
         assertFalse(configuration.ppt().textBox().showBorder());
+        assertTrue(configuration.ppt().table().fitToSlide());
+        assertEquals(24, configuration.ppt().table().safeMarginPx());
+        assertEquals(15.0, configuration.ppt().table().preferredRowHeightPx(), 0.0001);
+        assertEquals(10.0, configuration.ppt().table().minRowHeightPx(), 0.0001);
+        assertEquals(18.0, configuration.ppt().table().maxRowHeightPx(), 0.0001);
+        assertEquals(7.5, configuration.ppt().table().headerFontSize(), 0.0001);
+        assertEquals(6.5, configuration.ppt().table().bodyFontSize(), 0.0001);
+        assertEquals(1.5, configuration.ppt().table().cellInsetPt(), 0.0001);
     }
 
     @Test
@@ -346,6 +355,30 @@ class OfficeExporterStyleTest {
         assertTrue(anchors.get(1).height() > 0);
     }
 
+    @Test
+    void pptxTablesUseCompactDefaultsAndStayInsideSlide() throws Exception {
+        Path output = tempDir.resolve("three-compact-tables.pptx");
+
+        new DeckPptxExporter().export(threeCompactTablesDeck(), output, ExportRequest.defaults());
+
+        String slideXml = zipEntry(output, "ppt/slides/slide1.xml");
+        List<TableAnchor> anchors = tableAnchors(slideXml);
+        assertEquals(3, anchors.size());
+        long slideWidth = Units.toEMU(960);
+        long slideHeight = Units.toEMU(540);
+        long compactHeight = Units.toEMU(170);
+        for (TableAnchor anchor : anchors) {
+            assertTrue(anchor.x() >= 0, anchor.toString());
+            assertTrue(anchor.y() >= 0, anchor.toString());
+            assertTrue(anchor.x() + anchor.width() <= slideWidth, anchor.toString());
+            assertTrue(anchor.y() + anchor.height() <= slideHeight, anchor.toString());
+            assertTrue(anchor.height() <= compactHeight, anchor.toString());
+        }
+        assertFalse(overlaps(anchors.get(0), anchors.get(1)));
+        assertFalse(overlaps(anchors.get(0), anchors.get(2)));
+        assertFalse(overlaps(anchors.get(1), anchors.get(2)));
+    }
+
     private static VDoc textOnlyReport() {
         VDoc doc = new VDoc();
         doc.docId = "plain-text";
@@ -611,6 +644,66 @@ class OfficeExporterStyleTest {
         root.children = List.of(slide);
         doc.root = root;
         return doc;
+    }
+
+    private static VDoc threeCompactTablesDeck() {
+        VDoc doc = new VDoc();
+        doc.docId = "three-compact-tables";
+        doc.docType = "ppt";
+        doc.schemaVersion = "1.0.0";
+        doc.title = "三表紧凑布局";
+
+        VNode slide = new VNode();
+        slide.id = "slide";
+        slide.kind = "slide";
+        slide.props = Map.of("title", "三表紧凑布局");
+        slide.children = List.of(
+                compactTable("left_top", 46, 72, 410, 190),
+                compactTable("right_top", 504, 72, 410, 190),
+                compactTable("bottom", 46, 292, 868, 210)
+        );
+
+        VNode root = new VNode();
+        root.id = "root";
+        root.kind = "container";
+        root.props = Map.of(
+                "masterShowHeader", false,
+                "masterShowFooter", false,
+                "masterShowSlideNumber", false
+        );
+        root.children = List.of(slide);
+        doc.root = root;
+        return doc;
+    }
+
+    private static VNode compactTable(String id, int x, int y, int w, int h) {
+        VNode table = new VNode();
+        table.id = id;
+        table.kind = "table";
+        table.layout = Map.of("mode", "absolute", "x", x, "y", y, "w", w, "h", h);
+        table.props = Map.of(
+                "columns", List.of(
+                        Map.of("key", "metric", "title", "指标", "width", 120),
+                        Map.of("key", "current", "title", "当前值", "width", 90, "align", "right"),
+                        Map.of("key", "target", "title", "目标值", "width", 90, "align", "right"),
+                        Map.of("key", "status", "title", "状态", "width", 80)
+                ),
+                "rows", compactRows(id)
+        );
+        return table;
+    }
+
+    private static List<Map<String, Object>> compactRows(String prefix) {
+        ArrayList<Map<String, Object>> rows = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            rows.add(Map.of(
+                    "metric", prefix + "-指标" + i,
+                    "current", 80 + i,
+                    "target", 95,
+                    "status", i % 3 == 0 ? "关注" : "正常"
+            ));
+        }
+        return rows;
     }
 
     private static VDoc textBoxDeck() {
@@ -1009,6 +1102,13 @@ class OfficeExporterStyleTest {
             ));
         }
         return anchors;
+    }
+
+    private static boolean overlaps(TableAnchor first, TableAnchor second) {
+        return first.x() < second.x() + second.width()
+                && first.x() + first.width() > second.x()
+                && first.y() < second.y() + second.height()
+                && first.y() + first.height() > second.y();
     }
 
     private record TableAnchor(long x, long y, long width, long height) {

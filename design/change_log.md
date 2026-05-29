@@ -34,6 +34,19 @@
   - `report_system/implementation/外部集成与导出实现.md`
   - `report_system/implementation/报告导出POI转换实现.md`
 
+## 2026-05-29 PPT 表格紧凑默认样式
+
+- 变更动机：
+  - 当前 PPT 表格默认字号和行高偏大，一页内放置多个 10 行左右的数据表时容易超出页面或挤占过多空间。
+- 设计决策：
+  - `Document Configuration` 的 `ppt` 分组新增 `table` 默认配置，用于收敛 PPT 表格字号、行高、内边距和安全区域约束。
+  - PPT 普通表格和组合表子表默认使用紧凑行高和较小字号，表格 anchor 限制在幻灯片安全区域内。
+  - 该配置当前仍只作为 Java exporter 内置默认值，不改变 Report DSL 或导出边界 API。
+- 影响范围：
+  - `report_system/06-文档生成与导出架构.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+  - `report_system/implementation/报告导出POI转换实现.md`
+
 ## 2026-05-29 Java 导出器按 reportType 判定 Word/PPT
 
 - 变更动机：

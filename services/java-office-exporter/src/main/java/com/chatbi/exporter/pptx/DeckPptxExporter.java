@@ -6,6 +6,7 @@ import com.chatbi.exporter.chart.ChartRowResolver;
 import com.chatbi.exporter.chart.ChartTypeCatalog;
 import com.chatbi.exporter.chart.PoiChartRenderer;
 import com.chatbi.exporter.conf.DocumentExportConfiguration;
+import com.chatbi.exporter.conf.PptTableConfiguration;
 import com.chatbi.exporter.core.DocumentExporter;
 import com.chatbi.exporter.core.ExportRequest;
 import com.chatbi.exporter.core.ExportTarget;
@@ -23,6 +24,7 @@ import com.chatbi.exporter.table.TableSpecParser;
 import org.apache.poi.sl.usermodel.TableCell.BorderEdge;
 import org.apache.poi.sl.usermodel.ShapeType;
 import org.apache.poi.sl.usermodel.TextParagraph;
+import org.apache.poi.sl.usermodel.TextShape;
 import org.apache.poi.sl.usermodel.VerticalAlignment;
 import org.apache.poi.util.Units;
 import org.apache.poi.xslf.usermodel.XMLSlideShow;
@@ -429,34 +431,37 @@ public class DeckPptxExporter implements DocumentExporter {
         addTableShape(context, table, rect);
     }
 
-    private void addTableShape(PptxRenderContext context, TableModel table, Rectangle rect) {
+    private Rectangle addTableShape(PptxRenderContext context, TableModel table, Rectangle requestedRect) {
+        Rectangle rect = constrainTableRect(context, requestedRect);
+        TableLayoutMetrics metrics = tableLayoutMetrics(table, rect);
+        Rectangle actualRect = new Rectangle(rect.x, rect.y, rect.width, metrics.height());
         XSLFTable xslfTable = context.slide().createTable();
-        xslfTable.setAnchor(rect);
+        xslfTable.setAnchor(actualRect);
 
         int totalRows = Math.max(1, table.totalRowCount());
-        int rowHeight = Math.max(18, rect.height / totalRows);
         for (int r = 0; r < totalRows; r++) {
             XSLFTableRow row = xslfTable.addRow();
-            row.setHeight(rowHeight);
+            row.setHeight(metrics.rowHeight());
             for (int c = 0; c < table.columnCount(); c++) {
                 row.addCell();
             }
         }
 
-        applyColumnWidths(xslfTable, table, rect.width);
-        fillHeaderCells(context, xslfTable, table);
-        fillBodyCells(context, xslfTable, table);
+        applyColumnWidths(xslfTable, table, actualRect.width);
+        fillHeaderCells(context, xslfTable, table, metrics.headerFontSize());
+        fillBodyCells(context, xslfTable, table, metrics.bodyFontSize());
         applyTableMerges(xslfTable, table);
         normalizeTableCellTextBodies(xslfTable);
         xslfTable.updateCellAnchor();
-        xslfTable.setAnchor(rect);
+        xslfTable.setAnchor(actualRect);
+        return actualRect;
     }
 
     /**
      * 渲染复合表：父布局决定整体区域，子表按行数比例纵向贴合，共享 x/w。
      */
     private void addCompositeTableShape(PptxRenderContext context, VNode compositeNode) {
-        Rectangle rect = resolveRect(compositeNode, 100, 100, 520, 260);
+        Rectangle rect = constrainTableRect(context, resolveRect(compositeNode, 100, 100, 520, 260));
         List<CompositeTableSegment> segments = new ArrayList<>();
         int totalRows = 0;
         for (VNode tableNode : compositeNode.childrenOrEmpty()) {
@@ -477,20 +482,60 @@ public class DeckPptxExporter implements DocumentExporter {
             return;
         }
 
+        double rowHeight = tableRowHeight(Math.max(1, totalRows), rect.height);
         int currentY = rect.y;
-        int remainingHeight = rect.height;
-        int remainingRows = Math.max(1, totalRows);
         for (int i = 0; i < segments.size(); i++) {
             CompositeTableSegment segment = segments.get(i);
-            int height = i == segments.size() - 1
-                    ? remainingHeight
-                    : Math.max(40, (int) Math.round((segment.rowCount() / (double) remainingRows) * remainingHeight));
-            Rectangle segmentRect = new Rectangle(rect.x, currentY, rect.width, Math.max(40, height));
-            addTableShape(context, segment.table(), segmentRect);
-            currentY += height;
-            remainingHeight = Math.max(0, rect.y + rect.height - currentY);
-            remainingRows = Math.max(1, remainingRows - segment.rowCount());
+            int availableHeight = Math.max(1, rect.y + rect.height - currentY);
+            int height = Math.min(availableHeight, Math.max(1, (int) Math.ceil(segment.rowCount() * rowHeight)));
+            Rectangle segmentRect = new Rectangle(rect.x, currentY, rect.width, height);
+            Rectangle usedRect = addTableShape(context, segment.table(), segmentRect);
+            currentY = usedRect.y + usedRect.height;
         }
+    }
+
+    private Rectangle constrainTableRect(PptxRenderContext context, Rectangle rect) {
+        PptTableConfiguration tableConfig = configuration.ppt().table();
+        if (!tableConfig.fitToSlide()) {
+            return rect;
+        }
+        Dimension pageSize = context.slideShow().getPageSize();
+        int pageWidth = pageSize == null ? 960 : pageSize.width;
+        int pageHeight = pageSize == null ? 540 : pageSize.height;
+        int margin = Math.min(tableConfig.safeMarginPx(), Math.max(0, Math.min(pageWidth, pageHeight) / 4));
+        int minWidth = Math.min(60, Math.max(1, pageWidth - margin * 2));
+        int minHeight = Math.min(24, Math.max(1, pageHeight - margin * 2));
+        int maxX = Math.max(margin, pageWidth - margin - minWidth);
+        int maxY = Math.max(margin, pageHeight - margin - minHeight);
+        int x = clampInt(rect.x, margin, maxX);
+        int y = clampInt(rect.y, margin, maxY);
+        int width = Math.min(Math.max(minWidth, rect.width), Math.max(minWidth, pageWidth - margin - x));
+        int height = Math.min(Math.max(minHeight, rect.height), Math.max(minHeight, pageHeight - margin - y));
+        return new Rectangle(x, y, width, height);
+    }
+
+    private TableLayoutMetrics tableLayoutMetrics(TableModel table, Rectangle rect) {
+        int totalRows = Math.max(1, table.totalRowCount());
+        double rowHeight = tableRowHeight(totalRows, rect.height);
+        int height = Math.max(1, Math.min(rect.height, (int) Math.ceil(rowHeight * totalRows)));
+        PptTableConfiguration tableConfig = configuration.ppt().table();
+        return new TableLayoutMetrics(
+                height,
+                rowHeight,
+                tableConfig.headerFontSize(),
+                tableConfig.bodyFontSize()
+        );
+    }
+
+    private double tableRowHeight(int totalRows, int availableHeight) {
+        PptTableConfiguration tableConfig = configuration.ppt().table();
+        int rows = Math.max(1, totalRows);
+        double availableRowHeight = Math.max(1.0, availableHeight / (double) rows);
+        double rowHeight = Math.min(tableConfig.preferredRowHeightPx(), availableRowHeight);
+        if (availableRowHeight >= tableConfig.minRowHeightPx()) {
+            rowHeight = Math.max(tableConfig.minRowHeightPx(), rowHeight);
+        }
+        return Math.min(tableConfig.maxRowHeightPx(), rowHeight);
     }
 
     /**
@@ -503,7 +548,8 @@ public class DeckPptxExporter implements DocumentExporter {
         }
         for (int c = 0; c < model.columnCount(); c++) {
             double weight = Math.max(1.0, model.columns().get(c).width());
-            double width = Math.max(36.0, (weight / sum) * totalWidth);
+            double minColumnWidth = Math.max(8.0, Math.min(36.0, totalWidth / (double) Math.max(1, model.columnCount())));
+            double width = Math.max(minColumnWidth, (weight / sum) * totalWidth);
             table.setColumnWidth(c, width);
         }
     }
@@ -511,7 +557,7 @@ public class DeckPptxExporter implements DocumentExporter {
     /**
      * 写入表头单元格。
      */
-    private void fillHeaderCells(PptxRenderContext context, XSLFTable table, TableModel model) {
+    private void fillHeaderCells(PptxRenderContext context, XSLFTable table, TableModel model, double fontSize) {
         for (int r = 0; r < model.headerRowCount(); r++) {
             List<TableCell> row = model.headerRows().get(r);
             for (int c = 0; c < model.columnCount(); c++) {
@@ -522,7 +568,7 @@ public class DeckPptxExporter implements DocumentExporter {
                     continue;
                 }
                 styleTableCell(tableCell, context.theme().primarySoft());
-                writeTableCellText(tableCell, cell.text(), context.theme(), true, 11);
+                writeTableCellText(tableCell, cell.text(), context.theme(), true, fontSize);
                 setTableCellAlign(tableCell, cell.align());
             }
         }
@@ -531,7 +577,7 @@ public class DeckPptxExporter implements DocumentExporter {
     /**
      * 写入数据区单元格。
      */
-    private void fillBodyCells(PptxRenderContext context, XSLFTable table, TableModel model) {
+    private void fillBodyCells(PptxRenderContext context, XSLFTable table, TableModel model, double fontSize) {
         for (int r = 0; r < model.bodyRowCount(); r++) {
             List<TableCell> row = model.bodyRows().get(r);
             int tableRow = model.headerRowCount() + r;
@@ -544,7 +590,7 @@ public class DeckPptxExporter implements DocumentExporter {
                     continue;
                 }
                 styleTableCell(tableCell, rowBg);
-                writeTableCellText(tableCell, cell.text(), context.theme(), false, 10);
+                writeTableCellText(tableCell, cell.text(), context.theme(), false, fontSize);
                 setTableCellAlign(tableCell, cell.align());
             }
         }
@@ -553,6 +599,13 @@ public class DeckPptxExporter implements DocumentExporter {
     private void styleTableCell(XSLFTableCell cell, Color background) {
         cell.setFillColor(background);
         cell.setVerticalAlignment(VerticalAlignment.MIDDLE);
+        double inset = configuration.ppt().table().cellInsetPt();
+        cell.setTopInset(inset);
+        cell.setBottomInset(inset);
+        cell.setLeftInset(inset);
+        cell.setRightInset(inset);
+        cell.setWordWrap(true);
+        cell.setTextAutofit(TextShape.TextAutofit.NORMAL);
         cell.setBorderColor(BorderEdge.top, new Color(0xD7, 0xE3, 0xF7));
         cell.setBorderColor(BorderEdge.bottom, new Color(0xD7, 0xE3, 0xF7));
         cell.setBorderColor(BorderEdge.left, new Color(0xD7, 0xE3, 0xF7));
@@ -929,6 +982,14 @@ public class DeckPptxExporter implements DocumentExporter {
     }
 
     private record CompositeTableSegment(TableModel table, int rowCount) {
+    }
+
+    private record TableLayoutMetrics(
+            int height,
+            double rowHeight,
+            double headerFontSize,
+            double bodyFontSize
+    ) {
     }
 
     /**

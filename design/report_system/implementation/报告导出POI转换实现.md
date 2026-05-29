@@ -227,6 +227,14 @@ flowchart TB
 | `word.table.headerBackground` | `theme.primarySoft` | 表头使用主题浅色背景 |
 | `ppt.master.showAccentLines` | `false` | master 页眉/页脚不绘制 accent 线 |
 | `ppt.textBox.showBorder` | `false` | 文本框不设置边框线 |
+| `ppt.table.fitToSlide` | `true` | 表格 anchor 限制在幻灯片安全区域内 |
+| `ppt.table.safeMarginPx` | `24` | 表格越界时按安全边距裁剪可用宽高 |
+| `ppt.table.preferredRowHeightPx` | `15` | PPT 表格默认紧凑行高 |
+| `ppt.table.minRowHeightPx` | `10` | 可用空间不足时允许进一步压缩行高 |
+| `ppt.table.maxRowHeightPx` | `18` | 避免区域较大时单行被过度拉高 |
+| `ppt.table.headerFontSize` | `7.5` | PPT 表头默认字号 |
+| `ppt.table.bodyFontSize` | `6.5` | PPT 数据区默认字号 |
+| `ppt.table.cellInsetPt` | `1.5` | PPT 单元格四边内边距 |
 
 ### 4.3 封面渲染 (DocxCoverRenderer)
 
@@ -799,7 +807,7 @@ private int renderComponent(XSLFSlide slide, ReportComponent component,
 }
 ```
 
-PPTX 渲染时父 `compositeTable.layout` 决定整体区域，子表根据各自表头/数据行数按比例分配高度；所有子表使用相同 `x/w`，`y` 坐标连续递增，避免重叠或默认间距。
+PPTX 渲染时父 `compositeTable.layout` 决定整体区域，子表根据各自表头/数据行数和 `ppt.table` 紧凑行高分配高度；所有子表使用相同 `x/w`，`y` 坐标连续递增，避免重叠或默认间距，并限制在幻灯片安全区域内。
 
 ### 5.7 表格渲染 (PptxTableRenderer)
 
@@ -821,7 +829,7 @@ public static int renderTable(XSLFSlide slide, TableDataProperties dataProps,
     // 3. 计算表格尺寸
     int colCount = columns.size();
     int rowCount = Math.min(dataProps.data.size() + 1, 20);  // 最多 20 行
-    int tableHeight = Math.min(rowCount * 22, 350);
+    int tableHeight = Math.min(rowCount * preferredRowHeightPx, availableHeight);
     
     // 4. 创建表格
     XSLFTable table = slide.createTable(rowCount, colCount);
