@@ -91,13 +91,18 @@ Report
 | `status` | `Running | Success | Aborted | Failed` | DSL 内部状态 |
 | `name` | string | 报告名称 |
 | `reportType` | `PPT | Word | Dashboard` | 报告类型 |
-| `title` | string | 报告主标题 |
+| `description` | string | 报告说明 |
 | `templateId` | string | 来源模板 ID |
 | `templateName` | string | 来源模板名称 |
 | `version` | string | 报告内容版本 |
-| `parameters` | object | 报告全局参数，按参数 id 分组 |
+| `createDate` / `modifyDate` | string | BI Engine 资产时间字段 |
+| `creator` / `modifier` | string | 创建人与修改人 |
+| `header` / `footer` | string | 文档页眉/页脚文本 |
+| `category` / `remark` | string | 分类与备注 |
 
 `status` 是 DSL 内部状态，不等同于接口层报告资源状态。
+
+`basicInfo` 字段与 BI Engine `BasicInfo` 权威模型保持一致；`title/parameters/createdAt/updatedAt` 不再作为 Report DSL `basicInfo` 的正式字段。报告标题由 `cover.title`、目录标题或具体页面标题承担，参数快照由 `reportMeta[*].parameters` 按生成节点保存。
 
 ---
 
@@ -140,7 +145,6 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
 |---|---|---|
 | `id` | string | 页面唯一标识 |
 | `title` | string | 页面标题 |
-| `description` | string | 页面说明 |
 | `layout` | object | 页面布局 |
 | `components` | array | 页面组件 |
 
@@ -152,6 +156,8 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
 | `type` | `"section"` | 固定值 |
 | `title` | string | 分组标题 |
 | `slides` | array | 分组内页面 |
+
+`Slide` 和 `SlideSection` 不再定义 `description`；页面说明类文本应通过 `text` 组件表达。
 
 ### 5.3 backCover
 
@@ -258,6 +264,14 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
 | `sortable` | boolean | 是否可排序 |
 | `filterable` | boolean | 是否可筛选 |
 | `width` | string/number | 列宽 |
+| `type` | `string/long/int/timestamp/double/float/boolean/enum` | 字段类型 |
+| `enumConfig` | array | 枚举值配置 |
+| `uiConfig` | object | 字段展示配置 |
+| `lineageTracing` | object | 字段血缘信息 |
+
+`uiConfig.valueFormat` 支持 `time/number/percentage/byte/bitRate/enum/unit`。`uiConfig.conditionalFormat` 用于定义条件格式规则，当前包含数值比较、区间判断、文本色调和字重等展示提示。`displayPriority` 支持 `high/normal/low/never`，也允许自定义字符串或数字以兼容 BI Engine 字段配置。
+
+`ColumnLineageSource.enumValues` 和 `ui` 是来源系统中的字符串快照；如需结构化枚举或 UI 展示配置，应在列级 `enumConfig` 和 `uiConfig` 中表达。
 
 ### 9.2 MergeColumnInfo
 
@@ -296,7 +310,9 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
   "type": "chart",
   "advanceProperties": {
     "eChartOption": { "legend": { "show": true } },
-    "responsive": { "enabled": true, "aspectRatio": 1.6 }
+    "responsive": { "aspectRatio": 1.6 },
+    "xAxisLabelMode": "truncate",
+    "sqlExplanation": "查询近 7 天核心可用率趋势。"
   },
   "dataProperties": {
     "dataType": "static",
@@ -314,6 +330,10 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
 ```
 
 `series` 支持 `line/bar/pie/scatter/radar/gauge/candlestick`。不同图表类型的 `encode` 字段不同，必须按 schema 对应分支填写。
+
+图表高级展示配置统一位于 `advanceProperties`，不再在 `ChartComponent` 顶层使用 `options`。`responsive.levels[*].size` 支持 `compact/normal/wide`；`responsive` 不再需要 `enabled` 字段。
+
+表格高级展示配置位于 `TableComponent.advanceProperties`，除 `showHeader/showTitle/pagination` 外，还可保存 `sqlExplanation` 作为 chat 模式查询解释文本。
 
 ---
 
@@ -358,6 +378,7 @@ paged 报告使用 `content`。`content` 只能整体为 `Slide[]` 或整体为 
       "outline": {
         "requirement": "分析 {@scope} 的总体运行态势。",
         "renderedRequirement": "分析总部网络的总体运行态势。",
+        "isBroken": false,
         "items": [
           {
             "id": "scope",

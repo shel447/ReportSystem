@@ -11,6 +11,5 @@ public class ChartComponent implements BIEngineComponent {
     public ChartBasicProperties basicProperties;
     public ChartAdvanceProperties advanceProperties;
     public ChartDataProperty dataProperties;
-    public ChartOption options;
     public List<Interaction> interactions;
 }

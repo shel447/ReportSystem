@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class FieldUI {
-    public DisplayPriority displayPriority;
+    public Object displayPriority;
     public ValueFormat valueFormat;
     public UIEvent event;
+    public ConditionalFormat conditionalFormat;
 }

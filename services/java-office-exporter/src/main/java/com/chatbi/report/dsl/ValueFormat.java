@@ -13,7 +13,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         @JsonSubTypes.Type(value = TimeValueFormat.class, name = "time"),
         @JsonSubTypes.Type(value = NumericValueFormat.class, name = "number"),
         @JsonSubTypes.Type(value = NumericValueFormat.class, name = "percentage"),
-        @JsonSubTypes.Type(value = NumericValueFormat.class, name = "byte")
+        @JsonSubTypes.Type(value = NumericValueFormat.class, name = "byte"),
+        @JsonSubTypes.Type(value = NumericValueFormat.class, name = "bitRate"),
+        @JsonSubTypes.Type(value = EnumValueFormat.class, name = "enum"),
+        @JsonSubTypes.Type(value = NumericValueFormat.class, name = "unit")
 })
 public interface ValueFormat {
 }

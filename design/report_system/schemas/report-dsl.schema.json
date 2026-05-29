@@ -115,9 +115,6 @@
         "title": {
           "type": "string"
         },
-        "description": {
-          "type": "string"
-        },
         "layout": {
           "$ref": "#/$defs/PageLayout"
         },
@@ -147,9 +144,6 @@
           "const": "section"
         },
         "title": {
-          "type": "string"
-        },
-        "description": {
           "type": "string"
         },
         "slides": {
@@ -229,6 +223,7 @@
         "timestamp",
         "double",
         "float",
+        "boolean",
         "enum"
       ]
     },
@@ -392,7 +387,7 @@
     },
     "BasicInfo": {
       "type": "object",
-      "description": "报告基础信息。保留 parameters 以支持已生成报告的结构化编辑；补齐 BI Engine 模型中的资产基础字段。",
+      "description": "报告基础信息。字段与 BI Engine BasicInfo 权威模型保持一致。",
       "properties": {
         "id": {
           "type": "string"
@@ -417,9 +412,6 @@
         "reportType": {
           "$ref": "#/$defs/ReportType"
         },
-        "title": {
-          "type": "string"
-        },
         "description": {
           "type": "string"
         },
@@ -441,14 +433,6 @@
         "modifyDate": {
           "type": "string"
         },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "format": "date-time"
-        },
         "creator": {
           "type": "string"
         },
@@ -463,12 +447,6 @@
         },
         "category": {
           "type": "string"
-        },
-        "parameters": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/Parameter"
-          }
         }
       },
       "required": [
@@ -850,6 +828,78 @@
             "type"
           ],
           "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "bitRate"
+            },
+            "decimal": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "enum"
+            },
+            "enum": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "number" },
+                      { "type": "boolean" }
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "value",
+                  "label"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "type",
+            "enum"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "unit"
+            },
+            "decimal": {
+              "type": "number"
+            },
+            "unit": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
         }
       ]
     },
@@ -881,15 +931,133 @@
       ],
       "additionalProperties": false
     },
+    "ConditionalFormatCondition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "gt",
+                "gte",
+                "lt",
+                "lte",
+                "eq"
+              ]
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "op",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "between"
+              ]
+            },
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "op",
+            "min",
+            "max"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ConditionalFormatStyle": {
+      "type": "object",
+      "properties": {
+        "textTone": {
+          "type": "string",
+          "enum": [
+            "error",
+            "warning",
+            "success",
+            "info"
+          ]
+        },
+        "fontWeight": {
+          "type": "string",
+          "enum": [
+            "normal",
+            "medium",
+            "bold"
+          ]
+        }
+      },
+      "required": [
+        "textTone"
+      ],
+      "additionalProperties": false
+    },
+    "ConditionalFormatRule": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "$ref": "#/$defs/ConditionalFormatCondition"
+        },
+        "style": {
+          "$ref": "#/$defs/ConditionalFormatStyle"
+        }
+      },
+      "required": [
+        "when",
+        "style"
+      ],
+      "additionalProperties": false
+    },
+    "ConditionalFormat": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConditionalFormatRule"
+          }
+        }
+      },
+      "required": [
+        "rules"
+      ],
+      "additionalProperties": false
+    },
     "FieldUI": {
       "type": "object",
       "properties": {
         "displayPriority": {
-          "type": "string",
-          "enum": [
-            "high",
-            "normal",
-            "never"
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "high",
+                "normal",
+                "low",
+                "never"
+              ]
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
           ]
         },
         "valueFormat": {
@@ -897,6 +1065,9 @@
         },
         "event": {
           "$ref": "#/$defs/UIEvent"
+        },
+        "conditionalFormat": {
+          "$ref": "#/$defs/ConditionalFormat"
         }
       },
       "additionalProperties": false
@@ -933,7 +1104,8 @@
           "type": "string"
         },
         "enumValues": {
-          "type": "string"
+          "type": "string",
+          "description": "枚举值字符串，支持 JSON 或 value/valueDesc/valueDesc_cn 对象风格并转换为 enumConfig"
         },
         "ui": {
           "type": "string"
@@ -1618,25 +1790,6 @@
         }
       ]
     },
-    "ChartOption": {
-      "type": "object",
-      "properties": {
-        "eChartOption": {
-          "type": "object",
-          "additionalProperties": true
-        },
-        "centerText": {
-          "type": "string"
-        },
-        "subCenterText": {
-          "type": "string"
-        },
-        "responsive": {
-          "$ref": "#/$defs/ResponsiveConfig"
-        }
-      },
-      "additionalProperties": false
-    },
     "ChartDataProperty": {
       "type": "object",
       "properties": {
@@ -1811,8 +1964,9 @@
     "ResponsiveSize": {
       "type": "string",
       "enum": [
-        "standard",
-        "compact"
+        "compact",
+        "normal",
+        "wide"
       ]
     },
     "ResponsiveLevelConfig": {
@@ -1834,9 +1988,6 @@
     "ResponsiveConfig": {
       "type": "object",
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
         "levels": {
           "type": "array",
           "items": {
@@ -1850,9 +2001,35 @@
           "type": "number"
         }
       },
-      "required": [
-        "enabled"
-      ],
+      "additionalProperties": false
+    },
+    "ChartOption": {
+      "type": "object",
+      "properties": {
+        "eChartOption": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "centerText": {
+          "type": "string"
+        },
+        "subCenterText": {
+          "type": "string"
+        },
+        "responsive": {
+          "$ref": "#/$defs/ResponsiveConfig"
+        },
+        "xAxisLabelMode": {
+          "type": "string",
+          "enum": [
+            "rotate",
+            "truncate"
+          ]
+        },
+        "sqlExplanation": {
+          "type": "string"
+        }
+      },
       "additionalProperties": false
     },
     "TablePaginationProperties": {
@@ -1891,6 +2068,9 @@
         },
         "pagination": {
           "$ref": "#/$defs/TablePaginationProperties"
+        },
+        "sqlExplanation": {
+          "type": "string"
         }
       },
       "additionalProperties": true
@@ -1917,6 +2097,18 @@
         },
         "responsive": {
           "$ref": "#/$defs/ResponsiveConfig"
+        },
+        "xAxisLabelMode": {
+          "type": "string",
+          "enum": [
+            "rotate",
+            "truncate"
+          ],
+          "description": "非条形图 X 轴长文本展示模式。"
+        },
+        "sqlExplanation": {
+          "type": "string",
+          "description": "chat 模式查询解释文本。"
         }
       },
       "additionalProperties": true
@@ -2041,9 +2233,6 @@
         },
         "dataProperties": {
           "$ref": "#/$defs/ChartDataProperty"
-        },
-        "options": {
-          "$ref": "#/$defs/ChartOption"
         }
       },
       "required": [
@@ -2261,7 +2450,6 @@
           }
         },
         "valueSource": {
-          "type": "string",
           "enum": [
             "user_input",
             "default",
@@ -2280,6 +2468,9 @@
         },
         "renderedRequirement": {
           "type": "string"
+        },
+        "isBroken": {
+          "type": "boolean"
         },
         "items": {
           "type": "array",

@@ -7,5 +7,6 @@ import java.util.List;
 public class GenerateOutline {
     public String requirement;
     public String renderedRequirement;
+    public Boolean isBroken;
     public List<RequirementItem> items;
 }

@@ -9,4 +9,6 @@ public class ChartAdvanceProperties {
     public String subCenterText;
     public Map<String, Object> eChartOption;
     public ResponsiveConfig responsive;
+    public String xAxisLabelMode;
+    public String sqlExplanation;
 }

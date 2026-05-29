@@ -8,6 +8,20 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-29 Report DSL Java 模型同步
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中"2026-05-29 Report DSL 与 BI Engine 字段契约同步"
+- 实现设计调整：
+  - `com.chatbi.report.dsl` 按最新 `report-dsl.schema.json` 同步 Jackson model：移除 `BasicInfo`、paged 节点与 `ChartComponent` 上已退出正式 schema 的字段。
+  - `ValueFormat` 多态映射补齐 `bitRate/enum/unit`，`FieldType` 补齐 `boolean`，`ResponsiveSize` 调整为 `compact/normal/wide`，`ResponsiveConfig` 不再包含 `enabled`。
+  - 新增条件格式模型，`FieldUI.displayPriority` 以开放 `Object` 表达，以兼容字符串枚举、自定义字符串和数字。
+  - `ColumnLineageSource.enumValues/ui` 调整为字符串快照；图表和表格 SQL 解释字段分别进入 `ChartAdvanceProperties` 与 `TableAdvanceProperties`。
+  - 当前导出运行时仍不切换到 `ReportDslJson`，只保证 Java DSL 契约模型可独立 round-trip。
+- 验证要求：
+  - `ReportDslJsonTest` 覆盖新增字段、多态格式、条件格式、旧字段忽略和序列化输出。
+  - Maven 测试和打包通过，确保 exporter 渲染链路不受模型同步影响。
+
 ## 2026-05-29 Word 封面首页约束与静态链接目录
 
 - 对应设计变更：

@@ -4,8 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class ResponsiveConfig {
-    public List<ResponsiveLevelConfig> levels;
-    public Double aspectRatio;
-    public Double minHeight;
+public class ConditionalFormat {
+    public List<ConditionalFormatRule> rules;
 }

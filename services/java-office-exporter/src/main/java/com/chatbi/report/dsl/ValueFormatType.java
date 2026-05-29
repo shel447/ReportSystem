@@ -12,7 +12,13 @@ public enum ValueFormatType {
     @JsonProperty("number")
     NUMBER("number"),
     @JsonProperty("byte")
-    BYTE("byte");
+    BYTE("byte"),
+    @JsonProperty("bitRate")
+    BIT_RATE("bitRate"),
+    @JsonProperty("enum")
+    ENUM("enum"),
+    @JsonProperty("unit")
+    UNIT("unit");
 
     private final String value;
 

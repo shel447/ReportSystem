@@ -8,6 +8,23 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-29 Report DSL 与 BI Engine 字段契约同步
+
+- 变更动机：
+  - Report DSL schema 已手动按 BI Engine 最新模型调整，设计说明需要同步到新的字段口径，避免实现继续依赖旧字段。
+- 设计决策：
+  - `basicInfo` 与 BI Engine `BasicInfo` 权威模型保持一致，正式字段收敛为资产元信息字段；`title/parameters/createdAt/updatedAt` 不再属于 `basicInfo`。
+  - paged `Slide/SlideSection` 不再保留 `description`；页面说明通过组件表达。
+  - 字段模型补充 `boolean` 类型，字段展示配置补充 `bitRate/enum/unit` 值格式和 `conditionalFormat` 条件格式；`displayPriority` 允许开放字符串或数字。
+  - `ColumnLineageSource.enumValues/ui` 是来源系统字符串快照，结构化枚举与 UI 配置仍在 `Column.enumConfig/uiConfig` 表达。
+  - 图表高级配置统一进入 `ChartAdvanceProperties`，包含 `responsive/xAxisLabelMode/sqlExplanation`；`ChartComponent.options` 不作为正式字段。
+  - 表格高级配置补充 `sqlExplanation`；`GenerateOutline` 补充 `isBroken`。
+- 影响范围：
+  - `report_system/报告DSL定义与使用说明书.md`
+  - `report_system/02-核心业务模型与规范Schema.md`
+  - `report_system/implementation/报告运行时实现.md`
+  - `report_system/implementation/外部集成与导出实现.md`
+
 ## 2026-05-29 Word 封面首页约束与静态链接目录
 
 - 变更动机：

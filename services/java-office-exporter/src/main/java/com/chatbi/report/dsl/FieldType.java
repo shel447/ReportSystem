@@ -17,6 +17,8 @@ public enum FieldType {
     DOUBLE("double"),
     @JsonProperty("float")
     FLOAT("float"),
+    @JsonProperty("boolean")
+    BOOLEAN("boolean"),
     @JsonProperty("enum")
     ENUM("enum");
 

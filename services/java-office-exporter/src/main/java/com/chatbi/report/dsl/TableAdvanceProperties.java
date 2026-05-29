@@ -7,4 +7,5 @@ public class TableAdvanceProperties {
     public Boolean showHeader;
     public Boolean showTitle;
     public TablePaginationProperties pagination;
+    public String sqlExplanation;
 }

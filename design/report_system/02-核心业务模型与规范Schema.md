@@ -436,7 +436,12 @@
 - `reportMeta` 是统一的生成证据、追问、SQL、摘要等补充信息挂载点
 - `Report DSL.basicInfo.status` 属于 DSL 内部状态，和接口层 `ReportAnswer.status` 不是同一组枚举
 - `Report DSL` 需要保留足够的参数配置和大纲配置，以支持前台对已生成报告进行结构化编辑
-- 当前 schema 已补齐 BI Engine TypeScript 模型中已有而 schema 曾缺失的字段，例如 `basicInfo.schemaVersion/mode/templateId`、`layout.autoLayout`、组件 `basicProperties/advanceProperties`、图表 `series/options.responsive` 与表格列展示控制字段
+- 当前 schema 与 BI Engine TypeScript 模型口径保持对齐：`basicInfo` 采用 `schemaVersion/mode/status/name/reportType/description/templateId/templateName/remark/version/createDate/modifyDate/creator/modifier/header/footer/category`，不再把 `title/parameters/createdAt/updatedAt` 作为正式字段
+- 字段类型支持 `boolean`；字段展示配置支持 `valueFormat = time/number/percentage/byte/bitRate/enum/unit`、条件格式 `conditionalFormat`、开放式 `displayPriority`
+- `ColumnLineageSource.enumValues` 与 `ui` 是来源系统字符串快照；结构化枚举和展示配置分别进入 `Column.enumConfig` 与 `Column.uiConfig`
+- 图表展示配置位于 `ChartAdvanceProperties`，包含 `eChartOption/centerText/subCenterText/responsive/xAxisLabelMode/sqlExplanation`；`ChartComponent.options` 不作为正式公开字段
+- 表格展示配置位于 `TableAdvanceProperties`，包含 `showHeader/showTitle/pagination/sqlExplanation`
+- `ResponsiveConfig` 只包含 `levels/aspectRatio/minHeight`，`ResponsiveSize` 为 `compact/normal/wide`
 - `backCover` 是 paged/PPT 封底配置，公开结构为 `{image?, text?}`
 - 表格行合并信息统一命名为 `MergeRowInfo`，字段仍为 `startRowIndex/rowSpan/column/mergedText`
 - 图表轴配置位于 `ChartDataProperty.xAxis/yAxis`，不再作为 `ChartComponent` 顶层字段输出
@@ -455,11 +460,9 @@
 
 `Report DSL` 的结构化编辑增强规则：
 
-- `basicInfo.parameters`
-  - 正式保存报告全局参数
-  - 结构为 `Record<parameterId, Parameter>`
-  - key 使用 lowerCamelCase 全局参数 id
-  - value 复用模板/实例态完整 `Parameter` 结构
+- `basicInfo` 不再保存 `parameters`
+  - 全局参数如需进入冻结报告，应由生成节点的 `GenerateMeta.parameters` 或后续独立编辑上下文承载
+  - 避免在 `basicInfo` 中混入运行态参数，保持其只表达 BI Engine 资产元信息
 - `GenerateMeta.parameters`
   - 只保存该章节本地参数
   - 结构为 `Record<parameterId, Parameter>`
@@ -468,7 +471,7 @@
 - `GenerateMeta.outline`
   - 正式保存章节诉求骨架与实例化结果
   - schema 定义名为 `GenerateOutline`
-  - 包含：`requirement`、`renderedRequirement`、`items`
+  - 包含：`requirement`、`renderedRequirement`、`isBroken`、`items`
   - `items[]` 复用完整 `RequirementItem` 结构
 - `GenerateMeta.question`
   - 继续保留

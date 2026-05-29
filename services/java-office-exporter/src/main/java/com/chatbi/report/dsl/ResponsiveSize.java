@@ -5,10 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ResponsiveSize {
-    @JsonProperty("standard")
-    STANDARD("standard"),
     @JsonProperty("compact")
-    COMPACT("compact");
+    COMPACT("compact"),
+    @JsonProperty("normal")
+    NORMAL("normal"),
+    @JsonProperty("wide")
+    WIDE("wide");
 
     private final String value;
 
