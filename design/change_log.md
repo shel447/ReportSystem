@@ -38,9 +38,11 @@
 
 - 变更动机：
   - 旧默认页脚 `Visual Document OS` 不符合当前产品标识；PPT 页码与页脚文本拼接在左侧，不符合右下角页码习惯。
+  - PPT 每页左上角标题拼接报告名称或 header 前缀会造成重复；封面页额外显示左上角标题也不符合封面版式。
 - 设计决策：
   - Word/PPT 导出在 `basicInfo.footer` 缺省时默认使用 `ChatBI`。
   - PPT 页码独立渲染在右下角，不再拼接到左侧页脚文本后。
+  - PPT 页眉标题只显示当前页标题，封面页不显示左上角页眉标题。
 - 影响范围：
   - `report_system/06-文档生成与导出架构.md`
   - `report_system/implementation/外部集成与导出实现.md`
@@ -53,6 +55,7 @@
 - 设计决策：
   - `Document Configuration` 的 `ppt` 分组新增 `table` 默认配置，用于收敛 PPT 表格字号、行高、内边距和安全区域约束。
   - PPT 普通表格和组合表子表默认使用紧凑行高和较小字号，表格 anchor 限制在幻灯片安全区域内。
+  - PPT 表格实际高度计算后做二次安全区收敛；底部越界时优先整体上移，仍放不下再压缩行高。
   - 该配置当前仍只作为 Java exporter 内置默认值，不改变 Report DSL 或导出边界 API。
 - 影响范围：
   - `report_system/06-文档生成与导出架构.md`

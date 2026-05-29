@@ -230,14 +230,14 @@ flowchart TB
 | `ppt.textBox.showBorder` | `false` | 文本框不设置边框线 |
 | `ppt.table.fitToSlide` | `true` | 表格 anchor 限制在幻灯片安全区域内 |
 | `ppt.table.safeMarginPx` | `24` | 表格越界时按安全边距裁剪可用宽高 |
-| `ppt.table.preferredRowHeightPx` | `15` | PPT 表格默认紧凑行高 |
-| `ppt.table.minRowHeightPx` | `10` | 可用空间不足时允许进一步压缩行高 |
-| `ppt.table.maxRowHeightPx` | `18` | 避免区域较大时单行被过度拉高 |
+| `ppt.table.preferredRowHeightPx` | `18` | PPT 表格默认紧凑行高 |
+| `ppt.table.minRowHeightPx` | `14` | 可用空间不足时允许进一步压缩行高 |
+| `ppt.table.maxRowHeightPx` | `20` | 避免区域较大时单行被过度拉高 |
 | `ppt.table.headerFontSize` | `7.5` | PPT 表头默认字号 |
 | `ppt.table.bodyFontSize` | `6.5` | PPT 数据区默认字号 |
 | `ppt.table.cellInsetPt` | `1.5` | PPT 单元格四边内边距 |
 
-PPT 页码独立于页脚文本渲染，默认锚定到右下角；页脚文本仍左对齐显示。`masterShowSlideNumber=false` 时不输出页码。
+PPT 页眉标题只输出当前 slide title，不拼接报告名称或 `basicInfo.header`；封面页不输出左上角页眉标题。PPT 页码独立于页脚文本渲染，默认锚定到右下角；页脚文本仍左对齐显示。`masterShowSlideNumber=false` 时不输出页码。
 
 ### 4.3 封面渲染 (DocxCoverRenderer)
 
@@ -810,7 +810,7 @@ private int renderComponent(XSLFSlide slide, ReportComponent component,
 }
 ```
 
-PPTX 渲染时父 `compositeTable.layout` 决定整体区域，子表根据各自表头/数据行数和 `ppt.table` 紧凑行高分配高度；所有子表使用相同 `x/w`，`y` 坐标连续递增，避免重叠或默认间距，并限制在幻灯片安全区域内。
+PPTX 渲染时父 `compositeTable.layout` 决定整体区域，子表根据各自表头/数据行数和 `ppt.table` 紧凑行高分配高度；所有子表使用相同 `x/w`，`y` 坐标连续递增，避免重叠或默认间距，并限制在幻灯片安全区域内。普通表格和组合表子表在计算实际高度后需要再次检查下边界：若越界，先整体上移到安全区域，仍放不下时再按最小行高压缩。
 
 ### 5.7 表格渲染 (PptxTableRenderer)
 

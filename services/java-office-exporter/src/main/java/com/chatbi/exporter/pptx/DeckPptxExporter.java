@@ -225,7 +225,9 @@ public class DeckPptxExporter implements DocumentExporter {
         String slideTitle = slideNode.propString("title", "Slide");
         MasterSpec masterSpec = resolveMasterSpec(rootProps, doc, theme);
         MasterLayoutMetrics masterLayout = resolveMasterLayoutMetrics(rootProps, pageWidth, pageHeight);
-        addMasterHeader(slide, slideTitle, masterSpec, masterLayout, theme, slideIndex, slideCount, pageWidth, pageHeight);
+        if (!isCoverSlide(slideNode, slideIndex, slideTitle)) {
+            addMasterHeader(slide, slideTitle, masterSpec, masterLayout, theme, slideIndex, slideCount, pageWidth, pageHeight);
+        }
         addMasterFooter(slide, masterSpec, masterLayout, theme, slideIndex, slideCount, pageWidth, pageHeight);
 
         PptxRenderContext context = new PptxRenderContext(slideShow, slide, theme, chartSpecParser, rootProps, doc);
@@ -247,6 +249,11 @@ public class DeckPptxExporter implements DocumentExporter {
         } catch (RuntimeException ignored) {
             return theme.canvas();
         }
+    }
+
+    private boolean isCoverSlide(VNode slideNode, int slideIndex, String slideTitle) {
+        String id = slideNode == null ? "" : slideNode.id;
+        return "cover".equalsIgnoreCase(id) || slideIndex == 1 && "封面".equals(slideTitle);
     }
 
     private MasterSpec resolveMasterSpec(Map<String, Object> rootProps, VDoc doc, ThemeTokens theme) {
@@ -306,8 +313,7 @@ public class DeckPptxExporter implements DocumentExporter {
         XSLFTextParagraph p = box.addNewTextParagraph();
         p.setTextAlign(TextParagraph.TextAlign.LEFT);
         XSLFTextRun run = p.addNewTextRun();
-        String leftText = masterSpec.headerText().isBlank() ? slideTitle : masterSpec.headerText() + " · " + slideTitle;
-        run.setText(leftText);
+        run.setText(slideTitle);
         run.setFontSize(Math.max(11.0, pageHeight / 42.0));
         run.setFontFamily(theme.fontPrimary());
         run.setBold(true);
@@ -450,7 +456,11 @@ public class DeckPptxExporter implements DocumentExporter {
     private Rectangle addTableShape(PptxRenderContext context, TableModel table, Rectangle requestedRect) {
         Rectangle rect = constrainTableRect(context, requestedRect);
         TableLayoutMetrics metrics = tableLayoutMetrics(table, rect);
-        Rectangle actualRect = new Rectangle(rect.x, rect.y, rect.width, metrics.height());
+        Rectangle actualRect = fitTableRectToSlide(context, rect, metrics.height());
+        if (actualRect.height < metrics.height()) {
+            metrics = tableLayoutMetrics(table, actualRect);
+            actualRect = fitTableRectToSlide(context, actualRect, metrics.height());
+        }
         XSLFTable xslfTable = context.slide().createTable();
         xslfTable.setAnchor(actualRect);
 
@@ -515,19 +525,43 @@ public class DeckPptxExporter implements DocumentExporter {
         if (!tableConfig.fitToSlide()) {
             return rect;
         }
+        TableSafeBounds bounds = tableSafeBounds(context);
+        int minWidth = Math.min(60, Math.max(1, bounds.width()));
+        int minHeight = Math.min(24, Math.max(1, bounds.height()));
+        int x = clampInt(rect.x, bounds.left(), Math.max(bounds.left(), bounds.right() - minWidth));
+        int y = clampInt(rect.y, bounds.top(), Math.max(bounds.top(), bounds.bottom() - minHeight));
+        int width = Math.min(Math.max(minWidth, rect.width), Math.max(minWidth, bounds.right() - x));
+        int height = Math.min(Math.max(minHeight, rect.height), Math.max(minHeight, bounds.bottom() - y));
+        return new Rectangle(x, y, width, height);
+    }
+
+    private Rectangle fitTableRectToSlide(PptxRenderContext context, Rectangle rect, int preferredHeight) {
+        if (!configuration.ppt().table().fitToSlide()) {
+            return new Rectangle(rect.x, rect.y, rect.width, Math.max(1, preferredHeight));
+        }
+        TableSafeBounds bounds = tableSafeBounds(context);
+        int height = Math.min(Math.max(1, preferredHeight), Math.max(1, bounds.height()));
+        int y = rect.y;
+        if (y + height > bounds.bottom()) {
+            y = Math.max(bounds.top(), bounds.bottom() - height);
+        }
+        y = clampInt(y, bounds.top(), Math.max(bounds.top(), bounds.bottom() - height));
+        int x = clampInt(rect.x, bounds.left(), Math.max(bounds.left(), bounds.right() - 1));
+        int width = Math.min(Math.max(1, rect.width), Math.max(1, bounds.right() - x));
+        return new Rectangle(x, y, width, height);
+    }
+
+    private TableSafeBounds tableSafeBounds(PptxRenderContext context) {
         Dimension pageSize = context.slideShow().getPageSize();
         int pageWidth = pageSize == null ? 960 : pageSize.width;
         int pageHeight = pageSize == null ? 540 : pageSize.height;
-        int margin = Math.min(tableConfig.safeMarginPx(), Math.max(0, Math.min(pageWidth, pageHeight) / 4));
-        int minWidth = Math.min(60, Math.max(1, pageWidth - margin * 2));
-        int minHeight = Math.min(24, Math.max(1, pageHeight - margin * 2));
-        int maxX = Math.max(margin, pageWidth - margin - minWidth);
-        int maxY = Math.max(margin, pageHeight - margin - minHeight);
-        int x = clampInt(rect.x, margin, maxX);
-        int y = clampInt(rect.y, margin, maxY);
-        int width = Math.min(Math.max(minWidth, rect.width), Math.max(minWidth, pageWidth - margin - x));
-        int height = Math.min(Math.max(minHeight, rect.height), Math.max(minHeight, pageHeight - margin - y));
-        return new Rectangle(x, y, width, height);
+        int margin = Math.min(configuration.ppt().table().safeMarginPx(), Math.max(0, Math.min(pageWidth, pageHeight) / 4));
+        return new TableSafeBounds(
+                margin,
+                margin,
+                Math.max(margin + 1, pageWidth - margin),
+                Math.max(margin + 1, pageHeight - margin)
+        );
     }
 
     private TableLayoutMetrics tableLayoutMetrics(TableModel table, Rectangle rect) {
@@ -1006,6 +1040,21 @@ public class DeckPptxExporter implements DocumentExporter {
             double headerFontSize,
             double bodyFontSize
     ) {
+    }
+
+    private record TableSafeBounds(
+            int left,
+            int top,
+            int right,
+            int bottom
+    ) {
+        int width() {
+            return right - left;
+        }
+
+        int height() {
+            return bottom - top;
+        }
     }
 
     /**

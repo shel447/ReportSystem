@@ -33,9 +33,11 @@
 - 实现设计调整：
   - `BiEngineDslNormalizer` 和 DOCX/PPTX 导出兜底 footer 从 `Visual Document OS` 改为 `ChatBI`，但仍允许 `basicInfo.footer` 或 VDoc root props 覆盖。
   - `DeckPptxExporter` 将页码从 footer 文本框中拆出，单独渲染到右下角；footer 文本仍保持左下角。
+  - `DeckPptxExporter` 页眉标题只使用 slide title，不再拼接 master header/report title；封面页跳过左上角 master title。
 - 验证要求：
   - 测试覆盖 flow/paged DSL 未传 footer 时归一化为 `ChatBI`。
   - 测试覆盖 PPT 页码文本不带 `#`，且页码 shape 位于右下角区域。
+  - 测试覆盖普通内容页标题不含报告名前缀，封面页不输出左上角标题。
 
 ## 2026-05-29 PPT 表格紧凑默认样式
 
@@ -44,10 +46,10 @@
 - 实现设计调整：
   - `com.chatbi.exporter.conf` 新增 `PptTableConfiguration`，并挂到 `PptExportConfiguration.table`，集中维护 PPT 表格默认字号、行高、内边距和安全边距。
   - `DeckPptxExporter` 渲染普通 table 与 compositeTable 子表时读取 `ppt.table` 默认值，按行数计算实际 anchor 高度，避免表格区域过大时把每行拉得过高。
-  - PPT 表格 anchor 限制在当前幻灯片尺寸内，保留安全边距；文本启用换行和 autofit。
+  - PPT 表格 anchor 限制在当前幻灯片尺寸内，保留安全边距；实际高度计算后再次检查下边界，越界时优先整体上移，仍放不下再压缩行高；文本启用换行和 autofit。
 - 验证要求：
   - 测试覆盖 `DocumentExportConfiguration.defaults().ppt().table()` 默认值。
-  - 测试构造同一页左上、右上、下方 3 个 10 行表格，断言 3 个 table shape 均在页面范围内且互不重叠。
+  - 测试构造同一页左上、右上、下方 3 个 10 行表格，断言 3 个 table shape 均在页面范围内且互不重叠，下方表格与上方表格之间不出现大面积空白。
   - Maven 测试和打包通过，生成 PPT 样例视觉确认。
 
 ## 2026-05-29 BI Engine DSL 导出类型路由修正

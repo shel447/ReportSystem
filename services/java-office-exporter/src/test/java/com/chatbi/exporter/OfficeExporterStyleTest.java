@@ -56,9 +56,9 @@ class OfficeExporterStyleTest {
         assertFalse(configuration.ppt().textBox().showBorder());
         assertTrue(configuration.ppt().table().fitToSlide());
         assertEquals(24, configuration.ppt().table().safeMarginPx());
-        assertEquals(15.0, configuration.ppt().table().preferredRowHeightPx(), 0.0001);
-        assertEquals(10.0, configuration.ppt().table().minRowHeightPx(), 0.0001);
-        assertEquals(18.0, configuration.ppt().table().maxRowHeightPx(), 0.0001);
+        assertEquals(18.0, configuration.ppt().table().preferredRowHeightPx(), 0.0001);
+        assertEquals(14.0, configuration.ppt().table().minRowHeightPx(), 0.0001);
+        assertEquals(20.0, configuration.ppt().table().maxRowHeightPx(), 0.0001);
         assertEquals(7.5, configuration.ppt().table().headerFontSize(), 0.0001);
         assertEquals(6.5, configuration.ppt().table().bodyFontSize(), 0.0001);
         assertEquals(1.5, configuration.ppt().table().cellInsetPt(), 0.0001);
@@ -85,7 +85,9 @@ class OfficeExporterStyleTest {
         new DeckPptxExporter().export(singleSlideDeck(), output, ExportRequest.defaults());
 
         String slideXml = zipEntry(output, "ppt/slides/slide1.xml");
-        assertTrue(slideXml.contains("页眉"));
+        assertTrue(slideXml.contains("第一页"));
+        assertFalse(slideXml.contains("页眉 · 第一页"));
+        assertFalse(slideXml.contains("母版样式测试 · 第一页"));
         assertTrue(slideXml.contains("页脚"));
         assertTrue(slideXml.contains("1/1"));
         assertFalse(slideXml.contains("#1/1"));
@@ -93,6 +95,19 @@ class OfficeExporterStyleTest {
         assertTrue(pageNumberAnchor.x() + pageNumberAnchor.width() > Units.toEMU(880));
         assertTrue(pageNumberAnchor.y() + pageNumberAnchor.height() > Units.toEMU(500));
         assertFalse(slideXml.toLowerCase().contains("1d4ed8"));
+    }
+
+    @Test
+    void pptxCoverSlideDoesNotRenderMasterHeaderTitle() throws Exception {
+        Path output = tempDir.resolve("cover-without-header-title.pptx");
+
+        new DeckPptxExporter().export(coverOnlyDeck(), output, ExportRequest.defaults());
+
+        String slideXml = zipEntry(output, "ppt/slides/slide1.xml");
+        assertFalse(slideXml.contains("封面"));
+        assertFalse(slideXml.contains("报告名称"));
+        assertTrue(slideXml.contains("ChatBI"));
+        assertTrue(slideXml.contains("1/1"));
     }
 
     @Test
@@ -372,7 +387,7 @@ class OfficeExporterStyleTest {
         assertEquals(3, anchors.size());
         long slideWidth = Units.toEMU(960);
         long slideHeight = Units.toEMU(540);
-        long compactHeight = Units.toEMU(170);
+        long compactHeight = Units.toEMU(210);
         for (TableAnchor anchor : anchors) {
             assertTrue(anchor.x() >= 0, anchor.toString());
             assertTrue(anchor.y() >= 0, anchor.toString());
@@ -383,6 +398,12 @@ class OfficeExporterStyleTest {
         assertFalse(overlaps(anchors.get(0), anchors.get(1)));
         assertFalse(overlaps(anchors.get(0), anchors.get(2)));
         assertFalse(overlaps(anchors.get(1), anchors.get(2)));
+        long topBottom = Math.max(
+                anchors.get(0).y() + anchors.get(0).height(),
+                anchors.get(1).y() + anchors.get(1).height()
+        );
+        long gap = anchors.get(2).y() - topBottom;
+        assertTrue(gap >= 0 && gap <= Units.toEMU(48), String.valueOf(gap));
     }
 
     private static VDoc textOnlyReport() {
@@ -652,6 +673,33 @@ class OfficeExporterStyleTest {
         return doc;
     }
 
+    private static VDoc coverOnlyDeck() {
+        VDoc doc = new VDoc();
+        doc.docId = "cover-only";
+        doc.docType = "ppt";
+        doc.schemaVersion = "1.0.0";
+        doc.title = "报告名称";
+
+        VNode slide = new VNode();
+        slide.id = "cover";
+        slide.kind = "slide";
+        slide.props = Map.of("title", "封面");
+
+        VNode root = new VNode();
+        root.id = "root";
+        root.kind = "container";
+        root.props = Map.of(
+                "masterShowHeader", true,
+                "masterHeaderText", "报告名称",
+                "masterShowFooter", true,
+                "masterFooterText", "ChatBI",
+                "masterShowSlideNumber", true
+        );
+        root.children = List.of(slide);
+        doc.root = root;
+        return doc;
+    }
+
     private static VDoc threeCompactTablesDeck() {
         VDoc doc = new VDoc();
         doc.docId = "three-compact-tables";
@@ -666,7 +714,7 @@ class OfficeExporterStyleTest {
         slide.children = List.of(
                 compactTable("left_top", 46, 72, 410, 190),
                 compactTable("right_top", 504, 72, 410, 190),
-                compactTable("bottom", 46, 292, 868, 210)
+                compactTable("bottom", 46, 306, 868, 210)
         );
 
         VNode root = new VNode();
