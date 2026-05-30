@@ -8,6 +8,57 @@
 - 聚焦"实现上怎么落、改了哪些实现约束、验证如何变化"
 - 不替代代码提交记录；业务方案层变更请见 [../../change_log.md](../../change_log.md)
 
+## 2026-05-31 BI 预览编辑同源与业务页面样式统一
+
+- 新增统一 report workspace helper：flow 直接创建 store，paged 使用 BI Designer 公开的 `applyAutoLayoutToDoc` 规范化后创建 store。
+- `ReportDslPreview`、聊天右侧报告区、报告详情和独立设计器共享 editor store；预览、编辑、重置和 JSON 下载使用同一份本地 DSL。
+- 新增只读预览大纲：flow 递归展示 catalog/subCatalog/section，paged 展示派生虚拟页面与正式内容页。
+- paged 预览使用 ReportSystem 轻量适配器派生与 `PptEditor` 一致的封面、总目录、章节目录和封底，不修改 BI Engine 子模块，不把虚拟页面写回 DSL。
+- 全部业务页统一使用窄图标栏和单行工具栏；模板列表、报告列表切换为紧凑行列表，详情与设置页收敛为浅色低层级内容面。
+- 验证要求：前端测试锁住共享 store、paged 虚拟页顺序、大纲导航和统一业务壳层；执行 `npm test`、`npm run build` 并做桌面与移动视口浏览器验证。
+- 已完成验证：
+  - `npm test`：16 个测试文件、36 个测试通过。
+  - `npm run build`：通过；BI Engine 和 ECharts 当前仍形成较大 bundle，后续可按路由拆包。
+  - `uv run pytest src/backend/tests/test_chat_contract_api.py -q`：6 个测试通过。
+  - 浏览器验证：模板列表、报告中心、系统设置、flow 对话预览、paged 对话预览和 paged 本地编辑均可访问；桌面 paged 预览显示 9 个派生页面，移动端 flow 预览保留窄大纲栏，未发现布局重叠。
+
+## 2026-05-30 Codex Desktop 风格对话工作台与 BI Engine demo 模板
+
+- `/chat` 使用独立工作台：紧凑导航、可折叠会话栏、无卡片消息流、固定 composer 和可拖动报告区域。
+- 报告区域提供 `预览 / 编辑 / 详情`，复用 `ReportDslPreview`、`ReportEditor` 和 `PptEditor`；本地修改切换前需要确认丢弃。
+- 前端新增 demo Report DSL fixture 和 mock delta 构造，用同一 reducer 验证 flow、paged、表格、组合表格和图表渲染。
+- paged mock slide 使用 `layout.autoLayout`，只读预览在组件尚无位置时补齐 BI Designer 兼容的 grid 布局；浏览器中已确认折线图、柱状图和表格能够在 PPT 画布内正常展示。
+- 后端 `/chat`、模板仓储、Report DSL schema 和报告冻结流程保持不变。
+- 验证结果：
+  - `npm test`：16 个测试文件、36 个测试通过。
+  - `npm run build`：通过；BI Engine 和 ECharts 当前仍形成较大 bundle，后续可按路由拆包。
+  - `uv run pytest src/backend/tests/test_chat_contract_api.py -q`：6 个测试通过。
+  - 浏览器验证：窄视口空态、会话抽屉、flow 预览与本地编辑、paged 翻页预览、PPT 图表、PPT 表格和 `PptEditor` 均可访问且无布局重叠。
+
+## 2026-05-30 BI Engine 前端渲染与本地设计器集成
+
+- 对应设计变更：
+  - [../../change_log.md](../../change_log.md) 中“2026-05-30 BI Engine 前端渲染与本地设计器集成”
+- 实现设计调整：
+  - `src/frontend/vendor/bi-engine` 以 Git 子模块固定 BI Engine 提交；Vite alias 直接引用 `bi-engine/bi-designer/bi-signal` 源码。
+  - ReportSystem TypeScript 编译使用本地轻量声明门面约束本轮消费的 BI Engine 公共入口，不把子模块内部尚未收敛的类型债务并入父项目构建。
+  - 新增统一 `ReportDslPreview`：flow 递归渲染目录和组件，paged 提供只读幻灯片翻页预览。
+  - 报告详情页改为真实预览优先，原导出、结构和模板实例信息下沉到折叠区。
+  - 对话页新增流式报告 reducer，将 SSE delta 合并为部分 DSL；原始 delta 文本降级为折叠调试信息。
+  - `/reports/:reportId/designer` 使用 `createEditorStore(reportDsl)` 初始化 `ReportEditor/PptEditor`，只提供本地编辑、重置和 DSL JSON 下载。
+  - 后端 `/chat` SSE `init_report.report` 补充 `structureType`，前端缺失时仅按历史 flow 响应兼容。
+  - 业务壳保留侧栏信息架构，样式收敛为 BI Engine Playground 浅色紧凑风格。
+- 验证要求：
+  - 前端测试覆盖 flow/paged 预览、delta reducer、详情页预览优先和设计器类型路由。
+  - 后端测试覆盖 SSE `init_report.report.structureType`。
+  - 前端 `npm test`、`npm run build` 和浏览器桌面/移动视口验证通过。
+- 已完成验证：
+  - `npm test`：ReportSystem 前端 16 个测试文件、36 个测试通过；`vendor/**` 明确排除在父项目测试扫描范围外。
+  - `npm run build`：通过；当前 BI Engine 进入单一较大 bundle，后续可按路由拆包优化。
+  - `uv run pytest src/backend/tests/test_chat_contract_api.py -q`：6 个测试通过。
+  - `uv run pytest src/backend/tests -q`：85 个测试中 83 个通过，2 个既有 Report DSL schema 对齐测试失败；旧运行时测试仍构造 schema 已删除的 `basicInfo.parameters/title/subTitle/createdAt/updatedAt`，不属于本轮前端集成改动。
+  - 浏览器验证：`/chat`、flow 报告详情、paged 报告详情、flow 设计器和 paged 设计器均可访问；桌面与移动视口下未发现布局重叠。浏览器验证使用的临时报告数据已清理。
+
 ## 2026-05-29 Report DSL Java 模型同步
 
 - 对应设计变更：

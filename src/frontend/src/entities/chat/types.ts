@@ -184,10 +184,12 @@ export type ChatStreamDelta =
       report: {
         reportId: string;
         title: string;
+        structureType?: "flow" | "paged";
       };
     }
   | {
       action: "add_catalog";
+      structureType?: "flow";
       parentCatalogId: string | null;
       parentCatalog: number[] | null;
       catalogs: Array<{
@@ -196,9 +198,30 @@ export type ChatStreamDelta =
       }>;
     }
   | {
+      action: "add_chapter";
+      structureType: "paged";
+      chapters: Array<{
+        id: string;
+        title: string;
+      }>;
+    }
+  | {
+      action: "add_slide";
+      structureType: "paged";
+      chapterId: string | null;
+      slides: Array<{
+        id: string;
+        title?: string;
+        layout: Record<string, unknown>;
+      }>;
+    }
+  | {
       action: "add_section";
+      structureType?: "flow" | "paged";
       parentCatalogId: string | null;
       parentCatalog: number[] | null;
+      chapterId?: string | null;
+      slideId?: string | null;
       sections: Array<{
         sectionId: string;
         status: string;

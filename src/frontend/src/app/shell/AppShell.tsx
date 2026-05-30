@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FileText, LayoutTemplate, MessageCircleQuestion, MessageSquare, Settings } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 import { FeedbackDialog } from "../../features/feedback-dialog/FeedbackDialog";
@@ -11,10 +12,11 @@ type AppShellProps = {
 
 export function AppShell({ pathname, children }: AppShellProps) {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
-  const pageTitle = resolvePageTitle(pathname);
+  const isDesignerWorkspace = /^\/reports\/[^/]+\/designer$/.test(pathname);
+  const isChatWorkspace = pathname === "/chat";
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isDesignerWorkspace ? " app-shell--designer" : ""}${isChatWorkspace ? " app-shell--chat" : ""}`}>
       <aside className="app-sidebar">
         <div className="brand-panel">
           <span className="brand-mark">RS</span>
@@ -29,9 +31,10 @@ export function AppShell({ pathname, children }: AppShellProps) {
               key={item.href}
               to={item.href}
               className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
+              title={item.label}
             >
               <span className="nav-icon" aria-hidden="true">
-                {item.icon}
+                {resolveNavigationIcon(item.href)}
               </span>
               <span>{item.label}</span>
             </NavLink>
@@ -39,14 +42,19 @@ export function AppShell({ pathname, children }: AppShellProps) {
         </nav>
         <div className="sidebar-footer">
           <div className="footer-actions">
+            <button className="footer-link" type="button" title="提意见" aria-label="提意见" onClick={() => setFeedbackOpen(true)}>
+              <span className="nav-icon" aria-hidden="true"><MessageCircleQuestion size={18} /></span>
+              <span>提意见</span>
+            </button>
             {FOOTER_META.map((item) => (
               <NavLink
                 key={item.href}
                 to={item.href}
                 className={({ isActive }) => `footer-link${isActive ? " active" : ""}`}
+                title={item.label}
               >
                 <span className="nav-icon" aria-hidden="true">
-                  {item.icon}
+                  {resolveNavigationIcon(item.href)}
                 </span>
                 <span>{item.label}</span>
               </NavLink>
@@ -55,20 +63,6 @@ export function AppShell({ pathname, children }: AppShellProps) {
         </div>
       </aside>
       <main className="app-main">
-        <header className="app-header">
-          <div>
-            <p className="eyebrow">Smart Report Workspace</p>
-            <h1>{pageTitle}</h1>
-          </div>
-          <div className="app-header__actions">
-            <button className="header-feedback-link" type="button" onClick={() => setFeedbackOpen(true)}>
-              <span className="header-feedback-link__icon" aria-hidden="true">
-                ?
-              </span>
-              提意见
-            </button>
-          </div>
-        </header>
         <section className="page-body">{children}</section>
       </main>
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
@@ -76,17 +70,9 @@ export function AppShell({ pathname, children }: AppShellProps) {
   );
 }
 
-function resolvePageTitle(pathname: string) {
-  if (pathname.startsWith("/templates/")) {
-    return "模板详情";
-  }
-  if (pathname.startsWith("/reports/")) {
-    return "报告详情";
-  }
-  const routeMeta = [...PAGE_META, ...FOOTER_META];
-  return (
-    routeMeta
-      .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
-      .sort((left, right) => right.href.length - left.href.length)[0]?.label ?? "智能报告系统"
-  );
+function resolveNavigationIcon(href: string) {
+  if (href === "/chat") return <MessageSquare size={18} />;
+  if (href === "/templates") return <LayoutTemplate size={18} />;
+  if (href === "/reports") return <FileText size={18} />;
+  return <Settings size={18} />;
 }

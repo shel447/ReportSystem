@@ -315,6 +315,7 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertIn('"eventType": "answer"', body)
         self.assertIn('"eventType": "done"', body)
         self.assertIn('"action": "init_report"', body)
+        self.assertIn('"structureType": "flow"', body)
         self.assertIn('"action": "add_catalog"', body)
         self.assertIn('"action": "add_section"', body)
         self.assertIn('"reportId": "rpt_001"', body)

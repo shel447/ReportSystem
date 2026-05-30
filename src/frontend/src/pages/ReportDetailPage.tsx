@@ -5,6 +5,8 @@ import { Link, useParams } from "react-router-dom";
 import type { TemplateInstanceCatalog, TemplateInstanceSection } from "../entities/chat/types";
 import { fetchReport, generateReportDocuments } from "../entities/reports/api";
 import type { DocumentGenerationResponse } from "../entities/reports/types";
+import { ReportDslPreview } from "../features/report-preview/ReportDslPreview";
+import { createReportWorkspace } from "../features/report-preview/report-workspace";
 import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
 import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 import { EmptyState } from "../shared/ui/EmptyState";
@@ -47,23 +49,30 @@ export function ReportDetailPage() {
     [report],
   );
   const mutationResult = documentMutation.data as DocumentGenerationResponse | undefined;
+  const previewStore = useMemo(
+    () => report ? createReportWorkspace(report.answer.report).store : null,
+    [report],
+  );
 
   return (
     <div className="report-detail-page">
-      <PageSection description="报告详情页按正式 Report DSL、TemplateInstance 和导出产物三层聚合展示。">
+      <PageSection>
         {!report ? (
           <EmptyState title="报告加载中" description="正在获取报告详情。" />
         ) : (
           <DetailPageLayout
             intro={(
               <PageIntroBar
-                eyebrow="Reports"
-                description={String(basicInfo.name ?? report.reportId)}
+                title={String(basicInfo.name ?? report.reportId)}
+                eyebrow="报告详情"
                 badge={report.status}
                 actions={(
                   <>
                     <Link className="ghost-button button-link" to="/reports">
                       返回报告中心
+                    </Link>
+                    <Link className="secondary-button button-link" to={`/reports/${report.reportId}/designer`}>
+                      打开设计器
                     </Link>
                     <button
                       className="secondary-button"
@@ -100,7 +109,19 @@ export function ReportDetailPage() {
               </SurfaceCard>
             )}
             content={(
-              <div className="template-detail-grid">
+              <div className="report-detail-content">
+                <section className="report-preview-panel">
+                  <div className="list-header">
+                    <div>
+                      <p className="section-kicker">BI Engine Preview</p>
+                      <h3>报告预览</h3>
+                    </div>
+                  </div>
+                  {previewStore ? <ReportDslPreview store={previewStore} /> : null}
+                </section>
+                <details className="report-detail-more">
+                  <summary>导出与报告详情</summary>
+                  <div className="template-detail-grid">
                 <SurfaceCard>
                   <div className="list-header">
                     <div>
@@ -247,6 +268,8 @@ export function ReportDetailPage() {
                     </details>
                   </div>
                 </SurfaceCard>
+                  </div>
+                </details>
               </div>
             )}
           />

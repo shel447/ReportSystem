@@ -8,6 +8,36 @@
 - 聚焦“为什么改、改了什么、影响哪些正式设计文档”
 - 不重复记录纯代码实现细节；实现落地请见 [report_system/implementation/change_log.md](report_system/implementation/change_log.md)
 
+## 2026-05-31 BI 预览编辑同源与业务页面样式统一
+
+- 同一报告的预览、编辑和 DSL JSON 下载统一使用规范化后的本地 store，避免 paged 预览和 BI Designer 编辑态布局漂移。
+- flow 与 paged 报告预览统一增加只读大纲；paged 预览派生与设计器一致的封面、总目录、章节目录、内容页和封底。
+- 模板、报告、设置和对话页面统一使用 BI Engine Playground 风格的窄图标栏、单行工具栏和浅色内容区。
+- 模板列表和报告列表改为紧凑行列表，减少大圆角卡片和重复说明文本。
+
+## 2026-05-30 对话页升级为 BI Engine 报告工作台
+
+- `/chat` 改为紧凑的工作台布局，取消通用页头、说明区和卡片堆叠。
+- 报告生成到首个可渲染 delta 后自动打开右侧 BI Engine 预览，正式报告完成后可切换为 BI Designer 本地编辑。
+- 新增前端 demo Report DSL 模板 fixture，覆盖 flow、paged 和主要组件，用于独立验证 BI Engine 接入，不改变正式后台状态机。
+
+## 2026-05-30 BI Engine 前端渲染与本地设计器集成
+
+- 变更动机：
+  - ReportSystem 前端当前只以文字卡片摘要展示 Report DSL，无法呈现 BI Engine 已具备的图表、表格和组合表格效果。
+  - ReportSystem 主要定位为报告业务后台，前端内容渲染需要以独立 BI Engine 项目为准。
+- 设计决策：
+  - BI Engine 作为 Report DSL 的权威前端渲染内核，ReportSystem 不自行维护平行渲染规则。
+  - 报告详情页改为真实预览优先；对话生成过程使用同一内核展示增量预览。
+  - 新增按报告进入的本地设计器工作台，只支持本地编辑、撤销、预览和 DSL JSON 导出，不修改冻结报告。
+  - BI Engine 以固定提交 Git 子模块接入，继续保持独立仓库演进。
+  - ReportSystem 业务侧栏保留，视觉统一到 BI Engine Playground 的浅色紧凑工作台风格。
+  - 本轮不修改 Report DSL schema；已知 `RequirementItem` 镜像差异登记为后续核对项。
+- 影响范围：
+  - `report_system/01-统一总览.md`
+  - `report_system/implementation/前端实现.md`
+  - `/chat` SSE `init_report` 事件契约
+
 ## 2026-05-29 Report DSL 与 BI Engine 字段契约同步
 
 - 变更动机：

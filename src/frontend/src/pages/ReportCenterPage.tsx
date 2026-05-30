@@ -5,8 +5,9 @@ import { Link } from "react-router-dom";
 import { fetchConversation, fetchConversations } from "../entities/chat/api";
 import type { ChatResponse, ConversationDetail } from "../entities/chat/types";
 import { EmptyState } from "../shared/ui/EmptyState";
+import { ListPageLayout } from "../shared/layouts/ListPageLayout";
+import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 import { PageSection } from "../shared/ui/PageSection";
-import { SurfaceCard } from "../shared/ui/SurfaceCard";
 
 export function ReportCenterPage() {
   const conversationsQuery = useQuery({
@@ -56,25 +57,26 @@ export function ReportCenterPage() {
 
   return (
     <div className="reports-page">
-      <PageSection description="报告中心不依赖独立实例接口，而是从对话沉淀中聚合最近生成的正式报告。">
-        {recentReports.length ? (
-          <div className="template-catalog-grid">
+      <PageSection>
+        <ListPageLayout
+          intro={<PageIntroBar title="报告中心" badge={`${recentReports.length} 份报告`} actions={<Link className="primary-button button-link" to="/chat">生成报告</Link>} />}
+          content={recentReports.length ? (
+          <div className="asset-list">
             {recentReports.map((report) => (
-              <Link key={report.reportId} className="template-card" to={`/reports/${report.reportId}`}>
-                <div className="template-card__header">
+              <Link key={report.reportId} className="asset-list__row" to={`/reports/${report.reportId}`}>
+                <div className="asset-list__main">
                   <strong>{report.reportName}</strong>
-                  <span className="status-chip status-chip--soft">{report.status}</span>
+                  <p>来源会话：{report.conversationTitle || report.conversationId}</p>
                 </div>
-                <p>来源会话：{report.conversationTitle || report.conversationId}</p>
-                <div className="template-card__meta">
-                  <span>{report.reportId}</span>
+                <div className="asset-list__meta">
+                  <span className="status-chip status-chip--soft">{report.status}</span>
                   <span>{report.createdAt ? formatDateTime(report.createdAt) : "未记录时间"}</span>
                 </div>
               </Link>
             ))}
           </div>
         ) : (
-          <SurfaceCard>
+          <div className="empty-state-panel">
             <EmptyState
               title={conversationsQuery.isLoading ? "正在聚合报告" : "报告中心"}
               description="当前没有已生成的报告。通过对话生成后，这里会自动展示最近的报告。"
@@ -87,8 +89,9 @@ export function ReportCenterPage() {
                 查看模板
               </Link>
             </div>
-          </SurfaceCard>
+          </div>
         )}
+        />
       </PageSection>
     </div>
   );

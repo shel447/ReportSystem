@@ -114,12 +114,11 @@ export function TemplateDetailPage() {
 
   return (
     <div className="template-detail-page">
-      <PageSection description="模板详情页直接编辑正式 ReportTemplate 对象。目录使用 title，章节使用 outline.requirement，不再维护旧的 section.title/order 结构。">
+      <PageSection>
         <DetailPageLayout
           intro={(
             <PageIntroBar
-              eyebrow="Template Detail"
-              description="维护模板元信息、统一参数、递归目录与章节诉求。保存时直接提交正式模板对象。"
+              title={isCreateMode ? "新建模板" : "模板详情"}
               badge={isCreateMode ? "新建模板" : activeDraft.id}
               actions={(
                 <>

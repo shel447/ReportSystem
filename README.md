@@ -72,6 +72,7 @@ flowchart LR
 - Vite
 - React Router
 - TanStack Query
+- BI Engine / BI Designer（Git 子模块）
 
 ### 后端
 
@@ -141,8 +142,17 @@ python -m pip install -r src/backend/requirements.txt
 前端：
 
 ```powershell
+git submodule update --init --recursive
 Set-Location src/frontend
 npm install
+```
+
+BI Engine 源码固定在 `src/frontend/vendor/bi-engine`。升级时先在子模块中检出目标提交，再提交父仓库中的子模块指针变更：
+
+```powershell
+git -C src/frontend/vendor/bi-engine fetch origin
+git -C src/frontend/vendor/bi-engine checkout <commit>
+git add src/frontend/vendor/bi-engine
 ```
 
 ### 5.3 构建前端

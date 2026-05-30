@@ -151,12 +151,11 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page">
-      <PageSection description="集中配置 Completion、Embedding 与模板索引状态。">
+      <PageSection>
         <DetailPageLayout
           intro={
             <PageIntroBar
-              eyebrow="System Settings"
-              description="统一维护 Completion、Embedding 与语义索引配置。"
+              title="系统设置"
               badge={settingsQuery.data?.is_ready ? "配置完成" : "待完善"}
             />
           }

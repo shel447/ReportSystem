@@ -40,7 +40,7 @@ describe("TemplatesPage", () => {
 
     expect(await screen.findByText("网络运行日报")).toBeInTheDocument();
     expect(screen.getByText("network_operations")).toBeInTheDocument();
-    expect(screen.getByText("tpl_network_daily")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /网络运行日报/ })).toHaveClass("asset-list__row");
   });
 
   it("shows import failure for invalid json", async () => {

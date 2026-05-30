@@ -1,8 +1,23 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { ChatPage, mergeTemplateInstanceParameters } from "./ChatPage";
+
+vi.mock("@cloudsop/bi-engine", () => ({
+  BIEngine: ({ schema }: { schema: { id: string } }) => <div data-testid="bi-component">{schema.id}</div>,
+}));
+
+vi.mock("@cloudsop/bi-designer", () => ({
+  applyAutoLayoutToDoc: (report: Record<string, unknown>) => report,
+  createEditorStore: (doc: Record<string, unknown>) => ({
+    getState: () => ({ doc, docRevision: 1, isDirty: false, setDoc: vi.fn(), getDoc: () => doc }),
+    subscribe: () => () => undefined,
+  }),
+  PptSlideFrame: ({ slide }: { slide: { id: string } }) => <div data-testid="ppt-slide">{slide.id}</div>,
+  PptEditor: () => <div data-testid="ppt-editor">PPT Designer</div>,
+  ReportEditor: () => <div data-testid="report-editor">Report Designer</div>,
+}));
 
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -37,6 +52,7 @@ function systemSettingsResponse() {
 describe("ChatPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("sends a question and renders the returned ask panel", async () => {
@@ -140,7 +156,7 @@ describe("ChatPage", () => {
 
     expect(await screen.findByText("请补充报告参数")).toBeInTheDocument();
     expect(screen.getByLabelText("报告日期")).toBeInTheDocument();
-    expect(screen.getByText("当前模板实例")).toBeInTheDocument();
+    expect(screen.getByText("BI Engine 演示")).toBeInTheDocument();
   });
 
   it("renders stream deltas from the sse channel", async () => {
@@ -177,7 +193,7 @@ describe("ChatPage", () => {
             sequence: 3,
             timestamp: 1713427200002,
             status: "running",
-            delta: [{ action: "add_section", parentCatalogId: "catalog_1", parentCatalog: [0], sections: [{ sectionId: "section_1", status: "finished", requirement: "总体运行态势" }] }],
+            delta: [{ action: "add_catalog", parentCatalogId: null, parentCatalog: null, catalogs: [{ catalogId: "catalog_1", title: "运行概览" }] }],
           },
           {
             conversationId: "conv_delta",
@@ -185,13 +201,22 @@ describe("ChatPage", () => {
             eventType: "answer",
             sequence: 4,
             timestamp: 1713427200003,
+            status: "running",
+            delta: [{ action: "add_section", parentCatalogId: "catalog_1", parentCatalog: [0], sections: [{ sectionId: "section_1", status: "finished", requirement: "总体运行态势" }] }],
+          },
+          {
+            conversationId: "conv_delta",
+            chatId: "chat_delta",
+            eventType: "answer",
+            sequence: 5,
+            timestamp: 1713427200004,
             status: "finished",
             answer: {
               answerType: "REPORT",
               answer: {
                 reportId: "rpt_1",
                 status: "available",
-                report: { basicInfo: { id: "rpt_1", schemaVersion: "1.0.0", mode: "published", status: "Success" }, catalogs: [], layout: { type: "grid", grid: { cols: 12, rowHeight: 24 } } },
+                report: { structureType: "flow", basicInfo: { id: "rpt_1", schemaVersion: "1.0.0", mode: "published", status: "Success", name: "网络运行日报" }, catalogs: [{ id: "catalog_1", name: "运行概览", sections: [{ id: "section_1", title: "总体运行态势", components: [] }] }], layout: { type: "grid", grid: { cols: 12, rowHeight: 24 } } },
                 templateInstance: {
                   id: "ti_delta",
                   schemaVersion: "template-instance.vNext-draft",
@@ -224,8 +249,8 @@ describe("ChatPage", () => {
             conversationId: "conv_delta",
             chatId: "chat_delta",
             eventType: "done",
-            sequence: 5,
-            timestamp: 1713427200004,
+            sequence: 6,
+            timestamp: 1713427200005,
             status: "finished",
           },
         ]));
@@ -250,9 +275,10 @@ describe("ChatPage", () => {
     fireEvent.change(screen.getByLabelText("输入问题"), { target: { value: "生成网络运行日报" } });
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
-    expect(await screen.findByText("增量生成进度")).toBeInTheDocument();
-    expect(screen.getByText("初始化报告：网络运行日报")).toBeInTheDocument();
-    expect(screen.getByText("新增章节：总体运行态势")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("报告预览编辑区")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "预览" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "详情" }));
+    expect(await screen.findByText("报告结构")).toBeInTheDocument();
   });
 
   it("renders multi-value scoped parameters and merges them back into the nested template instance", async () => {
@@ -656,7 +682,38 @@ describe("ChatPage", () => {
     const buttons = await screen.findAllByRole("button", { name: /已回复追问/i });
     fireEvent.click(buttons[0]);
 
-    expect(await screen.findByText("该追问已被后续回复消费，当前会话中不可继续修改。")).toBeInTheDocument();
+    expect(await screen.findByText("该追问已被后续回复消费。")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "确认并生成" })).not.toBeInTheDocument();
+  });
+
+  it("streams a local flow demo into the BI Engine report workspace", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/rest/dev/system-settings"
+      ? systemSettingsResponse()
+      : ({ ok: true, json: async () => [] })));
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /经营分析综合报告/ }));
+    await act(async () => vi.runAllTimersAsync());
+
+    expect(screen.getByLabelText("报告预览编辑区")).toBeInTheDocument();
+    expect(screen.getAllByText("经营总览").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("tab", { name: "编辑" })).toBeEnabled();
+  });
+
+  it("streams a local paged demo into the PPT preview", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/rest/dev/system-settings"
+      ? systemSettingsResponse()
+      : ({ ok: true, json: async () => [] })));
+
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /经营复盘演示汇报/ }));
+    await act(async () => vi.runAllTimersAsync());
+
+    expect(screen.getByTestId("ppt-slide")).toHaveTextContent("__ppt_cover__");
+    expect(screen.getByText("1 / 9")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "编辑" }));
+    expect(screen.getByTestId("ppt-editor")).toBeInTheDocument();
   });
 });

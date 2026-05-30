@@ -10,13 +10,13 @@ type PageSectionProps = {
 export function PageSection({ title, description, actions, children }: PageSectionProps) {
   return (
     <section className="page-section">
-      <header className="page-section__header">
+      {title || description || actions ? <header className="page-section__header">
         <div>
           {title ? <h2>{title}</h2> : null}
           {description ? <p>{description}</p> : null}
         </div>
         {actions ? <div className="page-section__actions">{actions}</div> : null}
-      </header>
+      </header> : null}
       {children}
     </section>
   );

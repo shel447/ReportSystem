@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Send, Trash2, WandSparkles, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { deleteConversation, fetchConversation, fetchConversations, sendChatMessageStream } from "../entities/chat/api";
@@ -8,8 +9,10 @@ import type { ChatAsk, ChatResponse, ChatStreamDelta, ConversationDetail, Parame
 import type { ParameterScalar } from "../entities/templates/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
-import { PageSection } from "../shared/ui/PageSection";
-import { SurfaceCard } from "../shared/ui/SurfaceCard";
+import { ChatReportWorkspace } from "../features/report-preview/ChatReportWorkspace";
+import { createDemoStreamDeltas, DEMO_REPORT_TEMPLATES } from "../features/report-preview/demo-report-templates";
+import type { DemoReportTemplate } from "../features/report-preview/demo-report-templates";
+import { canPreviewStreamReport, reduceStreamReport } from "../features/report-preview/stream-report-reducer";
 import { EmptyState } from "../shared/ui/EmptyState";
 
 type ParameterDrafts = Record<string, ParameterValue[]>;
@@ -25,6 +28,15 @@ export function ChatPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [streamDeltas, setStreamDeltas] = useState<ChatStreamDelta[]>([]);
   const [streamStatus, setStreamStatus] = useState<ChatResponse["status"] | "idle">("idle");
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<"chat" | "report">("chat");
+  const [reportWidth, setReportWidth] = useState(() => readStoredReportWidth());
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [activeDemoTemplate, setActiveDemoTemplate] = useState<DemoReportTemplate | null>(null);
+  const [demoReport, setDemoReport] = useState<Record<string, unknown> | null>(null);
+  const demoTimers = useRef<number[]>([]);
 
   const settingsQuery = useQuery({ queryKey: ["system-settings"], queryFn: fetchSystemSettings });
   const conversationsQuery = useQuery({ queryKey: ["conversations"], queryFn: fetchConversations });
@@ -36,11 +48,15 @@ export function ChatPage() {
         onEvent: (event) => {
           if (event.delta?.length) {
             setStreamDeltas((current) => current.concat(event.delta ?? []));
+            setReportOpen(true);
           }
           setStreamStatus(event.status);
         },
       }),
     onMutate: () => {
+      clearDemoTimers(demoTimers.current);
+      setActiveDemoTemplate(null);
+      setDemoReport(null);
       setStreamDeltas([]);
       setStreamStatus("running");
     },
@@ -127,177 +143,261 @@ export function ChatPage() {
   }, [currentAsk]);
 
   const conversationMessages = useMemo(() => normalizeConversationMessages(conversationQuery.data), [conversationQuery.data]);
+  const streamReport = useMemo(() => reduceStreamReport(streamDeltas), [streamDeltas]);
+  const reportAnswer = latestResponse?.answer?.answerType === "REPORT" ? latestResponse.answer.answer : null;
+  const artifactReport = demoReport ?? reportAnswer?.report ?? streamReport;
+  const artifactReportId = activeDemoTemplate?.id ?? reportAnswer?.reportId;
+  const artifactEditable = Boolean(demoReport || reportAnswer);
 
   useEffect(() => {
     if (!activeConversationId || !conversationQuery.data) {
       return;
     }
-    setLatestResponse(findLatestResponse(conversationQuery.data));
+    const persistedResponse = findLatestResponse(conversationQuery.data);
+    if (persistedResponse) {
+      setLatestResponse(persistedResponse);
+    }
   }, [activeConversationId, conversationQuery.data]);
 
+  useEffect(() => () => clearDemoTimers(demoTimers.current), []);
+
+  useEffect(() => {
+    if (artifactReport && (demoReport || reportAnswer || canPreviewStreamReport(streamReport))) {
+      setReportOpen(true);
+    }
+  }, [artifactReport, demoReport, reportAnswer, streamReport]);
+
   const canSubmitQuestion = question.trim().length > 0 && !sendMutation.isPending;
+  const visibleMessages = activeDemoTemplate ? [
+    { key: `${activeDemoTemplate.id}-user`, role: "user", text: `生成演示报告：${activeDemoTemplate.name}` },
+    { key: `${activeDemoTemplate.id}-assistant`, role: "assistant", text: streamStatus === "running" ? "正在使用 mock delta 构造报告，右侧预览会逐步更新。" : "演示报告已生成，可以在右侧预览或切换到本地编辑。" },
+  ] : conversationMessages;
+
+  const confirmDiscardLocalEdit = useCallback(() => {
+    if (!editorDirty) return true;
+    return window.confirm("存在未导出的本地修改，确定丢弃并切换吗？");
+  }, [editorDirty]);
+
+  const resetWorkspace = useCallback(() => {
+    if (!confirmDiscardLocalEdit()) return;
+    clearDemoTimers(demoTimers.current);
+    setActiveConversationId("");
+    setActiveDemoTemplate(null);
+    setDemoReport(null);
+    setLatestResponse(null);
+    setStreamDeltas([]);
+    setStreamStatus("idle");
+    setErrorMessage("");
+    setReportOpen(false);
+    setWorkspaceMode("chat");
+    setHistoryDrawerOpen(false);
+  }, [confirmDiscardLocalEdit]);
+
+  const selectConversation = useCallback((conversationId: string) => {
+    if (!confirmDiscardLocalEdit()) return;
+    clearDemoTimers(demoTimers.current);
+    setActiveDemoTemplate(null);
+    setDemoReport(null);
+    setStreamDeltas([]);
+    setLatestResponse(null);
+    setReportOpen(false);
+    setActiveConversationId(conversationId);
+    setWorkspaceMode("chat");
+    setHistoryDrawerOpen(false);
+  }, [confirmDiscardLocalEdit]);
+
+  const runDemoTemplate = useCallback((template: DemoReportTemplate) => {
+    if (!confirmDiscardLocalEdit()) return;
+    clearDemoTimers(demoTimers.current);
+    const deltas = createDemoStreamDeltas(template);
+    setActiveConversationId("");
+    setLatestResponse(null);
+    setActiveDemoTemplate(template);
+    setDemoReport(null);
+    setStreamDeltas([]);
+    setStreamStatus("running");
+    setReportOpen(true);
+    setWorkspaceMode("report");
+    setHistoryDrawerOpen(false);
+    deltas.forEach((delta, index) => {
+      const timer = window.setTimeout(() => {
+        setStreamDeltas((current) => current.concat(delta));
+        if (index === deltas.length - 1) {
+          setDemoReport(structuredClone(template.report));
+          setStreamStatus("finished");
+        }
+      }, 120 * (index + 1));
+      demoTimers.current.push(timer);
+    });
+  }, [confirmDiscardLocalEdit]);
+
+  const submitQuestion = useCallback(() => {
+    if (!canSubmitQuestion) return;
+    sendMutation.mutate({ conversationId: activeConversationId || undefined, instruction: "generate_report", question: question.trim() });
+  }, [activeConversationId, canSubmitQuestion, question, sendMutation]);
+
+  const startReportResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = reportWidth;
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const maxWidth = Math.max(460, Math.min(960, window.innerWidth - 620));
+      setReportWidth(clamp(startWidth + startX - moveEvent.clientX, 460, maxWidth));
+    };
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      setReportWidth((current) => {
+        window.localStorage.setItem("report-system.chat.report-width", String(current));
+        return current;
+      });
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }, [reportWidth]);
 
   return (
     <div className="chat-page">
-      <PageSection description="对话接口是模板实例运行态的唯一外部入口。参数补齐、诉求确认和报告生成都通过 /chat 推进。">
-        <div className="chat-page__shell">
-          <aside className="chat-history-panel">
-            <div className="chat-history-panel__header">
-              <strong>会话记录</strong>
-              <button className="chat-history-panel__new" type="button" onClick={() => { setActiveConversationId(""); setLatestResponse(null); setErrorMessage(""); }}>新建</button>
-            </div>
-            <div className="chat-history-panel__body">
-              {conversationsQuery.data?.length ? (
-                <div className="chat-history-list">
-                  {conversationsQuery.data.map((item) => (
-                    <article key={item.conversationId} className={`chat-history-item${item.conversationId === activeConversationId ? " is-active" : ""}`}>
-                      <button type="button" className="chat-history-item__main" onClick={() => setActiveConversationId(item.conversationId)}>
-                        <strong>{item.title || "未命名会话"}</strong>
-                        <span>{item.lastMessagePreview || "暂无摘要"}</span>
-                      </button>
-                      <button className="chat-history-item__menu-trigger" type="button" aria-label={`删除会话 ${item.title}`} onClick={() => deleteMutation.mutate(item.conversationId)}>删除</button>
-                    </article>
-                  ))}
-                </div>
-              ) : <EmptyState title="暂无历史会话" description="发送第一条问题后，这里会记录对话会话。" />}
-            </div>
-          </aside>
-
-          <div className="chat-page__workspace">
-            {!settingsQuery.data?.is_ready ? <InlineBanner title="系统设置未完成">Completion 与 Embedding 尚未配置完成，真实生成链路可能被阻断。</InlineBanner> : null}
-            {errorMessage ? <InlineBanner title="请求失败">{errorMessage}</InlineBanner> : null}
-
-            <SurfaceCard className="chat-stream-card">
-              <div className="message-list">
-                {conversationMessages.length ? conversationMessages.map((message) => (
-                  <div key={message.key} className={`message-entry message-entry--${message.role}`}>
-                    <div className="message-entry__role">{message.role === "assistant" ? "助手" : "我"}</div>
-                    <div className="message-entry__body">
-                      <article className={`message-bubble message-bubble--${message.role}`}><p>{message.text}</p></article>
-                      {message.createdAt ? <div className="message-entry__time">{formatDateTime(message.createdAt)}</div> : null}
-                    </div>
-                  </div>
-                )) : <EmptyState title="开始对话" description="输入问题，系统会匹配模板、补齐参数，并返回模板实例片段。" />}
-
-                {latestResponse?.ask ? (
-                  <div className="message-entry message-entry--assistant">
-                    <div className="message-entry__role">助手</div>
-                    <div className="message-entry__body">
-                      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
-                        <strong>{latestResponse.ask.title}</strong>
-                        <p>{latestResponse.ask.text}</p>
-                        {latestResponse.ask.status === "pending" ? (
-                          <AskPanel
-                            ask={latestResponse.ask}
-                            parameterDrafts={parameterDrafts}
-                            dynamicOptions={dynamicOptions}
-                            onChange={setParameterDrafts}
-                            onSubmitFill={() => {
-                              if (!latestResponse.ask) {
-                                return;
-                              }
-                              const mergedParameters = mergeAskParameters(latestResponse.ask.parameters, parameterDrafts, dynamicOptions);
-                              sendMutation.mutate({
-                                conversationId: latestResponse.conversationId,
-                                instruction: "generate_report",
-                                reply: {
-                                  type: "fill_params",
-                                  sourceChatId: latestResponse.chatId,
-                                  parameters: parameterValuesToReplyMap(mergedParameters),
-                                  reportContext: { templateInstance: mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters) },
-                                },
-                              });
-                            }}
-                            onSubmitConfirm={() => {
-                              if (!latestResponse.ask) {
-                                return;
-                              }
-                              const mergedParameters = mergeAskParameters(latestResponse.ask.parameters, parameterDrafts, dynamicOptions);
-                              const mergedTemplateInstance = mergeTemplateInstanceParameters(latestResponse.ask.reportContext.templateInstance, mergedParameters);
-                              sendMutation.mutate({
-                                conversationId: latestResponse.conversationId,
-                                instruction: "generate_report",
-                                reply: {
-                                  type: "confirm_params",
-                                  sourceChatId: latestResponse.chatId,
-                                  parameters: parameterValuesToReplyMap(mergedParameters),
-                                  reportContext: { templateInstance: mergedTemplateInstance },
-                                },
-                              });
-                            }}
-                            submitting={sendMutation.isPending}
-                          />
-                        ) : (
-                          <p>该追问已被后续回复消费，当前会话中不可继续修改。</p>
-                        )}
-                      </article>
-                    </div>
-                  </div>
-                ) : null}
-
-                {latestResponse?.answer?.answerType === "REPORT" ? (
-                  <div className="message-entry message-entry--assistant">
-                    <div className="message-entry__role">报告</div>
-                    <div className="message-entry__body">
-                      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
-                        <strong>报告已生成</strong>
-                        <p>状态：{latestResponse.answer.answer.status}，章节完成度：{latestResponse.answer.answer.generationProgress.completedSections}/{latestResponse.answer.answer.generationProgress.totalSections}</p>
-                        <div className="action-row action-row--compact"><Link className="primary-button button-link" to={`/reports/${latestResponse.answer.answer.reportId}`}>打开报告</Link></div>
-                      </article>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </SurfaceCard>
-
-            {currentTemplateInstance ? (
-              <SurfaceCard>
-                <div className="list-header"><div><p className="section-kicker">Template Instance</p><h3>当前模板实例</h3></div></div>
-                <TemplateInstancePreview templateInstance={currentTemplateInstance} />
-              </SurfaceCard>
-            ) : null}
-
-            {streamDeltas.length ? (
-              <SurfaceCard>
-                <div className="list-header">
-                  <div>
-                    <p className="section-kicker">Stream Delta</p>
-                    <h3>增量生成进度</h3>
-                  </div>
-                  <span>{streamStatus === "running" ? "生成中" : "已完成"}</span>
-                </div>
-                <ul className="stack-list">
-                  {streamDeltas.map((delta, index) => (
-                    <li key={`${delta.action}-${index}`}>{describeDelta(delta)}</li>
-                  ))}
-                </ul>
-              </SurfaceCard>
-            ) : null}
-
-            <SurfaceCard className="chat-compose-card">
-              <div className="chat-compose">
-                <label className="sr-only" htmlFor="chat-input">输入问题</label>
-                <textarea
-                  id="chat-input"
-                  rows={4}
-                  placeholder="输入问题，例如：帮我生成总部网络运行日报"
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      if (canSubmitQuestion) {
-                        sendMutation.mutate({ conversationId: activeConversationId || undefined, instruction: "generate_report", question: question.trim() });
-                      }
-                    }
-                  }}
-                />
-                <div className="action-row"><button className="primary-button" type="button" disabled={!canSubmitQuestion} onClick={() => sendMutation.mutate({ conversationId: activeConversationId || undefined, instruction: "generate_report", question: question.trim() })}>{sendMutation.isPending ? "处理中..." : "发送"}</button></div>
-              </div>
-            </SurfaceCard>
+      <aside className={`chat-history-panel${historyCollapsed ? " is-collapsed" : ""}${historyDrawerOpen ? " is-drawer-open" : ""}`}>
+        <div className="chat-history-panel__header">
+          <strong>会话</strong>
+          <div className="chat-history-panel__actions">
+            <button className="icon-button" type="button" title="新建会话" aria-label="新建会话" onClick={resetWorkspace}><MessageSquarePlus size={17} /></button>
+            <button className="icon-button chat-history-panel__drawer-close" type="button" title="关闭会话列表" aria-label="关闭会话列表" onClick={() => setHistoryDrawerOpen(false)}><X size={17} /></button>
           </div>
         </div>
-      </PageSection>
+        <div className="chat-history-panel__body">
+          <div className="chat-history-list">
+            {conversationsQuery.data?.map((item) => (
+              <article key={item.conversationId} className={`chat-history-item${item.conversationId === activeConversationId && !activeDemoTemplate ? " is-active" : ""}`}>
+                <button type="button" className="chat-history-item__main" onClick={() => selectConversation(item.conversationId)}>
+                  <strong>{item.title || "未命名会话"}</strong>
+                  <span>{item.lastMessagePreview || "暂无摘要"}</span>
+                </button>
+                <button className="icon-button chat-history-item__delete" type="button" title="删除会话" aria-label={`删除会话 ${item.title}`} onClick={() => deleteMutation.mutate(item.conversationId)}><Trash2 size={14} /></button>
+              </article>
+            ))}
+          </div>
+          <div className="chat-demo-list">
+            <div className="chat-demo-list__heading"><WandSparkles size={15} /><strong>BI Engine 演示</strong></div>
+            {DEMO_REPORT_TEMPLATES.map((template) => (
+              <button key={template.id} className={`chat-demo-template${template.id === activeDemoTemplate?.id ? " is-active" : ""}`} type="button" onClick={() => runDemoTemplate(template)}>
+                <strong>{template.name}</strong>
+                <span>{template.structureType === "paged" ? "PPT" : "Flow"} · {template.description}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      {historyDrawerOpen ? <button className="chat-history-backdrop" type="button" aria-label="关闭会话列表" onClick={() => setHistoryDrawerOpen(false)} /> : null}
+
+      <main className={`chat-thread${workspaceMode === "report" ? " is-mobile-hidden" : ""}`}>
+        <div className="chat-thread__toolbar">
+          <div>
+            <button className="icon-button chat-thread__mobile-menu" type="button" title="打开会话列表" aria-label="打开会话列表" onClick={() => setHistoryDrawerOpen(true)}><Menu size={18} /></button>
+            <button className="icon-button chat-thread__history-toggle" type="button" title={historyCollapsed ? "展开会话列表" : "收起会话列表"} aria-label={historyCollapsed ? "展开会话列表" : "收起会话列表"} onClick={() => setHistoryCollapsed((current) => !current)}>{historyCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</button>
+            <strong>{activeDemoTemplate?.name ?? conversationQuery.data?.title ?? "新对话"}</strong>
+          </div>
+          {artifactReport ? <button className="icon-text-button" type="button" onClick={() => { setReportOpen(true); setWorkspaceMode("report"); }}><PanelRightOpen size={16} />报告</button> : null}
+        </div>
+
+        <div className="chat-thread__scroll">
+          <div className="chat-thread__content">
+            {!settingsQuery.data?.is_ready ? <InlineBanner title="系统设置未完成">真实生成链路暂不可用，可以先使用左侧 BI Engine 演示模板。</InlineBanner> : null}
+            {errorMessage ? <InlineBanner title="请求失败">{errorMessage}</InlineBanner> : null}
+            <div className="message-list">
+              {visibleMessages.length ? visibleMessages.map((message) => (
+                <div key={message.key} className={`message-entry message-entry--${message.role}`}>
+                  <div className="message-entry__body">
+                    <article className={`message-bubble message-bubble--${message.role}`}><p>{message.text}</p></article>
+                    {"createdAt" in message && message.createdAt ? <div className="message-entry__time">{formatDateTime(message.createdAt)}</div> : null}
+                  </div>
+                </div>
+              )) : <EmptyState title="开始一段报告对话" description="输入报告诉求，或从左侧选择一份 BI Engine 演示模板。" />}
+
+              {latestResponse?.ask ? (
+                <div className="message-entry message-entry--assistant">
+                  <div className="message-entry__body message-entry__body--has-action">
+                    <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+                      <strong>{latestResponse.ask.title}</strong>
+                      <p>{latestResponse.ask.text}</p>
+                      {latestResponse.ask.status === "pending" ? (
+                        <AskPanel
+                          ask={latestResponse.ask}
+                          parameterDrafts={parameterDrafts}
+                          dynamicOptions={dynamicOptions}
+                          onChange={setParameterDrafts}
+                          onSubmitFill={() => submitAskReply(latestResponse, "fill_params", parameterDrafts, dynamicOptions, sendMutation.mutate)}
+                          onSubmitConfirm={() => submitAskReply(latestResponse, "confirm_params", parameterDrafts, dynamicOptions, sendMutation.mutate)}
+                          submitting={sendMutation.isPending}
+                        />
+                      ) : <p>该追问已被后续回复消费。</p>}
+                    </article>
+                  </div>
+                </div>
+              ) : null}
+
+              {reportAnswer ? (
+                <div className="message-entry message-entry--assistant">
+                  <div className="message-entry__body">
+                    <article className="message-bubble message-bubble--assistant">
+                      <strong>报告已生成</strong>
+                      <p>章节完成度：{reportAnswer.generationProgress.completedSections}/{reportAnswer.generationProgress.totalSections}</p>
+                      <div className="action-row action-row--compact"><Link className="secondary-button button-link" to={`/reports/${reportAnswer.reportId}`}>打开报告详情</Link></div>
+                    </article>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="chat-compose-dock">
+          <div className="chat-compose">
+            <label className="sr-only" htmlFor="chat-input">输入问题</label>
+            <textarea
+              id="chat-input"
+              rows={1}
+              placeholder="描述你想生成的报告..."
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  submitQuestion();
+                }
+              }}
+            />
+            <button className="chat-send-button" type="button" title="发送" aria-label="发送" disabled={!canSubmitQuestion} onClick={submitQuestion}><Send size={17} /></button>
+          </div>
+        </div>
+      </main>
+
+      {reportOpen && artifactReport ? (
+        <>
+          <div className="chat-workspace-splitter" role="separator" aria-label="调整报告区宽度" onMouseDown={startReportResize} />
+          <div className={`chat-report-slot${workspaceMode === "chat" ? " is-mobile-hidden" : ""}`} style={{ width: `${reportWidth}px` }}>
+            <ChatReportWorkspace
+              key={artifactReportId ?? "stream-report"}
+              report={artifactReport}
+              reportId={artifactReportId}
+              templateInstance={currentTemplateInstance}
+              deltas={streamDeltas}
+              status={streamStatus}
+              editable={artifactEditable}
+              mock={Boolean(activeDemoTemplate)}
+              onDirtyChange={setEditorDirty}
+              onClose={() => { setReportOpen(false); setWorkspaceMode("chat"); }}
+            />
+          </div>
+        </>
+      ) : null}
+
+      {reportOpen && artifactReport ? <div className="chat-mobile-workspace-switch" role="tablist" aria-label="切换工作区">
+        <button type="button" className={workspaceMode === "chat" ? "is-active" : ""} onClick={() => setWorkspaceMode("chat")}>对话</button>
+        <button type="button" className={workspaceMode === "report" ? "is-active" : ""} onClick={() => setWorkspaceMode("report")}>报告</button>
+      </div> : null}
     </div>
   );
 }
@@ -375,30 +475,6 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
   );
 }
 
-function TemplateInstancePreview({ templateInstance }: { templateInstance: TemplateInstance }) {
-  return (
-    <div className="stack-list">
-      <div className="template-card__meta"><span>{templateInstance.templateId}</span><span>{templateInstance.status}</span><span>revision {templateInstance.revision}</span></div>
-      {templateInstance.catalogs.map((catalog) => <TemplateInstanceCatalogPreview key={catalog.id} catalog={catalog} />)}
-    </div>
-  );
-}
-
-function TemplateInstanceCatalogPreview({ catalog }: { catalog: TemplateInstance["catalogs"][number] }) {
-  return (
-    <div className="template-editor-subcard">
-      <strong>{catalog.renderedTitle}</strong>
-      {(catalog.sections ?? []).map((section) => (
-        <div key={section.id} className="template-inline-group">
-          <div className="template-inline-group__header"><strong>{section.id}</strong><span>{section.skeletonStatus}</span></div>
-          <p>{section.outline.renderedRequirement ?? section.outline.requirement}</p>
-        </div>
-      ))}
-      {(catalog.subCatalogs ?? []).map((subCatalog) => <TemplateInstanceCatalogPreview key={subCatalog.id} catalog={subCatalog} />)}
-    </div>
-  );
-}
-
 export function mergeAskParameters(parameters: TemplateParameter[], parameterDrafts: ParameterDrafts, dynamicOptions: DynamicOptionMap): TemplateParameter[] {
   return parameters.map((parameter) => ({
     ...parameter,
@@ -458,6 +534,12 @@ function describeDelta(delta: ChatStreamDelta) {
   }
   if (delta.action === "add_catalog") {
     return `新增目录：${delta.catalogs.map((item) => item.title).join("、")}`;
+  }
+  if (delta.action === "add_chapter") {
+    return `新增 PPT 章节：${delta.chapters.map((item) => item.title).join("、")}`;
+  }
+  if (delta.action === "add_slide") {
+    return `新增幻灯片：${delta.slides.map((item) => item.title ?? item.id).join("、")}`;
   }
   return `新增章节：${delta.sections.map((item) => item.requirement).join("、")}`;
 }
@@ -521,4 +603,39 @@ function InlineBanner({ title, children }: { title: string; children: string }) 
       <span>{children}</span>
     </div>
   );
+}
+
+function submitAskReply(
+  response: ChatResponse,
+  type: "fill_params" | "confirm_params",
+  parameterDrafts: ParameterDrafts,
+  dynamicOptions: DynamicOptionMap,
+  mutate: (payload: Parameters<typeof sendChatMessageStream>[0]) => void,
+) {
+  if (!response.ask) return;
+  const mergedParameters = mergeAskParameters(response.ask.parameters, parameterDrafts, dynamicOptions);
+  mutate({
+    conversationId: response.conversationId,
+    instruction: "generate_report",
+    reply: {
+      type,
+      sourceChatId: response.chatId,
+      parameters: parameterValuesToReplyMap(mergedParameters),
+      reportContext: { templateInstance: mergeTemplateInstanceParameters(response.ask.reportContext.templateInstance, mergedParameters) },
+    },
+  });
+}
+
+function clearDemoTimers(timers: number[]) {
+  timers.forEach((timer) => window.clearTimeout(timer));
+  timers.length = 0;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function readStoredReportWidth() {
+  const value = Number(window.localStorage.getItem("report-system.chat.report-width"));
+  return Number.isFinite(value) && value > 0 ? value : 560;
 }

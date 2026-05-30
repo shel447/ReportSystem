@@ -6,9 +6,10 @@ import { ListPageLayout } from "./ListPageLayout";
 import { PageIntroBar } from "./PageIntroBar";
 
 describe("shared page layouts", () => {
-  it("renders intro copy and actions without adding a page heading", () => {
+  it("renders a compact page toolbar with a single heading", () => {
     render(
       <PageIntroBar
+        title="页面标题"
         description="统一的页面引导文案。"
         actions={<button type="button">主操作</button>}
         badge="Draft"
@@ -18,18 +19,18 @@ describe("shared page layouts", () => {
     expect(screen.getByText("统一的页面引导文案。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "主操作" })).toBeInTheDocument();
     expect(screen.getByText("Draft")).toBeInTheDocument();
-    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "页面标题", level: 1 })).toBeInTheDocument();
   });
 
   it("renders list and detail layouts with stable regions", () => {
     render(
       <>
         <ListPageLayout
-          intro={<PageIntroBar description="列表页" />}
+          intro={<PageIntroBar title="列表页" />}
           content={<div>列表内容</div>}
         />
         <DetailPageLayout
-          intro={<PageIntroBar description="详情页" />}
+          intro={<PageIntroBar title="详情页" />}
           summary={<div>摘要区域</div>}
           content={<div>正文区域</div>}
         />
@@ -44,7 +45,7 @@ describe("shared page layouts", () => {
   it("renders conversation layout with intro, notices, stream, and composer", () => {
     render(
       <ConversationLayout
-        intro={<PageIntroBar description="流程说明" />}
+        intro={<PageIntroBar title="流程说明" />}
         notices={<div>状态提醒</div>}
         stream={<div>消息流</div>}
         composer={<div>输入区</div>}

@@ -49,7 +49,7 @@ export function TemplatesPage() {
 
   return (
     <div className="templates-page">
-      <PageSection description="模板接口只承载正式静态模板定义，结构固定为 parameters + catalogs。">
+      <PageSection>
         {importError ? (
           <StatusBanner tone="warning" title="导入失败">
             {importError}
@@ -59,8 +59,7 @@ export function TemplatesPage() {
         <ListPageLayout
           intro={
             <PageIntroBar
-              eyebrow="Report Templates"
-              description="浏览正式模板资产，并进入模板详情页维护 catalogs -> sections 定义。"
+              title="报告模板"
               actions={
                 <>
                   <button className="secondary-button" type="button" onClick={() => fileInputRef.current?.click()}>
@@ -76,19 +75,16 @@ export function TemplatesPage() {
           }
           content={
             templatesQuery.data && templatesQuery.data.length > 0 ? (
-              <div className="template-catalog-grid">
+              <div className="asset-list">
                 {templatesQuery.data.map((template) => (
-                  <Link key={template.id} className="template-card" to={`/templates/${template.id}`}>
-                    <div className="template-card__header">
+                  <Link key={template.id} className="asset-list__row" to={`/templates/${template.id}`}>
+                    <div className="asset-list__main">
                       <strong>{template.name}</strong>
+                      <p>{template.description || "暂无模板描述"}</p>
+                    </div>
+                    <div className="asset-list__meta">
                       <span className="status-chip status-chip--soft">{template.category}</span>
-                    </div>
-                    <p>{template.description || "暂无模板描述"}</p>
-                    <div className="template-card__meta">
-                      <span>{template.id}</span>
                       <span>{template.schemaVersion}</span>
-                    </div>
-                    <div className="template-card__meta">
                       <span>{template.updatedAt ? formatDateTime(template.updatedAt) : "未记录更新时间"}</span>
                     </div>
                   </Link>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 type PageIntroBarProps = {
+  title: string;
   description?: string;
   actions?: ReactNode;
   badge?: ReactNode;
@@ -8,15 +9,19 @@ type PageIntroBarProps = {
 };
 
 export function PageIntroBar({
+  title,
   description,
   actions,
   badge,
-  eyebrow = "Workspace",
+  eyebrow,
 }: PageIntroBarProps) {
   return (
     <div className="page-intro-bar">
       <div className="page-intro-bar__body">
-        <p className="page-intro-bar__eyebrow">{eyebrow}</p>
+        <div className="page-intro-bar__title-row">
+          <h1>{title}</h1>
+          {eyebrow ? <span>{eyebrow}</span> : null}
+        </div>
         {description ? <p className="page-intro-bar__description">{description}</p> : null}
       </div>
       {badge || actions ? (

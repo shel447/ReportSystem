@@ -193,7 +193,8 @@ def _report_delta_events(answer: dict[str, Any]) -> list[dict[str, Any]]:
     deltas: list[dict[str, Any]] = []
     report_id = str(report_answer.get("reportId") or "")
     report_title = str(((report.get("basicInfo") or {}).get("name")) or report_id)
-    deltas.append({"action": "init_report", "report": {"reportId": report_id, "title": report_title}})
+    structure_type = str(report.get("structureType") or "flow")
+    deltas.append({"action": "init_report", "report": {"reportId": report_id, "title": report_title, "structureType": structure_type}})
     deltas.extend(_catalog_delta_events(list(report.get("catalogs") or []), parent_catalog_id=None, parent_catalog_path=None))
     return deltas
 
@@ -209,6 +210,7 @@ def _catalog_delta_events(
         deltas.append(
             {
                 "action": "add_catalog",
+                "structureType": "flow",
                 "parentCatalogId": parent_catalog_id,
                 "parentCatalog": parent_catalog_path,
                 "catalogs": [
@@ -228,6 +230,7 @@ def _catalog_delta_events(
             deltas.append(
                 {
                     "action": "add_section",
+                    "structureType": "flow",
                     "parentCatalogId": str(catalog.get("id") or ""),
                     "parentCatalog": catalog_path,
                     "sections": [
