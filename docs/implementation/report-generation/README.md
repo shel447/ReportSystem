@@ -12,6 +12,7 @@
 ## 2. 领域对象
 
 - `TemplateInstance`
+- `ReportContext`
 - `ReportDsl`
 - `ReportInstance`
 - `DocumentArtifact`
@@ -32,9 +33,21 @@
 
 ## 3. 应用服务职责
 
-当前代码中，报告生成应用层由 `ReportGenerationService` 和 `ReportDocumentService` 组成。
+当前代码中，报告生成应用层由 `ReportScenarioService`、`ReportGenerationService` 和 `ReportDocumentService` 组成。
 
-### 3.1 `ReportGenerationService`
+### 3.1 `ReportScenarioService`
+
+`ReportScenarioService` 是报告业务接入通用对话的应用门面：
+
+- 处理 `generate_report`、`extract_report_template` 与 `generate_report_segment` instruction。
+- 识别模板，提取自然语言中的参数值。
+- 解析报告场景的 `reply.parameters` 与 `reply.reportContext`。
+- 判断缺失参数，构造报告场景的 `ask.parameters` 与 `ask.reportContext`。
+- 推进同一个 `TemplateInstance`，并在确认后调用报告冻结服务。
+
+`ReportContext` 是报告场景运行上下文，当前包含完整 `TemplateInstance`。其中来源归因统一使用 `conversationId/chatId`；它不管理聊天消息状态。
+
+### 3.2 `ReportGenerationService`
 
 承担以下功能职责：
 
@@ -66,7 +79,7 @@
   - 调用 `_build_section_components(section)` 生成新 components、summary、additional_infos
   - 返回 `ReportSection` DSL 片段与 `ReportGenerateMeta`，不持久化任何对象
 
-### 3.2 `ReportDocumentService`
+### 3.3 `ReportDocumentService`
 
 承担以下功能职责：
 

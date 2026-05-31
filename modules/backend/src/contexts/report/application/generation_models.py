@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from ..domain.generation_models import (
     DocumentArtifact,
     ReportDsl,
+    ReportGenerateMeta,
+    ReportSection,
     TemplateInstance,
     report_dsl_to_dict,
     template_instance_to_dict,
@@ -91,6 +93,14 @@ class DownloadResolution:
 
     document: DocumentView
     absolute_path: str
+
+
+@dataclass(slots=True)
+class ReportSegmentPreview:
+    """章节重新生成的非持久化预览。"""
+
+    section: ReportSection
+    report_meta: ReportGenerateMeta
 
 
 def document_view_from_artifact(document: DocumentArtifact) -> DocumentView:

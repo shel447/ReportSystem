@@ -17,7 +17,9 @@ from src.contexts.conversation.application.models import (
     conversation_message_meta_to_dict,
 )
 from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView
-from src.contexts.conversation.application.services import ConversationService, _missing_required_parameters
+from src.contexts.conversation.application.services import ConversationService
+from src.contexts.report.application.scenario_models import ReportContext, ReportReplyPayload
+from src.contexts.report.application.scenario_services import ReportScenarioService, missing_required_parameters
 from src.contexts.report.domain.generation_models import (
     ParameterConfirmation,
     ReportBasicInfo,
@@ -32,14 +34,11 @@ from src.contexts.report.domain.template_models import ParameterValue, report_te
 
 
 def _service():
-    return ConversationService(
-        conversation_repository=SimpleNamespace(),
-        chat_repository=SimpleNamespace(),
+    return ReportScenarioService(
         template_management_service=SimpleNamespace(),
         template_repository=SimpleNamespace(),
         runtime_service=SimpleNamespace(),
         parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
-        db=None,
     )
 
 
@@ -83,11 +82,15 @@ def _scoped_template():
     }
 
 
-class ConversationServiceScopedParameterTests(unittest.TestCase):
+class ReportScenarioServiceScopedParameterTests(unittest.TestCase):
     def test_extract_parameter_values_reads_section_scoped_parameters(self):
         service = _service()
 
-        values = service._extract_parameter_values(report_template_from_dict(_scoped_template()), "请分析华东、华北的运行态势")
+        values = service._extract_parameter_values(
+            report_template_from_dict(_scoped_template()),
+            "请分析华东、华北的运行态势",
+            user_id="default",
+        )
 
         self.assertIn("scope", values)
         self.assertEqual(values["scope"][0].label, "请分析华东、华北的运行态势")
@@ -105,7 +108,7 @@ class ConversationServiceScopedParameterTests(unittest.TestCase):
             parameter_values={},
         )
 
-        missing = _missing_required_parameters(template=template, template_instance=instance)
+        missing = missing_required_parameters(template=template, template_instance=instance)
 
         self.assertEqual([item.id for item in missing], ["scope"])
 
@@ -346,6 +349,20 @@ class _RuntimeService:
         )
 
 
+def _conversation_service(*, template, conversation_repository, chat_repository, runtime_service):
+    report_scenario_service = ReportScenarioService(
+        template_management_service=SimpleNamespace(get_template=lambda template_id: template),
+        template_repository=SimpleNamespace(list_all=lambda: [template]),
+        runtime_service=runtime_service,
+        parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
+    )
+    return ConversationService(
+        conversation_repository=conversation_repository,
+        chat_repository=chat_repository,
+        report_scenario_service=report_scenario_service,
+    )
+
+
 class ConversationServiceAskStatusTests(unittest.TestCase):
     def test_reply_marks_previous_ask_as_replied(self):
         template = report_template_from_dict({
@@ -369,33 +386,30 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         conversation_repository = _ConversationRepository()
         chat_repository = _ChatRepository()
         runtime_service = _RuntimeService()
-        service = ConversationService(
+        service = _conversation_service(
+            template=template,
             conversation_repository=conversation_repository,
             chat_repository=chat_repository,
-            template_management_service=SimpleNamespace(
-                get_template=lambda template_id: template,
-            ),
-            template_repository=SimpleNamespace(list_all=lambda: [template]),
             runtime_service=runtime_service,
-            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
-            db=None,
         )
 
-        first = service.send_message(
+        first = service.chat(
             data=ChatCommand(instruction="generate_report", question="帮我生成 2026-04-18 网络运行日报"),
             user_id="default",
         )
         self.assertEqual(first.ask.status, "pending")
 
-        second = service.send_message(
+        second = service.chat(
             data=ChatCommand(
                 conversation_id=first.conversation_id,
                 instruction="generate_report",
                 reply=ChatReply(
                     type="fill_params",
                     source_chat_id=first.chat_id,
-                    parameters={"report_date": ["2026-04-18"]},
-                    template_instance=runtime_service.instance,
+                    report_payload=ReportReplyPayload(
+                        parameters={"report_date": ["2026-04-18"]},
+                        report_context=ReportContext(template_instance=runtime_service.instance),
+                    ),
                 ),
             ),
             user_id="default",
@@ -428,23 +442,18 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         conversation_repository = _ConversationRepository()
         chat_repository = _ChatRepository()
         runtime_service = _RuntimeService()
-        service = ConversationService(
+        service = _conversation_service(
+            template=template,
             conversation_repository=conversation_repository,
             chat_repository=chat_repository,
-            template_management_service=SimpleNamespace(
-                get_template=lambda template_id: template,
-            ),
-            template_repository=SimpleNamespace(list_all=lambda: [template]),
             runtime_service=runtime_service,
-            parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
-            db=None,
         )
 
-        first = service.send_message(
+        first = service.chat(
             data=ChatCommand(instruction="generate_report", question="帮我生成 2026-04-18 网络运行日报"),
             user_id="default",
         )
-        second = service.send_message(
+        second = service.chat(
             data=ChatCommand(
                 conversation_id=first.conversation_id,
                 instruction="generate_report",
@@ -453,15 +462,17 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             user_id="default",
         )
 
-        third = service.send_message(
+        third = service.chat(
             data=ChatCommand(
                 conversation_id=first.conversation_id,
                 instruction="generate_report",
                 reply=ChatReply(
                     type="fill_params",
                     source_chat_id=first.chat_id,
-                    parameters={"report_date": ["2026-04-18"]},
-                    template_instance=runtime_service.instance,
+                    report_payload=ReportReplyPayload(
+                        parameters={"report_date": ["2026-04-18"]},
+                        report_context=ReportContext(template_instance=runtime_service.instance),
+                    ),
                 ),
             ),
             user_id="default",

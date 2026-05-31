@@ -8,6 +8,7 @@ from ..contexts.conversation.infrastructure.repositories import (
     SqlAlchemyConversationRepository,
 )
 from ..contexts.report.application.generation_services import ReportDocumentService, ReportGenerationService
+from ..contexts.report.application.scenario_services import ReportScenarioService
 from ..contexts.report.infrastructure.custom_content import CustomContentGateway
 from ..contexts.report.infrastructure.documents import ReportDocumentGateway
 from ..contexts.report.infrastructure.generation_repositories import (
@@ -23,6 +24,8 @@ from ..contexts.report.infrastructure.template_repositories import (
     SqlAlchemyTemplateManagementRepository,
     TemplateSchemaGateway,
 )
+from .ai.openai_compat import OpenAICompatGateway
+from .settings.system_settings import build_embedding_provider_config
 
 
 def build_template_management_service(db: Session) -> TemplateManagementService:
@@ -56,14 +59,22 @@ def build_report_document_service(db: Session) -> ReportDocumentService:
     return ReportDocumentService(runtime_service=build_report_generation_service(db))
 
 
+def build_report_scenario_service(db: Session) -> ReportScenarioService:
+    """装配通过通用对话通道运行的报告业务场景。"""
+    return ReportScenarioService(
+        template_management_service=build_template_management_service(db),
+        template_repository=SqlAlchemyTemplateManagementRepository(db),
+        runtime_service=build_report_generation_service(db),
+        parameter_option_service=build_parameter_option_service(db),
+        ai_gateway=OpenAICompatGateway(),
+        embedding_config_builder=build_embedding_provider_config,
+    )
+
+
 def build_conversation_service(db: Session) -> ConversationService:
     """装配聊天接口应用服务及其依赖上下文。"""
     return ConversationService(
         conversation_repository=SqlAlchemyConversationRepository(db),
         chat_repository=SqlAlchemyChatRepository(db),
-        template_management_service=build_template_management_service(db),
-        template_repository=SqlAlchemyTemplateManagementRepository(db),
-        runtime_service=build_report_generation_service(db),
-        parameter_option_service=build_parameter_option_service(db),
-        db=db,
+        report_scenario_service=build_report_scenario_service(db),
     )

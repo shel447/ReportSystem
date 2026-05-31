@@ -25,6 +25,7 @@
 依赖方向：
 
 - `conversation -> report`
+- `conversation` 只依赖 `report.application.ReportScenarioService` 和严格场景 DTO，不直接读取 `report.domain`
 - `report` 内部用 `application/domain/infrastructure` 三层组织；模板管理、报告生成和报告管理只在源文件命名上区分，不拆成子 context 目录。
 - application 层只能通过 port 访问基础设施
 

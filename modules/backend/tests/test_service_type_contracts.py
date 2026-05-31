@@ -40,11 +40,11 @@ class ServiceTypeContractTests(unittest.TestCase):
         self.assertIs(serialize_hints["return"], ReportAnswerView)
 
     def test_conversation_service_and_chat_repository_use_formal_types(self):
-        send_hints = get_type_hints(ConversationService.send_message)
+        chat_hints = get_type_hints(ConversationService.chat)
         append_hints = get_type_hints(SqlAlchemyChatRepository.append_message)
 
-        self.assertIs(send_hints["data"], ChatCommand)
-        self.assertIs(send_hints["return"], ChatResponse)
+        self.assertIs(chat_hints["data"], ChatCommand)
+        self.assertIs(chat_hints["return"], ChatResponse)
         self.assertIs(append_hints["content"], ConversationMessageContent)
         self.assertEqual(append_hints["action"], ConversationMessageAction | None)
         self.assertEqual(append_hints["meta"], ConversationMessageMeta | None)

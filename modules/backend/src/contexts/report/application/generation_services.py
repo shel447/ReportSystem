@@ -29,6 +29,7 @@ from .generation_models import (
     GenerationProgressView,
     ReportAnswerView,
     ReportView,
+    ReportSegmentPreview,
 )
 from ..domain.generation_models import (
     ChartComponent,
@@ -57,8 +58,10 @@ from ..domain.generation_models import (
     report_catalog_from_dict,
     report_dsl_to_dict,
     report_section_from_dict,
+    report_section_to_dict,
 )
-from ..domain.generation_services import serialize_template_instance
+from ..domain.generation_services import build_execution_bindings, serialize_template_instance
+from ..domain.template_models import OutlineDefinition
 
 REPORT_SCHEMA_PATH = project_root() / "docs" / "implementation" / "contracts" / "schemas" / "report-dsl.schema.json"
 REPORT_SCHEMA = json.loads(REPORT_SCHEMA_PATH.read_text(encoding="utf-8"))
@@ -125,8 +128,8 @@ class ReportGenerationService:
         *,
         template_instance_id: str,
         user_id: str,
-        source_conversation_id: str | None,
-        source_chat_id: str | None,
+        conversation_id: str | None,
+        chat_id: str | None,
     ) -> ReportAnswerView:
         """将已确认的模板实例冻结为正式报告结构与报告资源。"""
         template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
@@ -154,8 +157,8 @@ class ReportGenerationService:
             template_id=template_model.id,
             template_instance_id=template_instance.id,
             user_id=user_id,
-            source_conversation_id=source_conversation_id,
-            source_chat_id=source_chat_id,
+            conversation_id=conversation_id,
+            chat_id=chat_id,
             status=resource_status,
             schema_version=report.basic_info.schema_version or "1.0.0",
             report=report,
@@ -272,6 +275,49 @@ class ReportGenerationService:
             template_instance=template_instance,
             documents=documents,
             generation_progress=_build_generation_progress(instance.report),
+        )
+
+    def preview_section_regeneration(
+        self,
+        *,
+        report_id: str,
+        section_id: str,
+        outline: OutlineDefinition,
+        user_id: str,
+    ) -> ReportSegmentPreview:
+        """基于冻结实例预览重新生成单个章节，不修改任何持久化对象。"""
+        report_instance = self.report_instance_repository.get(report_id, user_id=user_id)
+        if report_instance is None:
+            raise NotFoundError("Report not found")
+        template_instance = self.template_instance_repository.get(report_instance.template_instance_id, user_id=user_id)
+        if template_instance is None:
+            raise NotFoundError("Template instance not found")
+        section = _find_template_instance_section(template_instance.catalogs, section_id)
+        if section is None:
+            raise NotFoundError("Section not found")
+
+        preview = copy.deepcopy(section)
+        preview.outline = copy.deepcopy(outline)
+        preview.user_edited = True
+        preview.skeleton_status = "reusable"
+        preview.runtime_context.bindings = build_execution_bindings(section=preview, item_instances=list(preview.outline.items or []))
+        components, summary, additional_infos = _build_section_components(preview)
+        report_section = ReportSection(
+            id=preview.id,
+            title=_section_title(preview),
+            components=components,
+            summary=ReportSummary(id=f"summary_{preview.id}", overview=summary),
+        )
+        _validate_report_fragment(REPORT_SECTION_FRAGMENT_VALIDATOR, report_section_to_dict(report_section), "report segment")
+        return ReportSegmentPreview(
+            section=report_section,
+            report_meta=ReportGenerateMeta(
+                status="Success",
+                question=preview.outline.rendered_requirement or preview.outline.requirement or "",
+                additional_infos=[ReportAdditionalInfo(type="Summary", value=summary), *additional_infos],
+                outline=copy.deepcopy(preview.outline),
+                parameters={parameter.id: copy.deepcopy(parameter) for parameter in list(preview.parameters or [])},
+            ),
         )
 
 
@@ -761,6 +807,17 @@ def _collect_section_titles(catalogs: list[ReportCatalog]) -> list[str]:
                 titles.append(title)
         titles.extend(_collect_section_titles(list(catalog.sub_catalogs or [])))
     return titles
+
+
+def _find_template_instance_section(catalogs, section_id: str):
+    for catalog in list(catalogs or []):
+        for section in list(catalog.sections or []):
+            if str(section.id or "") == section_id:
+                return section
+        found = _find_template_instance_section(catalog.sub_catalogs, section_id)
+        if found is not None:
+            return found
+    return None
 
 
 def _count_catalogs(catalogs: list[ReportCatalog]) -> int:

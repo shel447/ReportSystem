@@ -5,6 +5,7 @@ from src.contexts.report.domain.generation_models import (
     ParameterConfirmation,
     ReportBasicInfo,
     ReportDsl,
+    ReportInstance,
     TemplateInstance,
     report_dsl_to_dict,
     template_instance_to_dict,
@@ -48,6 +49,7 @@ class DataclassAliasContractTests(unittest.TestCase):
         template_instance_aliases = _alias_map(TemplateInstance)
         report_dsl_aliases = _alias_map(ReportDsl)
         report_basic_info_aliases = _alias_map(ReportBasicInfo)
+        report_instance_aliases = _alias_map(ReportInstance)
 
         self.assertEqual("schemaVersion", template_instance_aliases["schema_version"])
         self.assertEqual("templateId", template_instance_aliases["template_id"])
@@ -66,6 +68,8 @@ class DataclassAliasContractTests(unittest.TestCase):
         self.assertNotIn("updated_at", report_basic_info_aliases)
         self.assertNotIn("sub_title", report_basic_info_aliases)
         self.assertNotIn("parameters", report_basic_info_aliases)
+        self.assertEqual("conversationId", report_instance_aliases["conversation_id"])
+        self.assertEqual("chatId", report_instance_aliases["chat_id"])
 
     def test_public_serializers_keep_lower_camel_case_contract(self):
         template = ReportTemplate(

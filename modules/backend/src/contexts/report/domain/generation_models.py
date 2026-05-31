@@ -646,8 +646,8 @@ class ReportInstance:
     template_id: str = _alias_field("templateId")
     template_instance_id: str = _alias_field("templateInstanceId")
     user_id: str = _alias_field("userId")
-    source_conversation_id: str | None = _alias_field("sourceConversationId")
-    source_chat_id: str | None = _alias_field("sourceChatId")
+    conversation_id: str | None = _alias_field("conversationId")
+    chat_id: str | None = _alias_field("chatId")
     status: str
     schema_version: str = _alias_field("schemaVersion")
     report: ReportDsl

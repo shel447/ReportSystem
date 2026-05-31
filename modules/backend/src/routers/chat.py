@@ -39,6 +39,7 @@ class ChatRequestPayload(BaseModel):
     question: Optional[str] = None
     instruction: Optional[str] = None
     reply: Optional[ReplyPayload] = None
+    template: Optional[dict[str, Any]] = None
     attachments: list[dict[str, Any]] = []
     histories: list[dict[str, Any]] = []
     requestId: Optional[str] = None
@@ -57,14 +58,14 @@ def list_sessions(db: Session = Depends(get_db), user_id: Optional[str] = Header
 
 
 @router.post("")
-def send_message(
+def chat(
     data: ChatRequestPayload,
     request: Request = None,
     db: Session = Depends(get_db),
     user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     try:
-        payload = build_conversation_service(db).send_message(
+        payload = build_conversation_service(db).chat(
             data=chat_command_from_payload(data.model_dump(exclude_none=True)),
             user_id=resolve_user_id(user_id),
         )
@@ -176,6 +177,13 @@ def _build_stream_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
         append_event(event_type="done", status=response_status)
         return events
 
+    if answer and answer.get("answerType") == "REPORT_SEGMENT":
+        append_event(event_type="status", status="running")
+        append_event(event_type="answer", status="running", delta=[_report_segment_delta_event(answer)])
+        append_event(event_type="answer", status=response_status, answer=answer)
+        append_event(event_type="done", status=response_status)
+        return events
+
     append_event(event_type="status", status=response_status)
     if ask is not None:
         append_event(event_type="ask", status=response_status, ask=ask)
@@ -197,6 +205,23 @@ def _report_delta_events(answer: dict[str, Any]) -> list[dict[str, Any]]:
     deltas.append({"action": "init_report", "report": {"reportId": report_id, "title": report_title, "structureType": structure_type}})
     deltas.extend(_catalog_delta_events(list(report.get("catalogs") or []), parent_catalog_id=None, parent_catalog_path=None))
     return deltas
+
+
+def _report_segment_delta_event(answer: dict[str, Any]) -> dict[str, Any]:
+    segment = answer.get("answer") if isinstance(answer.get("answer"), dict) else {}
+    section = segment.get("section") if isinstance(segment.get("section"), dict) else {}
+    return {
+        "action": "add_section",
+        "structureType": "flow",
+        "sections": [
+            {
+                "sectionId": str(segment.get("sectionId") or section.get("id") or ""),
+                "status": str(segment.get("status") or "available"),
+                "requirement": str(((segment.get("outline") or {}).get("renderedRequirement")) or ((segment.get("outline") or {}).get("requirement")) or ""),
+                "components": list(section.get("components") or []),
+            }
+        ],
+    }
 
 
 def _catalog_delta_events(

@@ -11,6 +11,7 @@ from src.contexts.conversation.application.models import (
     ChatResponse,
 )
 from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView
+from src.contexts.report.application.scenario_models import ReportAskPayload, ReportContext, ReportSegmentAnswer
 from src.contexts.report.domain.generation_models import (
     MarkdownComponent,
     MarkdownDataProperties,
@@ -18,6 +19,7 @@ from src.contexts.report.domain.generation_models import (
     ReportBasicInfo,
     ReportCatalog,
     ReportDsl,
+    ReportGenerateMeta,
     ReportLayout,
     ReportSection,
     TemplateInstance,
@@ -25,6 +27,7 @@ from src.contexts.report.domain.generation_models import (
     template_instance_to_dict,
 )
 from src.contexts.report.domain.template_models import Parameter, ReportTemplate
+from src.contexts.report.domain.template_models import OutlineDefinition
 from src.infrastructure.persistence.database import get_db
 from src.routers.chat import router as chat_router
 from src.shared.kernel.errors import ValidationError
@@ -94,7 +97,7 @@ class ChatContractApiTests(unittest.TestCase):
             (),
             {
                 "list_sessions": lambda self, user_id: [],
-                "send_message": lambda self, data, user_id: ChatResponse(
+                "chat": lambda self, data, user_id: ChatResponse(
                     conversation_id="conv_001",
                     chat_id="chat_001",
                     status="waiting_user",
@@ -105,8 +108,10 @@ class ChatContractApiTests(unittest.TestCase):
                         type="confirm_params",
                         title="请确认报告诉求",
                         text="请确认报告诉求后开始生成。",
-                        parameters=_sample_template_instance().parameters,
-                        template_instance=_sample_template_instance(),
+                        report_payload=ReportAskPayload(
+                            parameters=_sample_template_instance().parameters,
+                            report_context=ReportContext(template_instance=_sample_template_instance()),
+                        ),
                     ),
                     answer=None,
                     errors=[],
@@ -141,7 +146,7 @@ class ChatContractApiTests(unittest.TestCase):
             "FakeConversationService",
             (),
             {
-                "send_message": lambda self, data, user_id: ChatResponse(
+                "chat": lambda self, data, user_id: ChatResponse(
                     conversation_id="conv_001",
                     chat_id="chat_002",
                     status="finished",
@@ -203,7 +208,7 @@ class ChatContractApiTests(unittest.TestCase):
             "FakeConversationService",
             (),
             {
-                "send_message": lambda self, data, user_id: (_ for _ in ()).throw(
+                "chat": lambda self, data, user_id: (_ for _ in ()).throw(
                     ValidationError("confirm_params requires all required parameters: scope")
                 )
             },
@@ -233,7 +238,7 @@ class ChatContractApiTests(unittest.TestCase):
             "FakeConversationService",
             (),
             {
-                "send_message": lambda self, data, user_id: ChatResponse(
+                "chat": lambda self, data, user_id: ChatResponse(
                     conversation_id="conv_001",
                     chat_id="chat_010",
                     status="finished",
@@ -321,7 +326,7 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertIn('"reportId": "rpt_001"', body)
 
     def test_post_chat_reply_requires_source_chat_id(self):
-        fake_service = type("FakeConversationService", (), {"send_message": lambda self, data, user_id: data})()
+        fake_service = type("FakeConversationService", (), {"chat": lambda self, data, user_id: data})()
         # 这里保持 422 路径，服务不会被真正执行。
 
         with patch("src.routers.chat.build_conversation_service", return_value=fake_service):
@@ -346,7 +351,7 @@ class ChatContractApiTests(unittest.TestCase):
         captured = {}
 
         class FakeConversationService:
-            def send_message(self, data, user_id):
+            def chat(self, data, user_id):
                 captured["data"] = data
                 return ChatResponse(
                     conversation_id="conv_001",
@@ -382,7 +387,51 @@ class ChatContractApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(captured["data"].reply.parameters["scope"], ["hq-network", "bj-network"])
+        self.assertEqual(captured["data"].reply.report_payload.parameters["scope"], ["hq-network", "bj-network"])
+
+    def test_post_chat_stream_returns_report_segment_delta(self):
+        segment = ReportSegmentAnswer(
+            report_id="rpt_001",
+            section_id="section_1",
+            status="available",
+            section=ReportSection(id="section_1", title="异常根因", components=[]),
+            report_meta=ReportGenerateMeta(status="Success", question="分析异常根因"),
+            outline=OutlineDefinition(requirement="分析异常根因"),
+        )
+        fake_service = type(
+            "FakeConversationService",
+            (),
+            {
+                "chat": lambda self, data, user_id: ChatResponse(
+                    conversation_id="conv_001",
+                    chat_id="chat_020",
+                    status="finished",
+                    answer=ChatAnswerEnvelope(answer_type="REPORT_SEGMENT", report_segment=segment),
+                )
+            },
+        )()
+
+        with patch("src.routers.chat.build_conversation_service", return_value=fake_service):
+            with self.client.stream(
+                "POST",
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default", "Accept": "text/event-stream"},
+                json={
+                    "conversationId": "conv_001",
+                    "instruction": "generate_report_segment",
+                    "template": {
+                        "reportId": "rpt_001",
+                        "sectionId": "section_1",
+                        "outline": {"requirement": "分析异常根因", "items": []},
+                    },
+                },
+            ) as response:
+                body = "".join(response.iter_text())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"answerType": "REPORT_SEGMENT"', body)
+        self.assertIn('"action": "add_section"', body)
+        self.assertIn('"sectionId": "section_1"', body)
 
 
 if __name__ == "__main__":

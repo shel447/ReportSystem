@@ -60,7 +60,9 @@
 
 报告实例：
 
-- `id/template_id/template_instance_id/user_id/source_conversation_id/source_chat_id/status/schema_version/created_at/updated_at`
+- `id/template_id/template_instance_id/user_id/conversation_id/chat_id/status/schema_version/created_at/updated_at`
+
+应用层和公开模型使用 `conversationId/chatId` 表达报告来源归因。数据库为兼容既有升级脚本，仍使用 `source_conversation_id/source_chat_id` 列名，由 repository 完成映射。
 
 文档：
 

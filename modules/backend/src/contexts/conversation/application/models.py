@@ -6,8 +6,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ...report.application.generation_models import ReportAnswerView, report_answer_view_to_dict
-from ...report.domain.generation_models import TemplateInstance, template_instance_from_dict, template_instance_to_dict
-from ...report.domain.template_models import Parameter, parameter_to_dict
+from ...report.application.scenario_models import (
+    ReportAskPayload,
+    ReportReplyPayload,
+    ReportSegmentAnswer,
+    ReportSegmentRequest,
+    report_ask_payload_from_dict,
+    report_ask_payload_to_dict,
+    report_reply_payload_from_dict,
+    report_segment_answer_to_dict,
+    report_segment_request_from_dict,
+)
 from ...report.application.template_models import TemplateImportPreview, template_import_preview_to_dict
 
 Scalar = str | int | float | bool
@@ -15,12 +24,11 @@ Scalar = str | int | float | bool
 
 @dataclass(slots=True)
 class ChatReply:
-    """结构化回复命令。"""
+    """通用答复外壳；报告参数和报告上下文属于报告场景扩展。"""
 
     type: str
     source_chat_id: str
-    parameters: dict[str, list[Scalar]] = field(default_factory=dict)
-    template_instance: TemplateInstance | None = None
+    report_payload: ReportReplyPayload | None = None
 
 
 @dataclass(slots=True)
@@ -32,8 +40,24 @@ class ChatCommand:
     question: str | None = None
     instruction: str | None = None
     reply: ChatReply | None = None
+    report_segment: ReportSegmentRequest | None = None
     request_id: str | None = None
     api_version: str | None = None
+
+
+@dataclass(slots=True)
+class ChatContext:
+    """通用对话上下文，不承载任何具体业务场景的领域对象。"""
+
+    conversation_id: str
+    chat_id: str
+    user_id: str
+    instruction: str
+    question: str | None = None
+    reply_type: str | None = None
+    source_chat_id: str | None = None
+    request_id: str | None = None
+    api_version: str = "v1"
 
 
 @dataclass(slots=True)
@@ -61,15 +85,14 @@ class ForkSessionResult:
 
 @dataclass(slots=True)
 class ChatAsk:
-    """结构化追问载荷。"""
+    """通用追问外壳；具体追问内容由业务场景扩展定义。"""
 
     status: str
     mode: str
     type: str
     title: str
     text: str
-    parameters: list[Parameter] = field(default_factory=list)
-    template_instance: TemplateInstance | None = None
+    report_payload: ReportAskPayload | None = None
 
 
 @dataclass(slots=True)
@@ -79,6 +102,7 @@ class ChatAnswerEnvelope:
     answer_type: str
     report: ReportAnswerView | None = None
     report_template_preview: TemplateImportPreview | None = None
+    report_segment: ReportSegmentAnswer | None = None
 
 
 @dataclass(slots=True)
@@ -163,18 +187,12 @@ class ConversationMessageMeta:
 
 def chat_command_from_payload(payload: dict[str, Any]) -> ChatCommand:
     reply_payload = payload.get("reply") if isinstance(payload.get("reply"), dict) else None
-    template_instance_payload = ((reply_payload.get("reportContext") or {}).get("templateInstance")) if isinstance(reply_payload, dict) and isinstance(reply_payload.get("reportContext"), dict) else None
     reply = None
     if reply_payload is not None:
         reply = ChatReply(
             type=str(reply_payload.get("type") or ""),
             source_chat_id=str(reply_payload.get("sourceChatId") or ""),
-            parameters={
-                str(key): list(value or [])
-                for key, value in dict(reply_payload.get("parameters") or {}).items()
-                if isinstance(value, list)
-            },
-            template_instance=template_instance_from_dict(template_instance_payload) if isinstance(template_instance_payload, dict) else None,
+            report_payload=report_reply_payload_from_dict(reply_payload),
         )
     return ChatCommand(
         conversation_id=str(payload.get("conversationId") or "").strip() or None,
@@ -182,6 +200,7 @@ def chat_command_from_payload(payload: dict[str, Any]) -> ChatCommand:
         question=str(payload.get("question") or "").strip() or None,
         instruction=str(payload.get("instruction") or "").strip() or None,
         reply=reply,
+        report_segment=report_segment_request_from_dict(payload.get("template")),
         request_id=str(payload.get("requestId") or "").strip() or None,
         api_version=str(payload.get("apiVersion") or "").strip() or None,
     )
@@ -202,10 +221,8 @@ def chat_ask_to_dict(ask: ChatAsk) -> dict[str, object]:
         "type": ask.type,
         "title": ask.title,
         "text": ask.text,
-        "parameters": [parameter_to_dict(item) for item in ask.parameters],
     }
-    if ask.template_instance is not None:
-        payload["reportContext"] = {"templateInstance": template_instance_to_dict(ask.template_instance)}
+    payload.update(report_ask_payload_to_dict(ask.report_payload))
     return payload
 
 
@@ -215,6 +232,8 @@ def chat_answer_to_dict(answer: ChatAnswerEnvelope) -> dict[str, object]:
         payload["answer"] = report_answer_view_to_dict(answer.report)
     elif answer.report_template_preview is not None:
         payload["answer"] = template_import_preview_to_dict(answer.report_template_preview)
+    elif answer.report_segment is not None:
+        payload["answer"] = report_segment_answer_to_dict(answer.report_segment)
     else:
         payload["answer"] = {}
     return payload

@@ -209,7 +209,7 @@ X-User-Id: <external-user-id>
 - `conversationId`：会话 id
 - `chatId`：当前轮 id
 - `instruction`：当前正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`
-- `reply`：承接参数回填、确认生成等结构化回复
+- `reply`：承接对某条追问的结构化答复；业务字段按 instruction 场景定义
 - `attachments`：仅在 `extract_report_template` 且需要上传原始材料时必填
 - `histories`：仅在“基于历史对话生成报告”场景下必填
 - `template`：仅在 `generate_report_segment` 时必填，承载章节重新生成的定位与大纲信息（详见 2.2 ChatRequest.template 子结构）
@@ -219,7 +219,9 @@ X-User-Id: <external-user-id>
 
 ##### ChatRequest.reply 子结构
 
-`reply` 是 `ChatRequest` 的子字段，仅在 `instruction = generate_report` 的参数回填和确认阶段使用。结构如下：
+`reply` 是 `ChatRequest` 的场景相关答复载荷。所有场景复用 `type/sourceChatId` 外壳；其余字段由对应业务场景严格定义，不使用无约束扩展对象。
+
+报告生成场景在参数回填和确认阶段使用以下结构：
 
 ```json
 {
@@ -238,9 +240,10 @@ X-User-Id: <external-user-id>
 规则：
 
 - `sourceChatId` 指向本次 `reply` 所回复的原始 assistant 追问消息 `chatId`
-- `fill_params` 用于参数补齐
-- `confirm_params` 用于确认生成
 - 服务端必须基于 `sourceChatId` 回写对应历史追问消息的 `ask.status`
+- `parameters/reportContext` 是 `generate_report` 场景字段，不属于通用对话字段
+- `fill_params` 用于报告参数补齐
+- `confirm_params` 用于确认报告生成
 - 诉求确认时必须携带完整 `templateInstance`，以支持后台做最终骨架判定和生成输入冻结
 - `reply.parameters` 是参数值映射，正式形态为 `Record<parameterId, Scalar[]>`
 - 所有公开接口中的固定字段名统一使用 lowerCamelCase；`reply.parameters` 这类 map 的动态参数键也必须使用 lowerCamelCase 参数 id
@@ -375,7 +378,9 @@ X-User-Id: <external-user-id>
 
 ##### ChatResponse.ask 子结构
 
-`ask` 是 `ChatResponse` 的子字段，在服务端需要向用户追问时返回。
+`ask` 是 `ChatResponse` 的场景相关追问载荷。所有场景复用 `status/mode/type/title/text` 外壳；其余字段由对应业务场景严格定义。
+
+报告生成场景使用以下结构：
 
 ```json
 {
@@ -407,7 +412,8 @@ X-User-Id: <external-user-id>
 
 - `status` 正式枚举为 `pending | replied`
 - `mode` 正式枚举为 `form | natural_language`
-- 模板选择通过参数实现，不再单独设计模板选择阶段协议
+- `parameters/reportContext` 是 `generate_report` 场景字段，不属于通用对话字段
+- 模板选择通过报告参数实现，不再单独设计模板选择阶段协议
 - 诉求确认通过 `reportContext.templateInstance` 返回完整模板实例
 - `Ask.parameters[*]` 直接使用统一参数模型，参数本体即可同时表达定义、候选值和当前取值
 - 多值参数的 `values` 继续是三元组数组；界面可按 `label` 渲染，执行层不要直接消费拼接后的展示文本

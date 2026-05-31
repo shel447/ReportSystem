@@ -143,6 +143,47 @@ class ReportGenerationServiceTests(unittest.TestCase):
 
         self.assertIn("模板实例校验失败", str(ctx.exception))
 
+    def test_preview_section_regeneration_returns_fragment_without_mutating_instance(self):
+        instance = _valid_template_instance()
+        section = TemplateInstanceSection(
+            id="section_overview",
+            outline=OutlineDefinition(requirement="分析总体情况。", rendered_requirement="分析总体情况。", items=[]),
+            runtime_context=SectionRuntimeContext(bindings=[]),
+            content=TemplateInstanceSectionContent(
+                presentation=TemplateInstancePresentationDefinition(kind="mixed", blocks=[])
+            ),
+            skeleton_status="reusable",
+            user_edited=False,
+        )
+        instance.catalogs = [
+            TemplateInstanceCatalog(
+                id="catalog_overview",
+                title="运行概览",
+                rendered_title="运行概览",
+                sections=[section],
+            )
+        ]
+        service = ReportGenerationService(
+            template_repository=SimpleNamespace(),
+            template_instance_repository=SimpleNamespace(get=lambda instance_id, user_id: instance),
+            report_instance_repository=SimpleNamespace(get=lambda report_id, user_id: SimpleNamespace(template_instance_id=instance.id)),
+            document_repository=SimpleNamespace(),
+            export_job_repository=SimpleNamespace(),
+            document_gateway=SimpleNamespace(),
+        )
+
+        preview = service.preview_section_regeneration(
+            report_id="rpt_001",
+            section_id="section_overview",
+            outline=OutlineDefinition(requirement="聚焦异常根因。", rendered_requirement="聚焦异常根因。", items=[]),
+            user_id="default",
+        )
+
+        self.assertEqual(preview.section.id, "section_overview")
+        self.assertEqual(preview.report_meta.question, "聚焦异常根因。")
+        self.assertEqual(section.outline.requirement, "分析总体情况。")
+        self.assertFalse(section.user_edited)
+
     def test_generate_report_compiles_composite_table_block(self):
         service = _build_runtime_service()
         instance = _valid_template_instance()

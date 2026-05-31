@@ -91,6 +91,19 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         violations = [str(path.relative_to(ROOT)) for path in ROOT.glob("*.json")]
         self.assertEqual([], violations, "\n".join(violations))
 
+    def test_conversation_application_uses_report_application_boundary_only(self):
+        violations: list[str] = []
+        root = ROOT / "contexts" / "conversation" / "application"
+        for path in root.rglob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ImportFrom):
+                    continue
+                module = _resolve_import_from(path, node.module, node.level)
+                if module.startswith("backend.contexts.report.") and not module.startswith("backend.contexts.report.application."):
+                    violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
 
 if __name__ == "__main__":
     unittest.main()
