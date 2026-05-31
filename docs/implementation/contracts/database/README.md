@@ -1,6 +1,6 @@
 # 数据库契约
 
-本文件记录当前最新数据库结构。可执行 SQL 位于 `src/backend/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。
+本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。
 
 ## 1. 数据库分类
 
@@ -159,7 +159,7 @@ erDiagram
 
 ### 2.3 业务库完整 DDL
 
-可执行文件见 [`V001__initialize_business_tables.sql`](../../../../src/backend/infrastructure/persistence/upgrades/V001__initialize_business_tables.sql)。
+可执行文件见 [`V001__initialize_business_tables.sql`](../../../../modules/backend/src/infrastructure/persistence/upgrades/V001__initialize_business_tables.sql)。
 
 ```sql
 CREATE TABLE tbl_users (
@@ -329,7 +329,7 @@ erDiagram
 
 ### 3.3 开发辅助库完整 DDL
 
-可执行文件见 [`V001__initialize_development_tables.sql`](../../../../src/backend/infrastructure/persistence/upgrades/dev/V001__initialize_development_tables.sql)。
+可执行文件见 [`V001__initialize_development_tables.sql`](../../../../modules/backend/src/infrastructure/persistence/upgrades/dev/V001__initialize_development_tables.sql)。
 
 ```sql
 CREATE TABLE dev_system_settings (
@@ -393,4 +393,4 @@ VALUES (1, 0);
 
 ## 6. 非正式表
 
-`contexts/scheduling` 仍是未接入的半成品：仓储代码尚未具备 ORM、路由和依赖装配。调度相关表不进入当前数据库契约。
+仓库当前只保留已接入业务链路的表结构。未进入正式 context 的能力不预建数据库表；后续“智能问数”等能力形成独立 context 后，再按同一方式补充业务库或独立库契约。

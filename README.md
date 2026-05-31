@@ -88,16 +88,17 @@ flowchart LR
 - 系统主库：`.runtime/report_system.db`
 - 开发辅助库：`.runtime/dev_support.db`
 - 电信样例分析库：`.runtime/telecom_demo.db`
-- 数据库结构随启动过程按 `src/backend/infrastructure/persistence/upgrades/` 自动升级
+- 数据库结构随启动过程按 `modules/backend/src/infrastructure/persistence/upgrades/` 自动升级
 
 ## 4. 仓库结构
 
 ```text
 ReportSystem/
 ├─ docs/
-├─ src/
+├─ modules/
 │  ├─ backend/
-│  └─ frontend/
+│  ├─ frontend/
+│  └─ exporter/
 └─ README.md
 ```
 
@@ -105,12 +106,11 @@ ReportSystem/
 
 后端按 DDD bounded context 组织：
 
-- `src/backend/contexts/template_catalog`
-- `src/backend/contexts/conversation`
-- `src/backend/contexts/report_runtime`
-- `src/backend/infrastructure`
-- `src/backend/shared/kernel`
-- `src/backend/routers`
+- `modules/backend/src/contexts/conversation`
+- `modules/backend/src/contexts/report`
+- `modules/backend/src/infrastructure`
+- `modules/backend/src/shared/kernel`
+- `modules/backend/src/routers`
 
 公开业务路由当前只保留：
 
@@ -123,7 +123,7 @@ ReportSystem/
 
 文档导出服务单独落在：
 
-- `services/java-office-exporter`
+- `modules/exporter`
 
 ## 5. 快速启动
 
@@ -138,36 +138,37 @@ ReportSystem/
 后端：
 
 ```powershell
-python -m pip install -r src/backend/requirements.txt
+python -m pip install -r modules/backend/requirements.txt
 ```
 
 前端：
 
 ```powershell
 git submodule update --init --recursive
-Set-Location src/frontend
+Set-Location modules/frontend
 npm install
 ```
 
-BI Engine 源码固定在 `src/frontend/vendor/bi-engine`。升级时先在子模块中检出目标提交，再提交父仓库中的子模块指针变更：
+BI Engine 源码固定在 `modules/frontend/vendor/bi-engine`。升级时先在子模块中检出目标提交，再提交父仓库中的子模块指针变更：
 
 ```powershell
-git -C src/frontend/vendor/bi-engine fetch origin
-git -C src/frontend/vendor/bi-engine checkout <commit>
-git add src/frontend/vendor/bi-engine
+git -C modules/frontend/vendor/bi-engine fetch origin
+git -C modules/frontend/vendor/bi-engine checkout <commit>
+git add modules/frontend/vendor/bi-engine
 ```
 
 ### 5.3 构建前端
 
 ```powershell
-Set-Location src/frontend
+Set-Location modules/frontend
 npm run build
 ```
 
 ### 5.4 启动服务
 
 ```powershell
-python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
+$env:PYTHONPATH = "modules/backend"
+python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 ```
 
 默认访问地址：
@@ -210,7 +211,7 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 ## 7. 当前实现边界
 
 - 报告级编辑流接口 `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` 仍待实现
-- Word/PPT/PDF 导出由 `services/java-office-exporter` 提供
+- Word/PPT/PDF 导出由 `modules/exporter` 提供
 - 动态参数解析是辅助公共接口，不作为独立业务资源页暴露
 
 ## 8. 开发与验证
@@ -218,19 +219,20 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 前端测试：
 
 ```powershell
-Set-Location src/frontend
+Set-Location modules/frontend
 npm test
 ```
 
 前端构建：
 
 ```powershell
-Set-Location src/frontend
+Set-Location modules/frontend
 npm run build
 ```
 
 后端测试：
 
 ```powershell
-python -m pytest src/backend/tests -q
+$env:PYTHONPATH = "modules/backend"
+python -m pytest modules/backend/tests -q
 ```

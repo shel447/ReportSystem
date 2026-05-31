@@ -1,6 +1,6 @@
 # 文档导出实现
 
-Java Office Exporter 位于 `services/java-office-exporter`。它接收 Report DSL 或归一化后的 VDoc，生成 DOCX 和 PPTX；PDF 由 Word 或 PPT 派生转换。
+Report Exporter 位于 `modules/exporter`。它接收 Report DSL 或归一化后的 VDoc，生成 DOCX 和 PPTX；PDF 由 Word 或 PPT 派生转换。
 
 业务侧可感知的默认效果和预留选项见 [文档导出业务规格](../../specs/document-export/README.md)。迁移前的完整配置说明保留在 [Document Configuration 技术参考](DocumentConfiguration技术参考.md)。
 

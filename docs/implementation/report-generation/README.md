@@ -1,10 +1,10 @@
-# 报告运行时实现
+# 报告生成实现
 
 字段级结构以 [Report DSL Schema](../contracts/schemas/report-dsl.schema.json) 和 [Report DSL 技术手册](../contracts/manuals/报告DSL定义与使用说明书.md) 为准。历史上从业务规格中迁出的详细运行规则保留在 [业务规则技术参考](业务规则技术参考.md)。
 
 ## 1. 模块定位
 
-`report_runtime` 负责两个正式能力：
+`report` context 中的报告生成源文件负责两个正式能力：
 
 - `TemplateInstance -> Report DSL`
 - `Report DSL -> DocumentArtifact`
@@ -32,9 +32,9 @@
 
 ## 3. 应用服务职责
 
-当前代码中，报告运行时的应用层由 `ReportRuntimeService` 和 `ReportDocumentService` 组成。
+当前代码中，报告生成应用层由 `ReportGenerationService` 和 `ReportDocumentService` 组成。
 
-### 3.1 `ReportRuntimeService`
+### 3.1 `ReportGenerationService`
 
 承担以下功能职责：
 
@@ -154,6 +154,6 @@
 
 ## 7. 与流式 `delta` 的边界
 
-- `report_runtime` 只负责产出完整 `Report DSL`
+- `report` context 只负责产出完整 `Report DSL`
 - 目录与章节的流式 `delta` 属于 `conversation` 的对外投影，不写回 `ReportInstance`
 - `ReportInstance` 与 `/reports/{reportId}` 始终只返回完整报告，不回放生成阶段的 patch 历史

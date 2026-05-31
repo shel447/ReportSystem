@@ -65,10 +65,10 @@ X-User-Id: <external-user-id>
 
 | 路由分组 | 实现入口 | 应用服务 |
 |---|---|---|
-| `templates` | `routers/templates.py` | `template_catalog` |
-| `parameter-options` | `routers/parameter_options.py` | `template_catalog` |
+| `templates` | `routers/templates.py` | `report` |
+| `parameter-options` | `routers/parameter_options.py` | `report` |
 | `chat` | `routers/chat.py` | `conversation` |
-| `reports` | `routers/reports.py` | `report_runtime` |
+| `reports` | `routers/reports.py` | `report` |
 
 ## 2. 客户端接口
 

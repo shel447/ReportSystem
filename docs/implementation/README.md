@@ -18,17 +18,17 @@
 
 后端按 bounded context 组织：
 
-- `contexts/template_catalog`
 - `contexts/conversation`
-- `contexts/report_runtime`
+- `contexts/report`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
 依赖方向：
 
-- `conversation -> template_catalog`
-- `conversation -> report_runtime`
-- `report_runtime -> template_catalog`
+- `conversation -> report`
+- `report` 内部用 `application/domain/infrastructure` 三层组织；模板管理、报告生成和报告管理只在源文件命名上区分，不拆成子 context 目录。
 - application 层只能通过 port 访问基础设施
+
+后续“智能问数”规划为独立 context；本轮不创建空目录或未接入实现。
 
 禁止 router 直接操作 ORM、application 层直接使用 `Session`，或由基础设施反向定义领域对象。
 

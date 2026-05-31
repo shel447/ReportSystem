@@ -1209,12 +1209,12 @@ src/test/resources/
 ### 9.1 构建命令
 
 ```bash
-cd services/java-office-exporter
+cd modules/exporter
 mvn clean package
 ```
 
 **产物：**
-- `target/java-office-exporter-0.1.0.jar` fat jar，入口为 `com.chatbi.exporter.CliMain`
+- `target/report-exporter-0.1.0.jar` fat jar，入口为 `com.chatbi.exporter.CliMain`
 
 ### 9.2 运行测试
 
@@ -1225,13 +1225,13 @@ mvn test
 ### 9.3 CLI 运行
 
 ```bash
-java -jar target/java-office-exporter-0.1.0.jar \
+java -jar target/report-exporter-0.1.0.jar \
   --input <dsl.json> \
   --output <out.docx|out.pptx> \
   --target docx|pptx|auto
 ```
 
-说明：当前 `java-office-exporter` 已照搬 `poi-dsl-exporter` 的 `com.chatbi` CLI/库式实现，不再内置 `/health` 和 `/exports/{word|ppt}` HTTP 服务。
+说明：当前 `report-exporter` 已照搬 `poi-dsl-exporter` 的 `com.chatbi` CLI/库式实现，不再内置 `/health` 和 `/exports/{word|ppt}` HTTP 服务。
 
 ## 10. 已知限制与未来改进
 

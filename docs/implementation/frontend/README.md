@@ -96,7 +96,7 @@
 
 ### 5.1 依赖边界
 
-- `src/frontend/vendor/bi-engine` 以 Git 子模块固定 BI Engine 仓库提交，不复制 Playground 应用代码。
+- `modules/frontend/vendor/bi-engine` 以 Git 子模块固定 BI Engine 仓库提交，不复制 Playground 应用代码。
 - Vite alias 直接指向子模块中的 `@cloudsop/bi-engine`、`@cloudsop/bi-designer`、`@cloudsop/bi-signal` 源码。
 - ReportSystem 的 TypeScript 编译只通过本地轻量声明门面检查本轮使用到的公共入口，不把 BI Engine 仓库内部尚未收敛的类型检查并入 ReportSystem 构建；运行时仍由 Vite 使用子模块源码。
 - 不迁移 Playground 的演示列表、场景库、测试按钮、Copilot 验证台或 Ant Design 外壳。

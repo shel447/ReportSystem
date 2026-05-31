@@ -31,15 +31,18 @@ wheels/
 
 # Database
 .runtime/
-src/backend/report_system.db
-src/backend/telecom_demo.db
-src/backend/generated_documents/
+modules/backend/src/report_system.db
+modules/backend/src/telecom_demo.db
+modules/backend/src/generated_documents/
 *.db
 *.sqlite
 
 # Project specific
 .codemate/
 node_modules/
+modules/frontend/node_modules/
+modules/frontend/dist/
+modules/exporter/target/
 *.tsbuildinfo
 
 # Runtime logs
@@ -48,5 +51,5 @@ node_modules/
 uvicorn*.log
 output/
 .playwright-cli/
-services/java-office-exporter/artifacts/
-src/backend/contexts/report_runtime/infrastructure/generated_documents/
+modules/exporter/artifacts/
+modules/backend/src/contexts/report/infrastructure/generated_documents/

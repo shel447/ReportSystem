@@ -12,9 +12,9 @@
 
 表定义载体统一为：
 
-- 业务 ORM：`src/backend/infrastructure/persistence/models.py`
-- 开发辅助 ORM：`src/backend/infrastructure/persistence/dev_models.py`
-- 可执行升级 SQL：`src/backend/infrastructure/persistence/upgrades/`
+- 业务 ORM：`modules/backend/src/infrastructure/persistence/models.py`
+- 开发辅助 ORM：`modules/backend/src/infrastructure/persistence/dev_models.py`
+- 可执行升级 SQL：`modules/backend/src/infrastructure/persistence/upgrades/`
 - 最新完整表定义：[数据库契约](../contracts/database/README.md)
 
 其中：
@@ -22,7 +22,7 @@
 - `.runtime/` 为本地自动生成目录，不纳入版本跟踪
 - 新安装和后续升级统一执行 `upgrades/`，不再使用单独初始化稿
 - 两个应用数据库各自维护 `__db_schema_version`
-- 运行时涉及 JSON Schema 校验时，统一直接引用 `docs/implementation/contracts/schemas/*.json`，不在 `src/backend` 根目录保留本地镜像文件
+- 运行时涉及 JSON Schema 校验时，统一直接引用 `docs/implementation/contracts/schemas/*.json`，不在后端源码根目录保留本地镜像文件
 
 主业务表固定为：
 

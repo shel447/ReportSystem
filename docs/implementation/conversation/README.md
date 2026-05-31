@@ -14,7 +14,7 @@
 - 按顺序输出 `status / step_delta / delta / answer / done`。
 - 将业务场景 instruction 分发到对应 handler。
 
-报告生成 instruction 委托给 `report_runtime` 和模板目录能力处理。参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report-generation/README.md)。
+报告生成 instruction 委托给 `report` context 处理。参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report-generation/README.md)。
 
 ## 3. 持久化边界
 

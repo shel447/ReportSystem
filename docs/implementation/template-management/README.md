@@ -4,7 +4,7 @@
 
 ## 1. 模块定位
 
-`template_catalog` 负责静态模板资产的完整生命周期：
+`report` context 中的模板管理源文件负责静态模板资产的完整生命周期：
 
 - 模板校验
 - 模板导入预览
@@ -60,7 +60,7 @@
 
 当前代码中，模板目录的应用层由两个 service 收口：
 
-### 3.1 `TemplateCatalogService`
+### 3.1 `TemplateManagementService`
 
 承担以下功能职责：
 
@@ -88,7 +88,7 @@
 
 应用层补充约束：
 
-- `TemplateCatalogService` 的输入输出边界仍是 JSON 契约
+- `TemplateManagementService` 的输入输出边界仍是 JSON 契约
 - 但 service 内部拿到的 `ReportTemplate` 必须已经是递归 dataclass
 - repository 不得把 `ReportTemplate.parameters/catalogs/chapters` 继续还原成裸字典后再向上返回
 
