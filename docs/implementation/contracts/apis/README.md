@@ -496,19 +496,17 @@ paged Report DSL 示例：
   "basicInfo": {
     "id": "rpt_ppt_001",
     "name": "网络运行 PPT 汇报",
-    "title": "网络运行 PPT 汇报"
+    "reportType": "PPT"
   },
   "content": [
     {
       "id": "slide_kpi_overview",
       "title": "核心指标概览",
-      "sections": [
-        {
-          "id": "slide_kpi_overview_section_1",
-          "title": "核心指标",
-          "components": []
-        }
-      ]
+      "layout": {
+        "type": "grid",
+        "autoLayout": true
+      },
+      "components": []
     }
   ],
   "backCover": {

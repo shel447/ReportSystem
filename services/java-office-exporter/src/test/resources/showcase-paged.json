@@ -2,13 +2,13 @@
   "structureType": "paged",
   "basicInfo": {
     "id": "showcase-paged-001",
-    "title": "PPT导出功能演示",
-    "subTitle": "分页报告测试",
+    "name": "PPT导出功能演示",
+    "reportType": "PPT",
     "description": "测试PPT格式的所有组件和图表导出",
-    "schemaVersion": "1.0",
-    "status": "success",
-    "createdAt": "2026-05-26",
-    "updatedAt": "2026-05-26",
+    "schemaVersion": "1.0.0",
+    "status": "Success",
+    "createDate": "2026-05-26",
+    "modifyDate": "2026-05-26",
     "creator": "测试系统",
     "modifier": "测试系统",
     "remark": "PPT导出测试",
@@ -17,14 +17,14 @@
     "category": "演示文稿",
     "templateId": "tpl-ppt-showcase",
     "templateName": "PPT展示模板",
-    "mode": "presentation",
-    "parameters": {}
+    "mode": "published"
   },
   "cover": {
     "title": "PPT导出功能演示",
+    "subTitle": "分页报告测试",
     "author": "报告系统",
     "date": "2026年5月26日",
-    "layoutTemplate": "title",
+    "layoutTemplate": "TITLE_CENTER",
     "contents": [
       {
         "type": "text",
@@ -39,23 +39,28 @@
   },
   "content": [
     {
-      "id": "slide-intro",
-      "type": "slide",
+      "id": "section-intro",
+      "type": "section",
       "title": "简介",
-      "description": "报告简介页",
-      "layout": {
-        "type": "title-content",
-        "autoLayout": true
-      },
-      "components": [
+      "slides": [
         {
-          "id": "text-intro",
-          "type": "text",
-          "dataProperties": {
-            "dataType": "static",
-            "title": "报告概述",
-            "content": "本演示文稿用于测试PPT导出功能，包括：\n• 文本组件\n• 表格组件\n• 各类图表\n• 复合表组件"
-          }
+          "id": "slide-intro",
+          "title": "简介",
+          "layout": {
+            "type": "grid",
+            "autoLayout": true
+          },
+          "components": [
+            {
+              "id": "text-intro",
+              "type": "text",
+              "dataProperties": {
+                "dataType": "static",
+                "title": "报告概述",
+                "content": "本演示文稿用于测试PPT导出功能，包括：\n• 文本组件\n• 表格组件\n• 各类图表\n• 复合表组件"
+              }
+            }
+          ]
         }
       ]
     },
@@ -63,14 +68,12 @@
       "id": "section-data",
       "type": "section",
       "title": "数据展示",
-      "description": "表格和图表展示",
       "slides": [
         {
           "id": "slide-table",
-          "type": "slide",
           "title": "数据表格",
           "layout": {
-            "type": "content",
+            "type": "grid",
             "autoLayout": true
           },
           "components": [
@@ -81,9 +84,9 @@
                 "dataType": "static",
                 "title": "季度业绩表",
                 "columns": [
-                  { "key": "quarter", "title": "季度", "type": "dimension" },
-                  { "key": "revenue", "title": "营收(万)", "type": "measure" },
-                  { "key": "growth", "title": "增长率", "type": "measure" }
+                  { "key": "quarter", "title": "季度", "type": "string" },
+                  { "key": "revenue", "title": "营收(万)", "type": "double" },
+                  { "key": "growth", "title": "增长率", "type": "double" }
                 ],
                 "data": [
                   { "quarter": "Q1", "revenue": 500, "growth": "15%" },
@@ -97,10 +100,9 @@
         },
         {
           "id": "slide-charts",
-          "type": "slide",
           "title": "图表展示",
           "layout": {
-            "type": "two-column",
+            "type": "grid",
             "autoLayout": true
           },
           "components": [
@@ -111,8 +113,8 @@
                 "dataType": "static",
                 "title": "营收趋势",
                 "columns": [
-                  { "key": "quarter", "title": "季度", "type": "dimension" },
-                  { "key": "revenue", "title": "营收", "type": "measure" }
+                  { "key": "quarter", "title": "季度", "type": "string" },
+                  { "key": "revenue", "title": "营收", "type": "double" }
                 ],
                 "data": [
                   { "quarter": "Q1", "revenue": 500 },
@@ -130,74 +132,86 @@
       ]
     },
     {
-      "id": "slide-markdown",
-      "type": "slide",
+      "id": "section-markdown",
+      "type": "section",
       "title": "Markdown内容",
-      "layout": {
-        "type": "content",
-        "autoLayout": true
-      },
-      "components": [
+      "slides": [
         {
-          "id": "md-ppt",
-          "type": "markdown",
-          "dataProperties": {
-            "dataType": "static",
-            "content": "## 关键要点\n\n1. **第一季度**：稳步增长\n2. **第二季度**：加速扩张\n3. **第三季度**：短暂调整\n4. **第四季度**：强势反弹\n\n### 总结\n\n全年营收*2450万*，同比增长**18%**。"
-          }
+          "id": "slide-markdown",
+          "title": "Markdown内容",
+          "layout": {
+            "type": "grid",
+            "autoLayout": true
+          },
+          "components": [
+            {
+              "id": "md-ppt",
+              "type": "markdown",
+              "dataProperties": {
+                "dataType": "static",
+                "content": "## 关键要点\n\n1. **第一季度**：稳步增长\n2. **第二季度**：加速扩张\n3. **第三季度**：短暂调整\n4. **第四季度**：强势反弹\n\n### 总结\n\n全年营收*2450万*，同比增长**18%**。"
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "id": "slide-composite",
-      "type": "slide",
+      "id": "section-composite",
+      "type": "section",
       "title": "复合表展示",
-      "layout": {
-        "type": "content",
-        "autoLayout": true
-      },
-      "components": [
+      "slides": [
         {
-          "id": "composite-ppt",
-          "type": "compositeTable",
-          "tables": [
+          "id": "slide-composite",
+          "title": "复合表展示",
+          "layout": {
+            "type": "grid",
+            "autoLayout": true
+          },
+          "components": [
             {
-              "id": "sub-1",
-              "type": "table",
+              "id": "composite-ppt",
+              "type": "compositeTable",
+              "tables": [
+                {
+                  "id": "sub-1",
+                  "type": "table",
+                  "dataProperties": {
+                    "dataType": "static",
+                    "title": "产品线A",
+                    "columns": [
+                      { "key": "month", "title": "月份" },
+                      { "key": "sales", "title": "销量" }
+                    ],
+                    "data": [
+                      { "month": "1月", "sales": 100 },
+                      { "month": "2月", "sales": 120 }
+                    ]
+                  }
+                },
+                {
+                  "id": "sub-2",
+                  "type": "table",
+                  "dataProperties": {
+                    "dataType": "static",
+                    "title": "产品线B",
+                    "columns": [
+                      { "key": "month", "title": "月份" },
+                      { "key": "sales", "title": "销量" }
+                    ],
+                    "data": [
+                      { "month": "1月", "sales": 80 },
+                      { "month": "2月", "sales": 95 }
+                    ]
+                  }
+                }
+              ],
               "dataProperties": {
                 "dataType": "static",
-                "title": "产品线A",
-                "columns": [
-                  { "key": "month", "title": "月份" },
-                  { "key": "sales", "title": "销量" }
-                ],
-                "data": [
-                  { "month": "1月", "sales": 100 },
-                  { "month": "2月", "sales": 120 }
-                ]
-              }
-            },
-            {
-              "id": "sub-2",
-              "type": "table",
-              "dataProperties": {
-                "dataType": "static",
-                "title": "产品线B",
-                "columns": [
-                  { "key": "month", "title": "月份" },
-                  { "key": "sales", "title": "销量" }
-                ],
-                "data": [
-                  { "month": "1月", "sales": 80 },
-                  { "month": "2月", "sales": 95 }
-                ]
+                "title": "多产品线对比"
               }
             }
-          ],
-          "dataProperties": {
-            "dataType": "static",
-            "title": "多产品线对比"
-          }
+          ]
         }
       ]
     }

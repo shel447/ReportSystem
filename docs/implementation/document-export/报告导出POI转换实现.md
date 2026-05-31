@@ -678,13 +678,13 @@ private void renderCoverSlide(XMLSlideShow pptx, ReportDslModel dsl, ThemeTokens
     
     // 1. 渲染标题（居中）
     String title = dsl.cover != null && dsl.cover.title != null ? 
-                   dsl.cover.title : dsl.basicInfo.title;
+                   dsl.cover.title : dsl.basicInfo.name;
     addTextBox(slide, title, 50, 150, 860, 100, 
                theme.fontPrimary(), theme.titleSizePt(), true, theme.primary(), true);
     
     // 2. 渲染副标题
-    if (dsl.basicInfo.subTitle != null) {
-        addTextBox(slide, dsl.basicInfo.subTitle, 50, 260, 860, 50, 
+    if (dsl.cover != null && dsl.cover.subTitle != null) {
+        addTextBox(slide, dsl.cover.subTitle, 50, 260, 860, 50,
                    theme.fontPrimary(), theme.heading2SizePt(), false, theme.secondary(), true);
     }
     
@@ -706,7 +706,7 @@ private void renderCoverSlide(XMLSlideShow pptx, ReportDslModel dsl, ThemeTokens
 | DSL 字段 | POI 对象 | 位置 (x, y, w, h) | 样式 |
 |---------|---------|------------------|------|
 | `cover.title` | `XSLFTextBox` | (50, 150, 860, 100) | 22pt，主色，粗体，居中 |
-| `basicInfo.subTitle` | `XSLFTextBox` | (50, 260, 860, 50) | 14pt，次色，居中 |
+| `cover.subTitle` | `XSLFTextBox` | (50, 260, 860, 50) | 14pt，次色，居中 |
 | `cover.author` + `date` | `XSLFTextBox` | (50, 340, 860, 40) | 11pt，次色，居中 |
 
 ### 5.4 目录幻灯片

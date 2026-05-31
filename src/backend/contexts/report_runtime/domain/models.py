@@ -287,15 +287,11 @@ class ReportBasicInfo:
     id: str
     asset_schema_version: str | None = _alias_field("schemaVersion", default=None)
     name: str | None = None
-    title: str | None = None
+    report_type: str | None = _alias_field("reportType", default=None)
     description: str | None = None
     schema_version: str | None = _alias_field("version", default=None)
     status: str | None = None
-    created_at: str | None = _alias_field("createdAt", default=None)
-    updated_at: str | None = _alias_field("updatedAt", default=None)
-    parameters: dict[str, Parameter] = field(default_factory=dict)
     mode: str | None = None
-    sub_title: str | None = _alias_field("subTitle", default=None)
     template_id: str | None = _alias_field("templateId", default=None)
     template_name: str | None = _alias_field("templateName", default=None)
     remark: str | None = None
@@ -506,7 +502,6 @@ class ChartComponent:
     basic_properties: dict[str, Any] | None = _alias_field("basicProperties", default=None)
     advance_properties: dict[str, Any] | None = _alias_field("advanceProperties", default=None)
     interactions: list[dict[str, Any]] = field(default_factory=list)
-    options: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -1198,8 +1193,7 @@ def report_basic_info_to_dict(info: ReportBasicInfo) -> dict[str, Any]:
     _set_if(payload, ReportBasicInfo, "mode", info.mode)
     _set_if(payload, ReportBasicInfo, "status", info.status)
     _set_if(payload, ReportBasicInfo, "name", info.name)
-    _set_if(payload, ReportBasicInfo, "title", info.title)
-    _set_if(payload, ReportBasicInfo, "sub_title", info.sub_title)
+    _set_if(payload, ReportBasicInfo, "report_type", info.report_type)
     _set_if(payload, ReportBasicInfo, "description", info.description)
     _set_if(payload, ReportBasicInfo, "template_id", info.template_id)
     _set_if(payload, ReportBasicInfo, "template_name", info.template_name)
@@ -1207,15 +1201,11 @@ def report_basic_info_to_dict(info: ReportBasicInfo) -> dict[str, Any]:
     _set_if(payload, ReportBasicInfo, "schema_version", info.schema_version)
     _set_if(payload, ReportBasicInfo, "create_date", info.create_date)
     _set_if(payload, ReportBasicInfo, "modify_date", info.modify_date)
-    _set_if(payload, ReportBasicInfo, "created_at", info.created_at or info.create_date)
-    _set_if(payload, ReportBasicInfo, "updated_at", info.updated_at or info.modify_date)
     _set_if(payload, ReportBasicInfo, "creator", info.creator)
     _set_if(payload, ReportBasicInfo, "modifier", info.modifier)
     _set_if(payload, ReportBasicInfo, "header", info.header)
     _set_if(payload, ReportBasicInfo, "footer", info.footer)
     _set_if(payload, ReportBasicInfo, "category", info.category)
-    if info.parameters:
-        set_value(payload, ReportBasicInfo, "parameters", {key: parameter_to_dict(value) for key, value in info.parameters.items()})
     return payload
 
 
@@ -1224,19 +1214,11 @@ def report_basic_info_from_dict(payload: dict[str, Any]) -> ReportBasicInfo:
         id=str(get_value(payload, ReportBasicInfo, "id") or ""),
         asset_schema_version=_as_optional_str(get_value(payload, ReportBasicInfo, "asset_schema_version")),
         name=_as_optional_str(get_value(payload, ReportBasicInfo, "name")),
-        title=_as_optional_str(get_value(payload, ReportBasicInfo, "title")),
+        report_type=_as_optional_str(get_value(payload, ReportBasicInfo, "report_type")),
         description=_as_optional_str(get_value(payload, ReportBasicInfo, "description")),
         schema_version=_as_optional_str(get_value(payload, ReportBasicInfo, "schema_version")),
         status=_as_optional_str(get_value(payload, ReportBasicInfo, "status")),
-        created_at=_as_optional_str(get_value(payload, ReportBasicInfo, "created_at")),
-        updated_at=_as_optional_str(get_value(payload, ReportBasicInfo, "updated_at")),
-        parameters={
-            str(key): parameter_from_dict(value)
-            for key, value in dict(get_value(payload, ReportBasicInfo, "parameters") or {}).items()
-            if isinstance(value, dict)
-        },
         mode=_as_optional_str(get_value(payload, ReportBasicInfo, "mode")),
-        sub_title=_as_optional_str(get_value(payload, ReportBasicInfo, "sub_title")),
         template_id=_as_optional_str(get_value(payload, ReportBasicInfo, "template_id")),
         template_name=_as_optional_str(get_value(payload, ReportBasicInfo, "template_name")),
         remark=_as_optional_str(get_value(payload, ReportBasicInfo, "remark")),
@@ -1569,7 +1551,6 @@ def chart_component_to_dict(component: ChartComponent) -> dict[str, Any]:
         set_value(data_properties, ChartDataProperties, "axis_group", list(component.data_properties.axis_group))
     _set_if(data_properties, ChartDataProperties, "x_axis", component.data_properties.x_axis)
     _set_if(data_properties, ChartDataProperties, "y_axis", component.data_properties.y_axis)
-    _set_if(payload, ChartComponent, "options", component.options)
     _set_component_common(payload, ChartComponent, component)
     return payload
 
@@ -1594,7 +1575,6 @@ def chart_component_from_dict(payload: dict[str, Any]) -> ChartComponent:
             x_axis=get_value(data, ChartDataProperties, "x_axis") or payload.get("xAxis"),
             y_axis=get_value(data, ChartDataProperties, "y_axis") or payload.get("yAxis"),
         ),
-        options=get_value(payload, ChartComponent, "options") if isinstance(get_value(payload, ChartComponent, "options"), dict) else None,
         **_component_common_kwargs(payload, ChartComponent),
     )
 

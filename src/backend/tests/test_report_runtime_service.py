@@ -768,7 +768,6 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 "id": "rpt_merge_rows",
                 "version": "1.0.0",
                 "status": "Success",
-                "parameters": {},
             },
             "catalogs": [
                 {
@@ -1027,8 +1026,7 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                 mode="published",
                 status="Success",
                 name="增强报告",
-                title="增强报告标题",
-                sub_title="增强副标题",
+                report_type="Word",
                 template_id="tpl_enhanced",
                 template_name="增强模板",
                 remark="补齐 BI Engine 字段",
@@ -1098,7 +1096,12 @@ class ReportRuntimeServiceTests(unittest.TestCase):
                                         x_axis={"type": "category", "name": "日期"},
                                         y_axis={"type": "value", "name": "可用率"},
                                     ),
-                                    options={"responsive": {"enabled": True, "aspectRatio": 1.6}},
+                                    advance_properties={
+                                        "responsive": {
+                                            "aspectRatio": 1.6,
+                                            "levels": [{"size": "normal", "maxWidth": 1200}],
+                                        }
+                                    },
                                 ),
                             ],
                         )
@@ -1158,7 +1161,12 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         _validate_report_dsl(payload)
         self.assertEqual(payload["backCover"]["text"], "Thank You")
         self.assertEqual(payload["basicInfo"]["schemaVersion"], "1.0.0")
-        self.assertEqual(payload["basicInfo"]["subTitle"], "增强副标题")
+        self.assertEqual(payload["basicInfo"]["reportType"], "Word")
+        self.assertNotIn("title", payload["basicInfo"])
+        self.assertNotIn("subTitle", payload["basicInfo"])
+        self.assertNotIn("createdAt", payload["basicInfo"])
+        self.assertNotIn("updatedAt", payload["basicInfo"])
+        self.assertNotIn("parameters", payload["basicInfo"])
         self.assertTrue(payload["layout"]["autoLayout"])
         table_data = payload["catalogs"][0]["sections"][0]["components"][0]["dataProperties"]
         self.assertTrue(table_data["columns"][0]["sortable"])
@@ -1167,7 +1175,8 @@ class ReportRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(chart["dataProperties"]["series"][0]["type"], "line")
         self.assertEqual(chart["dataProperties"]["xAxis"]["type"], "category")
         self.assertNotIn("xAxis", chart)
-        self.assertTrue(chart["options"]["responsive"]["enabled"])
+        self.assertNotIn("options", chart)
+        self.assertEqual(chart["advanceProperties"]["responsive"]["levels"][0]["size"], "normal")
         meta_payload = payload["reportMeta"]["section_enhanced"]
         additional_info = meta_payload["additionalInfos"][0]
         self.assertEqual(additional_info["value"], "SELECT 1")
