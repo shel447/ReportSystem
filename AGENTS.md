@@ -6,22 +6,24 @@
 
 ### 设计资料的权威位置
 
-- `design/report_system/` 是当前版本的方案设计来源，包含核心业务模型、业务流程、接口契约、数据模型、导出架构等产品与系统方案。
-- `design/report_system/implementation/` 是实现设计文档目录，不是源代码目录。这里记录实现团队对当前方案设计的落地设计、模块职责和实现边界。
-- `design/change_log.md` 是方案设计层面的变更记录。
-- `design/report_system/implementation/change_log.md` 是实现设计、编码和验证层面的变更记录。
+- `docs/specs/` 是当前版本的业务规格来源，按模板管理、通用对话、报告生成、报告管理和文档导出等业务特性组织。这里只使用产品人员和业务用户能理解的语言描述功能、使用方式、可感知效果和限制。
+- `docs/implementation/` 是实现设计文档目录，不是源代码目录。这里记录实现团队对当前业务规格的落地设计、模块职责、实现边界和验证结果。
+- `docs/implementation/contracts/` 是技术契约目录，集中维护 API、JSON Schema、示例和字段级技术手册。
+- `docs/specs/changelog/YYYY.md` 是规格设计层面的年度变更记录。
+- `docs/implementation/changelog/YYYY.md` 是实现设计、编码和验证层面的年度变更记录。
 
 ### 标准变更流程
 
-1. 设计团队先更新 `design/report_system/*.md` 中相关方案设计文档。
-2. 设计团队同步更新 `design/change_log.md`，记录方案设计变更。
-3. 实现团队基于已更新的方案设计，先更新 `design/report_system/implementation/*.md` 中相关实现设计文档。
+1. 设计团队先更新 `docs/specs/` 中对应业务特性的业务规格文档。
+2. 设计团队同步更新 `docs/specs/changelog/YYYY.md`，记录规格设计变更。
+3. 实现团队基于已更新的规格设计，先更新 `docs/implementation/` 中对应实现设计文档。
 4. 实现团队再进行编码实现。
-5. 实现团队完成必要验证后，更新 `design/report_system/implementation/change_log.md`，记录实现、验证结果和重要偏差。
+5. 实现团队完成必要验证后，更新 `docs/implementation/changelog/YYYY.md`，记录实现、验证结果和重要偏差。
 
 ### 实现约束
 
-- 后端核心业务模型和业务流程必须以 `design/report_system/` 下的当前方案设计为准。
+- 用户可感知的业务能力和业务流程必须以 `docs/specs/` 下的当前业务规格为准。
+- API、Schema 和字段级结构必须以 `docs/implementation/contracts/` 下的当前技术契约为准。
 - 如果实现过程中发现方案设计缺口、冲突或需要新增行为，先暂停对该行为的代码假设，并更新设计或请求设计澄清，再继续编码。
 - 前端可以在需要时推倒重来；前端实现不应反向改变后端核心业务模型和业务流程。
 - 实现设计文档应在编码前更新，避免代码先行导致设计文档滞后。

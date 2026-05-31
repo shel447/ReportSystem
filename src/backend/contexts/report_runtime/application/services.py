@@ -59,7 +59,7 @@ from ..domain.models import (
 )
 from ..domain.services import serialize_template_instance
 
-REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[5] / "design" / "report_system" / "schemas" / "report-dsl.schema.json"
+REPORT_SCHEMA_PATH = Path(__file__).resolve().parents[5] / "docs" / "implementation" / "contracts" / "schemas" / "report-dsl.schema.json"
 REPORT_SCHEMA = json.loads(REPORT_SCHEMA_PATH.read_text(encoding="utf-8"))
 REPORT_VALIDATOR = Draft202012Validator(REPORT_SCHEMA)
 REPORT_CATALOG_FRAGMENT_VALIDATOR = Draft202012Validator(

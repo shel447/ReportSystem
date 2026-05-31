@@ -92,7 +92,7 @@ flowchart LR
 
 ```text
 ReportSystem/
-├─ design/
+├─ docs/
 ├─ src/
 │  ├─ backend/
 │  └─ frontend/
@@ -177,28 +177,33 @@ python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8300
 
 - 业务接口：`/rest/chatbi/v1/*`
 - 开发接口：`/rest/dev/*`
+- 文档浏览：`/rest/dev/docs`
 
 ## 6. 文档导航
 
-### 当前权威设计
+### 业务规格
 
-- [设计文档总入口](design/README.md)
-- [报告系统统一设计包](design/report_system/README.md)
-- [接口契约](design/report_system/04-接口契约.md)
-- [数据模型与持久化](design/report_system/05-数据模型与持久化.md)
+- [文档总入口](docs/README.md)
+- [规格设计索引](docs/specs/README.md)
+- [模板管理](docs/specs/template-management/README.md)
+- [通用对话](docs/specs/conversation/README.md)
+- [报告生成](docs/specs/report-generation/README.md)
+- [报告管理](docs/specs/report-management/README.md)
+- [文档导出](docs/specs/document-export/README.md)
 
-### 当前实现设计
+### 实现设计与技术契约
 
-- [实现设计索引](design/report_system/implementation/README.md)
-- [总体实现架构](design/report_system/implementation/总体实现架构.md)
-- [模板目录实现](design/report_system/implementation/模板目录实现.md)
-- [统一对话实现](design/report_system/implementation/统一对话实现.md)
-- [报告运行时实现](design/report_system/implementation/报告运行时实现.md)
-- [持久化与表结构实现](design/report_system/implementation/持久化与表结构实现.md)
+- [实现设计索引](docs/implementation/README.md)
+- [技术契约](docs/implementation/contracts/README.md)
+- [API 契约](docs/implementation/contracts/apis/README.md)
+- [JSON Schema 与示例](docs/implementation/contracts/schemas/README.md)
+- [前端实现](docs/implementation/frontend/README.md)
+- [文档导出实现](docs/implementation/document-export/README.md)
 
-### 产品与需求
+### 变更记录
 
-- [原始需求输入](design/biz_requirement.md)
+- [规格变更日志](docs/specs/changelog/README.md)
+- [实现变更日志](docs/implementation/changelog/README.md)
 
 ## 7. 当前实现边界
 

@@ -10,11 +10,11 @@ from typing import Any
 from jsonschema import Draft202012Validator, RefResolver
 
 
-DESIGN_ROOT = Path(__file__).resolve().parents[5] / "design" / "report_system"
-TEMPLATE_SCHEMA_PATH = DESIGN_ROOT / "schemas" / "report-template.schema.json"
-TEMPLATE_INSTANCE_SCHEMA_PATH = DESIGN_ROOT / "schemas" / "template-instance.schema.json"
-PARAMETER_OPTION_REQUEST_SCHEMA_PATH = DESIGN_ROOT / "schemas" / "parameter-option-source-request.schema.json"
-PARAMETER_OPTION_RESPONSE_SCHEMA_PATH = DESIGN_ROOT / "schemas" / "parameter-option-source-response.schema.json"
+CONTRACTS_ROOT = Path(__file__).resolve().parents[5] / "docs" / "implementation" / "contracts"
+TEMPLATE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-template.schema.json"
+TEMPLATE_INSTANCE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "template-instance.schema.json"
+PARAMETER_OPTION_REQUEST_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-request.schema.json"
+PARAMETER_OPTION_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-response.schema.json"
 
 
 def _read_schema(path: Path) -> dict[str, Any]:

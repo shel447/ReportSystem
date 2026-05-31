@@ -1,0 +1,36 @@
+# 文档导出实现
+
+Java Office Exporter 位于 `services/java-office-exporter`。它接收 Report DSL 或归一化后的 VDoc，生成 DOCX 和 PPTX；PDF 由 Word 或 PPT 派生转换。
+
+业务侧可感知的默认效果和预留选项见 [文档导出业务规格](../../specs/document-export/README.md)。迁移前的完整配置说明保留在 [Document Configuration 技术参考](DocumentConfiguration技术参考.md)。
+
+## 实现边界
+
+- Java 源码根包：`com.chatbi`
+- CLI 入口：`com.chatbi.exporter.CliMain`
+- 导出默认配置：`com.chatbi.exporter.conf`
+- Report DSL Java 模型：`com.chatbi.report.dsl`
+- DOCX/PPTX 渲染：`com.chatbi.exporter.docx`、`com.chatbi.exporter.pptx`
+
+Document Configuration 独立于 Report DSL。当前 exporter 使用内置默认值，后续可由边界适配器映射外部可选配置。
+
+## 配置优先级
+
+未来开放外部 Document Configuration 后，文档样式按以下优先级解析：
+
+```text
+显式传入的 Document Configuration
+  > Report DSL 中的单表展示声明
+  > exporter 内置默认值
+```
+
+当前尚未开放外部配置入参；没有外部配置时，DSL 明确声明的 `showTitle/showHeader` 应优先，缺失字段再使用 exporter 内置默认。
+
+## 已知待收敛项
+
+- `showHeader` 当前在归一化层被借用为分页重复表头语义，需要拆分“是否展示表头”和“分页时是否重复表头”。
+- `showTitle` 已进入 DSL，但尚未完整接入 DOCX/PPTX 表格渲染。
+- 表格最大数据行数当前底层统一兜底为 `200`；目标内置默认值为 Word `200`、PPT `10`。
+- 后续实现时，Word 表格标题使用表格前独立标题段落；PPT 表格标题占用表格区域顶部一行，数据表向下收缩。
+
+完整 POI 转换细节见 [报告导出 POI 转换实现](报告导出POI转换实现.md)。
