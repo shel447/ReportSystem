@@ -216,6 +216,7 @@ class ReportRuntimeService:
             # 导出任务只负责记录编排顺序，实际文件生成下沉到文档网关。
             job = self.export_job_repository.create(
                 report_instance_id=report_id,
+                user_id=user_id,
                 current_format=format_name,
                 status="queued",
                 dependency_job_id=dependency_job_id,

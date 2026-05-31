@@ -6,7 +6,8 @@ from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from ..ai.openai_compat import AIConfigurationError, ProviderConfig
-from ..persistence.models import SystemSetting
+from ..persistence.dev_database import DevSessionLocal
+from ..persistence.dev_models import SystemSetting
 
 GLOBAL_SETTINGS_ID = "global"
 _DEFAULT_COMPLETION = {
@@ -75,7 +76,10 @@ def save_settings(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     return get_settings_payload(db)
 
 
-def build_completion_provider_config(db: Session) -> ProviderConfig:
+def build_completion_provider_config(db: Session | None = None) -> ProviderConfig:
+    if db is None:
+        with DevSessionLocal() as session:
+            return build_completion_provider_config(session)
     row = get_settings_record(db)
     completion = _merged_completion(row.completion_config if row else {})
     if not _completion_configured(completion):
@@ -89,7 +93,10 @@ def build_completion_provider_config(db: Session) -> ProviderConfig:
     )
 
 
-def build_embedding_provider_config(db: Session) -> ProviderConfig:
+def build_embedding_provider_config(db: Session | None = None) -> ProviderConfig:
+    if db is None:
+        with DevSessionLocal() as session:
+            return build_embedding_provider_config(session)
     row = get_settings_record(db)
     completion = _merged_completion(row.completion_config if row else {})
     embedding = _merged_embedding(row.embedding_config if row else {})

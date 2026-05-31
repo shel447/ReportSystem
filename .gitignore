@@ -30,6 +30,7 @@ wheels/
 *.egg
 
 # Database
+.runtime/
 src/backend/report_system.db
 src/backend/telecom_demo.db
 src/backend/generated_documents/

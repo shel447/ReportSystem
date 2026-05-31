@@ -5,13 +5,15 @@
 ## 导航
 
 1. [API 契约](apis/README.md)
-2. [JSON Schema 与示例](schemas/README.md)
-3. [报告模板字段级手册](manuals/报告模板定义与使用说明书.md)
-4. [Report DSL 字段级手册](manuals/报告DSL定义与使用说明书.md)
+2. [数据库契约](database/README.md)
+3. [JSON Schema 与示例](schemas/README.md)
+4. [报告模板字段级手册](manuals/报告模板定义与使用说明书.md)
+5. [Report DSL 字段级手册](manuals/报告DSL定义与使用说明书.md)
 
 ## 维护原则
 
 - JSON Schema 是结构契约的唯一事实源，代码目录不得复制镜像。
 - API 契约描述公开接口和服务端内部协议，不反向定义业务能力。
+- 数据库契约描述当前最新表结构和升级规则，执行 SQL 统一由 `upgrades/` 维护。
 - 字段级手册用于解释 Schema，不替代业务规格。
 - 技术契约变化记录到 [实现变更日志](../changelog/README.md)。

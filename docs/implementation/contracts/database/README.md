@@ -1,0 +1,396 @@
+# 数据库契约
+
+本文件记录当前最新数据库结构。可执行 SQL 位于 `src/backend/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。
+
+## 1. 数据库分类
+
+| 数据库 | 默认文件 | 职责 | 升级 SQL |
+|---|---|---|---|
+| 正式业务库 | `.runtime/report_system.db` | 保存模板、会话、报告和文档任务 | `upgrades/*.sql` |
+| 开发辅助库 | `.runtime/dev_support.db` | 保存 `/rest/dev/*` 使用的设置和反馈 | `upgrades/dev/*.sql` |
+| 查询演示库 | `.runtime/telecom_demo.db` | 保存本地电信网络演示数据 | 由 demo 初始化器维护 |
+
+命名约定：
+
+- `tbl_*`：正式业务表。
+- `dev_*`：开发辅助表。
+- `__*`：数据库自身的技术元数据表。
+
+## 2. 业务库
+
+### 2.1 ER 图
+
+```mermaid
+erDiagram
+    tbl_users ||--o{ tbl_conversations : owns
+    tbl_users ||--o{ tbl_chats : owns
+    tbl_users ||--o{ tbl_template_instances : owns
+    tbl_users ||--o{ tbl_report_instances : owns
+    tbl_users ||--o{ tbl_export_jobs : owns
+    tbl_conversations ||--o{ tbl_chats : contains
+    tbl_report_templates ||--o{ tbl_template_instances : instantiates
+    tbl_conversations ||--o{ tbl_template_instances : captures
+    tbl_chats o|--o{ tbl_template_instances : updates
+    tbl_report_templates ||--o{ tbl_report_instances : generates
+    tbl_template_instances ||--o{ tbl_report_instances : freezes
+    tbl_report_instances ||--o{ tbl_report_documents : exports
+    tbl_report_instances ||--o{ tbl_export_jobs : schedules
+    tbl_export_jobs o|--o{ tbl_export_jobs : depends_on
+```
+
+### 2.2 字段定义
+
+#### `tbl_users`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | - | PK | 外部用户标识 |
+| `display_name` | `VARCHAR` | 是 | `""` | - | 展示名称 |
+| `status` | `VARCHAR` | 是 | `active` | - | 用户状态 |
+| `profile_json` | `JSON` | 是 | `{}` | - | 用户扩展信息 |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+| `last_seen_at` | `DATETIME` | 否 | `NULL` | - | 最近访问时间 |
+
+#### `tbl_conversations`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 会话 ID |
+| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `title` | `VARCHAR` | 是 | `""` | - | 会话标题 |
+| `fork_meta` | `JSON` | 是 | `{}` | - | 会话派生信息 |
+| `status` | `VARCHAR` | 是 | `active` | - | 会话状态 |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+
+#### `tbl_chats`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 消息 ID |
+| `conversation_id` | `VARCHAR` | 是 | - | FK `tbl_conversations.id`，INDEX | 所属会话 |
+| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `role` | `VARCHAR` | 是 | - | - | 消息角色 |
+| `content` | `JSON` | 是 | `{}` | - | 消息内容 |
+| `action` | `JSON` | 否 | `NULL` | - | 结构化动作 |
+| `meta` | `JSON` | 是 | `{}` | - | 消息元信息 |
+| `seq_no` | `INTEGER` | 是 | - | - | 会话内顺序 |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+
+#### `tbl_report_templates`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | - | PK | 模板 ID |
+| `category` | `VARCHAR` | 是 | - | - | 模板分类 |
+| `name` | `VARCHAR` | 是 | - | - | 模板名称 |
+| `description` | `TEXT` | 是 | `""` | - | 模板说明 |
+| `schema_version` | `VARCHAR` | 是 | - | - | 模板结构版本 |
+| `content` | `JSON` | 是 | `{}` | - | 完整 `ReportTemplate` |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+
+#### `tbl_template_instances`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 模板实例 ID |
+| `template_id` | `VARCHAR` | 是 | - | FK `tbl_report_templates.id`，INDEX | 来源模板 |
+| `conversation_id` | `VARCHAR` | 是 | - | FK `tbl_conversations.id`，INDEX | 来源会话 |
+| `chat_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_chats.id`，INDEX | 最近关联消息 |
+| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `status` | `VARCHAR` | 是 | - | - | 实例状态 |
+| `capture_stage` | `VARCHAR` | 是 | - | - | 捕获阶段 |
+| `revision` | `INTEGER` | 是 | `1` | - | 修订号 |
+| `schema_version` | `VARCHAR` | 是 | - | - | 实例结构版本 |
+| `content` | `JSON` | 是 | `{}` | - | 完整 `TemplateInstance` |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+
+#### `tbl_report_instances`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 报告 ID |
+| `template_id` | `VARCHAR` | 是 | - | FK `tbl_report_templates.id`，INDEX | 来源模板 |
+| `template_instance_id` | `VARCHAR` | 是 | - | FK `tbl_template_instances.id`，INDEX | 冻结实例 |
+| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `source_conversation_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_conversations.id`，INDEX | 来源会话 |
+| `source_chat_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_chats.id`，INDEX | 来源消息 |
+| `status` | `VARCHAR` | 是 | - | - | 报告状态 |
+| `schema_version` | `VARCHAR` | 是 | - | - | DSL 版本 |
+| `content` | `JSON` | 是 | `{}` | - | 完整 Report DSL |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+
+#### `tbl_report_documents`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 文档 ID |
+| `report_instance_id` | `VARCHAR` | 是 | - | FK `tbl_report_instances.id`，INDEX | 所属报告 |
+| `artifact_kind` | `VARCHAR` | 是 | - | - | 文档格式 |
+| `source_format` | `VARCHAR` | 否 | `NULL` | - | 派生来源格式 |
+| `generation_mode` | `VARCHAR` | 是 | `sync` | - | 生成方式 |
+| `mime_type` | `VARCHAR` | 是 | - | - | MIME 类型 |
+| `storage_key` | `VARCHAR` | 是 | - | - | 文件存储键 |
+| `status` | `VARCHAR` | 是 | - | - | 产物状态 |
+| `error_message` | `TEXT` | 否 | `NULL` | - | 失败原因 |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+
+#### `tbl_export_jobs`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 任务 ID |
+| `report_instance_id` | `VARCHAR` | 是 | - | FK `tbl_report_instances.id`，INDEX | 所属报告 |
+| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `current_format` | `VARCHAR` | 是 | - | - | 当前格式 |
+| `status` | `VARCHAR` | 是 | - | - | 任务状态 |
+| `dependency_job_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_export_jobs.id` | 前置任务 |
+| `exporter_backend` | `VARCHAR` | 是 | `local` | - | 导出后端 |
+| `request_payload_hash` | `VARCHAR` | 是 | `""` | - | 请求摘要 |
+| `started_at` | `DATETIME` | 否 | `NULL` | - | 开始时间 |
+| `finished_at` | `DATETIME` | 否 | `NULL` | - | 完成时间 |
+| `error_code` | `VARCHAR` | 否 | `NULL` | - | 错误码 |
+| `error_message` | `TEXT` | 否 | `NULL` | - | 错误信息 |
+
+### 2.3 业务库完整 DDL
+
+可执行文件见 [`V001__initialize_business_tables.sql`](../../../../src/backend/infrastructure/persistence/upgrades/V001__initialize_business_tables.sql)。
+
+```sql
+CREATE TABLE tbl_users (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    display_name VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    profile_json JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    last_seen_at DATETIME
+);
+
+CREATE TABLE tbl_conversations (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    title VARCHAR NOT NULL,
+    fork_meta JSON NOT NULL,
+    status VARCHAR NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX ix_tbl_conversations_user_id ON tbl_conversations (user_id);
+
+CREATE TABLE tbl_chats (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    conversation_id VARCHAR NOT NULL REFERENCES tbl_conversations (id) ON DELETE CASCADE,
+    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    role VARCHAR NOT NULL,
+    content JSON NOT NULL,
+    action JSON,
+    meta JSON NOT NULL,
+    seq_no INTEGER NOT NULL,
+    created_at DATETIME NOT NULL
+);
+CREATE INDEX ix_tbl_chats_conversation_id ON tbl_chats (conversation_id);
+CREATE INDEX ix_tbl_chats_user_id ON tbl_chats (user_id);
+
+CREATE TABLE tbl_report_templates (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    category VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    description TEXT NOT NULL,
+    schema_version VARCHAR NOT NULL,
+    content JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE tbl_template_instances (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    template_id VARCHAR NOT NULL REFERENCES tbl_report_templates (id),
+    conversation_id VARCHAR NOT NULL REFERENCES tbl_conversations (id),
+    chat_id VARCHAR REFERENCES tbl_chats (id),
+    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    status VARCHAR NOT NULL,
+    capture_stage VARCHAR NOT NULL,
+    revision INTEGER NOT NULL,
+    schema_version VARCHAR NOT NULL,
+    content JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX ix_tbl_template_instances_chat_id ON tbl_template_instances (chat_id);
+CREATE INDEX ix_tbl_template_instances_conversation_id ON tbl_template_instances (conversation_id);
+CREATE INDEX ix_tbl_template_instances_template_id ON tbl_template_instances (template_id);
+CREATE INDEX ix_tbl_template_instances_user_id ON tbl_template_instances (user_id);
+
+CREATE TABLE tbl_report_instances (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    template_id VARCHAR NOT NULL REFERENCES tbl_report_templates (id),
+    template_instance_id VARCHAR NOT NULL REFERENCES tbl_template_instances (id),
+    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    source_conversation_id VARCHAR REFERENCES tbl_conversations (id),
+    source_chat_id VARCHAR REFERENCES tbl_chats (id),
+    status VARCHAR NOT NULL,
+    schema_version VARCHAR NOT NULL,
+    content JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX ix_tbl_report_instances_source_chat_id ON tbl_report_instances (source_chat_id);
+CREATE INDEX ix_tbl_report_instances_source_conversation_id ON tbl_report_instances (source_conversation_id);
+CREATE INDEX ix_tbl_report_instances_template_id ON tbl_report_instances (template_id);
+CREATE INDEX ix_tbl_report_instances_template_instance_id ON tbl_report_instances (template_instance_id);
+CREATE INDEX ix_tbl_report_instances_user_id ON tbl_report_instances (user_id);
+
+CREATE TABLE tbl_export_jobs (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    report_instance_id VARCHAR NOT NULL REFERENCES tbl_report_instances (id),
+    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    current_format VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    dependency_job_id VARCHAR REFERENCES tbl_export_jobs (id),
+    exporter_backend VARCHAR NOT NULL,
+    request_payload_hash VARCHAR NOT NULL,
+    started_at DATETIME,
+    finished_at DATETIME,
+    error_code VARCHAR,
+    error_message TEXT
+);
+CREATE INDEX ix_tbl_export_jobs_report_instance_id ON tbl_export_jobs (report_instance_id);
+CREATE INDEX ix_tbl_export_jobs_user_id ON tbl_export_jobs (user_id);
+
+CREATE TABLE tbl_report_documents (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    report_instance_id VARCHAR NOT NULL REFERENCES tbl_report_instances (id),
+    artifact_kind VARCHAR NOT NULL,
+    source_format VARCHAR,
+    generation_mode VARCHAR NOT NULL,
+    mime_type VARCHAR NOT NULL,
+    storage_key VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    error_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE INDEX ix_tbl_report_documents_report_instance_id ON tbl_report_documents (report_instance_id);
+```
+
+## 3. 开发辅助库
+
+### 3.1 ER 图
+
+```mermaid
+erDiagram
+    dev_system_settings {
+        VARCHAR id PK
+        JSON completion_config
+        JSON embedding_config
+        DATETIME created_at
+        DATETIME updated_at
+    }
+    dev_feedbacks {
+        VARCHAR id PK
+        VARCHAR user_ip
+        VARCHAR submitter
+        TEXT content
+        VARCHAR priority
+        JSON images
+        DATETIME created_at
+    }
+```
+
+### 3.2 字段定义
+
+#### `dev_system_settings`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | `global` | PK | 全局设置记录 |
+| `completion_config` | `JSON` | 是 | `{}` | - | Completion 配置 |
+| `embedding_config` | `JSON` | 是 | `{}` | - | Embedding 配置 |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
+
+#### `dev_feedbacks`
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `VARCHAR` | 是 | UUID | PK | 反馈 ID |
+| `user_ip` | `VARCHAR` | 否 | `NULL` | - | 提交来源 IP |
+| `submitter` | `VARCHAR` | 否 | `NULL` | - | 提交人 |
+| `content` | `TEXT` | 是 | - | - | 反馈内容 |
+| `priority` | `VARCHAR` | 是 | `medium` | - | 优先级 |
+| `images` | `JSON` | 是 | `[]` | - | 截图列表 |
+| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
+
+### 3.3 开发辅助库完整 DDL
+
+可执行文件见 [`V001__initialize_development_tables.sql`](../../../../src/backend/infrastructure/persistence/upgrades/dev/V001__initialize_development_tables.sql)。
+
+```sql
+CREATE TABLE dev_system_settings (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    completion_config JSON NOT NULL,
+    embedding_config JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE dev_feedbacks (
+    id VARCHAR NOT NULL PRIMARY KEY,
+    user_ip VARCHAR,
+    submitter VARCHAR,
+    content TEXT NOT NULL,
+    priority VARCHAR NOT NULL,
+    images JSON NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+```
+
+## 4. 数据库版本与升级
+
+两个应用数据库各自维护同名元数据表：
+
+| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `INTEGER` | 是 | `1` | PK | 固定单行 |
+| `current_version` | `INTEGER` | 是 | `0` | - | 当前结构版本 |
+| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 最近升级时间 |
+
+可执行文件见业务库和 dev 库目录中的 `V000__initialize_database_version.sql`。
+
+```sql
+CREATE TABLE __db_schema_version (
+    id INTEGER PRIMARY KEY,
+    current_version INTEGER NOT NULL,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO __db_schema_version (id, current_version)
+VALUES (1, 0);
+```
+
+启动时升级规则：
+
+1. 幂等执行 `V000`，确保 `__db_schema_version` 存在。
+2. 读取 `current_version`，按顺序执行尚未应用的 SQL。
+3. 每个版本执行成功后更新当前版本。
+4. 版本号必须连续且唯一；数据库版本高于代码支持版本时拒绝启动。
+5. 升级后校验 ORM 需要的表和字段；检测到结构漂移时提示删除 `.runtime/` 后重建。
+
+## 5. JSON 与隔离规则
+
+- `tbl_report_templates.content` 保存完整 `ReportTemplate`。
+- `tbl_template_instances.content` 保存完整 `TemplateInstance`。
+- `tbl_report_instances.content` 保存完整 Report DSL。
+- `tbl_conversations`、`tbl_chats`、`tbl_template_instances`、`tbl_report_instances`、`tbl_export_jobs` 直接按 `user_id` 隔离。
+- `tbl_report_documents` 通过 `report_instance_id -> tbl_report_instances.user_id` 间接隔离。
+- dev 数据库不承载业务资源，不参与用户报告数据查询。
+
+## 6. 非正式表
+
+`contexts/scheduling` 仍是未接入的半成品：仓储代码尚未具备 ORM、路由和依赖装配。调度相关表不进入当前数据库契约。

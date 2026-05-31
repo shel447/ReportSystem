@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from backend.infrastructure.persistence.database import Base, get_db
+from backend.infrastructure.persistence.dev_database import DevBase, get_dev_db
 from backend.routers.system_settings import router as system_settings_router
 
 
@@ -18,7 +18,7 @@ class SystemSettingsRouterTests(unittest.TestCase):
         db_path = os.path.join(self.temp_dir.name, "settings-test.db")
         self.engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
         self.session_local = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        Base.metadata.create_all(bind=self.engine)
+        DevBase.metadata.create_all(bind=self.engine)
 
         app = FastAPI()
         app.include_router(system_settings_router, prefix="/rest/dev")
@@ -30,7 +30,7 @@ class SystemSettingsRouterTests(unittest.TestCase):
             finally:
                 db.close()
 
-        app.dependency_overrides[get_db] = override_get_db
+        app.dependency_overrides[get_dev_db] = override_get_db
         self.client = TestClient(app)
 
     def tearDown(self):

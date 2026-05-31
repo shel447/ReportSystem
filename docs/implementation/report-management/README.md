@@ -1,20 +1,27 @@
-# 持久化与表结构实现
+# 持久化实现
 
-详细的持久化原则、历史迁移口径和表级说明见 [持久化技术参考](持久化技术参考.md)。
+完整表结构、ER 图、DDL 和升级规则见 [数据库契约](../contracts/database/README.md)。
 
 ## 1. 表结构总览
 
+数据库按用途拆分：
+
+- 正式业务库：`.runtime/report_system.db`
+- 开发辅助库：`.runtime/dev_support.db`
+- 查询演示库：`.runtime/telecom_demo.db`
+
 表定义载体统一为：
 
-- 运行时 ORM：`src/backend/infrastructure/persistence/models.py`
-- SQL 初始化稿：`src/backend/infrastructure/persistence/schema_init.sql`
-- 本地运行时数据库文件：`src/backend/report_system.db`
+- 业务 ORM：`src/backend/infrastructure/persistence/models.py`
+- 开发辅助 ORM：`src/backend/infrastructure/persistence/dev_models.py`
+- 可执行升级 SQL：`src/backend/infrastructure/persistence/upgrades/`
+- 最新完整表定义：[数据库契约](../contracts/database/README.md)
 
 其中：
 
-- `report_system.db` 为本地自动生成文件，不纳入版本跟踪
-- `schema_init.sql` 只用于初始化、审阅和结构比对，不替代 ORM 的运行时权威
-- 结构评审和设计对齐一律以 ORM + `schema_init.sql` 为准，不再引用本地 `.db` 文件反推表定义
+- `.runtime/` 为本地自动生成目录，不纳入版本跟踪
+- 新安装和后续升级统一执行 `upgrades/`，不再使用单独初始化稿
+- 两个应用数据库各自维护 `__db_schema_version`
 - 运行时涉及 JSON Schema 校验时，统一直接引用 `docs/implementation/contracts/schemas/*.json`，不在 `src/backend` 根目录保留本地镜像文件
 
 主业务表固定为：
@@ -28,10 +35,10 @@
 - `tbl_report_documents`
 - `tbl_export_jobs`
 
-支撑表保留：
+开发辅助表进入独立数据库：
 
-- `tbl_system_settings`
-- `tbl_feedbacks`
+- `dev_system_settings`
+- `dev_feedbacks`
 
 ## 2. JSON 列规则
 
@@ -61,11 +68,12 @@
 
 任务：
 
-- `id/report_instance_id/current_format/status/dependency_job_id/exporter_backend/request_payload_hash/started_at/finished_at/error_code/error_message`
+- `id/report_instance_id/user_id/current_format/status/dependency_job_id/exporter_backend/request_payload_hash/started_at/finished_at/error_code/error_message`
 
 ## 4. 读写约束
 
-- 所有业务查询强制带 `user_id`
+- 用户归属业务查询强制带 `user_id`
 - 会话消息按 `conversation_id + seq_no` 读取
 - 文档下载通过 `report_id + document_id` 双重校验
-- 删除历史旧表与旧 ORM，不保留兼容迁移代码
+- 导出任务直接按 `user_id` 隔离；文档产物通过报告实例间接隔离
+- 删除历史旧表与旧 ORM，不保留旧 SQLite 兼容升级代码

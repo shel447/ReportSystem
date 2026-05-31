@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..infrastructure.ai.openai_compat import AIConfigurationError, OpenAICompatGateway
-from ..infrastructure.persistence.database import get_db
+from ..infrastructure.persistence.dev_database import get_dev_db
 from ..infrastructure.settings.system_settings import (
     build_completion_provider_config,
     build_embedding_provider_config,
@@ -45,21 +45,21 @@ class SettingsTestRequest(BaseModel):
 
 
 @router.get("")
-def get_system_settings(db: Session = Depends(get_db)):
+def get_system_settings(db: Session = Depends(get_dev_db)):
     payload = get_settings_payload(db)
     payload["index_status"] = get_index_status(db)
     return payload
 
 
 @router.put("")
-def update_system_settings(data: SettingsUpdateRequest, db: Session = Depends(get_db)):
+def update_system_settings(data: SettingsUpdateRequest, db: Session = Depends(get_dev_db)):
     payload = save_settings(db, data.model_dump(exclude_unset=True))
     payload["index_status"] = get_index_status(db)
     return payload
 
 
 @router.post("/test")
-def test_system_settings(data: SettingsTestRequest, db: Session = Depends(get_db)):
+def test_system_settings(data: SettingsTestRequest, db: Session = Depends(get_dev_db)):
     gateway = OpenAICompatGateway()
     result = {"target": data.target}
     if data.target in ("completion", "both"):
@@ -70,7 +70,7 @@ def test_system_settings(data: SettingsTestRequest, db: Session = Depends(get_db
 
 
 @router.post("/reindex")
-def rebuild_template_indices(db: Session = Depends(get_db)):
+def rebuild_template_indices(db: Session = Depends(get_dev_db)):
     try:
         return reindex_all_templates(db)
     except AIConfigurationError as exc:

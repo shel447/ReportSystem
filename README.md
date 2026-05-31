@@ -85,8 +85,10 @@ flowchart LR
 
 ### 数据
 
-- 系统主库：`src/backend/report_system.db`
-- 电信样例分析库：`src/backend/telecom_demo.db`
+- 系统主库：`.runtime/report_system.db`
+- 开发辅助库：`.runtime/dev_support.db`
+- 电信样例分析库：`.runtime/telecom_demo.db`
+- 数据库结构随启动过程按 `src/backend/infrastructure/persistence/upgrades/` 自动升级
 
 ## 4. 仓库结构
 

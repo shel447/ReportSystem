@@ -1,41 +1,74 @@
-# API
+# API 技术契约
 
-## 1. 接口分类总览
+## 1. 系统上下文与接口清单
 
-本文件的接口按两大类组织：
+ReportSystem 对前端和业务调用方提供统一业务接口，并在模板解析、参数收集和报告生成过程中调用外部能力。Java Office Exporter 属于文档导出的内部适配器，其边界见 [文档导出实现](../../document-export/README.md)，不进入本业务上下文图。
 
-**客户端接口**：由前端直接调用的 REST 接口，统一前缀 `/rest/chatbi/v1/*`。
+```mermaid
+flowchart LR
+    client["前端与业务调用方"]
+    reportSystem["ReportSystem<br/>模板、对话、报告生成与报告管理"]
+    llm["OpenAI Compatible 服务"]
+    parameterSource["动态参数数据源"]
+    customSource["Dynamic Custom 内容源"]
+    querySource["业务查询数据源<br/>SQL 或 API"]
 
-```text
-POST   /rest/chatbi/v1/templates
-GET    /rest/chatbi/v1/templates
-GET    /rest/chatbi/v1/templates/{id}
-PUT    /rest/chatbi/v1/templates/{id}
-DELETE /rest/chatbi/v1/templates/{id}
-POST   /rest/chatbi/v1/templates/import/preview
-GET    /rest/chatbi/v1/templates/{id}/export
-
-GET    /rest/chatbi/v1/chat
-POST   /rest/chatbi/v1/chat
-GET    /rest/chatbi/v1/chat/{conversationId}
-DELETE /rest/chatbi/v1/chat/{conversationId}
-POST   /rest/chatbi/v1/chat/forks
-
-GET    /rest/chatbi/v1/reports/{reportId}
-POST   /rest/chatbi/v1/reports/{reportId}/document-generations
-GET    /rest/chatbi/v1/reports/{reportId}/documents/{documentId}/download
+    client -->|"REST / SSE<br/>/rest/chatbi/v1/*"| reportSystem
+    reportSystem -->|"/chat/completions<br/>/embeddings"| llm
+    reportSystem -->|"POST 模板 parameter.source"| parameterSource
+    reportSystem -->|"POST 模板 dynamic.custom.url"| customSource
+    reportSystem -->|"按运行上下文查询<br/>条件能力"| querySource
 ```
 
-**服务端内部调用协议**：由服务端在报告生成过程中向外部服务发起的调用。接口 URL 由模板定义，不由平台统一路由提供，前端不直接调用。
+### 1.1 对外提供的业务接口
 
-- Parameter Options 外部数据源：获取动态参数候选值
-- Dynamic Custom 外部内容生成：获取目录或章节 DSL 片段
+公开业务接口统一使用前缀 `/rest/chatbi/v1`。
 
-统一身份头：
+| 接口分组 | 方法与路径 | 用途 |
+|---|---|---|
+| 模板管理 | `POST /templates` | 创建正式报告模板 |
+| 模板管理 | `GET /templates` | 查询模板列表 |
+| 模板管理 | `GET /templates/{id}` | 获取模板详情 |
+| 模板管理 | `PUT /templates/{id}` | 更新模板 |
+| 模板管理 | `DELETE /templates/{id}` | 删除模板 |
+| 模板管理 | `POST /templates/import/preview` | 解析并预览待导入模板，不落库 |
+| 模板管理 | `GET /templates/{id}/export` | 导出规范化后的模板定义 |
+| 参数候选项 | `POST /parameter-options/resolve` | 根据当前参数上下文解析动态候选项 |
+| 通用对话 | `GET /chat` | 查询会话列表 |
+| 通用对话 | `POST /chat` | 发送消息，支持 SSE 流式响应 |
+| 通用对话 | `GET /chat/{conversationId}` | 获取会话详情 |
+| 通用对话 | `DELETE /chat/{conversationId}` | 删除会话 |
+| 通用对话 | `POST /chat/forks` | 从历史节点派生会话分支 |
+| 报告管理 | `GET /reports/{reportId}` | 获取完成态报告详情 |
+| 文档导出 | `POST /reports/{reportId}/document-generations` | 为冻结报告创建文档生成任务 |
+| 文档导出 | `GET /reports/{reportId}/documents/{documentId}/download` | 下载已生成文档 |
+
+### 1.2 调用外部系统的接口
+
+除 OpenAI Compatible 服务外，外部 URL 由模板或运行上下文定义，不由 ReportSystem 提供统一路由。模板声明型外呼统一携带身份头：
 
 ```http
 X-User-Id: <external-user-id>
 ```
+
+| 外部能力 | 方法与地址 | 调用时机 | 状态 |
+|---|---|---|---|
+| OpenAI Compatible 对话 | `POST {baseUrl}/chat/completions` | 模板识别、参数提取、诉求整理和内容生成 | 已实现，地址由系统设置提供 |
+| OpenAI Compatible 向量化 | `POST {baseUrl}/embeddings` | 模板语义索引和召回 | 已实现，地址由系统设置提供 |
+| Parameter Options 数据源 | `POST {parameter.source}` | 解析动态参数候选项 | 已实现，地址由模板声明 |
+| Dynamic Custom 内容源 | `POST {dynamic.custom.url}` | 获取目录、章节或组件 DSL 片段 | 已实现，地址由模板声明 |
+| 业务查询数据源 | SQL 或 API | 根据绑定参数查询报告数据 | 条件能力，具体协议由查询适配器确定 |
+
+### 1.3 路由实现映射
+
+公开业务路由由 FastAPI router 负责协议适配，业务规则下沉到对应 application service。
+
+| 路由分组 | 实现入口 | 应用服务 |
+|---|---|---|
+| `templates` | `routers/templates.py` | `template_catalog` |
+| `parameter-options` | `routers/parameter_options.py` | `template_catalog` |
+| `chat` | `routers/chat.py` | `conversation` |
+| `reports` | `routers/reports.py` | `report_runtime` |
 
 ## 2. 客户端接口
 
@@ -739,9 +772,23 @@ paged Report DSL 示例：
 
 ## 3. 服务端内部调用协议
 
-以下协议由服务端在报告生成过程中向外部服务发起调用。接口 URL 由模板定义，前端不直接调用。
+以下协议由服务端向外部服务发起调用，前端不直接调用。OpenAI Compatible 服务地址由系统设置提供；模板声明型协议的接口 URL 由模板定义。
 
-### 3.1 Parameter Options 外部数据源
+### 3.1 OpenAI Compatible 服务
+
+服务端通过统一 AI Gateway 使用 OpenAI Compatible 协议：
+
+```text
+POST {baseUrl}/chat/completions
+POST {baseUrl}/embeddings
+```
+
+- `baseUrl`、模型名称和凭证由系统设置提供。
+- 应用层只依赖统一能力 port，不直接依赖具体厂商 SDK。
+- 对话补全用于模板识别、参数提取、诉求整理和章节内容生成。
+- 向量化用于模板语义索引和召回。
+
+### 3.2 Parameter Options 外部数据源
 
 服务端在参数候选值解析时，向模板 `parameter.source` 定义的外部 URL 发起 `POST` 请求，获取动态参数候选值后再返回前端。前端不直接调用外部数据源 URL。
 
@@ -777,7 +824,7 @@ paged Report DSL 示例：
 - 服务端用 `contextValues` 组装对外部 `source` 的统一请求体
 - 外部接口的正式请求、响应结构由本设计包的 JSON Schema 统一定义
 
-### 3.2 Dynamic Custom 外部内容生成
+### 3.3 Dynamic Custom 外部内容生成
 
 `dynamic.type = custom` 定义了外部内容生成接口。服务端在 Report DSL 生成阶段向模板 `dynamic.custom.url` 定义的 URL 发起 `POST` 请求，获取目录或章节 DSL 片段。
 
@@ -844,7 +891,34 @@ v6 正式请求体由 `parameters/templateNode/context` 组成：
 
 失败响应使用 `status = "error"` 与 `error.code/error.message`。
 
-## 4. 开发辅助文档接口
+### 3.4 业务查询数据源
+
+报告运行时可以根据模板和绑定参数调用 SQL 或 API 数据源。该能力属于条件能力：
+
+- 查询基础设施负责解释 `runtimeContext.bindings`。
+- 数据源类型、连接方式和具体协议由查询适配器确定。
+- 查询结果必须转换为结构化数据和执行证据，再交给报告生成流程使用。
+- 本文件不为不同业务数据源强行规定统一 HTTP 报文。
+
+## 4. 开发辅助接口
+
+开发辅助接口不属于公开业务资源，也不进入业务上下文图。统一使用前缀 `/rest/dev`。
+
+| 接口分组 | 方法与路径 | 用途 |
+|---|---|---|
+| 文档浏览 | `GET /docs` | 递归查询文档资产 |
+| 文档浏览 | `GET /docs/download.zip` | 下载完整文档包 |
+| 文档浏览 | `GET /docs/{filename}` | 读取 Markdown、Schema 或示例 JSON |
+| 反馈 | `GET /feedback/` | 查询开发反馈 |
+| 反馈 | `POST /feedback/` | 新增开发反馈 |
+| 反馈 | `GET /feedback/export.zip` | 导出开发反馈 |
+| 反馈 | `DELETE /feedback/{feedbackId}` | 删除开发反馈 |
+| 系统设置 | `GET /system-settings` | 获取开发环境系统设置 |
+| 系统设置 | `PUT /system-settings` | 更新开发环境系统设置 |
+| 系统设置 | `POST /system-settings/reindex` | 重建模板语义索引 |
+| 系统设置 | `POST /system-settings/test` | 测试系统设置和外部依赖 |
+
+### 4.1 开发辅助文档接口
 
 文档浏览属于开发辅助能力，不属于公开业务资源。统一前缀为 `/rest/dev/docs`：
 

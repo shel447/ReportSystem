@@ -329,7 +329,7 @@ class ConversationService:
         if not text.strip():
             return []
         try:
-            config = build_embedding_provider_config(self.db)
+            config = build_embedding_provider_config()
         except Exception:
             return []
         try:

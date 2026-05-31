@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from ..infrastructure.persistence.database import get_db
-from ..infrastructure.persistence.models import Feedback
+from ..infrastructure.persistence.dev_database import get_dev_db
+from ..infrastructure.persistence.dev_models import Feedback
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 
@@ -23,7 +23,7 @@ class FeedbackCreate(BaseModel):
 async def create_feedback(
     request: Request, 
     feedback: FeedbackCreate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_dev_db)
 ):
     """提交意见反馈"""
     try:
@@ -46,7 +46,7 @@ async def create_feedback(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/export.zip")
-async def export_feedbacks(db: Session = Depends(get_db)):
+async def export_feedbacks(db: Session = Depends(get_dev_db)):
     """导出所有反馈及相关图片资产资源为 ZIP 压缩包"""
     feedbacks = db.query(Feedback).order_by(Feedback.created_at.desc()).all()
     
@@ -109,12 +109,12 @@ async def export_feedbacks(db: Session = Depends(get_db)):
     )
 
 @router.get("/")
-async def list_feedbacks(db: Session = Depends(get_db)):
+async def list_feedbacks(db: Session = Depends(get_dev_db)):
     """获取反馈列表"""
     return db.query(Feedback).order_by(Feedback.created_at.desc()).all()
 
 @router.delete("/{feedback_id}")
-async def delete_feedback(feedback_id: str, db: Session = Depends(get_db)):
+async def delete_feedback(feedback_id: str, db: Session = Depends(get_dev_db)):
     """删除指定的反馈意见"""
     fb = db.query(Feedback).filter(Feedback.id == feedback_id).first()
     if not fb:

@@ -223,6 +223,7 @@ class SqlAlchemyExportJobRepository:
         self,
         *,
         report_instance_id: str,
+        user_id: str,
         current_format: str,
         status: str,
         dependency_job_id: str | None,
@@ -231,6 +232,7 @@ class SqlAlchemyExportJobRepository:
     ) -> ExportJob:
         row = ExportJobRow(
             report_instance_id=report_instance_id,
+            user_id=user_id,
             current_format=current_format,
             status=status,
             dependency_job_id=dependency_job_id,
@@ -296,6 +298,7 @@ def _to_export_job(row: ExportJobRow) -> ExportJob:
     return ExportJob(
         id=row.id,
         report_instance_id=row.report_instance_id,
+        user_id=row.user_id,
         current_format=row.current_format,
         status=row.status,
         dependency_job_id=row.dependency_job_id,

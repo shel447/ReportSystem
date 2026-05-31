@@ -9,11 +9,10 @@
 3. [通用对话](conversation/README.md)
 4. [报告生成](report-generation/README.md)
 5. [报告管理](report-management/README.md)
-6. [API 实现](apis/README.md)
-7. [前端](frontend/README.md)
-8. [文档导出](document-export/README.md)
-9. [外部集成](integrations/外部集成实现.md)
-10. [实现变更日志](changelog/README.md)
+6. [前端](frontend/README.md)
+7. [文档导出](document-export/README.md)
+8. [外部集成](integrations/外部集成实现.md)
+9. [实现变更日志](changelog/README.md)
 
 ## 模块映射
 

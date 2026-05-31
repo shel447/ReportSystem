@@ -683,6 +683,7 @@ class ExportJob:
 
     id: str
     report_instance_id: str = _alias_field("reportInstanceId")
+    user_id: str = _alias_field("userId")
     current_format: str = _alias_field("currentFormat")
     status: str
     dependency_job_id: str | None = _alias_field("dependencyJobId", default=None)
