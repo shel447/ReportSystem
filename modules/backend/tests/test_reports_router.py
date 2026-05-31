@@ -90,7 +90,7 @@ class ReportsRouterTests(unittest.TestCase):
             )
         )
 
-        with patch("src.routers.reports.build_report_generation_service", return_value=fake_service):
+        with patch("src.routers.reports.build_report_service", return_value=fake_service):
             response = self.client.get("/rest/chatbi/v1/reports/rpt_001", headers={"X-User-Id": "default"})
 
         self.assertEqual(response.status_code, 200)
@@ -126,7 +126,8 @@ class ReportsRouterTests(unittest.TestCase):
                     ),
                 )
             )
-            fake_document_service = SimpleNamespace(
+            fake_service = SimpleNamespace(
+                get_report_view=fake_runtime.get_report_view,
                 resolve_download=lambda report_id, document_id, user_id: DownloadResolution(
                     document=DocumentView(
                         id=document_id,
@@ -140,9 +141,7 @@ class ReportsRouterTests(unittest.TestCase):
                 )
             )
 
-            with patch("src.routers.reports.build_report_generation_service", return_value=fake_runtime), patch(
-                "src.routers.reports.build_report_document_service", return_value=fake_document_service
-            ):
+            with patch("src.routers.reports.build_report_service", return_value=fake_service):
                 response = self.client.get(
                     "/rest/chatbi/v1/reports/rpt_001/documents/doc_001/download",
                     headers={"X-User-Id": "default"},

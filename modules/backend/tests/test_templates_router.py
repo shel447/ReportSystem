@@ -51,7 +51,7 @@ class TemplatesRouterTests(unittest.TestCase):
             ]
         )
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             payload = list_templates(db=object())
 
         self.assertEqual(payload[0]["id"], "tpl_network_daily")
@@ -61,7 +61,7 @@ class TemplatesRouterTests(unittest.TestCase):
     def test_create_template_accepts_formal_report_template(self):
         fake_service = SimpleNamespace(create_template=lambda payload: payload)
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             payload = create_template(TemplateUpsertRequest(**_sample_template()), db=object())
 
         self.assertEqual(payload["schemaVersion"], "template.v3")
@@ -85,7 +85,7 @@ class TemplatesRouterTests(unittest.TestCase):
         }
         del paged_template["catalogs"]
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             payload = create_template(TemplateUpsertRequest(**paged_template), db=object())
 
         self.assertEqual(payload["structureType"], "paged")
@@ -97,7 +97,7 @@ class TemplatesRouterTests(unittest.TestCase):
             update_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("Template id mismatch"))
         )
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             with self.assertRaises(HTTPException) as ctx:
                 update_template("tpl_a", TemplateUpsertRequest(**{**_sample_template(), "id": "tpl_b"}), db=object())
 
@@ -110,7 +110,7 @@ class TemplatesRouterTests(unittest.TestCase):
             export_template=lambda template_id: (template, "网络运行日报-20260418-120000.json")
         )
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             response = export_template_definition("tpl_network_daily", db=object())
 
         self.assertEqual(response.media_type, "application/json")
@@ -124,7 +124,7 @@ class TemplatesRouterTests(unittest.TestCase):
             preview_import_template=lambda raw_content: TemplateImportPreview(normalized_template=normalized, warnings=[])
         )
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             result = preview_import_template(
                 TemplateImportPreviewRequest(content=normalized),
                 db=object(),
@@ -137,7 +137,7 @@ class TemplatesRouterTests(unittest.TestCase):
             preview_import_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValidationError("Invalid template"))
         )
 
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_service):
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
             with self.assertRaises(HTTPException) as ctx:
                 preview_import_template(TemplateImportPreviewRequest(content={"foo": "bar"}), db=object())
 
@@ -147,7 +147,7 @@ class TemplatesRouterTests(unittest.TestCase):
         fake_create = SimpleNamespace(
             create_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ConflictError("Template already exists"))
         )
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_create):
+        with patch("src.routers.templates.build_report_service", return_value=fake_create):
             with self.assertRaises(HTTPException) as create_ctx:
                 create_template(TemplateUpsertRequest(**_sample_template()), db=object())
         self.assertEqual(create_ctx.exception.status_code, 409)
@@ -155,7 +155,7 @@ class TemplatesRouterTests(unittest.TestCase):
         fake_update = SimpleNamespace(
             update_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(NotFoundError("Template not found"))
         )
-        with patch("src.routers.templates.build_template_management_service", return_value=fake_update):
+        with patch("src.routers.templates.build_report_service", return_value=fake_update):
             with self.assertRaises(HTTPException) as update_ctx:
                 update_template("tpl_network_daily", TemplateUpsertRequest(**_sample_template()), db=object())
         self.assertEqual(update_ctx.exception.status_code, 404)

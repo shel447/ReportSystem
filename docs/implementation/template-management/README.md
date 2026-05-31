@@ -58,9 +58,9 @@
 
 ## 3. 应用层职责
 
-当前代码中，模板目录的应用层由两个 service 收口：
+当前代码中，模板目录能力通过 report context 的 `ReportService` 总入口暴露，内部由两个职责明确的 service 收口：
 
-### 3.1 `TemplateManagementService`
+### 3.1 `ReportTemplateService`
 
 承担以下功能职责：
 
@@ -88,14 +88,17 @@
 
 应用层补充约束：
 
-- `TemplateManagementService` 的输入输出边界仍是 JSON 契约
+- `ReportTemplateService` 的输入输出边界仍是 JSON 契约
 - 但 service 内部拿到的 `ReportTemplate` 必须已经是递归 dataclass
 - repository 不得把 `ReportTemplate.parameters/catalogs/chapters` 继续还原成裸字典后再向上返回
 
-### 3.2 `ParameterOptionService`
+### 3.2 `ReportParameterService`
 
 承担以下功能职责：
 
+- 从用户自然语言中提取已出现的报告参数值
+- 合并结构化补参答复，判断必填参数是否仍有缺失
+- 构造报告场景的补参追问或诉求确认追问
 - 读取模板参数中的 `source`
 - 调用本地 demo 源或远端 HTTP 数据源
 - 执行请求体大小限制、超时限制和响应 schema 校验

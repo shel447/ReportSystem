@@ -10,18 +10,19 @@ from src.contexts.conversation.infrastructure.models import (
 )
 from src.contexts.conversation.infrastructure.repositories import SqlAlchemyChatRepository
 from src.contexts.report.application.generation_models import ReportAnswerView, ReportView
-from src.contexts.report.application.generation_services import ReportGenerationService
+from src.contexts.report.application.generation_service import ReportGenerationService
+from src.contexts.report.application.report_service import ReportService
 from src.contexts.report.application.template_models import TemplateImportPreview
-from src.contexts.report.application.template_services import TemplateManagementService
+from src.contexts.report.application.template_service import ReportTemplateService
 from src.contexts.report.domain.template_models import ReportTemplate
 from src.contexts.report.infrastructure.template_repositories import SqlAlchemyTemplateManagementRepository
 
 
 class ServiceTypeContractTests(unittest.TestCase):
     def test_template_management_service_uses_formal_types(self):
-        create_hints = get_type_hints(TemplateManagementService.create_template)
-        update_hints = get_type_hints(TemplateManagementService.update_template)
-        preview_hints = get_type_hints(TemplateManagementService.preview_import_template)
+        create_hints = get_type_hints(ReportTemplateService.create_template)
+        update_hints = get_type_hints(ReportTemplateService.update_template)
+        preview_hints = get_type_hints(ReportTemplateService.preview_import_template)
         repository_create_hints = get_type_hints(SqlAlchemyTemplateManagementRepository.create)
 
         self.assertIs(create_hints["payload"], ReportTemplate)
@@ -38,6 +39,11 @@ class ServiceTypeContractTests(unittest.TestCase):
 
         self.assertIs(get_view_hints["return"], ReportView)
         self.assertIs(serialize_hints["return"], ReportAnswerView)
+
+    def test_report_service_exposes_formal_report_view(self):
+        get_view_hints = get_type_hints(ReportService.get_report_view)
+
+        self.assertIs(get_view_hints["return"], ReportView)
 
     def test_conversation_service_and_chat_repository_use_formal_types(self):
         chat_hints = get_type_hints(ConversationService.chat)

@@ -33,21 +33,39 @@
 
 ## 3. 应用服务职责
 
-当前代码中，报告生成应用层由 `ReportScenarioService`、`ReportGenerationService` 和 `ReportDocumentService` 组成。
+当前代码中，`ReportService` 是 report context 的统一应用入口。内部协作服务包括 `ReportScenarioService`、`ReportParameterService`、`ReportTemplateService`、`ReportGenerationService` 和 `ReportDocumentService`。
 
-### 3.1 `ReportScenarioService`
+### 3.1 `ReportService`
 
-`ReportScenarioService` 是报告业务接入通用对话的应用门面：
+`ReportService` 是 router 和其他 context 访问 report context 的唯一入口：
+
+- `conversation` 通过 `ReportService.chat()` 交付严格 `ReportScenarioCommand`
+- 模板、参数候选、报告详情和文档路由也只依赖 `ReportService`
+- 内部服务可以协作，但不直接泄漏给 router 或其他 context
+
+### 3.2 `ReportScenarioService`
+
+`ReportScenarioService` 是报告业务接入通用对话的场景编排器：
 
 - 处理 `generate_report`、`extract_report_template` 与 `generate_report_segment` instruction。
-- 识别模板，提取自然语言中的参数值。
-- 解析报告场景的 `reply.parameters` 与 `reply.reportContext`。
-- 判断缺失参数，构造报告场景的 `ask.parameters` 与 `ask.reportContext`。
+- 识别模板，并调用 `ReportParameterService` 处理参数语义。
 - 推进同一个 `TemplateInstance`，并在确认后调用报告冻结服务。
 
 `ReportContext` 是报告场景运行上下文，当前包含完整 `TemplateInstance`。其中来源归因统一使用 `conversationId/chatId`；它不管理聊天消息状态。
 
-### 3.2 `ReportGenerationService`
+### 3.3 `ReportParameterService`
+
+承担报告参数相关的完整应用职责：
+
+- 提取用户自然语言中已出现的参数值
+- 解析 `reply.parameters`
+- 调用动态候选值数据源
+- 判断必填参数缺失
+- 构造报告场景 `ask.parameters` 与 `ask.reportContext`
+
+领域层的 `ParameterResolver` 只负责纯参数归一化和作用域解析，不访问外部数据源，不构造聊天响应。
+
+### 3.4 `ReportGenerationService`
 
 承担以下功能职责：
 
@@ -79,14 +97,22 @@
   - 调用 `_build_section_components(section)` 生成新 components、summary、additional_infos
   - 返回 `ReportSection` DSL 片段与 `ReportGenerateMeta`，不持久化任何对象
 
-### 3.3 `ReportDocumentService`
+### 3.5 `ReportDocumentService`
 
 承担以下功能职责：
 
 - 把下载能力收束为 report-scoped 子服务
+- 把文档生成能力从报告冻结流程中分组暴露
 - 不暴露独立 document 资源集合
 
-## 4. BuildReportDslService 规则
+## 4. 领域职责
+
+- `ParameterResolver`：参数归一化、作用域收集和值映射
+- `template_instance_builder`：构建 `TemplateInstance`，并在同一递归过程中展开 `foreach/foreachCase/custom` 动态结构
+- `placeholder_renderer`：渲染参数占位符和诉求要素占位符
+- `generation_service.build_report_dsl`：当前 flow DSL 编译入口；后续 paged 编译接入时再独立为 compiler
+
+## 5. BuildReportDslService 规则
 
 输入：
 
@@ -150,14 +176,14 @@
 - `query part` 最小运行态固定为 `status/resolvedDatasetId/resolvedQuery/warnings`
 - `summary part` 最小运行态固定为 `status/resolvedPartIds/prompt/warnings`
 
-## 5. 文档导出规则
+## 6. 文档导出规则
 
 - 只接受 `Report DSL`
 - `word/ppt` 由 Java 导出器生成
 - `pdf` 从 `word` 或 `ppt` 派生
 - 产物和任务状态分别落 `tbl_report_documents`、`tbl_export_jobs`
 
-## 6. 对外接口映射
+## 7. 对外接口映射
 
 - `GET /reports/{reportId}`
 - `POST /reports/{reportId}/document-generations`
@@ -165,7 +191,7 @@
 
 `GET /reports/{reportId}` 返回的 `answer` 结构必须与 `/chat` 里 `REPORT.answer` 完全等价。
 
-## 7. 与流式 `delta` 的边界
+## 8. 与流式 `delta` 的边界
 
 - `report` context 只负责产出完整 `Report DSL`
 - 目录与章节的流式 `delta` 属于 `conversation` 的对外投影，不写回 `ReportInstance`

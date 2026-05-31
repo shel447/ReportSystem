@@ -12,7 +12,7 @@ from ..domain.template_models import ReportTemplate, TemplateSummary, report_tem
 from .template_models import TemplateImportPreview
 
 
-class TemplateManagementService:
+class ReportTemplateService:
     """负责静态报告模板生命周期的应用服务。"""
 
     def __init__(self, *, repository, schema_gateway) -> None:

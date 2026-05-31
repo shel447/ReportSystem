@@ -25,7 +25,7 @@ from ..domain.generation_models import (
     report_dsl_to_dict,
     template_instance_from_dict,
 )
-from ..domain.generation_services import serialize_template_instance
+from ..domain.template_instance_builder import serialize_template_instance
 
 
 class SqlAlchemyRuntimeTemplateRepository:

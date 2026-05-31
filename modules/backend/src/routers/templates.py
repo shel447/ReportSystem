@@ -14,7 +14,7 @@ from ..contexts.report.application.template_models import (
     template_summary_to_dict,
 )
 from ..contexts.report.domain.template_models import report_template_from_dict, report_template_to_dict
-from ..infrastructure.dependencies import build_template_management_service
+from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
@@ -39,7 +39,7 @@ class TemplateImportPreviewRequest(BaseModel):
 
 @router.post("")
 def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
-    service = build_template_management_service(db)
+    service = build_report_service(db)
     try:
         return report_template_to_dict(service.create_template(report_template_from_dict(data.model_dump())))
     except ConflictError as exc:
@@ -50,20 +50,20 @@ def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
 
 @router.get("")
 def list_templates(db: Session = Depends(get_db)):
-    return [template_summary_to_dict(item) for item in build_template_management_service(db).list_templates()]
+    return [template_summary_to_dict(item) for item in build_report_service(db).list_templates()]
 
 
 @router.get("/{template_id}")
 def get_template(template_id: str, db: Session = Depends(get_db)):
     try:
-        return report_template_to_dict(build_template_management_service(db).get_template(template_id))
+        return report_template_to_dict(build_report_service(db).get_template(template_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.put("/{template_id}")
 def update_template(template_id: str, data: TemplateUpsertRequest, db: Session = Depends(get_db)):
-    service = build_template_management_service(db)
+    service = build_report_service(db)
     try:
         return report_template_to_dict(service.update_template(template_id, report_template_from_dict(data.model_dump())))
     except NotFoundError as exc:
@@ -77,7 +77,7 @@ def update_template(template_id: str, data: TemplateUpsertRequest, db: Session =
 @router.delete("/{template_id}")
 def delete_template(template_id: str, db: Session = Depends(get_db)):
     try:
-        build_template_management_service(db).delete_template(template_id)
+        build_report_service(db).delete_template(template_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"message": "deleted"}
@@ -86,7 +86,7 @@ def delete_template(template_id: str, db: Session = Depends(get_db)):
 @router.post("/import/preview")
 def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
     try:
-        return template_import_preview_to_dict(build_template_management_service(db).preview_import_template(data.content))
+        return template_import_preview_to_dict(build_report_service(db).preview_import_template(data.content))
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -94,7 +94,7 @@ def preview_import_template(data: TemplateImportPreviewRequest, db: Session = De
 @router.get("/{template_id}/export")
 def export_template_definition(template_id: str, db: Session = Depends(get_db)):
     try:
-        payload, filename = build_template_management_service(db).export_template(template_id)
+        payload, filename = build_report_service(db).export_template(template_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return Response(

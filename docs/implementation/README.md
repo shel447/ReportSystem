@@ -25,9 +25,20 @@
 依赖方向：
 
 - `conversation -> report`
-- `conversation` 只依赖 `report.application.ReportScenarioService` 和严格场景 DTO，不直接读取 `report.domain`
+- `conversation` 只通过 `report.application.ReportService` 总入口调用报告场景，并继续使用严格场景 DTO，不直接读取 `report.domain`
 - `report` 内部用 `application/domain/infrastructure` 三层组织；模板管理、报告生成和报告管理只在源文件命名上区分，不拆成子 context 目录。
 - application 层只能通过 port 访问基础设施
+
+`report.application` 按职责分为：
+
+- `ReportService`：report context 对 router 和其他 context 的唯一总入口
+- `ReportScenarioService`：编排报告场景 instruction
+- `ReportTemplateService`：模板 CRUD、导入和导出
+- `ReportParameterService`：参数提取、补参解释、缺参判断、追问构造和动态候选值解析
+- `ReportGenerationService`：模板实例持久化、报告冻结和报告视图
+- `ReportDocumentService`：文档生成和 report-scoped 下载
+
+`report.domain` 不使用泛化的 `*Service` 命名。当前由 `ParameterResolver`、`template_instance_builder` 和 `placeholder_renderer` 表达纯领域职责；递归动态结构展开保持在模板实例构建器内部，避免把同一棵实例树拆成互相回调的零散步骤。
 
 后续“智能问数”规划为独立 context；本轮不创建空目录或未接入实现。
 

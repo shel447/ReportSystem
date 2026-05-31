@@ -7,8 +7,10 @@ from ..contexts.conversation.infrastructure.repositories import (
     SqlAlchemyChatRepository,
     SqlAlchemyConversationRepository,
 )
-from ..contexts.report.application.generation_services import ReportDocumentService, ReportGenerationService
-from ..contexts.report.application.scenario_services import ReportScenarioService
+from ..contexts.report.application.document_service import ReportDocumentService
+from ..contexts.report.application.generation_service import ReportGenerationService
+from ..contexts.report.application.report_service import ReportService
+from ..contexts.report.application.scenario_service import ReportScenarioService
 from ..contexts.report.infrastructure.custom_content import CustomContentGateway
 from ..contexts.report.infrastructure.documents import ReportDocumentGateway
 from ..contexts.report.infrastructure.generation_repositories import (
@@ -18,8 +20,8 @@ from ..contexts.report.infrastructure.generation_repositories import (
     SqlAlchemyRuntimeTemplateRepository,
     SqlAlchemyTemplateInstanceRepository,
 )
-from ..contexts.report.application.parameter_options import ParameterOptionService
-from ..contexts.report.application.template_services import TemplateManagementService
+from ..contexts.report.application.parameter_service import ReportParameterService
+from ..contexts.report.application.template_service import ReportTemplateService
 from ..contexts.report.infrastructure.template_repositories import (
     SqlAlchemyTemplateManagementRepository,
     TemplateSchemaGateway,
@@ -28,20 +30,20 @@ from .ai.openai_compat import OpenAICompatGateway
 from .settings.system_settings import build_embedding_provider_config
 
 
-def build_template_management_service(db: Session) -> TemplateManagementService:
+def _build_report_template_service(db: Session) -> ReportTemplateService:
     """装配报告模板管理应用服务及其依赖适配器。"""
-    return TemplateManagementService(
+    return ReportTemplateService(
         repository=SqlAlchemyTemplateManagementRepository(db),
         schema_gateway=TemplateSchemaGateway(),
     )
 
 
-def build_parameter_option_service(db: Session | None = None) -> ParameterOptionService:
+def _build_report_parameter_service(db: Session | None = None) -> ReportParameterService:
     """返回对话流和预览流共用的动态参数解析服务。"""
-    return ParameterOptionService()
+    return ReportParameterService()
 
 
-def build_report_generation_service(db: Session) -> ReportGenerationService:
+def _build_report_generation_service(db: Session) -> ReportGenerationService:
     """围绕持久化与文档适配器装配报告生成服务。"""
     return ReportGenerationService(
         template_repository=SqlAlchemyRuntimeTemplateRepository(db),
@@ -54,20 +56,26 @@ def build_report_generation_service(db: Session) -> ReportGenerationService:
     )
 
 
-def build_report_document_service(db: Session) -> ReportDocumentService:
-    """暴露面向报告范围的文档下载门面。"""
-    return ReportDocumentService(runtime_service=build_report_generation_service(db))
-
-
-def build_report_scenario_service(db: Session) -> ReportScenarioService:
-    """装配通过通用对话通道运行的报告业务场景。"""
-    return ReportScenarioService(
-        template_management_service=build_template_management_service(db),
+def build_report_service(db: Session) -> ReportService:
+    """装配 report context 的统一应用入口。"""
+    template_service = _build_report_template_service(db)
+    parameter_service = _build_report_parameter_service(db)
+    generation_service = _build_report_generation_service(db)
+    document_service = ReportDocumentService(generation_service=generation_service)
+    scenario_service = ReportScenarioService(
+        template_service=template_service,
         template_repository=SqlAlchemyTemplateManagementRepository(db),
-        runtime_service=build_report_generation_service(db),
-        parameter_option_service=build_parameter_option_service(db),
+        generation_service=generation_service,
+        parameter_service=parameter_service,
         ai_gateway=OpenAICompatGateway(),
         embedding_config_builder=build_embedding_provider_config,
+    )
+    return ReportService(
+        scenario_service=scenario_service,
+        template_service=template_service,
+        parameter_service=parameter_service,
+        generation_service=generation_service,
+        document_service=document_service,
     )
 
 
@@ -76,5 +84,5 @@ def build_conversation_service(db: Session) -> ConversationService:
     return ConversationService(
         conversation_repository=SqlAlchemyConversationRepository(db),
         chat_repository=SqlAlchemyChatRepository(db),
-        report_scenario_service=build_report_scenario_service(db),
+        report_service=build_report_service(db),
     )

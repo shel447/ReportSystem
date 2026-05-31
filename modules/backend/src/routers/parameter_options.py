@@ -6,9 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..contexts.report.application.parameter_options import ParameterOptionService
 from ..contexts.report.application.template_models import parameter_options_result_to_dict
 from ..contexts.report.domain.template_models import parameter_value_from_dict
+from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.http import get_current_user_id
 from ..shared.kernel.errors import ValidationError
@@ -22,10 +22,6 @@ class ParameterOptionsResolveRequest(BaseModel):
     contextValues: dict[str, list[dict[str, Any]]]
 
 
-def build_parameter_option_service(_db: Session | None = None) -> ParameterOptionService:
-    return ParameterOptionService()
-
-
 @router.post("/resolve")
 def resolve_parameter_options(
     data: ParameterOptionsResolveRequest,
@@ -34,7 +30,7 @@ def resolve_parameter_options(
 ):
     try:
         return parameter_options_result_to_dict(
-            build_parameter_option_service(db).resolve(
+            build_report_service(db).resolve_parameter_options(
                 user_id=user_id,
                 parameter_id=data.parameterId,
                 source=data.source,

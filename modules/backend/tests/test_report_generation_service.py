@@ -3,7 +3,7 @@ import unittest
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 
-from src.contexts.report.application.generation_services import ReportGenerationService, _validate_report_dsl, build_report_dsl
+from src.contexts.report.application.generation_service import ReportGenerationService, _validate_report_dsl, build_report_dsl
 from src.contexts.report.domain.generation_models import (
     BackCoverConfig,
     ChartComponent,
@@ -54,7 +54,7 @@ from src.contexts.report.domain.generation_models import (
     text_component_from_dict,
     text_component_to_dict,
 )
-from src.contexts.report.domain.generation_services import instantiate_template_instance
+from src.contexts.report.domain.template_instance_builder import instantiate_template_instance
 from src.contexts.report.domain.template_models import (
     CompositeTableColumn,
     CompositeTablePartLayout,

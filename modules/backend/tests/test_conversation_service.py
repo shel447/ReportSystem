@@ -17,9 +17,10 @@ from src.contexts.conversation.application.models import (
     conversation_message_meta_to_dict,
 )
 from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView
+from src.contexts.report.application.parameter_service import ReportParameterService
 from src.contexts.conversation.application.services import ConversationService
 from src.contexts.report.application.scenario_models import ReportContext, ReportReplyPayload
-from src.contexts.report.application.scenario_services import ReportScenarioService, missing_required_parameters
+from src.contexts.report.application.scenario_service import ReportScenarioService, missing_required_parameters
 from src.contexts.report.domain.generation_models import (
     ParameterConfirmation,
     ReportBasicInfo,
@@ -28,17 +29,17 @@ from src.contexts.report.domain.generation_models import (
     TemplateInstance,
     GridDefinition,
 )
-from src.contexts.report.domain.generation_services import instantiate_template_instance
+from src.contexts.report.domain.template_instance_builder import instantiate_template_instance
 from src.contexts.report.application.template_models import ParameterOptionsResult
 from src.contexts.report.domain.template_models import ParameterValue, report_template_from_dict
 
 
 def _service():
     return ReportScenarioService(
-        template_management_service=SimpleNamespace(),
+        template_service=SimpleNamespace(),
         template_repository=SimpleNamespace(),
-        runtime_service=SimpleNamespace(),
-        parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
+        generation_service=SimpleNamespace(),
+        parameter_service=ReportParameterService(),
     )
 
 
@@ -86,9 +87,9 @@ class ReportScenarioServiceScopedParameterTests(unittest.TestCase):
     def test_extract_parameter_values_reads_section_scoped_parameters(self):
         service = _service()
 
-        values = service._extract_parameter_values(
-            report_template_from_dict(_scoped_template()),
-            "请分析华东、华北的运行态势",
+        values = service.parameter_service.extract_values(
+            template=report_template_from_dict(_scoped_template()),
+            question="请分析华东、华北的运行态势",
             user_id="default",
         )
 
@@ -351,15 +352,15 @@ class _RuntimeService:
 
 def _conversation_service(*, template, conversation_repository, chat_repository, runtime_service):
     report_scenario_service = ReportScenarioService(
-        template_management_service=SimpleNamespace(get_template=lambda template_id: template),
+        template_service=SimpleNamespace(get_template=lambda template_id: template),
         template_repository=SimpleNamespace(list_all=lambda: [template]),
-        runtime_service=runtime_service,
-        parameter_option_service=SimpleNamespace(resolve=lambda **kwargs: ParameterOptionsResult(options=[])),
+        generation_service=runtime_service,
+        parameter_service=ReportParameterService(),
     )
     return ConversationService(
         conversation_repository=conversation_repository,
         chat_repository=chat_repository,
-        report_scenario_service=report_scenario_service,
+        report_service=SimpleNamespace(chat=report_scenario_service.handle),
     )
 
 

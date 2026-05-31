@@ -42,9 +42,8 @@ from .generation_models import (
     WarningItem,
     template_instance_to_dict,
 )
+from .placeholder_renderer import render_parameter_text, render_requirement_text
 
-ITEM_PLACEHOLDER_PATTERN = re.compile(r"\{@([A-Za-z0-9_\-]+)(?:\.(label|value|query))?\}")
-PARAMETER_PLACEHOLDER_PATTERN = re.compile(r"\{\$([A-Za-z0-9_\-]+)(?:\.(label|value|query))?\}")
 SQL_EQUALS_PATTERN = re.compile(r"^\s*([A-Za-z0-9_.]+)\s*=\s*(.+?)\s*$")
 
 
@@ -692,21 +691,6 @@ def build_execution_bindings(
     return bindings
 
 
-def render_requirement_text(
-    template_text: str,
-    item_lookup: dict[str, RequirementItem],
-    parameter_values: dict[str, list[ParameterValue]],
-) -> str:
-    rendered = ITEM_PLACEHOLDER_PATTERN.sub(lambda match: _render_item_placeholder(match, item_lookup), template_text)
-    rendered = PARAMETER_PLACEHOLDER_PATTERN.sub(lambda match: _render_parameter_placeholder(match, parameter_values), rendered)
-    return rendered.strip()
-
-
-def render_parameter_text(template_text: str, parameter_values: dict[str, list[ParameterValue]]) -> str:
-    rendered = PARAMETER_PLACEHOLDER_PATTERN.sub(lambda match: _render_parameter_placeholder(match, parameter_values), template_text)
-    return rendered.strip()
-
-
 def serialize_template_instance(instance: TemplateInstance) -> dict[str, Any]:
     return template_instance_to_dict(instance)
 
@@ -761,26 +745,6 @@ def _collect_catalog_instance_parameters(catalog: TemplateInstanceCatalog) -> li
     for sub_catalog in catalog.sub_catalogs:
         collected.extend(_collect_catalog_instance_parameters(sub_catalog))
     return collected
-
-
-def _render_item_placeholder(match: re.Match[str], item_lookup: dict[str, RequirementItem]) -> str:
-    item_id = match.group(1)
-    channel = match.group(2) or "label"
-    item = item_lookup.get(item_id)
-    if item is None:
-        return ""
-    return _render_value_channel(item.values, channel)
-
-
-def _render_parameter_placeholder(match: re.Match[str], parameter_values: dict[str, list[ParameterValue]]) -> str:
-    parameter_id = match.group(1)
-    channel = match.group(2) or "label"
-    return _render_value_channel(_normalize_parameter_value_list(parameter_values.get(parameter_id) or []), channel)
-
-
-def _render_value_channel(values: list[ParameterValue], channel: str) -> str:
-    rendered = [str(getattr(value, channel, None) or value.label or "") for value in values]
-    return "、".join([text for text in rendered if text])
 
 
 def _match_foreach_case_branch(dynamic: DynamicDefinition, value: ParameterValue) -> ForeachCaseBranch | None:

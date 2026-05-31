@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from src.contexts.report.application.parameter_options import ParameterOptionService
+from src.contexts.report.application.parameter_service import ReportParameterService
 from src.infrastructure.demo.dynamic_sources import get_dynamic_option_items, get_dynamic_options
 
 
@@ -31,7 +31,7 @@ class DynamicSourceServiceTests(unittest.TestCase):
         self.assertIn("query", result[0])
 
     def test_parameter_option_service_resolves_demo_source_into_formal_response(self):
-        payload = ParameterOptionService().resolve(
+        payload = ReportParameterService().resolve(
             user_id="default",
             parameter_id="scope",
             source="api:/sites/list",

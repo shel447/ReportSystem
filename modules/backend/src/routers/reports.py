@@ -11,7 +11,7 @@ from ..contexts.report.application.generation_models import (
     document_generation_result_to_dict,
     report_view_to_dict,
 )
-from ..infrastructure.dependencies import build_report_document_service, build_report_generation_service
+from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import NotFoundError, ValidationError
 from ..shared.kernel.http import resolve_user_id
@@ -34,7 +34,7 @@ def get_report_view(
     user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     try:
-        return report_view_to_dict(build_report_generation_service(db).get_report_view(report_id, user_id=resolve_user_id(user_id)))
+        return report_view_to_dict(build_report_service(db).get_report_view(report_id, user_id=resolve_user_id(user_id)))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -47,7 +47,7 @@ def generate_report_documents(
     user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
 ):
     try:
-        return document_generation_result_to_dict(build_report_generation_service(db).generate_documents(
+        return document_generation_result_to_dict(build_report_service(db).generate_documents(
             report_id=report_id,
             user_id=resolve_user_id(user_id),
             formats=data.formats,
@@ -71,7 +71,7 @@ def download_report_document(
 ):
     resolved_user_id = resolve_user_id(user_id)
     try:
-        report = build_report_generation_service(db).get_report_view(report_id, user_id=resolved_user_id)
+        report = build_report_service(db).get_report_view(report_id, user_id=resolved_user_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -80,7 +80,7 @@ def download_report_document(
         raise HTTPException(status_code=404, detail="Document not found")
 
     try:
-        resolved = build_report_document_service(db).resolve_download(
+        resolved = build_report_service(db).resolve_download(
             report_id=report_id,
             document_id=document_id,
             user_id=resolved_user_id,

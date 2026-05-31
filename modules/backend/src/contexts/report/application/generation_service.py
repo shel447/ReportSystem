@@ -60,7 +60,7 @@ from ..domain.generation_models import (
     report_section_from_dict,
     report_section_to_dict,
 )
-from ..domain.generation_services import build_execution_bindings, serialize_template_instance
+from ..domain.template_instance_builder import build_execution_bindings, serialize_template_instance
 from ..domain.template_models import OutlineDefinition
 
 REPORT_SCHEMA_PATH = project_root() / "docs" / "implementation" / "contracts" / "schemas" / "report-dsl.schema.json"
@@ -319,16 +319,6 @@ class ReportGenerationService:
                 parameters={parameter.id: copy.deepcopy(parameter) for parameter in list(preview.parameters or [])},
             ),
         )
-
-
-class ReportDocumentService:
-    """面向报告范围文档下载的轻量应用门面。"""
-
-    def __init__(self, *, runtime_service: ReportGenerationService) -> None:
-        self.runtime_service = runtime_service
-
-    def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> DownloadResolution:
-        return self.runtime_service.resolve_download(report_id=report_id, document_id=document_id, user_id=user_id)
 
 
 def build_report_dsl(

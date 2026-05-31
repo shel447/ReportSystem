@@ -14,14 +14,14 @@ class ParameterOptionsRouterTests(unittest.TestCase):
             "FakeService",
             (),
             {
-                "resolve": lambda self, **_kwargs: ParameterOptionsResult(
+                "resolve_parameter_options": lambda self, **_kwargs: ParameterOptionsResult(
                     options=[ParameterValue(label="总部网络", value="hq-network", query="scope_id = 'hq-network'")],
                     default_value=[],
                 )
             },
         )()
 
-        with patch("src.routers.parameter_options.build_parameter_option_service", return_value=fake_service):
+        with patch("src.routers.parameter_options.build_report_service", return_value=fake_service):
             payload = resolve_parameter_options(
                     ParameterOptionsResolveRequest(
                         parameterId="scope",
@@ -43,10 +43,10 @@ class ParameterOptionsRouterTests(unittest.TestCase):
         fake_service = type(
             "FakeService",
             (),
-            {"resolve": lambda self, **_kwargs: (_ for _ in ()).throw(ValueError("invalid parameter option request"))},
+            {"resolve_parameter_options": lambda self, **_kwargs: (_ for _ in ()).throw(ValueError("invalid parameter option request"))},
         )()
 
-        with patch("src.routers.parameter_options.build_parameter_option_service", return_value=fake_service):
+        with patch("src.routers.parameter_options.build_report_service", return_value=fake_service):
             with self.assertRaises(HTTPException) as ctx:
                 resolve_parameter_options(
                     ParameterOptionsResolveRequest(

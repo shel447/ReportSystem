@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 MODULE_ROOT = Path(__file__).resolve().parents[1]
-ROOT = MODULE_ROOT / "src" / "backend"
+ROOT = MODULE_ROOT / "src"
 ROUTERS_DIR = ROOT / "routers"
 TARGET_ROUTERS = {"chat.py", "templates.py", "reports.py", "parameter_options.py"}
 FORBIDDEN_ROUTER_MODULES = {
@@ -102,6 +102,24 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 module = _resolve_import_from(path, node.module, node.level)
                 if module.startswith("backend.contexts.report.") and not module.startswith("backend.contexts.report.application."):
                     violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_report_routers_use_single_report_service_builder(self):
+        violations: list[str] = []
+        for name in ("templates.py", "reports.py", "parameter_options.py"):
+            path = ROUTERS_DIR / name
+            source = path.read_text(encoding="utf-8-sig")
+            if "build_report_service" not in source:
+                violations.append(f"{name}: missing build_report_service")
+            for forbidden in (
+                "build_report_template_service",
+                "build_report_parameter_service",
+                "build_report_generation_service",
+                "build_report_document_service",
+                "build_report_scenario_service",
+            ):
+                if forbidden in source:
+                    violations.append(f"{name}: references {forbidden}")
         self.assertEqual([], violations, "\n".join(violations))
 
 

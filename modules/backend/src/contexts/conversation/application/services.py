@@ -31,10 +31,10 @@ from .models import (
 class ConversationService:
     """拥有聊天协议、消息流水和通用追问生命周期的应用服务。"""
 
-    def __init__(self, *, conversation_repository, chat_repository, report_scenario_service) -> None:
+    def __init__(self, *, conversation_repository, chat_repository, report_service) -> None:
         self.conversation_repository = conversation_repository
         self.chat_repository = chat_repository
-        self.report_scenario_service = report_scenario_service
+        self.report_service = report_service
 
     def list_sessions(self, *, user_id: str) -> list[SessionSummary]:
         """返回会话列表视图，仅包含最后一条消息预览。"""
@@ -109,7 +109,7 @@ class ConversationService:
         """通过通用聊天通道推进一次业务场景交互。"""
         instruction = str(data.instruction or "generate_report").strip() or "generate_report"
         if instruction == "extract_report_template":
-            result = self.report_scenario_service.handle(
+            result = self.report_service.chat(
                 command=ReportScenarioCommand(
                     conversation_id=data.conversation_id or "",
                     chat_id=data.chat_id or "",
@@ -140,7 +140,7 @@ class ConversationService:
             api_version=data.api_version or "v1",
         )
         self._consume_reply(context=context)
-        result = self.report_scenario_service.handle(
+        result = self.report_service.chat(
             command=ReportScenarioCommand(
                 conversation_id=context.conversation_id,
                 chat_id=context.chat_id,
