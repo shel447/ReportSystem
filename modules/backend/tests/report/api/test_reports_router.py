@@ -25,6 +25,7 @@ from src.contexts.report.domain.generation_models import (
 from src.contexts.report.domain.template_models import ReportTemplate
 from src.infrastructure.persistence.database import get_db
 from src.routers.reports import router as reports_router
+from src.shared.kernel.errors import ValidationError
 
 
 def _sample_template_instance():
@@ -149,6 +150,20 @@ class ReportsRouterTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text.replace("\r\n", "\n"), "# report\n")
+
+    def test_pdf_document_generation_returns_clear_http_400(self):
+        def generate_documents(**kwargs):
+            raise ValidationError("PDF export is not available yet")
+
+        with patch("src.routers.reports.build_report_service", return_value=SimpleNamespace(generate_documents=generate_documents)):
+            response = self.client.post(
+                "/rest/chatbi/v1/reports/rpt_001/document-generations",
+                headers={"X-User-Id": "default"},
+                json={"formats": ["pdf"], "pdfSource": "word"},
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "PDF export is not available yet")
 
 
 if __name__ == "__main__":

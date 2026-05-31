@@ -1,0 +1,28 @@
+{
+  "id": "tpl_network_daily",
+  "category": "network_operations",
+  "name": "网络运行日报",
+  "description": "面向网络运维中心的统一日报模板。",
+  "schemaVersion": "template.v3",
+  "structureType": "flow",
+  "parameters": [],
+  "catalogs": [
+    {
+      "id": "catalog_overview",
+      "title": "运行概览",
+      "sections": [
+        {
+          "id": "section_overview",
+          "dynamic": {
+            "type": "custom",
+            "url": "http://example.invalid/custom-section"
+          },
+          "outline": {
+            "requirement": "汇总网络运行概况",
+            "items": []
+          }
+        }
+      ]
+    }
+  ]
+}

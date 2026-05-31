@@ -1,0 +1,22 @@
+{
+  "id": "tpl_network_summary_paged",
+  "category": "network_operations",
+  "name": "网络运行汇报",
+  "description": "面向网络运维中心的分页汇报模板。",
+  "schemaVersion": "template.v3",
+  "structureType": "paged",
+  "parameters": [],
+  "chapters": [
+    {
+      "id": "chapter_overview",
+      "title": "整体概览",
+      "slides": [
+        {
+          "id": "slide_kpi",
+          "title": "核心指标",
+          "sections": []
+        }
+      ]
+    }
+  ]
+}

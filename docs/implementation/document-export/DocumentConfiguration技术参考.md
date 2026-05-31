@@ -11,8 +11,8 @@ flowchart LR
     EX --> JAVA[Java Office Exporter]
     JAVA --> WORD[word]
     JAVA --> PPT[ppt]
-    WORD --> PDF[pdf]
-    PPT --> PDF
+    WORD -. 后续派生转换 .-> PDF[pdf]
+    PPT -. 后续派生转换 .-> PDF
     WORD --> DOC[DocumentArtifact]
     PPT --> DOC
     PDF --> DOC
@@ -42,7 +42,7 @@ flowchart LR
 职责：
 
 - 接收 `Report DSL` 并生成 `word/ppt`
-- 将 `word/ppt` 派生转换为 `pdf`
+- 后续将 `word/ppt` 派生转换为 `pdf`；当前尚未开放
 - 上传产物并回传存储键
 
 ## 3. 生成顺序
@@ -52,7 +52,7 @@ flowchart LR
 3. `Report DSL` 校验通过后写入 `ReportInstance`
 4. 发起文档生成任务
 5. Java 导出器生成 `word/ppt`
-6. 根据 `pdfSource` 派生生成 `pdf`
+6. 后续根据 `pdfSource` 派生生成 `pdf`；当前请求会返回明确校验错误
 7. 产物登记到 `tbl_report_documents`
 
 对外返回：
@@ -65,7 +65,7 @@ flowchart LR
 
 - 所有文档格式都从同一份 `Report DSL` 出发
 - 不再允许从旧 `outline_content` 或其他中间结构直接拼文档
-- `pdf` 首版是派生产物，不参与主报告生成状态机
+- `pdf` 是后续派生产物，不参与当前主报告生成状态机
 - 文档导出样式配置使用独立 `Document Configuration`，不写入 `Report DSL`，生成文档时可选传入。
 - Java 导出器归一化 Report DSL 时优先使用 `basicInfo.reportType` 判定 Word/PPT；其次才使用 `structureType` 和结构字段兜底，避免 paged/PPT DSL 因兼容字段被误路由为 Word。
 - Word/PPT 默认页脚文本为 `ChatBI`；当 `basicInfo.footer` 明确提供时按输入覆盖默认值。

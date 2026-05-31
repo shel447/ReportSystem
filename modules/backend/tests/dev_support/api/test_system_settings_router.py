@@ -72,6 +72,18 @@ class SystemSettingsRouterTests(unittest.TestCase):
         self.assertTrue(payload["embedding"]["configured"])
         self.assertTrue(payload["is_ready"])
 
+    def test_reindex_returns_explicit_no_separate_index_message(self):
+        response = self.client.post("/rest/dev/system-settings/reindex")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("不再维护独立模板语义索引", response.json()["message"])
+
+    def test_connection_test_reports_configuration_error_without_remote_call(self):
+        response = self.client.post("/rest/dev/system-settings/test", json={"target": "completion"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["completion"]["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

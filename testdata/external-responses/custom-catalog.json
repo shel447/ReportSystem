@@ -1,0 +1,11 @@
+{
+  "status": "Success",
+  "dsl": {
+    "id": "catalog_custom",
+    "name": "动态目录",
+    "sections": []
+  },
+  "meta": {
+    "dslType": "Catalog"
+  }
+}

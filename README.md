@@ -29,7 +29,7 @@ flowchart LR
 - 诉求确认
 - 章节级内容生成
 - 报告聚合视图
-- 报告级 Word/PPT/PDF/Markdown 文档导出与下载
+- 报告级 Word/PPT/Markdown 文档导出与下载；PDF 暂未开放
 
 ### 2.2 统一对话
 
@@ -81,7 +81,7 @@ flowchart LR
 - Pydantic
 - HTTPX
 - Ibis + SQLite
-- Java 17（文档导出服务）
+- Java 21（文档导出 CLI）
 
 ### 数据
 
@@ -138,7 +138,8 @@ ReportSystem/
 后端：
 
 ```powershell
-python -m pip install -r modules/backend/requirements.txt
+Set-Location modules/backend
+uv sync --dev
 ```
 
 前端：
@@ -167,8 +168,8 @@ npm run build
 ### 5.4 启动服务
 
 ```powershell
-$env:PYTHONPATH = "modules/backend"
-python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
+Set-Location modules/backend
+uv run python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 ```
 
 默认访问地址：
@@ -202,6 +203,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 - [JSON Schema 与示例](docs/implementation/contracts/schemas/README.md)
 - [前端实现](docs/implementation/frontend/README.md)
 - [文档导出实现](docs/implementation/document-export/README.md)
+- [测试体系](docs/implementation/testing/README.md)
 
 ### 变更记录
 
@@ -211,7 +213,7 @@ python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 ## 7. 当前实现边界
 
 - 报告级编辑流接口 `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` 仍待实现
-- Word/PPT/PDF 导出由 `modules/exporter` 提供
+- Word/PPT 导出由 `modules/exporter` 提供，Markdown 由后端生成；PDF 暂未开放
 - 动态参数解析是辅助公共接口，不作为独立业务资源页暴露
 
 ## 8. 开发与验证
@@ -233,6 +235,13 @@ npm run build
 后端测试：
 
 ```powershell
-$env:PYTHONPATH = "modules/backend"
-python -m pytest modules/backend/tests -q
+Set-Location modules/backend
+uv run pytest tests -q
+```
+
+需要执行真实 Java Office 导出闭环时：
+
+```powershell
+Set-Location modules/backend
+uv run pytest tests -m exporter_e2e -q
 ```

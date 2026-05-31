@@ -58,7 +58,7 @@ flowchart TB
 
 | 组件 | 职责 | 输入 | 输出 |
 |------|------|------|------|
-| `ExportPayload` | HTTP 请求载体 | JSON | 结构化请求 |
+| `CliMain` | CLI 参数适配入口 | Report DSL JSON 路径、输出路径和目标类型 | 导出命令 |
 | `ReportDslModel` | DSL 根模型 | JSON | 类型化对象树 |
 | `ExporterOrchestrator` | 导出编排 | DSL + Target | 调用具体导出器 |
 | `ReportDocxExporter` | Word 导出主流程 | DSL | XWPFDocument |

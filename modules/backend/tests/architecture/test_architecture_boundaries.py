@@ -2,7 +2,7 @@ import ast
 import unittest
 from pathlib import Path
 
-MODULE_ROOT = Path(__file__).resolve().parents[1]
+MODULE_ROOT = Path(__file__).resolve().parents[2]
 ROOT = MODULE_ROOT / "src"
 ROUTERS_DIR = ROOT / "routers"
 TARGET_ROUTERS = {"chat.py", "templates.py", "reports.py", "parameter_options.py"}

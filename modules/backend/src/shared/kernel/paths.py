@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 
@@ -21,7 +22,15 @@ def project_root() -> Path:
 
 
 def runtime_data_dir() -> Path:
-    return PROJECT_ROOT / ".runtime"
+    configured = os.environ.get("REPORT_SYSTEM_DATA_DIR")
+    if not configured:
+        return PROJECT_ROOT / ".runtime"
+    path = Path(configured).expanduser()
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
+def generated_documents_dir() -> Path:
+    return runtime_data_dir() / "generated_documents"
 
 
 def report_system_db_path() -> Path:

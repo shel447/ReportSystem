@@ -1,32 +1,31 @@
+"""CLI adapter for the Java Office exporter."""
+
 from __future__ import annotations
 
-import os
+import json
 import subprocess
-import threading
-import time
 import uuid
-
-import httpx
+from pathlib import Path
 
 from ...contexts.report.application.generation_models import GeneratedArtifact
 from ...contexts.report.domain.generation_models import ReportDsl, report_dsl_to_dict
-from ...shared.kernel.paths import project_root
+from ...shared.kernel.errors import ValidationError
+from ...shared.kernel.paths import generated_documents_dir, project_root
 
-EXPORTER_BASE_URL = os.environ.get("REPORT_EXPORTER_BASE_URL", "http://127.0.0.1:18500").rstrip("/")
-EXPORTER_HOST = os.environ.get("REPORT_EXPORTER_HOST", "127.0.0.1")
-EXPORTER_PORT = int(os.environ.get("REPORT_EXPORTER_PORT", "18500"))
-EXPORTER_TIMEOUT_SECONDS = float(os.environ.get("REPORT_EXPORTER_TIMEOUT_SECONDS", "60"))
 EXPORTER_DIR = project_root() / "modules" / "exporter"
 EXPORTER_SOURCE_DIR = EXPORTER_DIR / "src" / "main" / "java"
 EXPORTER_JAR_PATH = EXPORTER_DIR / "target" / "report-exporter-0.1.0.jar"
-EXPORTER_ARTIFACTS_DIR = EXPORTER_DIR / "artifacts"
-EXPORTER_LOG_DIR = project_root() / "output" / "runtime"
-
-_START_LOCK = threading.Lock()
-_EXPORTER_PROCESS: subprocess.Popen[bytes] | None = None
+MIME_TYPES = {
+    "word": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "ppt": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+TARGETS = {"word": "docx", "ppt": "pptx"}
+EXTENSIONS = {"word": ".docx", "ppt": ".pptx"}
 
 
 class JavaOfficeExporterGateway:
+    """Invoke the exporter CLI synchronously and return the generated artifact."""
+
     def export(
         self,
         *,
@@ -37,55 +36,51 @@ class JavaOfficeExporterGateway:
         strict_validation: bool,
         pdf_source: str | None,
     ) -> GeneratedArtifact:
-        self._ensure_service()
-        report_payload = report_dsl_to_dict(report)
-        payload = {
-            "requestId": f"req_export_{uuid.uuid4().hex[:12]}",
-            "reportId": report_id,
-            "dslSchemaVersion": str(report.basic_info.schema_version or ""),
-            "reportDsl": report_payload,
-            "options": {
-                "theme": theme,
-                "strictValidation": strict_validation,
-                "pdfSource": pdf_source,
-            },
-        }
-        with httpx.Client(timeout=EXPORTER_TIMEOUT_SECONDS) as client:
-            response = client.post(f"{EXPORTER_BASE_URL}/exports/{format_name}", json=payload)
-            response.raise_for_status()
-            data = response.json()
-        artifact = data.get("artifact") or {}
-        return GeneratedArtifact(
-            file_name=str(artifact.get("fileName") or f"{report_id}-{format_name}"),
-            storage_key=str(artifact.get("storageKey") or ""),
-            mime_type=str(artifact.get("contentType") or "application/octet-stream"),
+        normalized_format = str(format_name or "").strip().lower()
+        if normalized_format == "pdf":
+            raise ValidationError("PDF export is not available yet")
+        if normalized_format not in TARGETS:
+            raise ValidationError(f"Unsupported office document format: {format_name}")
+
+        self._build_if_needed()
+        documents_dir = generated_documents_dir()
+        input_dir = documents_dir / "exporter-inputs"
+        artifact_dir = documents_dir / "exporter-artifacts"
+        input_dir.mkdir(parents=True, exist_ok=True)
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        suffix = uuid.uuid4().hex[:12]
+        input_path = input_dir / f"{report_id}-{suffix}.json"
+        file_name = f"{report_id}-{suffix}{EXTENSIONS[normalized_format]}"
+        output_path = artifact_dir / file_name
+        input_path.write_text(
+            json.dumps(report_dsl_to_dict(report), ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
 
-    def _ensure_service(self) -> None:
-        if self._is_healthy():
-            return
-        with _START_LOCK:
-            if self._is_healthy():
-                return
-            self._build_if_needed()
-            self._start_local_process_if_needed()
-            deadline = time.time() + 30
-            while time.time() < deadline:
-                if self._is_healthy():
-                    return
-                time.sleep(0.5)
-        raise RuntimeError("Java office exporter is not available")
-
-    def _is_healthy(self) -> bool:
-        try:
-            with httpx.Client(timeout=2.0) as client:
-                response = client.get(f"{EXPORTER_BASE_URL}/health")
-                if response.status_code != 200:
-                    return False
-                payload = response.json()
-                return str(payload.get("status") or "") == "ok"
-        except Exception:
-            return False
+        command = [
+            "java",
+            "-jar",
+            str(EXPORTER_JAR_PATH),
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--target",
+            TARGETS[normalized_format],
+        ]
+        if theme:
+            command.extend(["--theme", theme])
+        if strict_validation:
+            command.append("--strict")
+        subprocess.run(command, check=True, cwd=str(EXPORTER_DIR))
+        if not output_path.exists():
+            raise RuntimeError(f"Exporter completed without output file: {output_path}")
+        return GeneratedArtifact(
+            file_name=file_name,
+            storage_key=str(output_path),
+            mime_type=MIME_TYPES[normalized_format],
+        )
 
     def _build_if_needed(self) -> None:
         java_files = list(EXPORTER_SOURCE_DIR.rglob("*.java"))
@@ -94,43 +89,13 @@ class JavaOfficeExporterGateway:
         latest_source_mtime = max(item.stat().st_mtime for item in java_files)
         if EXPORTER_JAR_PATH.exists() and EXPORTER_JAR_PATH.stat().st_mtime >= latest_source_mtime:
             return
-        mvn_cmd = _find_maven()
         subprocess.run(
-            [mvn_cmd, "clean", "package", "-q", "-DskipTests"],
+            [_find_maven(), "clean", "package", "-q", "-DskipTests"],
             check=True,
             cwd=str(EXPORTER_DIR),
         )
         if not EXPORTER_JAR_PATH.exists():
             raise RuntimeError(f"Maven build succeeded but JAR not found: {EXPORTER_JAR_PATH}")
-
-    def _start_local_process_if_needed(self) -> None:
-        global _EXPORTER_PROCESS
-        if _EXPORTER_PROCESS is not None and _EXPORTER_PROCESS.poll() is None:
-            return
-        if not EXPORTER_JAR_PATH.exists():
-            raise RuntimeError(f"Exporter JAR not found: {EXPORTER_JAR_PATH}. Run build first.")
-        EXPORTER_ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-        EXPORTER_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        stdout_path = EXPORTER_LOG_DIR / "report-exporter.out.log"
-        stderr_path = EXPORTER_LOG_DIR / "report-exporter.err.log"
-        stdout_handle = open(stdout_path, "ab")
-        stderr_handle = open(stderr_path, "ab")
-        _EXPORTER_PROCESS = subprocess.Popen(
-            [
-                "java",
-                "-jar",
-                str(EXPORTER_JAR_PATH),
-                "--host",
-                EXPORTER_HOST,
-                "--port",
-                str(EXPORTER_PORT),
-                "--artifacts-dir",
-                str(EXPORTER_ARTIFACTS_DIR),
-            ],
-            cwd=str(EXPORTER_DIR),
-            stdout=stdout_handle,
-            stderr=stderr_handle,
-        )
 
 
 def _find_maven() -> str:

@@ -1,0 +1,7 @@
+[
+  {
+    "label": "全网",
+    "value": "all",
+    "query": "scope = 'all'"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "status": "Success",
+  "dsl": {
+    "id": "section_custom",
+    "title": "动态章节",
+    "components": []
+  },
+  "meta": {
+    "dslType": "Section"
+  }
+}

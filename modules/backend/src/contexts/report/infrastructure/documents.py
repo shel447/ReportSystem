@@ -6,10 +6,11 @@ import json
 from pathlib import Path
 
 from ....infrastructure.exporter.java_office import JavaOfficeExporterGateway
+from ....shared.kernel.errors import ValidationError
+from ....shared.kernel.paths import generated_documents_dir
 from ..application.generation_models import DownloadResolution, DocumentView, GeneratedArtifact, document_view_from_artifact
 from ..domain.generation_models import DocumentArtifact, ReportDsl, report_dsl_to_dict
 
-DOCUMENTS_DIR = Path(__file__).resolve().parent / "generated_documents"
 MIME_TYPES = {
     "word": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "ppt": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -45,8 +46,10 @@ class ReportDocumentGateway:
         normalized_format = str(format_name or "").strip().lower()
         if normalized_format == "markdown":
             return self._generate_markdown(report=report, report_id=report_id, theme=theme)
-        if normalized_format not in {"word", "ppt", "pdf"}:
-            raise ValueError(f"Unsupported document format: {format_name}")
+        if normalized_format == "pdf":
+            raise ValidationError("PDF export is not available yet")
+        if normalized_format not in {"word", "ppt"}:
+            raise ValidationError(f"Unsupported document format: {format_name}")
         return self.office_exporter.export(
             report=report,
             report_id=report_id,
@@ -66,9 +69,10 @@ class ReportDocumentGateway:
         return document_view_from_artifact(document)
 
     def _generate_markdown(self, *, report: ReportDsl, report_id: str, theme: str) -> GeneratedArtifact:
-        DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
+        documents_dir = generated_documents_dir()
+        documents_dir.mkdir(parents=True, exist_ok=True)
         file_name = f"{report_id}-markdown{EXTENSIONS['markdown']}"
-        file_path = DOCUMENTS_DIR / file_name
+        file_path = documents_dir / file_name
         file_path.write_text(_serialize_report_payload(report, theme=theme, format_name="markdown"), encoding="utf-8")
         return GeneratedArtifact(
             file_name=file_name,

@@ -735,8 +735,8 @@ paged Report DSL 示例：
 
 ```json
 {
-  "formats": ["word", "ppt", "pdf"],
-  "pdfSource": "ppt",
+  "formats": ["word", "ppt"],
+  "pdfSource": null,
   "theme": "default",
   "strictValidation": true,
   "regenerateIfExists": false
@@ -753,12 +753,6 @@ paged Report DSL 示例：
       "jobId": "job_word_001",
       "format": "word",
       "status": "queued"
-    },
-    {
-      "jobId": "job_pdf_001",
-      "format": "pdf",
-      "status": "blocked_by_dependency",
-      "dependsOn": "job_word_001"
     }
   ],
   "documents": []
@@ -771,7 +765,7 @@ paged Report DSL 示例：
 - 当 `regenerateIfExists = false` 且已有产物可复用时，`documents` 中直接返回当前可用文档
 - `documents` 的对象结构与 `ReportAnswer.documents` 保持一致
 - `formats` 中的 `ppt` 主要消费 `structureType = paged` 的 Report DSL；flow 报告导出 PPT 属于后续转换策略，不在本轮接口契约中保证
-- `pdfSource` 正式支持 `word | ppt | null`；当报告是 paged 且请求 PDF 时，可使用 `pdfSource = "ppt"` 表示先生成 PPT 再派生 PDF
+- `pdfSource` 为后续 PDF 派生转换预留；当前请求 `formats` 包含 `pdf` 时返回 `400`
 - `strictValidation = true` 时，服务端必须先按 `report-dsl.schema.json` 校验当前报告对应的 flow 或 paged 分支，再进入导出任务
 
 ## 3. 服务端内部调用协议

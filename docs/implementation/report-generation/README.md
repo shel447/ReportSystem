@@ -83,7 +83,7 @@
 - `get_report_view`
   - 组装 `/reports/{reportId}` 聚合视图
 - `generate_documents`
-  - 生成 Word/PPT/PDF/Markdown 产物
+  - 生成 Word/PPT/Markdown 产物；PDF 暂未开放
   - 创建 `ExportJob` 和 `DocumentArtifact`
 - `resolve_download`
   - 解析 report-scoped 下载请求
@@ -180,7 +180,7 @@
 
 - 只接受 `Report DSL`
 - `word/ppt` 由 Java 导出器生成
-- `pdf` 从 `word` 或 `ppt` 派生
+- `pdf` 派生转换尚未实现；当前请求返回明确校验错误
 - 产物和任务状态分别落 `tbl_report_documents`、`tbl_export_jobs`
 
 ## 7. 对外接口映射

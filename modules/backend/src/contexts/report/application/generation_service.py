@@ -195,6 +195,12 @@ class ReportGenerationService:
         regenerate_if_exists: bool,
     ) -> DocumentGenerationResult:
         """生成报告作用域下的文档产物及对应导出任务。"""
+        normalized_formats = [str(item or "").strip().lower() for item in formats]
+        if "pdf" in normalized_formats:
+            raise ValidationError("PDF export is not available yet")
+        unsupported_formats = sorted(set(normalized_formats) - {"word", "ppt", "markdown"})
+        if unsupported_formats:
+            raise ValidationError(f"Unsupported document format: {unsupported_formats[0]}")
         report_view = self.get_report_view(report_id, user_id=user_id)
         answer = report_view.answer
         existing_documents = self.document_repository.list_by_report(report_id)
@@ -205,7 +211,7 @@ class ReportGenerationService:
         request_hash = hashlib.sha1(
             json.dumps(
                 {
-                    "formats": formats,
+                    "formats": normalized_formats,
                     "pdfSource": pdf_source,
                     "theme": theme,
                     "strictValidation": strict_validation,
@@ -216,7 +222,7 @@ class ReportGenerationService:
         ).hexdigest()
 
         dependency_job_id = None
-        for format_name in formats:
+        for format_name in normalized_formats:
             # 导出任务只负责记录编排顺序，实际文件生成下沉到文档网关。
             job = self.export_job_repository.create(
                 report_instance_id=report_id,

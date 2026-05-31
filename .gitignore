@@ -31,6 +31,7 @@ wheels/
 
 # Database
 .runtime/
+.test/
 modules/backend/src/report_system.db
 modules/backend/src/telecom_demo.db
 modules/backend/src/generated_documents/

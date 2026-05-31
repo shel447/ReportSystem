@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from src.infrastructure.ai.openai_compat import ProviderConfig
+from src.infrastructure.demo.telecom import init_telecom_demo_db
 from src.infrastructure.query.engine import QueryRequest, run_query
 from src.infrastructure.query.section_evidence import generate_section_evidence
 
@@ -35,6 +36,7 @@ class FakeGateway:
 
 class QueryEngineTests(unittest.TestCase):
     def setUp(self):
+        init_telecom_demo_db()
         self.config = ProviderConfig(
             base_url="http://example.invalid",
             model="test-model",
@@ -148,6 +150,7 @@ class QueryEngineTests(unittest.TestCase):
 
 class SectionQueryServiceStrategyTests(unittest.TestCase):
     def setUp(self):
+        init_telecom_demo_db()
         self.config = ProviderConfig(
             base_url="http://example.invalid",
             model="test-model",

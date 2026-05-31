@@ -13,6 +13,7 @@
 7. [文档导出](document-export/README.md)
 8. [外部集成](integrations/外部集成实现.md)
 9. [实现变更日志](changelog/README.md)
+10. [测试体系](testing/README.md)
 
 ## 模块映射
 

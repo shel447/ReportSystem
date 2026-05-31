@@ -11,7 +11,7 @@ from src.infrastructure.persistence import dev_models, models  # noqa: F401
 from src.infrastructure.persistence.upgrades import DatabaseUpgradeError, apply_upgrades
 
 
-PERSISTENCE_DIR = Path(__file__).resolve().parents[1] / "src" / "infrastructure" / "persistence"
+PERSISTENCE_DIR = Path(__file__).resolve().parents[3] / "src" / "infrastructure" / "persistence"
 BUSINESS_UPGRADES = PERSISTENCE_DIR / "upgrades"
 DEV_UPGRADES = BUSINESS_UPGRADES / "dev"
 
@@ -96,7 +96,8 @@ def test_upgrade_rejects_unversioned_schema_drift(tmp_path):
 
 
 def test_gitignore_marks_runtime_directory_as_ignored():
-    gitignore_path = Path(__file__).resolve().parents[3] / ".gitignore"
+    gitignore_path = Path(__file__).resolve().parents[5] / ".gitignore"
     gitignore_text = gitignore_path.read_text(encoding="utf-8")
 
     assert ".runtime/" in gitignore_text
+    assert ".test/" in gitignore_text
