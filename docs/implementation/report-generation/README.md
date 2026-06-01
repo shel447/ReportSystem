@@ -128,13 +128,13 @@ application 层的 custom 内容解析器负责调用外部 gateway 并校验返
 
 必须完成：
 
-1. 读取 `structureType` 对应的实例树；当前 DSL 编译实现读取 flow 的 `catalogs -> (subCatalogs)* -> sections`，paged 后续接入
+1. 读取 `structureType` 对应的实例树；flow 读取 `catalogs -> (subCatalogs)* -> sections`，paged 读取 `chapters -> slides -> sections`
 2. 保留 `TemplateInstance.section.content` 的实例化视图
-2. 根据 `runtimeContext.bindings` 生成查询表达式
-3. 解析 `section.content.datasets`
-4. 将 `presentation.blocks` 编译为 `components`
-5. 填充新版 `basicInfo / layout / reportMeta / summary`
-6. 校验 DSL
+3. 根据 `runtimeContext.bindings` 生成查询表达式
+4. 解析 `section.content.datasets`
+5. 将 `presentation.blocks` 编译为 `components`
+6. 填充新版 `basicInfo / layout / reportMeta / summary`
+7. 校验 DSL
 
 补充规则：
 
@@ -164,7 +164,13 @@ application 层的 custom 内容解析器负责调用外部 gateway 并校验返
 - custom 目录响应按 `status/dsl/meta.dslType=Catalog` 解析，并用 flow `ReportCatalog` 片段替换当前目录，响应必须包含 `name`
 - flow custom 章节响应按 `status/dsl/meta.dslType=Section` 解析，并用 flow `ReportSection` 片段替换当前章节，允许包含旧 `summary` 字段
 - paged custom slide 响应按 `status/dsl/meta.dslType=Slide` 解析，并用 `ReportSlide` 片段替换当前 slide；paged slide 内 custom section 推荐返回 `dslType=Components` 并合并到当前 slide 组件集合，也允许返回 `Section` 后转换
-- 当前实现已建立模板/schema/实例态 `nodeType=slide` 契约；HTTP gateway 请求体从旧协议迁移到 v6 以及 paged DSL 合并在后续运行时实现中完成
+- HTTP gateway 使用 v6 请求体；paged custom slide 和 slide 内 section 片段进入正式 DSL 合并链路
+- 数据集解析在 application 层完成：`sql` 使用固定 `/rest/onequery`，`api` 使用模板声明的 `/rest/...` 地址；两者共享统一结果包络
+- `llm/compose` 当前允许出现在模板中，但若被展示块直接引用则返回明确未支持错误
+- `compose` 只表示数据集编排声明，不生成独立参数执行绑定
+- 静态模板使用 `dataset.source`，运行态模板实例使用 `dataset.sourceRef`；领域模型统一保存后按边界分别序列化
+- 外部统一数据集的开放列类型进入 Report DSL 前需要归一化，例如 `number -> double`
+- compiler 只消费强类型数据集结果，不直接访问 HTTP
 - `text` block 在实例化阶段必须把模板态 `properties.template` 渲染为实例态 `properties.content`，生成 DSL 时编译为 `TextComponent`
 - 普通 `table` block 必须编译为 DSL `TableComponent`，透传 `datasetId`、`properties.columns`、`properties.mergeColumns` 与可计算的 `properties.mergeRows`
 - `chart` block 必须编译为 DSL `ChartComponent`，透传 `datasetId`

@@ -57,7 +57,8 @@ X-User-Id: <external-user-id>
 | OpenAI Compatible 向量化 | `POST {baseUrl}/embeddings` | 模板语义索引和召回 | 已实现，地址由系统设置提供 |
 | Parameter Options 数据源 | `POST {parameter.source}` | 解析动态参数候选项 | 已实现，地址由模板声明 |
 | Dynamic Custom 内容源 | `POST {dynamic.custom.url}` | 获取目录、章节或组件 DSL 片段 | 已实现，地址由模板声明 |
-| 业务查询数据源 | SQL 或 API | 根据绑定参数查询报告数据 | 条件能力，具体协议由查询适配器确定 |
+| SQL 查询数据源 | `POST {externalBusinessBaseUrl}/rest/onequery` | 根据模板 SQL 和绑定参数查询报告数据 | 已定义正式协议 |
+| API 查询数据源 | `POST {externalBusinessBaseUrl}{dataset.source}` | 根据模板声明的 `/rest/...` 地址查询报告数据 | 已定义正式协议 |
 
 ### 1.3 路由实现映射
 
@@ -904,12 +905,84 @@ v6 正式请求体由 `parameters/templateNode/context` 组成：
 
 ### 3.4 业务查询数据源
 
-报告运行时可以根据模板和绑定参数调用 SQL 或 API 数据源。该能力属于条件能力：
+动态参数、SQL 查询、API 查询和 Dynamic Custom 默认部署在同一个外部业务服务中。ReportSystem 使用装配层配置的 `externalBusinessBaseUrl` 解析相对 `/rest/...` 地址；历史绝对 URL 继续兼容。
 
-- 查询基础设施负责解释 `runtimeContext.bindings`。
-- 数据源类型、连接方式和具体协议由查询适配器确定。
-- 查询结果必须转换为结构化数据和执行证据，再交给报告生成流程使用。
-- 本文件不为不同业务数据源强行规定统一 HTTP 报文。
+所有外部业务服务请求携带：
+
+```http
+X-User-Id: <external-user-id>
+```
+
+#### 3.4.1 SQL 查询
+
+当 `dataset.sourceType = sql` 时，ReportSystem 先渲染模板 SQL，再调用固定接口：
+
+```http
+POST {externalBusinessBaseUrl}/rest/onequery
+```
+
+```json
+{
+  "query": "select device_name, health_score from network_device_health",
+  "context": {
+    "lineage.tracing.enable": true,
+    "templateInstanceId": "ti_001",
+    "sectionId": "section_health",
+    "datasetId": "dataset_health"
+  }
+}
+```
+
+#### 3.4.2 API 查询
+
+当 `dataset.sourceType = api` 时，`dataset.source` 必须是 `/rest/...` 风格相对地址或历史兼容绝对 URL。请求体：
+
+```json
+{
+  "parameters": {
+    "scope": [
+      {
+        "label": "总部网络",
+        "value": "hq-network",
+        "query": "scope_id = 'hq-network'"
+      }
+    ]
+  },
+  "context": {
+    "lineage.tracing.enable": true,
+    "templateInstanceId": "ti_001",
+    "sectionId": "section_health",
+    "datasetId": "dataset_health"
+  }
+}
+```
+
+#### 3.4.3 统一响应
+
+SQL 与 API 查询使用同一响应包络。首版消费 `data.results[0]`：
+
+```json
+{
+  "data": {
+    "results": [
+      {
+        "columns": [
+          {"key": "device_name", "title": "设备名称", "type": "string"}
+        ],
+        "results": [
+          {"device_name": "核心交换机-A", "health_score": 96}
+        ]
+      }
+    ]
+  }
+}
+```
+
+`columns` 当前允许外部系统扩展字段；`results` 必须是字段名到取值的行对象数组。正式结构见 JSON Schema：
+
+- `onequery-request.schema.json`
+- `api-dataset-request.schema.json`
+- `dataset-source-response.schema.json`
 
 ## 4. 开发辅助接口
 

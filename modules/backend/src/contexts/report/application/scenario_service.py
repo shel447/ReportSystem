@@ -132,7 +132,11 @@ class ReportScenarioService:
             current = copy.deepcopy(current_instance)
             template = self.template_service.get_template(current.template_id)
             definitions = collect_template_parameters(template)
-            current_parameters = collect_instance_parameters(parameters=current.parameters, catalogs=current.catalogs)
+            current_parameters = collect_instance_parameters(
+                parameters=current.parameters,
+                catalogs=current.catalogs,
+                chapters=current.chapters,
+            )
             merged_values = merge_parameter_values(
                 parameter_definitions=definitions,
                 current_values=parameters_to_value_map(current_parameters),

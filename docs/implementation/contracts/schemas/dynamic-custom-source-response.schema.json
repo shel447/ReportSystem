@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./dynamic-custom-source-response.schema.json",
+  "title": "DynamicCustomSourceResponse",
+  "description": "Dynamic Custom v6 外部内容响应。dsl 片段由 meta.dslType 决定，并由运行时按 Report DSL fragment 校验。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": {"type": "string", "enum": ["success", "error"]},
+    "dsl": {"type": ["object", "array"]},
+    "meta": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {"dslType": {"type": "string", "enum": ["Catalog", "Section", "Slide", "Components"]}}
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {"code": {"type": "string"}, "message": {"type": "string"}}
+    }
+  },
+  "allOf": [
+    {"if": {"properties": {"status": {"const": "success"}}}, "then": {"required": ["dsl", "meta"]}},
+    {"if": {"properties": {"status": {"const": "error"}}}, "then": {"required": ["error"]}}
+  ]
+}

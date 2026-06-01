@@ -1,0 +1,62 @@
+{
+  "parameterOptions": {
+    "scopes": {
+      "options": [
+        {"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"},
+        {"label": "华东区域", "value": "east-region", "query": "scope_id = 'east-region'"}
+      ],
+      "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}]
+    },
+    "devices": {
+      "options": [
+        {"label": "核心交换机-A", "value": "core-sw-a", "query": "device_id = 'core-sw-a'"},
+        {"label": "出口路由器-B", "value": "edge-rt-b", "query": "device_id = 'edge-rt-b'"}
+      ],
+      "defaultValue": []
+    }
+  },
+  "queryMatches": ["network_health", "network_alarm", "network_traffic"],
+  "datasets": {
+    "default": {
+      "columns": [{"key": "metric", "title": "指标", "type": "string"}, {"key": "value", "title": "数值", "type": "number"}],
+      "results": [{"metric": "可用率", "value": 99.96}, {"metric": "告警数", "value": 3}]
+    },
+    "network_health": {
+      "columns": [{"key": "device_name", "title": "设备名称", "type": "string"}, {"key": "device_type", "title": "设备类型", "type": "string"}, {"key": "health_score", "title": "健康评分", "type": "number"}, {"key": "status", "title": "状态", "type": "string"}, {"key": "cpu_usage", "title": "CPU使用率", "type": "number"}, {"key": "memory_usage", "title": "内存使用率", "type": "number"}],
+      "results": [
+        {"device_name": "核心交换机-A", "device_type": "交换机", "health_score": 96, "status": "正常", "cpu_usage": 28, "memory_usage": 44},
+        {"device_name": "出口路由器-B", "device_type": "路由器", "health_score": 82, "status": "关注", "cpu_usage": 68, "memory_usage": 71},
+        {"device_name": "防火墙-C", "device_type": "防火墙", "health_score": 75, "status": "告警", "cpu_usage": 83, "memory_usage": 78}
+      ]
+    },
+    "network_alarm": {
+      "columns": [{"key": "level", "title": "告警级别", "type": "string"}, {"key": "count", "title": "告警数量", "type": "number"}],
+      "results": [{"level": "严重", "count": 2}, {"level": "重要", "count": 5}, {"level": "一般", "count": 11}]
+    },
+    "network_traffic": {
+      "columns": [{"key": "time", "title": "时间", "type": "string"}, {"key": "inbound", "title": "入流量", "type": "number"}, {"key": "outbound", "title": "出流量", "type": "number"}],
+      "results": [{"time": "08:00", "inbound": 42, "outbound": 31}, {"time": "12:00", "inbound": 75, "outbound": 62}, {"time": "16:00", "inbound": 58, "outbound": 53}, {"time": "20:00", "inbound": 37, "outbound": 29}]
+    },
+    "availability-trend": {
+      "columns": [{"key": "date", "title": "日期", "type": "string"}, {"key": "availability", "title": "可用率", "type": "number"}],
+      "results": [{"date": "2026-05-28", "availability": 99.91}, {"date": "2026-05-29", "availability": 99.95}, {"date": "2026-05-30", "availability": 99.98}, {"date": "2026-05-31", "availability": 99.96}]
+    }
+  },
+  "dynamicContent": {
+    "flow-section": {
+      "status": "success",
+      "dsl": {"id": "section_external_advice", "title": "外部巡检建议", "components": [{"id": "text_external_advice", "type": "text", "dataProperties": {"dataType": "static", "content": "建议优先处理出口路由器-B的高负载问题。"}}]},
+      "meta": {"dslType": "Section"}
+    },
+    "paged-components": {
+      "status": "success",
+      "dsl": [{"id": "text_dynamic_paged", "type": "text", "dataProperties": {"dataType": "static", "content": "动态补充：重点关注出口链路高峰时段负载。"}}],
+      "meta": {"dslType": "Components"}
+    },
+    "paged-slide": {
+      "status": "success",
+      "dsl": {"id": "slide_external", "title": "外部运行建议", "layout": {"type": "grid", "autoLayout": true}, "components": [{"id": "text_external_slide", "type": "text", "dataProperties": {"dataType": "static", "content": "外部建议：持续观察重点链路趋势。"}}]},
+      "meta": {"dslType": "Slide"}
+    }
+  }
+}

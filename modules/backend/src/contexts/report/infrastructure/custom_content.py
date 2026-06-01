@@ -4,20 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
+from .external_business import ExternalBusinessGateway
 
 
 class CustomContentGateway:
     """通过 HTTP POST 获取 custom dynamic 目录或章节 DSL 片段。"""
 
-    def __init__(self, *, timeout_seconds: float = 10.0) -> None:
-        self.timeout_seconds = timeout_seconds
+    def __init__(self, *, gateway: ExternalBusinessGateway | None = None) -> None:
+        self.gateway = gateway or ExternalBusinessGateway()
 
-    def post_json(self, *, url: str, payload: dict[str, Any]) -> dict[str, Any]:
-        with httpx.Client(timeout=self.timeout_seconds) as client:
-            response = client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
-        if not isinstance(data, dict):
-            raise ValueError("custom dynamic response must be a JSON object")
-        return data
+    def post_json(self, *, url: str, payload: dict[str, Any], user_id: str = "default") -> dict[str, Any]:
+        return self.gateway.post_json(path_or_url=url, payload=payload, user_id=user_id)

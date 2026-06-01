@@ -10,10 +10,12 @@ from ..contexts.conversation.infrastructure.repositories import (
 )
 from ..contexts.report.application.document_service import ReportDocumentService
 from ..contexts.report.application.custom_content_resolver import CustomContentResolver
+from ..contexts.report.application.dataset_execution_service import DatasetExecutionService
 from ..contexts.report.application.generation_service import ReportGenerationService
 from ..contexts.report.application.report_service import ReportService
 from ..contexts.report.application.scenario_service import ReportScenarioService
 from ..contexts.report.infrastructure.custom_content import CustomContentGateway
+from ..contexts.report.infrastructure.external_business import ExternalBusinessGateway
 from ..contexts.report.infrastructure.documents import ReportDocumentGateway
 from ..contexts.report.infrastructure.generation_repositories import (
     SqlAlchemyDocumentRepository,
@@ -51,12 +53,17 @@ def _build_report_parameter_service(db: Session | None = None) -> ReportParamete
 def _build_report_generation_service(db: Session) -> ReportGenerationService:
     """围绕模板实例、报告仓储和纯领域 compiler 装配报告生成服务。"""
     schema_gateway = ReportDslSchemaGateway()
+    external_gateway = ExternalBusinessGateway()
     return ReportGenerationService(
         template_repository=SqlAlchemyRuntimeTemplateRepository(db),
         template_instance_repository=SqlAlchemyTemplateInstanceRepository(db),
         report_instance_repository=SqlAlchemyReportInstanceRepository(db),
         compiler=ReportDslCompiler(),
-        custom_content_resolver=CustomContentResolver(gateway=CustomContentGateway(), schema_gateway=schema_gateway),
+        custom_content_resolver=CustomContentResolver(
+            gateway=CustomContentGateway(gateway=external_gateway),
+            schema_gateway=schema_gateway,
+        ),
+        dataset_execution_service=DatasetExecutionService(gateway=external_gateway, schema_gateway=schema_gateway),
         schema_gateway=schema_gateway,
     )
 

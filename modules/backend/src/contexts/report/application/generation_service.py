@@ -25,6 +25,7 @@ from ..domain.template_instance_builder import build_execution_bindings, seriali
 from ..domain.template_models import OutlineDefinition, ReportTemplate
 from ..infrastructure.template_schema import ReportDslSchemaGateway, validate_template_instance
 from .custom_content_resolver import CustomContentResolver
+from .dataset_execution_service import DatasetExecutionService
 from .generation_models import GenerationProgressView, ReportAnswerView, ReportSegmentPreview, ReportView
 
 
@@ -39,6 +40,7 @@ class ReportGenerationService:
         report_instance_repository,
         compiler: ReportDslCompiler | None = None,
         custom_content_resolver: CustomContentResolver | None = None,
+        dataset_execution_service: DatasetExecutionService | None = None,
         schema_gateway: ReportDslSchemaGateway | None = None,
     ) -> None:
         self.template_repository = template_repository
@@ -47,6 +49,7 @@ class ReportGenerationService:
         self.compiler = compiler or ReportDslCompiler()
         self.schema_gateway = schema_gateway or ReportDslSchemaGateway()
         self.custom_content_resolver = custom_content_resolver or CustomContentResolver(schema_gateway=self.schema_gateway)
+        self.dataset_execution_service = dataset_execution_service
 
     def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> TemplateInstance:
         try:
@@ -76,13 +79,17 @@ class ReportGenerationService:
             raise NotFoundError("Template instance not found")
         template = self._resolve_template(template_instance)
         report_id = f"rpt_{uuid.uuid4().hex[:12]}"
-        custom = self.custom_content_resolver.resolve(template_instance=template_instance)
+        custom = self.custom_content_resolver.resolve(template_instance=template_instance, user_id=user_id)
+        datasets = self.dataset_execution_service.resolve(template_instance=template_instance, user_id=user_id) if self.dataset_execution_service else {}
         report = self.compiler.compile(
             report_id=report_id,
             template=template,
             template_instance=template_instance,
+            dataset_results=datasets,
             custom_catalogs=custom.catalogs,
             custom_sections=custom.sections,
+            custom_slides=custom.slides,
+            custom_components=custom.components,
         )
         self._validate_report(report)
         instance = self.report_instance_repository.create(
@@ -147,7 +154,7 @@ class ReportGenerationService:
         template_instance = self.template_instance_repository.get(report_instance.template_instance_id, user_id=user_id)
         if template_instance is None:
             raise NotFoundError("Template instance not found")
-        section = find_template_instance_section(template_instance.catalogs, section_id)
+        section = find_template_instance_section(template_instance.catalogs, section_id, chapters=template_instance.chapters)
         if section is None:
             raise NotFoundError("Section not found")
         preview = copy.deepcopy(section)

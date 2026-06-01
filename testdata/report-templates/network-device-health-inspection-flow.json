@@ -1,0 +1,63 @@
+{
+  "id": "tpl_network_device_health_inspection_flow",
+  "category": "network_inspection",
+  "name": "网络设备健康评估巡检报告",
+  "description": "面向运维巡检场景的连续阅读型健康评估报告。",
+  "schemaVersion": "template.v3",
+  "structureType": "flow",
+  "parameters": [
+    {"id": "reportDate", "label": "巡检日期", "inputType": "date", "required": true, "multi": false, "interactionMode": "form", "priority": 0, "defaultValue": [{"label": "2026-06-01", "value": "2026-06-01", "query": "'2026-06-01'"}]},
+    {"id": "scope", "label": "巡检范围", "inputType": "dynamic", "required": true, "multi": false, "interactionMode": "form", "priority": 1, "source": "/rest/parameter-options/scopes", "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}]},
+    {"id": "devices", "label": "重点设备", "inputType": "dynamic", "required": false, "multi": true, "interactionMode": "form", "priority": 2, "source": "/rest/parameter-options/devices", "defaultValue": [{"label": "核心交换机-A", "value": "core-sw-a", "query": "device_id = 'core-sw-a'"}]}
+  ],
+  "catalogs": [
+    {
+      "id": "catalog_health_overview",
+      "title": "{$scope}设备健康概览",
+      "sections": [
+        {
+          "id": "section_device_health",
+          "outline": {"requirement": "评估{@target}在{$reportDate}的健康状态，识别高负载设备。", "items": [{"id": "target", "label": "分析对象", "kind": "search_target", "required": true, "multi": false, "sourceParameterId": "scope", "widget": "select"}]},
+          "content": {
+            "datasets": [
+              {"id": "datasetDeviceHealth", "name": "设备健康明细", "sourceType": "sql", "source": "select * from network_health where {$scope} and inspection_date = {$reportDate}"},
+              {"id": "datasetAvailability", "name": "可用率趋势", "sourceType": "api", "source": "/rest/datasets/availability-trend"},
+              {"id": "datasetAiAdvice", "name": "智能建议配置样例", "sourceType": "llm", "source": "summarize device health"},
+              {"id": "datasetComposed", "name": "组合配置样例", "sourceType": "compose", "source": "datasetDeviceHealth + datasetAvailability", "dependsOn": ["datasetDeviceHealth", "datasetAvailability"]}
+            ],
+            "presentation": {
+              "kind": "mixed",
+              "blocks": [
+                {"id": "textHealthSummary", "type": "text", "title": "巡检结论", "properties": {"template": "{$scope}巡检完成，首台重点设备为{#datasetDeviceHealth.device_name}。"}},
+                {"id": "tableHealthWide", "type": "table", "title": "设备健康明细", "datasetId": "datasetDeviceHealth", "properties": {"showTitle": true, "defaultDisplayRows": 20, "columns": [{"key": "device_name", "title": "设备名称", "width": "22%"}, {"key": "device_type", "title": "设备类型", "width": "14%"}, {"key": "health_score", "title": "健康评分", "align": "right"}, {"key": "status", "title": "状态"}, {"key": "cpu_usage", "title": "CPU使用率", "align": "right"}, {"key": "memory_usage", "title": "内存使用率", "align": "right"}], "mergeRows": [{"column": "device_type"}]}},
+                {"id": "chartAvailabilityLine", "type": "chart", "title": "可用率趋势", "datasetId": "datasetAvailability", "properties": {"preferredType": "line"}},
+                {"id": "compositeHealth", "type": "composite_table", "title": "设备巡检组合表", "parts": [{"id": "partHealthData", "title": "设备状态", "sourceType": "query", "datasetId": "datasetDeviceHealth", "tableLayout": {"kind": "table", "showHeader": true, "showTitle": true, "defaultDisplayRows": 10, "columns": [{"key": "device_name", "title": "设备名称"}, {"key": "status", "title": "状态"}, {"key": "health_score", "title": "健康评分"}]}}, {"id": "partHealthAdvice", "title": "巡检建议", "sourceType": "summary", "summarySpec": {"partIds": ["partHealthData"], "rows": [{"id": "risk", "title": "风险判断"}, {"id": "action", "title": "处理建议"}], "prompt": "总结风险并给出建议"}, "tableLayout": {"kind": "table", "showHeader": true, "showTitle": true, "columns": [{"key": "title", "title": "项目"}, {"key": "content", "title": "内容"}]}}]}
+              ]
+            }
+          }
+        }
+      ],
+      "subCatalogs": [
+        {
+          "id": "catalog_external_advice",
+          "title": "外部巡检建议",
+          "sections": [
+            {"id": "section_external_advice", "dynamic": {"type": "custom", "url": "/rest/dynamic-content/flow-section"}, "outline": {"requirement": "生成外部巡检建议。", "items": []}}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "catalog_device_focus",
+      "title": "{$devices}专项复核",
+      "dynamic": {"type": "foreach", "parameterId": "devices", "as": "device"},
+      "sections": [
+        {
+          "id": "section_device_focus",
+          "outline": {"requirement": "复核{$devices}的重点风险和处置建议。", "items": []},
+          "content": {"presentation": {"kind": "text", "blocks": [{"id": "textDeviceFocus", "type": "text", "properties": {"template": "{$devices}需要持续关注接口负载与内存水位。"}}]}}
+        }
+      ]
+    }
+  ]
+}

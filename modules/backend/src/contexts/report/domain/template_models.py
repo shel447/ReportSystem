@@ -719,19 +719,20 @@ def dataset_definition_from_dict(payload: dict[str, Any]) -> DatasetDefinition:
     return DatasetDefinition(
         id=str(payload.get("id") or ""),
         source_type=str(get_value(payload, DatasetDefinition, "source_type") or ""),
-        source_ref=str(get_value(payload, DatasetDefinition, "source_ref") or ""),
+        # 静态模板使用 source，运行态实例使用 sourceRef；领域对象统一保存 source_ref。
+        source_ref=str(payload.get("sourceRef") or payload.get("source") or ""),
         name=_as_optional_str(payload.get("name")),
         depends_on=[str(item) for item in list(get_value(payload, DatasetDefinition, "depends_on") or [])],
         description=_as_optional_str(payload.get("description")),
     )
 
 
-def dataset_definition_to_dict(dataset: DatasetDefinition) -> dict[str, Any]:
+def dataset_definition_to_dict(dataset: DatasetDefinition, *, runtime: bool = False) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "id": dataset.id,
     }
     set_value(payload, DatasetDefinition, "source_type", dataset.source_type)
-    set_value(payload, DatasetDefinition, "source_ref", dataset.source_ref)
+    payload["sourceRef" if runtime else "source"] = dataset.source_ref
     if dataset.name is not None:
         payload["name"] = dataset.name
     if dataset.depends_on:

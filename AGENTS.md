@@ -9,6 +9,7 @@
 - `docs/specs/` 是当前版本的业务规格来源，按模板管理、通用对话、报告生成、报告管理和文档导出等业务特性组织。这里只使用产品人员和业务用户能理解的语言描述功能、使用方式、可感知效果和限制。
 - `docs/implementation/` 是实现设计文档目录，不是源代码目录。这里记录实现团队对当前业务规格的落地设计、模块职责、实现边界和验证结果。
 - `docs/implementation/contracts/` 是技术契约目录，集中维护 API、JSON Schema、示例和字段级技术手册。
+- `docs/dev/` 是开发过程资料目录，维护测试体系、代码评审、联调脚本和开发态 fixture；这里的内容不作为业务规格或技术契约。
 - `docs/specs/changelog/YYYY.md` 是规格设计层面的年度变更记录。
 - `docs/implementation/changelog/YYYY.md` 是实现设计、编码和验证层面的年度变更记录。
 

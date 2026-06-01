@@ -9,6 +9,11 @@
 - [report-dsl.schema.json](report-dsl.schema.json)
 - [parameter-option-source-request.schema.json](parameter-option-source-request.schema.json)
 - [parameter-option-source-response.schema.json](parameter-option-source-response.schema.json)
+- [onequery-request.schema.json](onequery-request.schema.json)
+- [api-dataset-request.schema.json](api-dataset-request.schema.json)
+- [dataset-source-response.schema.json](dataset-source-response.schema.json)
+- [dynamic-custom-source-request.schema.json](dynamic-custom-source-request.schema.json)
+- [dynamic-custom-source-response.schema.json](dynamic-custom-source-response.schema.json)
 
 ## 示例
 

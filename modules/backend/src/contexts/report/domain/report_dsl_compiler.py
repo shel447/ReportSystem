@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import copy
+import re
 from datetime import datetime, timezone
 from typing import Any
 
 from .generation_models import (
+    BackCoverConfig,
     ChartComponent,
     ChartDataProperties,
     CompositeTableComponent,
     CompositeTableDataProperties,
+    DatasetExecutionResult,
     GridDefinition,
     MarkdownComponent,
     MarkdownDataProperties,
@@ -23,6 +26,8 @@ from .generation_models import (
     ReportGenerateMeta,
     ReportLayout,
     ReportSection,
+    ReportSlide,
+    ReportSlideSection,
     ReportSummary,
     TableComponent,
     TableDataProperties,
@@ -32,9 +37,12 @@ from .generation_models import (
 )
 from .template_models import ReportTemplate
 
+DATASET_PLACEHOLDER_PATTERN = re.compile(r"\{#([A-Za-z0-9_\-]+)\.([A-Za-z0-9_\-]+)\}")
+DatasetResults = dict[str, dict[str, DatasetExecutionResult]]
+
 
 class ReportDslCompiler:
-    """将实例树确定性编译为 flow Report DSL。"""
+    """将实例树确定性编译为 flow 或 paged Report DSL。"""
 
     def compile(
         self,
@@ -42,45 +50,88 @@ class ReportDslCompiler:
         report_id: str,
         template: ReportTemplate,
         template_instance: TemplateInstance,
+        dataset_results: DatasetResults | None = None,
         custom_catalogs: dict[str, ReportCatalog] | None = None,
         custom_sections: dict[str, ReportSection] | None = None,
+        custom_slides: dict[str, ReportSlide] | None = None,
+        custom_components: dict[str, list[Any]] | None = None,
     ) -> ReportDsl:
+        results = dataset_results or {}
+        custom_catalogs = custom_catalogs or {}
+        custom_sections = custom_sections or {}
+        custom_slides = custom_slides or {}
+        custom_components = custom_components or {}
         report_meta: dict[str, ReportGenerateMeta] = {}
+        today = datetime.now(timezone.utc).date().isoformat()
+        basic_info = ReportBasicInfo(
+            id=report_id,
+            schema_version="1.0.0",
+            status="Success",
+            name=_build_report_name(template=template, template_instance=template_instance),
+            report_type="PPT" if (template_instance.structure_type or "flow") == "paged" else "Word",
+            description=template.description,
+            template_id=template.id,
+            template_name=template.name,
+            create_date=f"{today}T00:00:00Z",
+            modify_date=f"{today}T00:00:00Z",
+            creator="report-system",
+            modifier="report-system",
+            category=template.category,
+        )
+        if (template_instance.structure_type or "flow") == "paged":
+            content = [
+                ReportSlideSection(
+                    id=chapter.id,
+                    title=chapter.title,
+                    slides=[
+                        self._compile_slide(
+                            slide,
+                            report_meta=report_meta,
+                            dataset_results=results,
+                            custom_sections=custom_sections,
+                            custom_slides=custom_slides,
+                            custom_components=custom_components,
+                        )
+                        for slide in list(chapter.slides or [])
+                    ],
+                )
+                for chapter in list(template_instance.chapters or [])
+            ]
+            return ReportDsl(
+                structure_type="paged",
+                basic_info=basic_info,
+                content=content,
+                back_cover=BackCoverConfig(text="谢谢"),
+                report_meta=report_meta,
+            )
         catalogs = [
             self._compile_catalog(
                 item,
                 report_meta=report_meta,
-                custom_catalogs=custom_catalogs or {},
-                custom_sections=custom_sections or {},
+                dataset_results=results,
+                custom_catalogs=custom_catalogs,
+                custom_sections=custom_sections,
             )
             for item in template_instance.catalogs
         ]
-        today = datetime.now(timezone.utc).date().isoformat()
         return ReportDsl(
             structure_type="flow",
-            basic_info=ReportBasicInfo(
-                id=report_id,
-                schema_version="1.0.0",
-                status="Success",
-                name=_build_report_name(template=template, template_instance=template_instance),
-                report_type="Word",
-                description=template.description,
-                template_id=template.id,
-                template_name=template.name,
-                create_date=f"{today}T00:00:00Z",
-                modify_date=f"{today}T00:00:00Z",
-                creator="report-system",
-                modifier="report-system",
-                category=template.category,
-            ),
+            basic_info=basic_info,
             catalogs=catalogs,
             summary=ReportSummary(id="summary_report", overview=_build_report_summary(catalogs)),
             report_meta=report_meta,
             layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
         )
 
-    def compile_section(self, section) -> tuple[ReportSection, ReportGenerateMeta]:
-        components, summary, additional_infos = _build_section_components(section)
+    def compile_section(
+        self,
+        section,
+        *,
+        dataset_results: dict[str, DatasetExecutionResult] | None = None,
+        custom_components: list[Any] | None = None,
+    ) -> tuple[ReportSection, ReportGenerateMeta]:
+        components, summary, additional_infos = _build_section_components(section, dataset_results or {})
+        components.extend(copy.deepcopy(list(custom_components or [])))
         return (
             ReportSection(
                 id=section.id,
@@ -97,14 +148,7 @@ class ReportDslCompiler:
             ),
         )
 
-    def _compile_catalog(
-        self,
-        catalog,
-        *,
-        report_meta: dict[str, ReportGenerateMeta],
-        custom_catalogs: dict[str, ReportCatalog],
-        custom_sections: dict[str, ReportSection],
-    ) -> ReportCatalog:
+    def _compile_catalog(self, catalog, *, report_meta, dataset_results, custom_catalogs, custom_sections) -> ReportCatalog:
         custom_catalog = custom_catalogs.get(str(catalog.id or ""))
         if custom_catalog is not None:
             resolved = copy.deepcopy(custom_catalog)
@@ -116,15 +160,11 @@ class ReportDslCompiler:
             if custom_section is not None:
                 resolved = copy.deepcopy(custom_section)
                 sections.append(resolved)
-                report_meta[resolved.id] = ReportGenerateMeta(
-                    status="Success",
-                    question=str(section.outline.rendered_requirement or section.outline.requirement or ""),
-                    additional_infos=[],
-                )
-                continue
-            compiled, meta = self.compile_section(section)
-            sections.append(compiled)
-            report_meta[section.id] = meta
+                report_meta[resolved.id] = _custom_meta(section)
+            else:
+                compiled, meta = self.compile_section(section, dataset_results=dataset_results.get(section.id, {}))
+                sections.append(compiled)
+                report_meta[section.id] = meta
         return ReportCatalog(
             id=catalog.id,
             name=catalog.rendered_title or catalog.title or catalog.id,
@@ -132,6 +172,7 @@ class ReportDslCompiler:
                 self._compile_catalog(
                     item,
                     report_meta=report_meta,
+                    dataset_results=dataset_results,
                     custom_catalogs=custom_catalogs,
                     custom_sections=custom_sections,
                 )
@@ -140,12 +181,40 @@ class ReportDslCompiler:
             sections=sections,
         )
 
+    def _compile_slide(self, slide, *, report_meta, dataset_results, custom_sections, custom_slides, custom_components) -> ReportSlide:
+        custom_slide = custom_slides.get(str(slide.id or ""))
+        if custom_slide is not None:
+            return copy.deepcopy(custom_slide)
+        components: list[Any] = []
+        for section in list(slide.sections or []):
+            custom_section = custom_sections.get(str(section.id or ""))
+            if custom_section is not None:
+                components.extend(copy.deepcopy(custom_section.components))
+                report_meta[section.id] = _custom_meta(section)
+                continue
+            compiled, meta = self.compile_section(
+                section,
+                dataset_results=dataset_results.get(section.id, {}),
+                custom_components=custom_components.get(section.id, []),
+            )
+            components.extend(compiled.components)
+            report_meta[section.id] = meta
+        return ReportSlide(
+            id=slide.id,
+            title=slide.title,
+            layout=ReportLayout(type="grid", auto_layout=True, grid=GridDefinition(cols=12, row_height=24)),
+            components=components,
+        )
+
 
 def build_generation_progress(report: ReportDsl) -> tuple[int, int]:
+    if (report.structure_type or "flow") == "paged":
+        slides = [slide for item in list(report.content or []) for slide in (item.slides if isinstance(item, ReportSlideSection) else [item])]
+        return len(slides), len(report.content or [])
     return len(_collect_section_titles(list(report.catalogs or []))), _count_catalogs(list(report.catalogs or []))
 
 
-def find_template_instance_section(catalogs, section_id: str):
+def find_template_instance_section(catalogs, section_id: str, *, chapters=None):
     for catalog in list(catalogs or []):
         for section in list(catalog.sections or []):
             if str(section.id or "") == section_id:
@@ -153,163 +222,178 @@ def find_template_instance_section(catalogs, section_id: str):
         found = find_template_instance_section(catalog.sub_catalogs, section_id)
         if found is not None:
             return found
+    for chapter in list(chapters or []):
+        for slide in list(chapter.slides or []):
+            for section in list(slide.sections or []):
+                if str(section.id or "") == section_id:
+                    return section
     return None
 
 
 def resource_status_from_dsl(report: ReportDsl) -> str:
     status = str(report.basic_info.status or "").strip()
-    if status == "Running":
-        return "generating"
-    if status == "Failed":
-        return "failed"
-    return "available"
+    return "generating" if status == "Running" else "failed" if status == "Failed" else "available"
 
 
-def _build_section_components(section) -> tuple[list[Any], str, list[ReportAdditionalInfo]]:
-    requirement_text = str(section.outline.rendered_requirement or section.outline.requirement or "")
+def _build_section_components(section, dataset_results: dict[str, DatasetExecutionResult]) -> tuple[list[Any], str, list[ReportAdditionalInfo]]:
+    requirement = str(section.outline.rendered_requirement or section.outline.requirement or "")
     additional_infos = [
         ReportAdditionalInfo(type="SQL", value=str(binding.resolved_query or "").strip())
         for binding in list(section.runtime_context.bindings or [])
         if str(binding.resolved_query or "").strip()
     ]
-    components = [
+    components: list[Any] = [
         MarkdownComponent(
             id=f"component_{section.id}_markdown",
             type="markdown",
-            data_properties=MarkdownDataProperties(data_type="static", content=_build_markdown_content(section, requirement_text)),
+            data_properties=MarkdownDataProperties(data_type="static", content=_build_markdown_content(section, requirement)),
         )
     ]
-    components.extend(_build_presentation_components(section))
-    return components, (requirement_text or str(section.id or ""))[:160], additional_infos
-
-
-def _build_markdown_content(section, requirement_text: str) -> str:
-    lines = [f"## {_section_title(section)}".strip(), "", requirement_text or "本章节基于模板诉求自动生成。", ""]
-    if section.outline.items:
-        lines.extend(["### 诉求要素", ""])
-        for item in section.outline.items:
-            values = [str(value.label or value.value or "") for value in item.values or []]
-            lines.append(f"- {item.label}: {'、'.join([value for value in values if value]) or '未设置'}")
-        lines.append("")
-    lines.extend(["### 生成说明", "", "当前实现按正式模板实例生成报告 DSL，并保留诉求文本与执行绑定证据。"])
-    return "\n".join(lines).strip()
-
-
-def _build_presentation_components(section) -> list[Any]:
-    components: list[Any] = []
     for block in list(section.content.presentation.blocks or []):
-        if block.type == "composite_table":
-            components.append(_build_composite_table_component(block))
-        elif block.type == "text":
-            components.append(_build_text_component(block))
+        if block.type == "text":
+            components.append(_build_text_component(block, dataset_results))
         elif block.type == "table":
-            components.append(_build_table_component(block))
+            components.append(_build_table_component(block, dataset_results))
         elif block.type == "chart":
-            components.append(_build_chart_component(block))
-    return components
+            components.append(_build_chart_component(block, dataset_results))
+        elif block.type == "composite_table":
+            components.append(_build_composite_table_component(block, dataset_results))
+    return components, (requirement or str(section.id or ""))[:160], additional_infos
 
 
-def _build_text_component(block) -> TextComponent:
-    return TextComponent(
-        id=str(block.id or ""),
-        type="text",
-        data_properties=TextDataProperties(
-            data_type="static",
-            content=str(getattr(block, "content", None) or ""),
-            title=str(block.title or ""),
-        ),
+def _build_markdown_content(section, requirement: str) -> str:
+    return f"## {_section_title(section)}\n\n{requirement or '本章节基于模板诉求自动生成。'}"
+
+
+def _build_text_component(block, datasets) -> TextComponent:
+    content = DATASET_PLACEHOLDER_PATTERN.sub(
+        lambda match: _dataset_value(datasets, match.group(1), match.group(2)),
+        str(getattr(block, "content", None) or ""),
     )
+    return TextComponent(id=str(block.id or ""), type="text", data_properties=TextDataProperties(data_type="static", content=content, title=str(block.title or "")))
 
 
-def _build_table_component(block) -> TableComponent:
-    columns = _table_columns(getattr(getattr(block, "properties", None), "columns", []))
-    data: list[dict[str, Any]] = []
+def _build_table_component(block, datasets) -> TableComponent:
+    result = datasets.get(str(block.dataset_id or "")) or DatasetExecutionResult(dataset_id=str(block.dataset_id or ""))
+    columns = _table_columns(getattr(getattr(block, "properties", None), "columns", [])) or _result_columns(result)
+    rows = copy.deepcopy(result.rows)
+    definitions = list(getattr(getattr(block, "properties", None), "merge_rows", []) or [])
     return TableComponent(
         id=str(block.id or ""),
         type="table",
         data_properties=TableDataProperties(
-            data_type="datasource",
+            data_type="static",
             source_id=str(block.dataset_id or ""),
             title=str(block.title or ""),
             columns=columns,
             merge_columns=list(getattr(getattr(block, "properties", None), "merge_columns", []) or []),
-            merge_rows=_build_merge_rows(
-                data=data,
-                columns=columns,
-                definitions=list(getattr(getattr(block, "properties", None), "merge_rows", []) or []),
-            ),
-            data=data,
+            merge_rows=_build_merge_rows(data=rows, columns=columns, definitions=definitions),
+            data=rows,
         ),
     )
 
 
-def _build_chart_component(block) -> ChartComponent:
+def _build_chart_component(block, datasets) -> ChartComponent:
+    result = datasets.get(str(block.dataset_id or "")) or DatasetExecutionResult(dataset_id=str(block.dataset_id or ""))
+    columns = _result_columns(result)
+    series_type = str(getattr(getattr(block, "properties", None), "preferred_type", None) or "line")
     return ChartComponent(
         id=str(block.id or ""),
         type="chart",
-        data_properties=ChartDataProperties(data_type="datasource", source_id=str(block.dataset_id or ""), title=str(block.title or "")),
+        data_properties=ChartDataProperties(
+            data_type="static",
+            source_id=str(block.dataset_id or ""),
+            title=str(block.title or ""),
+            columns=columns,
+            data=copy.deepcopy(result.rows),
+            series=_chart_series(series_type, columns),
+        ),
     )
 
 
-def _build_composite_table_component(block) -> CompositeTableComponent:
+def _build_composite_table_component(block, datasets) -> CompositeTableComponent:
     return CompositeTableComponent(
         id=str(block.id or ""),
         type="compositeTable",
-        tables=[_build_composite_table_part(part) for part in list(block.parts or [])],
+        tables=[_build_composite_table_part(part, datasets) for part in list(block.parts or [])],
         data_properties=CompositeTableDataProperties(data_type="static", title=str(block.title or "")),
     )
 
 
-def _build_composite_table_part(part) -> TableComponent:
+def _build_composite_table_part(part, datasets) -> TableComponent:
     columns = _table_columns(getattr(getattr(part, "table_layout", None), "columns", []))
     if str(part.source_type or "") == "summary":
         rows = [{"title": str(row.title or ""), "content": "待补充"} for row in list((part.summary_spec.rows if part.summary_spec else []) or [])]
-        return TableComponent(
-            id=str(part.id or ""),
-            type="table",
-            data_properties=TableDataProperties(
-                data_type="static",
-                title=str(part.title or ""),
-                columns=columns,
-                merge_rows=_build_merge_rows(
-                    data=rows,
-                    columns=columns,
-                    definitions=list(getattr(getattr(part, "table_layout", None), "merge_rows", []) or []),
-                ),
-                data=rows,
-            ),
-        )
-    data: list[dict[str, Any]] = []
+    else:
+        result = datasets.get(str(part.dataset_id or "")) or DatasetExecutionResult(dataset_id=str(part.dataset_id or ""))
+        columns = columns or _result_columns(result)
+        rows = copy.deepcopy(result.rows)
+    definitions = list(getattr(getattr(part, "table_layout", None), "merge_rows", []) or [])
     return TableComponent(
         id=str(part.id or ""),
         type="table",
         data_properties=TableDataProperties(
-            data_type="datasource",
+            data_type="static",
             source_id=str(part.dataset_id or ""),
             title=str(part.title or ""),
             columns=columns,
             merge_columns=list(getattr(getattr(part, "table_layout", None), "merge_columns", []) or []),
-            merge_rows=_build_merge_rows(
-                data=data,
-                columns=columns,
-                definitions=list(getattr(getattr(part, "table_layout", None), "merge_rows", []) or []),
-            ),
-            data=data,
+            merge_rows=_build_merge_rows(data=rows, columns=columns, definitions=definitions),
+            data=rows,
         ),
     )
 
 
 def _table_columns(columns) -> list[ReportColumn]:
+    return [ReportColumn(key=str(item.key or ""), title=str(item.title or ""), width=getattr(item, "width", None), align=getattr(item, "align", None)) for item in list(columns or [])]
+
+
+def _result_columns(result: DatasetExecutionResult) -> list[ReportColumn]:
+    columns = list(result.columns or [])
+    if not columns and result.rows:
+        columns = [{"key": key, "title": key} for key in result.rows[0]]
     return [
-        ReportColumn(key=str(item.key or ""), title=str(item.title or ""), width=getattr(item, "width", None), align=getattr(item, "align", None))
-        for item in list(columns or [])
+        ReportColumn(
+            key=str(item.get("key") or item.get("name") or ""),
+            title=str(item.get("title") or item.get("label") or item.get("key") or item.get("name") or ""),
+            type=_normalize_column_type(item.get("type")),
+        )
+        for item in columns
     ]
 
 
-def _build_merge_rows(*, data: list[dict[str, Any]], columns: list[ReportColumn], definitions) -> list[MergeRowInfo]:
+def _normalize_column_type(value: Any) -> str | None:
+    normalized = str(value or "").strip()
+    aliases = {
+        "number": "double",
+        "integer": "int",
+        "datetime": "timestamp",
+        "bool": "boolean",
+    }
+    return aliases.get(normalized, normalized or None)
+
+
+def _chart_series(series_type: str, columns: list[ReportColumn]) -> list[dict[str, Any]]:
+    keys = [column.key for column in columns if column.key]
+    if len(keys) < 2:
+        return []
+    category, metrics = keys[0], keys[1:]
+    if series_type == "pie":
+        return [{"type": "pie", "encode": {"name": category, "value": metrics[0]}, "name": metrics[0]}]
+    if series_type not in {"line", "bar", "scatter"}:
+        series_type = "line"
+    return [{"type": series_type, "encode": {"x": category, "y": metric}, "name": metric} for metric in metrics]
+
+
+def _dataset_value(datasets, dataset_id: str, field: str) -> str:
+    rows = list((datasets.get(dataset_id) or DatasetExecutionResult(dataset_id=dataset_id)).rows or [])
+    return str(rows[0].get(field, "")) if rows else ""
+
+
+def _build_merge_rows(*, data, columns, definitions) -> list[MergeRowInfo]:
     if not data or not definitions:
         return []
-    keys = {str(column.key or "") for column in columns if str(column.key or "")}
+    keys = {column.key for column in columns if column.key}
     result: list[MergeRowInfo] = []
     for definition in definitions:
         column = str(getattr(definition, "column", "") or "")
@@ -327,17 +411,17 @@ def _build_merge_rows(*, data: list[dict[str, Any]], columns: list[ReportColumn]
     return result
 
 
-def _build_report_name(*, template: ReportTemplate, template_instance: TemplateInstance) -> str:
+def _build_report_name(*, template, template_instance) -> str:
     values = [str(parameter.values[0].label or parameter.values[0].value or "") for parameter in template_instance.parameters if parameter.values][:2]
     return f"{' '.join([value for value in values if value])} {template.name}".strip() if values else template.name
 
 
-def _build_report_summary(catalogs: list[ReportCatalog]) -> str:
+def _build_report_summary(catalogs) -> str:
     titles = _collect_section_titles(catalogs)
     return f"报告已生成，共包含 {len(titles)} 个章节：{'、'.join(titles[:5])}" if titles else "报告已生成。"
 
 
-def _collect_section_titles(catalogs: list[ReportCatalog]) -> list[str]:
+def _collect_section_titles(catalogs) -> list[str]:
     titles: list[str] = []
     for catalog in catalogs:
         titles.extend([str(section.title or "").strip() for section in list(catalog.sections or []) if str(section.title or "").strip()])
@@ -345,11 +429,15 @@ def _collect_section_titles(catalogs: list[ReportCatalog]) -> list[str]:
     return titles
 
 
-def _count_catalogs(catalogs: list[ReportCatalog]) -> int:
+def _count_catalogs(catalogs) -> int:
     return sum(1 + _count_catalogs(list(catalog.sub_catalogs or [])) for catalog in catalogs)
 
 
-def _record_custom_catalog_meta(catalog: ReportCatalog, report_meta: dict[str, ReportGenerateMeta], *, prompt: str) -> None:
+def _custom_meta(section) -> ReportGenerateMeta:
+    return ReportGenerateMeta(status="Success", question=str(section.outline.rendered_requirement or section.outline.requirement or ""), additional_infos=[])
+
+
+def _record_custom_catalog_meta(catalog, report_meta, *, prompt: str) -> None:
     for section in list(catalog.sections or []):
         report_meta[section.id] = ReportGenerateMeta(status="Success", question=prompt, additional_infos=[])
     for sub_catalog in list(catalog.sub_catalogs or []):

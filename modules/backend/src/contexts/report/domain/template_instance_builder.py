@@ -9,6 +9,7 @@ from typing import Any
 
 from .template_models import (
     CatalogDefinition,
+    ChapterDefinition,
     CompositeTablePart,
     DatasetDefinition,
     DynamicDefinition,
@@ -22,6 +23,7 @@ from .template_models import (
     RequirementItem,
     SectionDefinition,
     SectionContentDefinition,
+    SlideDefinition,
     catalog_definition_from_dict,
     parameter_from_dict,
     report_template_from_dict,
@@ -34,11 +36,13 @@ from .generation_models import (
     SectionRuntimeContext,
     TemplateInstance,
     TemplateInstanceCatalog,
+    TemplateInstanceChapter,
     TemplateInstanceCompositeTablePart,
     TemplateInstancePresentationBlock,
     TemplateInstancePresentationDefinition,
     TemplateInstanceSection,
     TemplateInstanceSectionContent,
+    TemplateInstanceSlide,
     WarningItem,
     template_instance_to_dict,
 )
@@ -104,7 +108,7 @@ def instantiate_template_instance(
     current_parameter_models = [copy.deepcopy(item) for item in list(current_parameters or [])]
     root_parameter_definitions = list(template_model.parameters)
     all_parameter_definitions = collect_template_parameters(template_model)
-    all_current_parameters = collect_instance_parameters(parameters=current_parameter_models, catalogs=None)
+    all_current_parameters = collect_instance_parameters(parameters=current_parameter_models, catalogs=None, chapters=None)
     effective_values = merge_parameter_values(
         parameter_definitions=all_parameter_definitions,
         current_values=parameters_to_value_map(all_current_parameters),
@@ -115,13 +119,20 @@ def instantiate_template_instance(
         effective_values=effective_values,
         current_parameters=all_current_parameters,
     )
-    catalogs = build_catalog_instances(
+    is_paged = (template_model.structure_type or "flow") == "paged"
+    catalogs = [] if is_paged else build_catalog_instances(
         template=template_model,
         root_parameters=root_parameters,
         effective_values=effective_values,
         current_parameters=all_current_parameters,
     )
-    all_materialized_parameters = collect_instance_parameters(parameters=root_parameters, catalogs=catalogs)
+    chapters = build_chapter_instances(
+        template=template_model,
+        root_parameters=root_parameters,
+        effective_values=effective_values,
+        current_parameters=all_current_parameters,
+    ) if is_paged else []
+    all_materialized_parameters = collect_instance_parameters(parameters=root_parameters, catalogs=catalogs, chapters=chapters)
     missing_parameter_ids = [
         parameter.id
         for parameter in all_materialized_parameters
@@ -143,9 +154,11 @@ def instantiate_template_instance(
         status=status,
         capture_stage=capture_stage,
         revision=revision,
+        structure_type=template_model.structure_type or "flow",
         parameters=root_parameters,
         parameter_confirmation=confirmation,
         catalogs=catalogs,
+        chapters=chapters,
         warnings=[copy.deepcopy(item) for item in list(warnings or [])],
         created_at=created_at or now,
         updated_at=updated_at or now,
@@ -226,6 +239,186 @@ def build_catalog_instances(
             )
         )
     return catalogs
+
+
+def build_chapter_instances(
+    *,
+    template: ReportTemplate,
+    root_parameters: list[Parameter],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+) -> list[TemplateInstanceChapter]:
+    chapters: list[TemplateInstanceChapter] = []
+    inherited_values = parameters_to_value_map(root_parameters)
+    for chapter in template.chapters:
+        chapters.extend(
+            expand_chapter_instances(
+                chapter=chapter,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+            )
+        )
+    return chapters
+
+
+def expand_chapter_instances(
+    *,
+    chapter: ChapterDefinition,
+    inherited_values: dict[str, list[ParameterValue]],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+) -> list[TemplateInstanceChapter]:
+    dynamic = chapter.dynamic
+    if dynamic is None or dynamic.type not in {"foreach", "foreachCase"}:
+        return [
+            build_chapter_instance(
+                chapter=chapter,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=None,
+            )
+        ]
+    values = list(inherited_values.get(dynamic.parameter_id or "") or [])
+    if not dynamic.parameter_id or not values:
+        return []
+    chapters: list[TemplateInstanceChapter] = []
+    for value in values:
+        if dynamic.type == "foreachCase" and _match_foreach_case_branch(dynamic, value) is None:
+            continue
+        scoped = copy.deepcopy(inherited_values)
+        scoped[dynamic.parameter_id] = [_normalize_parameter_value(value)]
+        chapters.append(
+            build_chapter_instance(
+                chapter=chapter,
+                inherited_values=scoped,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=_build_dynamic_context(
+                    dynamic_type=dynamic.type,
+                    parameter_id=dynamic.parameter_id,
+                    value=value,
+                    case_id=(_match_foreach_case_branch(dynamic, value).id if dynamic.type == "foreachCase" else None),
+                ),
+            )
+        )
+    return chapters
+
+
+def build_chapter_instance(
+    *,
+    chapter: ChapterDefinition,
+    inherited_values: dict[str, list[ParameterValue]],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+    dynamic_context: DynamicContext | None,
+) -> TemplateInstanceChapter:
+    parameters = materialize_parameters(
+        parameter_definitions=chapter.parameters,
+        effective_values=effective_values,
+        current_parameters=current_parameters,
+    )
+    visible = {**copy.deepcopy(inherited_values), **parameters_to_value_map(parameters)}
+    slides: list[TemplateInstanceSlide] = []
+    for slide in chapter.slides:
+        slides.extend(
+            expand_slide_instances(
+                slide=slide,
+                inherited_values=visible,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+            )
+        )
+    return TemplateInstanceChapter(
+        id=_render_scoped_id(chapter.id, dynamic_context),
+        title=render_parameter_text(chapter.title or "", visible) or None,
+        description=chapter.description,
+        implicit=chapter.implicit,
+        parameters=parameters,
+        dynamic_context=dynamic_context,
+        slides=slides,
+    )
+
+
+def expand_slide_instances(
+    *,
+    slide: SlideDefinition,
+    inherited_values: dict[str, list[ParameterValue]],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+) -> list[TemplateInstanceSlide]:
+    dynamic = slide.dynamic
+    if dynamic is None or dynamic.type == "custom":
+        return [
+            build_slide_instance(
+                slide=slide,
+                inherited_values=inherited_values,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=_build_custom_dynamic_context(url=dynamic.url, node_type="slide") if dynamic else None,
+            )
+        ]
+    values = list(inherited_values.get(dynamic.parameter_id or "") or [])
+    if dynamic.type not in {"foreach", "foreachCase"} or not dynamic.parameter_id or not values:
+        return []
+    slides: list[TemplateInstanceSlide] = []
+    for value in values:
+        if dynamic.type == "foreachCase" and _match_foreach_case_branch(dynamic, value) is None:
+            continue
+        scoped = copy.deepcopy(inherited_values)
+        scoped[dynamic.parameter_id] = [_normalize_parameter_value(value)]
+        slides.append(
+            build_slide_instance(
+                slide=slide,
+                inherited_values=scoped,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+                dynamic_context=_build_dynamic_context(
+                    dynamic_type=dynamic.type,
+                    parameter_id=dynamic.parameter_id,
+                    value=value,
+                    case_id=(_match_foreach_case_branch(dynamic, value).id if dynamic.type == "foreachCase" else None),
+                ),
+            )
+        )
+    return slides
+
+
+def build_slide_instance(
+    *,
+    slide: SlideDefinition,
+    inherited_values: dict[str, list[ParameterValue]],
+    effective_values: dict[str, list[ParameterValue]],
+    current_parameters: list[Parameter] | None,
+    dynamic_context: DynamicContext | None,
+) -> TemplateInstanceSlide:
+    parameters = materialize_parameters(
+        parameter_definitions=slide.parameters,
+        effective_values=effective_values,
+        current_parameters=current_parameters,
+    )
+    visible = {**copy.deepcopy(inherited_values), **parameters_to_value_map(parameters)}
+    sections: list[TemplateInstanceSection] = []
+    for section in slide.sections:
+        sections.extend(
+            expand_section_instances(
+                section=section,
+                inherited_values=visible,
+                effective_values=effective_values,
+                current_parameters=current_parameters,
+            )
+        )
+    return TemplateInstanceSlide(
+        id=_render_scoped_id(slide.id, dynamic_context),
+        title=render_parameter_text(slide.title or "", visible) or None,
+        subtitle=render_parameter_text(slide.subtitle or "", visible) or None,
+        description=slide.description,
+        parameters=parameters,
+        dynamic_context=dynamic_context,
+        layout=copy.deepcopy(slide.layout),
+        sections=sections,
+    )
 
 
 def expand_catalog_instances(
@@ -676,6 +869,10 @@ def build_execution_bindings(
 ) -> list[ExecutionBinding]:
     bindings: list[ExecutionBinding] = []
     for dataset in section.content.datasets:
+        # compose 是数据集编排声明，不是可独立执行的数据源，不生成参数执行绑定。
+        # 首版若展示块直接引用 compose，应用层执行服务会返回明确的未支持错误。
+        if dataset.source_type == "compose":
+            continue
         for item in item_instances:
             values = _normalize_parameter_value_list(item.values)
             bindings.append(
@@ -700,6 +897,8 @@ def collect_template_parameters(template: ReportTemplate) -> list[Parameter]:
     parameters: list[Parameter] = [copy.deepcopy(item) for item in template_model.parameters]
     for catalog in template_model.catalogs:
         parameters.extend(_collect_catalog_template_parameters(catalog))
+    for chapter in template_model.chapters:
+        parameters.extend(_collect_chapter_template_parameters(chapter))
     return parameters
 
 
@@ -727,14 +926,31 @@ def _collect_section_template_parameters(section: SectionDefinition) -> list[Par
     return parameters
 
 
+def _collect_chapter_template_parameters(chapter: ChapterDefinition) -> list[Parameter]:
+    parameters = copy.deepcopy(chapter.parameters)
+    for slide in chapter.slides:
+        parameters.extend(_collect_slide_template_parameters(slide))
+    return parameters
+
+
+def _collect_slide_template_parameters(slide: SlideDefinition) -> list[Parameter]:
+    parameters = copy.deepcopy(slide.parameters)
+    for section in slide.sections:
+        parameters.extend(_collect_section_template_parameters(section))
+    return parameters
+
+
 def collect_instance_parameters(
     *,
     parameters: list[Parameter] | None,
     catalogs: list[TemplateInstanceCatalog] | None,
+    chapters: list[TemplateInstanceChapter] | None = None,
 ) -> list[Parameter]:
     collected = copy.deepcopy(list(parameters or []))
     for catalog in list(catalogs or []):
         collected.extend(_collect_catalog_instance_parameters(catalog))
+    for chapter in list(chapters or []):
+        collected.extend(_collect_chapter_instance_parameters(chapter))
     return collected
 
 
@@ -744,6 +960,15 @@ def _collect_catalog_instance_parameters(catalog: TemplateInstanceCatalog) -> li
         collected.extend(copy.deepcopy(section.parameters))
     for sub_catalog in catalog.sub_catalogs:
         collected.extend(_collect_catalog_instance_parameters(sub_catalog))
+    return collected
+
+
+def _collect_chapter_instance_parameters(chapter: TemplateInstanceChapter) -> list[Parameter]:
+    collected = copy.deepcopy(list(chapter.parameters or []))
+    for slide in list(chapter.slides or []):
+        collected.extend(copy.deepcopy(list(slide.parameters or [])))
+        for section in list(slide.sections or []):
+            collected.extend(copy.deepcopy(list(section.parameters or [])))
     return collected
 
 
@@ -776,6 +1001,11 @@ def _build_custom_dynamic_context(*, url: str | None, node_type: str) -> Dynamic
         url=url,
         node_type=node_type,
     )
+
+
+def _render_scoped_id(identifier: str, dynamic_context: DynamicContext | None) -> str:
+    value = dynamic_context.item_value.value if dynamic_context and dynamic_context.item_value else None
+    return f"{identifier}_{value}" if value not in (None, "") else identifier
 
 
 def build_resolved_query(values: list[ParameterValue]) -> str:

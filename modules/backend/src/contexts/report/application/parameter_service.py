@@ -30,13 +30,12 @@ class ReportParameterService:
         source: str,
         context_values: dict[str, list[ParameterValue]],
     ) -> ParameterOptionsResult:
-        # 报告系统始终通过统一的提交契约调用动态源，即使是本地演示源也不例外，
-        # 这样对话层只需要面对一种返回结构。
+        # 动态候选值始终通过统一外部契约解析，对话层只面对一种返回结构。
         request_payload = {
             parameter_id: [{"label": item.label, "value": item.value, "query": item.query} for item in values]
             for parameter_id, values in dict(context_values or {}).items()
         }
-        return _to_parameter_options_result(self.options_gateway.resolve(source=source, request_payload=request_payload))
+        return _to_parameter_options_result(self.options_gateway.resolve(source=source, request_payload=request_payload, user_id=user_id))
 
     def resolve(
         self,
@@ -145,6 +144,7 @@ class ReportParameterService:
                     for parameter in ParameterResolver.collect_instance_parameters(
                         parameters=template_instance.parameters,
                         catalogs=template_instance.catalogs,
+                        chapters=template_instance.chapters,
                     )
                     if parameter.id == next_parameter.id
                 ),
@@ -169,6 +169,7 @@ class ReportParameterService:
                 parameters=ParameterResolver.collect_instance_parameters(
                     parameters=template_instance.parameters,
                     catalogs=template_instance.catalogs,
+                    chapters=template_instance.chapters,
                 ),
                 report_context=ReportContext(template_instance=template_instance),
             ),

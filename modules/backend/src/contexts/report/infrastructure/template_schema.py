@@ -17,6 +17,8 @@ TEMPLATE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-template.schema.json
 TEMPLATE_INSTANCE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "template-instance.schema.json"
 PARAMETER_OPTION_REQUEST_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-request.schema.json"
 PARAMETER_OPTION_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-response.schema.json"
+DATASET_SOURCE_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "dataset-source-response.schema.json"
+DYNAMIC_CUSTOM_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "dynamic-custom-source-response.schema.json"
 REPORT_DSL_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-dsl.schema.json"
 
 
@@ -27,6 +29,8 @@ def _read_schema(path: Path) -> dict[str, Any]:
 _TEMPLATE_SCHEMA = _read_schema(TEMPLATE_SCHEMA_PATH)
 _TEMPLATE_INSTANCE_SCHEMA = _read_schema(TEMPLATE_INSTANCE_SCHEMA_PATH)
 _PARAMETER_OPTION_RESPONSE_SCHEMA = _read_schema(PARAMETER_OPTION_RESPONSE_SCHEMA_PATH)
+_DATASET_SOURCE_RESPONSE_SCHEMA = _read_schema(DATASET_SOURCE_RESPONSE_SCHEMA_PATH)
+_DYNAMIC_CUSTOM_RESPONSE_SCHEMA = _read_schema(DYNAMIC_CUSTOM_RESPONSE_SCHEMA_PATH)
 _REPORT_DSL_SCHEMA = _read_schema(REPORT_DSL_SCHEMA_PATH)
 
 _TEMPLATE_VALIDATOR = Draft202012Validator(_TEMPLATE_SCHEMA)
@@ -53,6 +57,14 @@ _REPORT_CATALOG_VALIDATOR = Draft202012Validator(
 _REPORT_SECTION_VALIDATOR = Draft202012Validator(
     {"$schema": _REPORT_DSL_SCHEMA.get("$schema"), "$defs": _REPORT_DSL_SCHEMA.get("$defs", {}), "$ref": "#/$defs/Section"}
 )
+_REPORT_SLIDE_VALIDATOR = Draft202012Validator(
+    {"$schema": _REPORT_DSL_SCHEMA.get("$schema"), "$defs": _REPORT_DSL_SCHEMA.get("$defs", {}), "$ref": "#/$defs/Slide"}
+)
+_REPORT_COMPONENT_VALIDATOR = Draft202012Validator(
+    {"$schema": _REPORT_DSL_SCHEMA.get("$schema"), "$defs": _REPORT_DSL_SCHEMA.get("$defs", {}), "$ref": "#/$defs/BIEngineComponent"}
+)
+_DATASET_SOURCE_RESPONSE_VALIDATOR = Draft202012Validator(_DATASET_SOURCE_RESPONSE_SCHEMA)
+_DYNAMIC_CUSTOM_RESPONSE_VALIDATOR = Draft202012Validator(_DYNAMIC_CUSTOM_RESPONSE_SCHEMA)
 
 
 def _build_template_instance_validator() -> Draft202012Validator:
@@ -104,6 +116,20 @@ class ReportDslSchemaGateway:
 
     def validate_section(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._validate(_REPORT_SECTION_VALIDATOR, payload, "custom section DSL 校验失败")
+
+    def validate_slide(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_REPORT_SLIDE_VALIDATOR, payload, "custom slide DSL 校验失败")
+
+    def validate_components(self, payload: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        for item in payload:
+            self._validate(_REPORT_COMPONENT_VALIDATOR, item, "custom component DSL 校验失败")
+        return copy.deepcopy(payload)
+
+    def validate_dataset_response(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_DATASET_SOURCE_RESPONSE_VALIDATOR, payload, "数据集响应校验失败")
+
+    def validate_dynamic_custom_response(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_DYNAMIC_CUSTOM_RESPONSE_VALIDATOR, payload, "custom dynamic 响应校验失败")
 
     @staticmethod
     def _validate(validator: Draft202012Validator, payload: dict[str, Any], prefix: str) -> dict[str, Any]:

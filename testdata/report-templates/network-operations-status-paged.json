@@ -1,0 +1,23 @@
+{
+  "id": "tpl_network_operations_status_paged",
+  "category": "network_operations",
+  "name": "网络运行状态汇报",
+  "description": "面向网络运行状态汇报的分页 PPT 模板。",
+  "schemaVersion": "template.v3",
+  "structureType": "paged",
+  "parameters": [
+    {"id": "scope", "label": "网络范围", "inputType": "dynamic", "required": true, "multi": false, "interactionMode": "form", "source": "/rest/parameter-options/scopes", "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}]},
+    {"id": "period", "label": "统计周期", "inputType": "enum", "required": true, "multi": false, "interactionMode": "form", "options": [{"label": "最近24小时", "value": "24h", "query": "'24h'"}, {"label": "最近7天", "value": "7d", "query": "'7d'"}], "defaultValue": [{"label": "最近24小时", "value": "24h", "query": "'24h'"}]}
+  ],
+  "chapters": [
+    {
+      "id": "chapter_operations",
+      "title": "{$scope}{$period}运行态势",
+      "dynamic": {"type": "foreachCase", "parameterId": "period", "as": "periodCase", "cases": [{"id": "daily", "values": ["24h"]}, {"id": "weekly", "values": ["7d"]}]},
+      "slides": [
+        {"id": "slide_traffic", "title": "流量趋势", "sections": [{"id": "section_traffic_paged", "outline": {"requirement": "展示网络流量变化。", "items": []}, "content": {"datasets": [{"id": "datasetTraffic", "sourceType": "sql", "source": "select * from network_traffic where {$scope}"}], "presentation": {"kind": "chart", "blocks": [{"id": "chartTraffic", "type": "chart", "title": "流量趋势", "datasetId": "datasetTraffic", "properties": {"preferredType": "line"}}]}}}]},
+        {"id": "slide_alarm", "title": "告警分布", "sections": [{"id": "section_alarm_paged", "outline": {"requirement": "展示告警级别分布。", "items": []}, "content": {"datasets": [{"id": "datasetAlarm", "sourceType": "sql", "source": "select * from network_alarm where {$scope}"}], "presentation": {"kind": "mixed", "blocks": [{"id": "chartAlarmBar", "type": "chart", "title": "告警数量", "datasetId": "datasetAlarm", "properties": {"preferredType": "bar"}}, {"id": "chartAlarmPie", "type": "chart", "title": "告警占比", "datasetId": "datasetAlarm", "properties": {"preferredType": "pie"}}, {"id": "tableAlarm", "type": "table", "title": "告警明细", "datasetId": "datasetAlarm", "properties": {"columns": [{"key": "level", "title": "级别"}, {"key": "count", "title": "数量"}]}}]}}}]}
+      ]
+    }
+  ]
+}

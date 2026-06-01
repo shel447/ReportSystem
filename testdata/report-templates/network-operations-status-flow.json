@@ -1,0 +1,61 @@
+{
+  "id": "tpl_network_operations_status_flow",
+  "category": "network_operations",
+  "name": "网络运行状态报告",
+  "description": "面向网络运行监控场景的连续阅读型状态报告。",
+  "schemaVersion": "template.v3",
+  "structureType": "flow",
+  "parameters": [
+    {"id": "scope", "label": "网络范围", "inputType": "dynamic", "required": true, "multi": false, "interactionMode": "form", "priority": 0, "source": "/rest/parameter-options/scopes", "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}]},
+    {"id": "period", "label": "统计周期", "inputType": "enum", "required": true, "multi": false, "interactionMode": "form", "priority": 1, "options": [{"label": "最近24小时", "value": "24h", "query": "'24h'"}, {"label": "最近7天", "value": "7d", "query": "'7d'"}], "defaultValue": [{"label": "最近24小时", "value": "24h", "query": "'24h'"}]}
+  ],
+  "catalogs": [
+    {
+      "id": "catalog_operations",
+      "title": "{$scope}运行状态",
+      "sections": [
+        {
+          "id": "section_traffic",
+          "outline": {"requirement": "分析{@metric}和峰值变化。", "items": [{"id": "metric", "label": "运行指标", "kind": "metric", "required": true, "multi": true, "defaultValue": [{"label": "流量", "value": "traffic", "query": "metric = 'traffic'"}], "widget": "multi_select"}]},
+          "content": {
+            "datasets": [{"id": "datasetTraffic", "sourceType": "sql", "source": "select * from network_traffic where {$scope}"}, {"id": "datasetAlarm", "sourceType": "sql", "source": "select * from network_alarm where {$scope}"}],
+            "presentation": {"kind": "mixed", "blocks": [{"id": "chartTrafficLine", "type": "chart", "title": "流量趋势", "datasetId": "datasetTraffic", "properties": {"preferredType": "line"}}, {"id": "chartAlarmPie", "type": "chart", "title": "告警级别分布", "datasetId": "datasetAlarm", "properties": {"preferredType": "pie"}}, {"id": "tableAlarm", "type": "table", "title": "告警统计", "datasetId": "datasetAlarm", "properties": {"columns": [{"key": "level", "title": "告警级别"}, {"key": "count", "title": "告警数量"}]}}]}
+          }
+        }
+      ]
+    },
+    {
+      "id": "catalog_period_focus",
+      "title": "{$period}补充分析",
+      "dynamic": {
+        "type": "foreachCase",
+        "parameterId": "period",
+        "as": "periodCase",
+        "cases": [
+          {
+            "id": "daily",
+            "values": ["24h"],
+            "sections": [
+              {
+                "id": "section_daily_focus",
+                "outline": {"requirement": "补充最近24小时的运行状态判断。", "items": []},
+                "content": {"presentation": {"kind": "text", "blocks": [{"id": "textDailyFocus", "type": "text", "properties": {"template": "最近24小时运行整体平稳，重点关注高峰链路。"}}]}}
+              }
+            ]
+          },
+          {
+            "id": "weekly",
+            "values": ["7d"],
+            "sections": [
+              {
+                "id": "section_weekly_focus",
+                "outline": {"requirement": "补充最近7天的运行状态判断。", "items": []},
+                "content": {"presentation": {"kind": "text", "blocks": [{"id": "textWeeklyFocus", "type": "text", "properties": {"template": "最近7天运行整体平稳，建议复核趋势波动。"}}]}}
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

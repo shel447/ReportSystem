@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-from .generation_models import TemplateInstanceCatalog
+from .generation_models import TemplateInstanceCatalog, TemplateInstanceChapter
 from .template_instance_builder import (
     collect_instance_parameters,
     collect_template_parameters,
@@ -49,8 +49,9 @@ class ParameterResolver:
         *,
         parameters: list[Parameter] | None,
         catalogs: list[TemplateInstanceCatalog] | None,
+        chapters: list[TemplateInstanceChapter] | None = None,
     ) -> list[Parameter]:
-        return collect_instance_parameters(parameters=parameters, catalogs=catalogs)
+        return collect_instance_parameters(parameters=parameters, catalogs=catalogs, chapters=chapters)
 
     @staticmethod
     def scalar_to_value(raw_value: Any, *, definition: Parameter) -> ParameterValue:
@@ -69,6 +70,7 @@ class ParameterResolver:
             ParameterResolver.collect_instance_parameters(
                 parameters=template_instance.parameters,
                 catalogs=template_instance.catalogs,
+                chapters=template_instance.chapters,
             )
         )
         return [

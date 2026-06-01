@@ -281,6 +281,15 @@ class TemplateInstance:
 
 
 @dataclass(slots=True)
+class DatasetExecutionResult:
+    """外部数据集执行后交给纯领域 compiler 的结构化结果。"""
+
+    dataset_id: str
+    columns: list[dict[str, Any]] = field(default_factory=list)
+    rows: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class ReportBasicInfo:
     """报告 DSL 基础信息。"""
 
@@ -974,7 +983,7 @@ def template_instance_section_content_to_dict(content: TemplateInstanceSectionCo
     if content.datasets:
         from .template_models import dataset_definition_to_dict
 
-        payload["datasets"] = [dataset_definition_to_dict(item) for item in content.datasets]
+        payload["datasets"] = [dataset_definition_to_dict(item, runtime=True) for item in content.datasets]
     return payload
 
 

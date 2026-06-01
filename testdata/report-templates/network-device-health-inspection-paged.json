@@ -1,0 +1,26 @@
+{
+  "id": "tpl_network_device_health_inspection_paged",
+  "category": "network_inspection",
+  "name": "网络设备健康评估巡检汇报",
+  "description": "面向巡检汇报的分页 PPT 模板。",
+  "schemaVersion": "template.v3",
+  "structureType": "paged",
+  "parameters": [
+    {"id": "scope", "label": "巡检范围", "inputType": "dynamic", "required": true, "multi": false, "interactionMode": "form", "source": "/rest/parameter-options/scopes", "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}]}
+  ],
+  "chapters": [
+    {
+      "id": "chapter_health",
+      "title": "{$scope}健康评估",
+      "parameters": [
+        {"id": "device", "label": "重点设备", "inputType": "dynamic", "required": false, "multi": true, "interactionMode": "form", "source": "/rest/parameter-options/devices", "defaultValue": [{"label": "核心交换机-A", "value": "core-sw-a", "query": "device_id = 'core-sw-a'"}]}
+      ],
+      "slides": [
+        {"id": "slide_health_table", "title": "{$device}健康明细", "dynamic": {"type": "foreach", "parameterId": "device", "as": "deviceItem"}, "layout": {"layoutId": "title_content", "variant": "compact"}, "sections": [{"id": "section_health_table", "outline": {"requirement": "展示重点设备健康明细。", "items": []}, "content": {"datasets": [{"id": "datasetDeviceHealth", "sourceType": "sql", "source": "select * from network_health where {$scope}"}], "presentation": {"kind": "table", "blocks": [{"id": "tableHealth", "type": "table", "title": "设备健康明细", "datasetId": "datasetDeviceHealth", "properties": {"columns": [{"key": "device_name", "title": "设备名称"}, {"key": "device_type", "title": "类型"}, {"key": "health_score", "title": "评分"}, {"key": "status", "title": "状态"}]}}]}}}]},
+        {"id": "slide_health_trend", "title": "可用率趋势", "layout": {"layoutId": "title_chart"}, "sections": [{"id": "section_health_trend", "outline": {"requirement": "展示可用率变化趋势。", "items": []}, "content": {"datasets": [{"id": "datasetAvailability", "sourceType": "api", "source": "/rest/datasets/availability-trend"}], "presentation": {"kind": "chart", "blocks": [{"id": "chartAvailability", "type": "chart", "title": "可用率趋势", "datasetId": "datasetAvailability", "properties": {"preferredType": "line"}}]}}}]},
+        {"id": "slide_dynamic_components", "title": "动态补充建议", "layout": {"layoutId": "title_content"}, "sections": [{"id": "section_dynamic_components", "dynamic": {"type": "custom", "url": "/rest/dynamic-content/paged-components"}, "outline": {"requirement": "生成动态建议组件。", "items": []}}]},
+        {"id": "slide_external", "title": "外部建议页面", "dynamic": {"type": "custom", "url": "/rest/dynamic-content/paged-slide"}, "sections": []}
+      ]
+    }
+  ]
+}

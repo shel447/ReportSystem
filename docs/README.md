@@ -7,15 +7,16 @@
 1. [业务规格](specs/README.md)
 2. [实现设计](implementation/README.md)
 3. [技术契约](implementation/contracts/README.md)
-4. [规格变更日志](specs/changelog/README.md)
-5. [实现变更日志](implementation/changelog/README.md)
+4. [开发资料](dev/README.md)
+5. [规格变更日志](specs/changelog/README.md)
+6. [实现变更日志](implementation/changelog/README.md)
 
 ## 目录职责
 
 - `specs/`：面向产品人员和业务用户，描述功能、使用方式、可感知效果和限制。
 - `implementation/`：面向研发和集成方，描述模块职责、运行规则、技术契约和验证记录。
 - `implementation/contracts/`：集中维护 API、JSON Schema、示例和字段级技术手册。
-- `dev/`：开发过程记录，包括代码评审及其处理跟踪。
+- `dev/`：开发过程资料，包括测试体系、代码评审、联调脚本和开发态 fixture。
 
 ## 维护规则
 

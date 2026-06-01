@@ -124,8 +124,8 @@ class _FakeCustomContentGateway:
         self.responses = list(responses)
         self.requests = []
 
-    def post_json(self, *, url, payload):
-        self.requests.append({"url": url, "payload": payload})
+    def post_json(self, *, url, payload, user_id="default"):
+        self.requests.append({"url": url, "payload": payload, "user_id": user_id})
         return self.responses.pop(0)
 
 
@@ -1678,21 +1678,25 @@ class ReportGenerationServiceTests(unittest.TestCase):
         gateway = _FakeCustomContentGateway(
             [
                 {
-                    "id": "catalog_external",
-                    "name": "外部返回目录",
-                    "sections": [
-                        {
-                            "id": "section_external",
-                            "title": "外部章节",
-                            "components": [
-                                {
-                                    "id": "component_external",
-                                    "type": "markdown",
-                                    "dataProperties": {"dataType": "static", "content": "外部内容"},
-                                }
-                            ],
-                        }
-                    ],
+                    "status": "success",
+                    "dsl": {
+                        "id": "catalog_external",
+                        "name": "外部返回目录",
+                        "sections": [
+                            {
+                                "id": "section_external",
+                                "title": "外部章节",
+                                "components": [
+                                    {
+                                        "id": "component_external",
+                                        "type": "markdown",
+                                        "dataProperties": {"dataType": "static", "content": "外部内容"},
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    "meta": {"dslType": "Catalog"},
                 }
             ]
         )
@@ -1713,9 +1717,9 @@ class ReportGenerationServiceTests(unittest.TestCase):
         self.assertEqual(report.catalogs[0].id, "catalog_external")
         self.assertEqual(report.catalogs[0].sections[0].id, "section_external")
         self.assertEqual(gateway.requests[0]["url"], "https://example.test/catalog")
-        self.assertEqual(gateway.requests[0]["payload"]["nodeType"], "catalog")
-        self.assertEqual(gateway.requests[0]["payload"]["nodeId"], "catalog_custom")
-        self.assertEqual(gateway.requests[0]["payload"]["prompt"], "总部 外部目录")
+        self.assertEqual(gateway.requests[0]["payload"]["templateNode"]["id"], "catalog_custom")
+        self.assertEqual(gateway.requests[0]["payload"]["templateNode"]["title"], "{$scope} 外部目录")
+        self.assertEqual(gateway.requests[0]["payload"]["context"]["question"], "总部 外部目录")
         self.assertEqual(gateway.requests[0]["payload"]["parameters"]["scope"][0]["value"], "hq")
 
     def test_build_report_dsl_uses_custom_section_response(self):
@@ -1759,16 +1763,20 @@ class ReportGenerationServiceTests(unittest.TestCase):
         gateway = _FakeCustomContentGateway(
             [
                 {
-                    "id": "section_external",
-                    "title": "外部章节",
-                    "components": [
-                        {
-                            "id": "component_external",
-                            "type": "markdown",
-                            "dataProperties": {"dataType": "static", "content": "外部章节内容"},
-                        }
-                    ],
-                    "summary": {"id": "summary_section_external", "overview": "外部摘要"},
+                    "status": "success",
+                    "dsl": {
+                        "id": "section_external",
+                        "title": "外部章节",
+                        "components": [
+                            {
+                                "id": "component_external",
+                                "type": "markdown",
+                                "dataProperties": {"dataType": "static", "content": "外部章节内容"},
+                            }
+                        ],
+                        "summary": {"id": "summary_section_external", "overview": "外部摘要"},
+                    },
+                    "meta": {"dslType": "Section"},
                 }
             ]
         )
@@ -1789,9 +1797,9 @@ class ReportGenerationServiceTests(unittest.TestCase):
         self.assertEqual(report.catalogs[0].sections[0].id, "section_external")
         self.assertEqual(report.catalogs[0].sections[0].summary.overview, "外部摘要")
         self.assertEqual(gateway.requests[0]["url"], "https://example.test/section")
-        self.assertEqual(gateway.requests[0]["payload"]["nodeType"], "section")
-        self.assertEqual(gateway.requests[0]["payload"]["nodeId"], "section_custom")
-        self.assertEqual(gateway.requests[0]["payload"]["prompt"], "生成总部外部章节。")
+        self.assertEqual(gateway.requests[0]["payload"]["templateNode"]["id"], "section_custom")
+        self.assertEqual(gateway.requests[0]["payload"]["templateNode"]["outline"]["requirement"], "生成{$scope}外部章节。")
+        self.assertEqual(gateway.requests[0]["payload"]["context"]["question"], "生成总部外部章节。")
         self.assertEqual(gateway.requests[0]["payload"]["parameters"]["scope"][0]["label"], "总部")
 
     def test_instantiate_template_expands_catalog_foreach_case(self):

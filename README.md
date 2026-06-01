@@ -98,7 +98,8 @@ ReportSystem/
 ├─ modules/
 │  ├─ backend/
 │  ├─ frontend/
-│  └─ exporter/
+│  ├─ exporter/
+│  └─ mock-server/     # 可选开发态外部系统替身
 └─ README.md
 ```
 
@@ -183,6 +184,24 @@ uv run python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 - 开发接口：`/rest/dev/*`
 - 文档浏览：`/rest/dev/docs`
 
+### 5.5 可选：启动开发态 Mock 外部服务
+
+生产环境中的动态参数、业务查询和 Dynamic Custom 由独立外部业务服务提供。联调和演示时可以显式启动可插拔 mock-server：
+
+```bash
+cd modules/mock-server
+uv sync --dev
+uv run uvicorn mock_server.main:app --app-dir src --host 127.0.0.1 --port 8310
+```
+
+另开终端导入开发态复杂模板并配置 mock AI：
+
+```bash
+python3 scripts/setup_mock_demo.py
+```
+
+应用启动不会自动导入演示数据。
+
 ## 6. 文档导航
 
 ### 业务规格
@@ -203,7 +222,7 @@ uv run python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 - [JSON Schema 与示例](docs/implementation/contracts/schemas/README.md)
 - [前端实现](docs/implementation/frontend/README.md)
 - [文档导出实现](docs/implementation/document-export/README.md)
-- [测试体系](docs/implementation/testing/README.md)
+- [开发测试体系](docs/dev/testing/README.md)
 
 ### 变更记录
 
@@ -244,4 +263,12 @@ uv run pytest tests -q
 ```powershell
 Set-Location modules/backend
 uv run pytest tests -m exporter_e2e -q
+```
+
+Mock 外部服务测试：
+
+```bash
+Set-Location modules/mock-server
+uv sync --dev
+uv run pytest -q
 ```

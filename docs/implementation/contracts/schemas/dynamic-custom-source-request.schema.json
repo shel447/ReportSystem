@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./dynamic-custom-source-request.schema.json",
+  "title": "DynamicCustomSourceRequest",
+  "description": "Dynamic Custom v6 外部内容请求。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["parameters", "templateNode", "context"],
+  "properties": {
+    "parameters": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][A-Za-z0-9]*$": {
+          "type": "array",
+          "items": {"$ref": "./report-template.schema.json#/$defs/ParameterValue"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "templateNode": {"type": "object", "additionalProperties": true, "required": ["id"]},
+    "context": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["structureType"],
+      "properties": {
+        "structureType": {"type": "string", "enum": ["flow", "paged"]},
+        "question": {"type": "string"},
+        "locale": {"type": "string"},
+        "timezone": {"type": "string"}
+      }
+    }
+  }
+}

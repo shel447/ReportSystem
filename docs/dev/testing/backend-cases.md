@@ -27,6 +27,7 @@
 | `tests/dev_support/api/test_feedback_router.py` | 1 | 反馈 CRUD 与 ZIP |
 | `tests/dev_support/api/test_system_settings_router.py` | 4 | 设置读取保存、连接测试和 reindex |
 | `tests/features/test_document_export_flow.py` | 2 | Markdown API；Word/PPT 真实 CLI 参数化 E2E |
+| `tests/features/test_complex_mock_template_export_flow.py` | 1 | 四份复杂开发模板真实 Word/PPT Office 包闭环 |
 | `tests/features/test_template_management_flow.py` | 1 | 模板 CRUD、导入预览和导出 API 闭环 |
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 6 | 业务库、开发库和升级规则 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
@@ -36,7 +37,8 @@
 | `tests/report/api/test_reports_router.py` | 3 | 报告详情、下载和 PDF `400` |
 | `tests/report/api/test_templates_router.py` | 8 | 模板管理 API 契约 |
 | `tests/report/contract/test_shared_fixtures.py` | 2 | `testdata/` 模板与 Report DSL Schema |
-| `tests/report/integration/test_dynamic_source_service.py` | 5 | 动态参数数据源 |
+| `tests/report/integration/test_complex_mock_templates.py` | 6 | 复杂开发模板、动态结构展开、SQL/API 数据集、动态内容和 paged DSL 冻结 |
+| `tests/report/integration/test_dynamic_source_service.py` | 3 | 正式动态参数源、同源 URL 解析和身份头 |
 | `tests/report/unit/test_report_generation_service.py` | 30 | 模板实例、DSL 编译、动态结构和自定义内容 |
 | `tests/report/unit/test_report_document_service.py` | 2 | 文档格式校验、任务记录、列表和下载 |
 | `tests/report/unit/test_parameter_resolver.py` | 2 | 参数标量解释和缺参判断纯规则 |
