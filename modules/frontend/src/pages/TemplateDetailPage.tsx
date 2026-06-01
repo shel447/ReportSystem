@@ -292,7 +292,7 @@ type CatalogEditorProps = {
 function CatalogEditor({ catalog, onChange, onRemove, path }: CatalogEditorProps) {
   const pathLabel = path.map((item) => item + 1).join(".");
   return (
-    <details className="template-tree-node" open>
+    <details className="template-tree-node" open={path.length === 1}>
       <summary>
         <span className="template-tree-node__index">{pathLabel}</span>
         <strong>{catalog.title || catalog.id || `目录 ${pathLabel}`}</strong>
@@ -368,7 +368,7 @@ type SectionEditorProps = {
 
 function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
   return (
-    <details className="template-section-node" open>
+    <details className="template-section-node">
       <summary>
         <span className="template-tree-node__index">S</span>
         <strong>{section.id || "章节"}</strong>
@@ -476,7 +476,7 @@ function ParameterEditorList({ parameters, onChange }: { parameters: TemplatePar
         <button className="secondary-button" type="button" onClick={() => onChange([...parameters, createEmptyParameter()])}><Plus size={16} aria-hidden="true" />新增参数</button>
       </div>
       {parameters.map((parameter, index) => (
-        <details key={`${parameter.id}-${index}`} className="template-parameter-row" open>
+        <details key={`${parameter.id}-${index}`} className="template-parameter-row">
           <summary>
             <strong>{parameter.label || `参数 ${index + 1}`}</strong>
             <small>{parameter.id || "未设置 ID"} · {parameter.inputType} · {parameter.required ? "必填" : "可选"}</small>
