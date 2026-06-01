@@ -36,9 +36,9 @@
 | `tests/report/api/test_parameter_options_router.py` | 2 | 动态参数候选值 API |
 | `tests/report/api/test_reports_router.py` | 3 | 报告详情、下载和 PDF `400` |
 | `tests/report/api/test_templates_router.py` | 8 | 模板管理 API 契约 |
-| `tests/report/contract/test_shared_fixtures.py` | 2 | `testdata/` 模板与 Report DSL Schema |
-| `tests/report/integration/test_complex_mock_templates.py` | 6 | 复杂开发模板、动态结构展开、SQL/API 数据集、动态内容和 paged DSL 冻结 |
+| `tests/report/contract/test_shared_fixtures.py` | 5 | `testdata/` 模板、Report DSL Schema 与新版数据集响应契约 |
+| `tests/report/integration/test_complex_mock_templates.py` | 9 | 复杂开发模板、动态结构展开、SQL/API 数据集、血缘映射、业务失败降级、动态内容和 paged DSL 冻结 |
 | `tests/report/integration/test_dynamic_source_service.py` | 3 | 正式动态参数源、同源 URL 解析和身份头 |
-| `tests/report/unit/test_report_generation_service.py` | 30 | 模板实例、DSL 编译、动态结构和自定义内容 |
+| `tests/report/unit/test_report_generation_service.py` | 31 | 模板实例、DSL 编译、数据集告警汇总、动态结构和自定义内容 |
 | `tests/report/unit/test_report_document_service.py` | 2 | 文档格式校验、任务记录、列表和下载 |
 | `tests/report/unit/test_parameter_resolver.py` | 2 | 参数标量解释和缺参判断纯规则 |

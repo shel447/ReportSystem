@@ -165,7 +165,10 @@ application 层的 custom 内容解析器负责调用外部 gateway 并校验返
 - flow custom 章节响应按 `status/dsl/meta.dslType=Section` 解析，并用 flow `ReportSection` 片段替换当前章节，允许包含旧 `summary` 字段
 - paged custom slide 响应按 `status/dsl/meta.dslType=Slide` 解析，并用 `ReportSlide` 片段替换当前 slide；paged slide 内 custom section 推荐返回 `dslType=Components` 并合并到当前 slide 组件集合，也允许返回 `Section` 后转换
 - HTTP gateway 使用 v6 请求体；paged custom slide 和 slide 内 section 片段进入正式 DSL 合并链路
-- 数据集解析在 application 层完成：`sql` 使用固定 `/rest/onequery`，`api` 使用模板声明的 `/rest/...` 地址；两者共享统一结果包络
+- 数据集解析在 application 层完成：`sql` 使用固定 `/rest/onequery`，`api` 使用模板声明的 `/rest/...` 地址；两者共享 `retCode/retInfo/data.columns/data.results` 统一包络
+- 报告查询固定传入 `context["lineage.tracing.enable"] = true`；成功响应每个字段必须返回非空血缘来源数组
+- 查询结果字段标题按首个来源的 `businessName_cn -> businessName -> key` 决定，类型读取列级 `type` 并归一化；完整血缘数组进入 DSL，查询层专属字段不进入 DSL
+- `retCode != 0` 作为业务失败降级为空数据集，告警写入日志并汇总到 `TemplateInstance.warnings`；HTTP 错误、超时和非法响应仍失败
 - `llm/compose` 当前允许出现在模板中，但若被展示块直接引用则返回明确未支持错误
 - `compose` 只表示数据集编排声明，不生成独立参数执行绑定
 - 静态模板使用 `dataset.source`，运行态模板实例使用 `dataset.sourceRef`；领域模型统一保存后按边界分别序列化

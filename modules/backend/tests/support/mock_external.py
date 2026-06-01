@@ -84,4 +84,4 @@ def compile_complex_template(name: str, *, gateway: FixtureExternalBusinessGatew
 
 
 def _dataset_response(dataset: dict[str, Any]) -> dict[str, Any]:
-    return {"data": {"results": [copy.deepcopy(dataset)]}}
+    return {"retCode": 0, "retInfo": "", "data": copy.deepcopy(dataset)}

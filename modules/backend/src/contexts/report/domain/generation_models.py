@@ -287,6 +287,7 @@ class DatasetExecutionResult:
     dataset_id: str
     columns: list[dict[str, Any]] = field(default_factory=list)
     rows: list[dict[str, Any]] = field(default_factory=list)
+    warnings: list[WarningItem] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -398,6 +399,7 @@ class ReportColumn:
     sortable: bool | None = None
     filterable: bool | None = None
     align: str | None = None
+    lineage_tracing: dict[str, Any] | None = _alias_field("lineageTracing", default=None)
     children: list["ReportColumn"] = field(default_factory=list)
 
 
@@ -1349,6 +1351,7 @@ def report_column_to_dict(column: ReportColumn) -> dict[str, Any]:
     _set_if(payload, ReportColumn, "width", column.width)
     _set_if(payload, ReportColumn, "sortable", column.sortable)
     _set_if(payload, ReportColumn, "filterable", column.filterable)
+    _set_if(payload, ReportColumn, "lineage_tracing", column.lineage_tracing)
     if column.children:
         set_value(payload, ReportColumn, "children", [report_column_to_dict(item) for item in column.children])
     return payload
@@ -1363,6 +1366,7 @@ def report_column_from_dict(payload: dict[str, Any]) -> ReportColumn:
         sortable=_as_optional_bool(payload.get("sortable")),
         filterable=_as_optional_bool(payload.get("filterable")),
         align=_as_optional_str(payload.get("align")),
+        lineage_tracing=copy.deepcopy(payload.get("lineageTracing")) if isinstance(payload.get("lineageTracing"), dict) else None,
         children=[report_column_from_dict(item) for item in list(payload.get("children") or [])],
     )
 

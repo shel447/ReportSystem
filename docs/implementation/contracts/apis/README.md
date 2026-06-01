@@ -959,26 +959,48 @@ POST {externalBusinessBaseUrl}/rest/onequery
 
 #### 3.4.3 统一响应
 
-SQL 与 API 查询使用同一响应包络。首版消费 `data.results[0]`：
+SQL 与 API 查询使用同一响应包络。`columns` 是字段名到字段元数据的映射，`results` 是数据行：
 
 ```json
 {
+  "retCode": 0,
+  "retInfo": "",
   "data": {
-    "results": [
-      {
-        "columns": [
-          {"key": "device_name", "title": "设备名称", "type": "string"}
-        ],
-        "results": [
-          {"device_name": "核心交换机-A", "health_score": 96}
-        ]
+    "columns": {
+      "device_name": {
+        "type": "string",
+        "lineageTracing": {
+          "type": "original",
+          "sources": [
+            {
+              "dataSourceName": "network_device",
+              "dataSourceType": "logicalEntity",
+              "field": "device_name",
+              "businessName": "Device Name",
+              "businessName_cn": "设备名称",
+              "enumValues": "",
+              "ui": ""
+            }
+          ]
+        }
       }
+    },
+    "results": [
+      {"device_name": "核心交换机-A", "health_score": 96}
     ]
   }
 }
 ```
 
-`columns` 当前允许外部系统扩展字段；`results` 必须是字段名到取值的行对象数组。正式结构见 JSON Schema：
+- `retCode/retInfo` 必填。`retCode = 0` 时 `data.columns/data.results` 必填；`retCode != 0` 时 `data` 可以省略或为空。
+- `columns[field].type` 是字段类型。进入 Report DSL 前会按正式字段类型做归一化，例如 `number -> double`。
+- 当请求 `context["lineage.tracing.enable"] = true` 时，每个字段必须返回非空 `lineageTracing.sources`。关闭时可以省略血缘。
+- 一个结果字段可以来源于多个源字段，因此 `sources` 始终是数组。当前标题取第一个来源的 `businessName_cn -> businessName -> field key`，完整来源数组会继续保留。
+- 查询层的 `lineageTracing.type` 和 `sources[].dataSourceType` 不进入 Report DSL；其余血缘字段进入 DSL 已有的 `Column.lineageTracing.sources`。
+- `results` 必须是字段名到取值的行对象数组。
+- `retCode != 0` 表示外部查询业务失败。ReportSystem 将其归一化为空数据集，记录包含 `retCode/retInfo/datasetId` 的告警并继续生成；HTTP 错误、超时和非法响应仍直接失败。
+
+正式结构见 JSON Schema：
 
 - `onequery-request.schema.json`
 - `api-dataset-request.schema.json`

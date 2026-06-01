@@ -2,61 +2,473 @@
   "parameterOptions": {
     "scopes": {
       "options": [
-        {"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"},
-        {"label": "华东区域", "value": "east-region", "query": "scope_id = 'east-region'"}
+        {
+          "label": "总部网络",
+          "value": "hq-network",
+          "query": "scope_id = 'hq-network'"
+        },
+        {
+          "label": "华东区域",
+          "value": "east-region",
+          "query": "scope_id = 'east-region'"
+        }
       ],
-      "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}]
+      "defaultValue": [
+        {
+          "label": "总部网络",
+          "value": "hq-network",
+          "query": "scope_id = 'hq-network'"
+        }
+      ]
     },
     "devices": {
       "options": [
-        {"label": "核心交换机-A", "value": "core-sw-a", "query": "device_id = 'core-sw-a'"},
-        {"label": "出口路由器-B", "value": "edge-rt-b", "query": "device_id = 'edge-rt-b'"}
+        {
+          "label": "核心交换机-A",
+          "value": "core-sw-a",
+          "query": "device_id = 'core-sw-a'"
+        },
+        {
+          "label": "出口路由器-B",
+          "value": "edge-rt-b",
+          "query": "device_id = 'edge-rt-b'"
+        }
       ],
       "defaultValue": []
     }
   },
-  "queryMatches": ["network_health", "network_alarm", "network_traffic"],
+  "queryMatches": [
+    "network_health",
+    "network_alarm",
+    "network_traffic"
+  ],
   "datasets": {
     "default": {
-      "columns": [{"key": "metric", "title": "指标", "type": "string"}, {"key": "value", "title": "数值", "type": "number"}],
-      "results": [{"metric": "可用率", "value": 99.96}, {"metric": "告警数", "value": 3}]
+      "columns": {
+        "metric": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "metric",
+                "businessName": "指标",
+                "businessName_cn": "指标",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "value": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "value",
+                "businessName": "数值",
+                "businessName_cn": "数值",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        }
+      },
+      "results": [
+        {
+          "metric": "可用率",
+          "value": 99.96
+        },
+        {
+          "metric": "告警数",
+          "value": 3
+        }
+      ]
     },
     "network_health": {
-      "columns": [{"key": "device_name", "title": "设备名称", "type": "string"}, {"key": "device_type", "title": "设备类型", "type": "string"}, {"key": "health_score", "title": "健康评分", "type": "number"}, {"key": "status", "title": "状态", "type": "string"}, {"key": "cpu_usage", "title": "CPU使用率", "type": "number"}, {"key": "memory_usage", "title": "内存使用率", "type": "number"}],
+      "columns": {
+        "device_name": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "device_name",
+                "businessName": "设备名称",
+                "businessName_cn": "设备名称",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "device_type": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "device_type",
+                "businessName": "设备类型",
+                "businessName_cn": "设备类型",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "health_score": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "health_score",
+                "businessName": "健康评分",
+                "businessName_cn": "健康评分",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "status": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "status",
+                "businessName": "状态",
+                "businessName_cn": "状态",
+                "enumValues": "[\"正常\",\"关注\",\"告警\"]",
+                "ui": "{\"component\":\"tag\"}"
+              }
+            ]
+          }
+        },
+        "cpu_usage": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "cpu_usage",
+                "businessName": "CPU使用率",
+                "businessName_cn": "CPU使用率",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "memory_usage": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "memory_usage",
+                "businessName": "内存使用率",
+                "businessName_cn": "内存使用率",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        }
+      },
       "results": [
-        {"device_name": "核心交换机-A", "device_type": "交换机", "health_score": 96, "status": "正常", "cpu_usage": 28, "memory_usage": 44},
-        {"device_name": "出口路由器-B", "device_type": "路由器", "health_score": 82, "status": "关注", "cpu_usage": 68, "memory_usage": 71},
-        {"device_name": "防火墙-C", "device_type": "防火墙", "health_score": 75, "status": "告警", "cpu_usage": 83, "memory_usage": 78}
+        {
+          "device_name": "核心交换机-A",
+          "device_type": "交换机",
+          "health_score": 96,
+          "status": "正常",
+          "cpu_usage": 28,
+          "memory_usage": 44
+        },
+        {
+          "device_name": "出口路由器-B",
+          "device_type": "路由器",
+          "health_score": 82,
+          "status": "关注",
+          "cpu_usage": 68,
+          "memory_usage": 71
+        },
+        {
+          "device_name": "防火墙-C",
+          "device_type": "防火墙",
+          "health_score": 75,
+          "status": "告警",
+          "cpu_usage": 83,
+          "memory_usage": 78
+        }
       ]
     },
     "network_alarm": {
-      "columns": [{"key": "level", "title": "告警级别", "type": "string"}, {"key": "count", "title": "告警数量", "type": "number"}],
-      "results": [{"level": "严重", "count": 2}, {"level": "重要", "count": 5}, {"level": "一般", "count": 11}]
+      "columns": {
+        "level": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "level",
+                "businessName": "告警级别",
+                "businessName_cn": "告警级别",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "count": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "count",
+                "businessName": "告警数量",
+                "businessName_cn": "告警数量",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        }
+      },
+      "results": [
+        {
+          "level": "严重",
+          "count": 2
+        },
+        {
+          "level": "重要",
+          "count": 5
+        },
+        {
+          "level": "一般",
+          "count": 11
+        }
+      ]
     },
     "network_traffic": {
-      "columns": [{"key": "time", "title": "时间", "type": "string"}, {"key": "inbound", "title": "入流量", "type": "number"}, {"key": "outbound", "title": "出流量", "type": "number"}],
-      "results": [{"time": "08:00", "inbound": 42, "outbound": 31}, {"time": "12:00", "inbound": 75, "outbound": 62}, {"time": "16:00", "inbound": 58, "outbound": 53}, {"time": "20:00", "inbound": 37, "outbound": 29}]
+      "columns": {
+        "time": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "time",
+                "businessName": "时间",
+                "businessName_cn": "时间",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "inbound": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "inbound",
+                "businessName": "入流量",
+                "businessName_cn": "入流量",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "outbound": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "outbound",
+                "businessName": "出流量",
+                "businessName_cn": "出流量",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        }
+      },
+      "results": [
+        {
+          "time": "08:00",
+          "inbound": 42,
+          "outbound": 31
+        },
+        {
+          "time": "12:00",
+          "inbound": 75,
+          "outbound": 62
+        },
+        {
+          "time": "16:00",
+          "inbound": 58,
+          "outbound": 53
+        },
+        {
+          "time": "20:00",
+          "inbound": 37,
+          "outbound": 29
+        }
+      ]
     },
     "availability-trend": {
-      "columns": [{"key": "date", "title": "日期", "type": "string"}, {"key": "availability", "title": "可用率", "type": "number"}],
-      "results": [{"date": "2026-05-28", "availability": 99.91}, {"date": "2026-05-29", "availability": 99.95}, {"date": "2026-05-30", "availability": 99.98}, {"date": "2026-05-31", "availability": 99.96}]
+      "columns": {
+        "date": {
+          "type": "string",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "date",
+                "businessName": "日期",
+                "businessName_cn": "日期",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        },
+        "availability": {
+          "type": "number",
+          "lineageTracing": {
+            "type": "original",
+            "sources": [
+              {
+                "dataSourceName": "mock_network",
+                "dataSourceType": "logicalEntity",
+                "field": "availability",
+                "businessName": "可用率",
+                "businessName_cn": "可用率",
+                "enumValues": "",
+                "ui": ""
+              }
+            ]
+          }
+        }
+      },
+      "results": [
+        {
+          "date": "2026-05-28",
+          "availability": 99.91
+        },
+        {
+          "date": "2026-05-29",
+          "availability": 99.95
+        },
+        {
+          "date": "2026-05-30",
+          "availability": 99.98
+        },
+        {
+          "date": "2026-05-31",
+          "availability": 99.96
+        }
+      ]
     }
   },
   "dynamicContent": {
     "flow-section": {
       "status": "success",
-      "dsl": {"id": "section_external_advice", "title": "外部巡检建议", "components": [{"id": "text_external_advice", "type": "text", "dataProperties": {"dataType": "static", "content": "建议优先处理出口路由器-B的高负载问题。"}}]},
-      "meta": {"dslType": "Section"}
+      "dsl": {
+        "id": "section_external_advice",
+        "title": "外部巡检建议",
+        "components": [
+          {
+            "id": "text_external_advice",
+            "type": "text",
+            "dataProperties": {
+              "dataType": "static",
+              "content": "建议优先处理出口路由器-B的高负载问题。"
+            }
+          }
+        ]
+      },
+      "meta": {
+        "dslType": "Section"
+      }
     },
     "paged-components": {
       "status": "success",
-      "dsl": [{"id": "text_dynamic_paged", "type": "text", "dataProperties": {"dataType": "static", "content": "动态补充：重点关注出口链路高峰时段负载。"}}],
-      "meta": {"dslType": "Components"}
+      "dsl": [
+        {
+          "id": "text_dynamic_paged",
+          "type": "text",
+          "dataProperties": {
+            "dataType": "static",
+            "content": "动态补充：重点关注出口链路高峰时段负载。"
+          }
+        }
+      ],
+      "meta": {
+        "dslType": "Components"
+      }
     },
     "paged-slide": {
       "status": "success",
-      "dsl": {"id": "slide_external", "title": "外部运行建议", "layout": {"type": "grid", "autoLayout": true}, "components": [{"id": "text_external_slide", "type": "text", "dataProperties": {"dataType": "static", "content": "外部建议：持续观察重点链路趋势。"}}]},
-      "meta": {"dslType": "Slide"}
+      "dsl": {
+        "id": "slide_external",
+        "title": "外部运行建议",
+        "layout": {
+          "type": "grid",
+          "autoLayout": true
+        },
+        "components": [
+          {
+            "id": "text_external_slide",
+            "type": "text",
+            "dataProperties": {
+              "dataType": "static",
+              "content": "外部建议：持续观察重点链路趋势。"
+            }
+          }
+        ]
+      },
+      "meta": {
+        "dslType": "Slide"
+      }
     }
   }
 }

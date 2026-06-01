@@ -275,7 +275,7 @@ def _build_text_component(block, datasets) -> TextComponent:
 
 def _build_table_component(block, datasets) -> TableComponent:
     result = datasets.get(str(block.dataset_id or "")) or DatasetExecutionResult(dataset_id=str(block.dataset_id or ""))
-    columns = _table_columns(getattr(getattr(block, "properties", None), "columns", [])) or _result_columns(result)
+    columns = _merge_table_columns(getattr(getattr(block, "properties", None), "columns", []), result)
     rows = copy.deepcopy(result.rows)
     definitions = list(getattr(getattr(block, "properties", None), "merge_rows", []) or [])
     return TableComponent(
@@ -326,7 +326,7 @@ def _build_composite_table_part(part, datasets) -> TableComponent:
         rows = [{"title": str(row.title or ""), "content": "待补充"} for row in list((part.summary_spec.rows if part.summary_spec else []) or [])]
     else:
         result = datasets.get(str(part.dataset_id or "")) or DatasetExecutionResult(dataset_id=str(part.dataset_id or ""))
-        columns = columns or _result_columns(result)
+        columns = _merge_table_columns(getattr(getattr(part, "table_layout", None), "columns", []), result)
         rows = copy.deepcopy(result.rows)
     definitions = list(getattr(getattr(part, "table_layout", None), "merge_rows", []) or [])
     return TableComponent(
@@ -348,18 +348,64 @@ def _table_columns(columns) -> list[ReportColumn]:
     return [ReportColumn(key=str(item.key or ""), title=str(item.title or ""), width=getattr(item, "width", None), align=getattr(item, "align", None)) for item in list(columns or [])]
 
 
+def _merge_table_columns(columns, result: DatasetExecutionResult) -> list[ReportColumn]:
+    configured = _table_columns(columns)
+    resolved = _result_columns(result)
+    if not configured:
+        return resolved
+    resolved_by_key = {column.key: column for column in resolved}
+    return [
+        ReportColumn(
+            key=column.key,
+            title=(resolved_by_key.get(column.key) or column).title,
+            type=(resolved_by_key.get(column.key) or column).type,
+            width=column.width,
+            sortable=column.sortable,
+            filterable=column.filterable,
+            align=column.align,
+            lineage_tracing=copy.deepcopy((resolved_by_key.get(column.key) or column).lineage_tracing),
+            children=copy.deepcopy(column.children),
+        )
+        for column in configured
+    ]
+
+
 def _result_columns(result: DatasetExecutionResult) -> list[ReportColumn]:
     columns = list(result.columns or [])
     if not columns and result.rows:
         columns = [{"key": key, "title": key} for key in result.rows[0]]
-    return [
-        ReportColumn(
-            key=str(item.get("key") or item.get("name") or ""),
-            title=str(item.get("title") or item.get("label") or item.get("key") or item.get("name") or ""),
-            type=_normalize_column_type(item.get("type")),
+    return [_result_column(item) for item in columns]
+
+
+def _result_column(item: dict[str, Any]) -> ReportColumn:
+    key = str(item.get("key") or item.get("name") or "")
+    lineage = item.get("lineageTracing") if isinstance(item.get("lineageTracing"), dict) else None
+    sources = list(lineage.get("sources") or []) if lineage else []
+    first_source = sources[0] if sources and isinstance(sources[0], dict) else {}
+    title = str(first_source.get("businessName_cn") or first_source.get("businessName") or key)
+    return ReportColumn(
+        key=key,
+        title=title,
+        type=_normalize_column_type(item.get("type")),
+        lineage_tracing=_report_lineage_tracing(lineage),
+    )
+
+
+def _report_lineage_tracing(lineage: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not lineage:
+        return None
+    sources = []
+    for item in list(lineage.get("sources") or []):
+        if not isinstance(item, dict):
+            continue
+        sources.append(
+            {
+                key: copy.deepcopy(item[key])
+                for key in ("dataSourceName", "field", "businessName", "businessName_cn", "enumValues", "ui")
+                if key in item
+            }
         )
-        for item in columns
-    ]
+    return {"sources": sources} if sources else None
 
 
 def _normalize_column_type(value: Any) -> str | None:

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import copy
+import logging
 import re
 from typing import Any
 
 from ....shared.kernel.errors import ValidationError
-from ..domain.generation_models import DatasetExecutionResult, TemplateInstance
+from ..domain.generation_models import DatasetExecutionResult, TemplateInstance, WarningItem
 from ..domain.template_models import DatasetDefinition, Parameter, ParameterValue, parameter_value_to_dict
 
 PARAMETER_PLACEHOLDER_PATTERN = re.compile(r"\{\$([A-Za-z0-9_\-]+)\}")
+LOGGER = logging.getLogger(__name__)
 
 
 class DatasetExecutionService:
@@ -75,11 +77,23 @@ class DatasetExecutionService:
         else:
             raise ValidationError(f"dataset sourceType is not executable yet: {dataset.source_type}")
         payload = self.schema_gateway.validate_dataset_response(response)
-        first = payload["data"]["results"][0]
+        ret_code = int(payload["retCode"])
+        if ret_code != 0:
+            ret_info = str(payload.get("retInfo") or "")
+            warning = WarningItem(
+                code="external_dataset_query_failed",
+                message=f"dataset {dataset.id} query failed: retCode={ret_code}, retInfo={ret_info}",
+                target_id=dataset.id,
+            )
+            LOGGER.warning(warning.message)
+            return DatasetExecutionResult(dataset_id=dataset.id, warnings=[warning])
+        data = payload["data"]
+        columns = copy.deepcopy(dict(data.get("columns") or {}))
+        _validate_lineage(columns=columns, enabled=bool(context["lineage.tracing.enable"]))
         return DatasetExecutionResult(
             dataset_id=dataset.id,
-            columns=copy.deepcopy(list(first.get("columns") or [])),
-            rows=copy.deepcopy(list(first.get("results") or [])),
+            columns=[{"key": key, **metadata} for key, metadata in columns.items()],
+            rows=copy.deepcopy(list(data.get("results") or [])),
         )
 
 
@@ -89,6 +103,16 @@ def _render_sql(source: str, parameters: dict[str, list[ParameterValue]]) -> str
         return ", ".join(str(item.query) for item in values if item.query is not None)
 
     return PARAMETER_PLACEHOLDER_PATTERN.sub(replace, str(source or "")).strip()
+
+
+def _validate_lineage(*, columns: dict[str, Any], enabled: bool) -> None:
+    if not enabled:
+        return
+    for key, metadata in columns.items():
+        lineage = metadata.get("lineageTracing") if isinstance(metadata, dict) else None
+        sources = lineage.get("sources") if isinstance(lineage, dict) else None
+        if not isinstance(sources, list) or not sources:
+            raise ValidationError(f"dataset column lineage is required when tracing is enabled: {key}")
 
 
 def _merge_parameter_values(parameters: list[Parameter]) -> dict[str, list[ParameterValue]]:

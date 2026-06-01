@@ -26,7 +26,11 @@ def _apply_scenario(scenario: str | None, *, empty: Any) -> Any | None:
 
 
 def _dataset_response(dataset: dict[str, Any]) -> dict[str, Any]:
-    return {"data": {"results": [dataset]}}
+    return {"retCode": 0, "retInfo": "", "data": dataset}
+
+
+def _dataset_business_error() -> dict[str, Any]:
+    return {"retCode": 1001, "retInfo": "mock dataset business error"}
 
 
 def create_app() -> FastAPI:
@@ -61,7 +65,9 @@ def create_app() -> FastAPI:
 
     @app.post("/rest/onequery")
     def onequery(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
-        empty = _apply_scenario(x_mock_scenario, empty=_dataset_response({"columns": [], "results": []}))
+        if x_mock_scenario == "business-error":
+            return _dataset_business_error()
+        empty = _apply_scenario(x_mock_scenario, empty=_dataset_response({"columns": {}, "results": []}))
         if empty is not None:
             return empty
         query = str(payload.get("query") or "").lower()
@@ -70,7 +76,9 @@ def create_app() -> FastAPI:
 
     @app.post("/rest/datasets/{name}")
     def api_dataset(name: str, _: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
-        empty = _apply_scenario(x_mock_scenario, empty=_dataset_response({"columns": [], "results": []}))
+        if x_mock_scenario == "business-error":
+            return _dataset_business_error()
+        empty = _apply_scenario(x_mock_scenario, empty=_dataset_response({"columns": {}, "results": []}))
         if empty is not None:
             return empty
         dataset = _load_fixtures()["datasets"].get(name)

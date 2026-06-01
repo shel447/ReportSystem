@@ -40,6 +40,7 @@ from src.contexts.report.domain.generation_models import (
     TableDataProperties,
     TextComponent,
     TextDataProperties,
+    WarningItem,
     GridDefinition,
     chart_component_from_dict,
     chart_component_to_dict,
@@ -130,6 +131,34 @@ class _FakeCustomContentGateway:
 
 
 class ReportGenerationServiceTests(unittest.TestCase):
+    def test_generate_report_collects_dataset_business_warnings_on_template_instance(self):
+        instance = _valid_template_instance()
+        warning = WarningItem(code="external_dataset_query_failed", message="retCode=1001", target_id="dataset_health")
+        service = ReportGenerationService(
+            template_repository=SimpleNamespace(),
+            template_instance_repository=SimpleNamespace(
+                get=lambda instance_id, user_id: instance,
+                update=lambda current, user_id: current,
+            ),
+            report_instance_repository=SimpleNamespace(
+                create=lambda **kwargs: SimpleNamespace(id=kwargs["report_id"], status=kwargs["status"], report=kwargs["report"])
+            ),
+            dataset_execution_service=SimpleNamespace(
+                resolve=lambda template_instance, user_id: {
+                    "section_health": {"dataset_health": SimpleNamespace(warnings=[warning])}
+                }
+            ),
+        )
+
+        answer = service.generate_report_from_template_instance(
+            template_instance_id=instance.id,
+            user_id="default",
+            conversation_id="conv_001",
+            chat_id="chat_001",
+        )
+
+        self.assertEqual(answer.template_instance.warnings, [warning])
+
     def test_persist_template_instance_validates_formal_schema(self):
         service = _build_runtime_service()
         instance = _valid_template_instance()

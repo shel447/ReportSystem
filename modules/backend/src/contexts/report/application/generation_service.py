@@ -81,6 +81,12 @@ class ReportGenerationService:
         report_id = f"rpt_{uuid.uuid4().hex[:12]}"
         custom = self.custom_content_resolver.resolve(template_instance=template_instance, user_id=user_id)
         datasets = self.dataset_execution_service.resolve(template_instance=template_instance, user_id=user_id) if self.dataset_execution_service else {}
+        template_instance.warnings.extend(
+            warning
+            for section_results in datasets.values()
+            for result in section_results.values()
+            for warning in result.warnings
+        )
         report = self.compiler.compile(
             report_id=report_id,
             template=template,
