@@ -15,6 +15,8 @@
 - 设计文档查看
 - 报告本地设计器：`/reports/:reportId/designer`
 
+正式业务请求不在前端硬编码用户身份。生产环境由网关认证后覆盖写入 `X-User-Id`；本地 Vite 联调可以通过 `VITE_DEV_USER_ID` 显式指定开发用户。
+
 ## 2. 类型约束
 
 前端类型必须直接映射正式 schema：

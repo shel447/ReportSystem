@@ -26,7 +26,6 @@
 
 主业务表固定为：
 
-- `tbl_users`
 - `tbl_report_templates`
 - `tbl_template_instances`
 - `tbl_report_instances`
@@ -73,6 +72,7 @@
 ## 4. 读写约束
 
 - 用户归属业务查询强制带 `user_id`
+- `user_id` 是外部用户管理模块提供的不透明归属键，不在本地建立用户资料表或外键
 - 会话消息由 AgentCore 托管；本地只保存报告来源归因 ID
 - 文档下载通过 `report_id + document_id` 双重校验
 - 导出任务直接按 `user_id` 隔离；文档产物通过报告实例间接隔离

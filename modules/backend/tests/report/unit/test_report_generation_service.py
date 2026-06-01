@@ -288,6 +288,7 @@ class ReportGenerationServiceTests(unittest.TestCase):
 
         report = build_report_dsl(
             report_id="rpt_001",
+            user_id="default",
             template=ReportTemplate(
                 id="tpl_network_daily",
                 category="network_ops",
@@ -354,6 +355,7 @@ class ReportGenerationServiceTests(unittest.TestCase):
 
         report = build_report_dsl(
             report_id="rpt_002",
+            user_id="default",
             template=ReportTemplate(
                 id="tpl_network_daily",
                 category="network_ops",
@@ -411,6 +413,7 @@ class ReportGenerationServiceTests(unittest.TestCase):
 
         report = build_report_dsl(
             report_id="rpt_003",
+            user_id="default",
             template=ReportTemplate(
                 id="tpl_network_daily",
                 category="network_ops",
@@ -1732,6 +1735,7 @@ class ReportGenerationServiceTests(unittest.TestCase):
 
         report = build_report_dsl(
             report_id="rpt_custom_catalog",
+            user_id="default",
             template=ReportTemplate(
                 id="tpl_custom",
                 category="network_ops",
@@ -1812,6 +1816,7 @@ class ReportGenerationServiceTests(unittest.TestCase):
 
         report = build_report_dsl(
             report_id="rpt_custom_section",
+            user_id="default",
             template=ReportTemplate(
                 id="tpl_custom",
                 category="network_ops",

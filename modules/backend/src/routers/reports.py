@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
-
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -14,7 +12,7 @@ from ..contexts.report.application.generation_models import (
 from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import NotFoundError, ValidationError
-from ..shared.kernel.http import resolve_user_id
+from ..shared.kernel.http import get_current_user_id
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -31,10 +29,10 @@ class DocumentGenerationRequest(BaseModel):
 def get_report_view(
     report_id: str,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
-        return report_view_to_dict(build_report_service(db).get_report_view(report_id, user_id=resolve_user_id(user_id)))
+        return report_view_to_dict(build_report_service(db).get_report_view(report_id, user_id=user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -44,12 +42,12 @@ def generate_report_documents(
     report_id: str,
     data: DocumentGenerationRequest,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
         return document_generation_result_to_dict(build_report_service(db).generate_documents(
             report_id=report_id,
-            user_id=resolve_user_id(user_id),
+            user_id=user_id,
             formats=data.formats,
             pdf_source=data.pdfSource,
             theme=data.theme,
@@ -67,11 +65,10 @@ def download_report_document(
     report_id: str,
     document_id: str,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
-    resolved_user_id = resolve_user_id(user_id)
     try:
-        report = build_report_service(db).get_report_view(report_id, user_id=resolved_user_id)
+        report = build_report_service(db).get_report_view(report_id, user_id=user_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -83,7 +80,7 @@ def download_report_document(
         resolved = build_report_service(db).resolve_download(
             report_id=report_id,
             document_id=document_id,
-            user_id=resolved_user_id,
+            user_id=user_id,
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

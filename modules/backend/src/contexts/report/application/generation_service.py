@@ -196,11 +196,15 @@ def build_report_dsl(
     report_id: str,
     template: ReportTemplate,
     template_instance: TemplateInstance,
+    user_id: str,
     custom_content_gateway=None,
 ) -> ReportDsl:
     """兼容旧内部调用；正式生成链路通过注入的 compiler 与 resolver。"""
     schema_gateway = ReportDslSchemaGateway()
-    custom = CustomContentResolver(gateway=custom_content_gateway, schema_gateway=schema_gateway).resolve(template_instance=template_instance)
+    custom = CustomContentResolver(gateway=custom_content_gateway, schema_gateway=schema_gateway).resolve(
+        template_instance=template_instance,
+        user_id=user_id,
+    )
     return ReportDslCompiler().compile(
         report_id=report_id,
         template=template,

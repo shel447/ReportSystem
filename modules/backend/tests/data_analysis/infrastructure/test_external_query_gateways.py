@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from src.contexts.data_analysis.infrastructure.gateways import ExternalApiDatasetGateway, ExternalOneQueryGateway
+from src.contexts.data_analysis.infrastructure.gateways import (
+    ExternalApiDatasetGateway,
+    ExternalDataCatalogGateway,
+    ExternalKnowledgeGateway,
+    ExternalOneQueryGateway,
+)
+from src.infrastructure.platform.cache import MemoryTtlCache
 from src.shared.kernel.errors import UpstreamError
 
 
@@ -44,3 +50,25 @@ def test_dataset_gateway_rejects_response_without_ret_code(gateway):
             gateway(client=client).execute(query="select 1", context={}, user_id="default")
         else:
             gateway(client=client).execute(source="/rest/datasets/network_health", payload={}, user_id="default")
+
+
+def test_datacatalog_cache_is_isolated_by_user_id():
+    client = _Client({"retCode": 0, "data": {"results": [{"name": "device"}]}})
+    gateway = ExternalDataCatalogGateway(client=client, cache=MemoryTtlCache())
+
+    assert gateway.list_logical_entities(user_id="user-a") == [{"name": "device"}]
+    assert gateway.list_logical_entities(user_id="user-a") == [{"name": "device"}]
+    assert gateway.list_logical_entities(user_id="user-b") == [{"name": "device"}]
+
+    assert [call["user_id"] for call in client.calls] == ["user-a", "user-b"]
+
+
+def test_rag_cache_is_isolated_by_user_id():
+    client = _Client({"recommends": [{"query": "select 1"}]})
+    gateway = ExternalKnowledgeGateway(client=client, cache=MemoryTtlCache())
+
+    assert gateway.retrieve_multi_index(query="设备健康", user_id="user-a") == [{"query": "select 1"}]
+    assert gateway.retrieve_multi_index(query="设备健康", user_id="user-a") == [{"query": "select 1"}]
+    assert gateway.retrieve_multi_index(query="设备健康", user_id="user-b") == [{"query": "select 1"}]
+
+    assert [call["user_id"] for call in client.calls] == ["user-a", "user-b"]

@@ -1,6 +1,6 @@
 # 数据库契约
 
-本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。`V003__delegate_conversation_history_to_agentcore.sql` 将会话事实源迁移到 AgentCore。
+本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。`V003__delegate_conversation_history_to_agentcore.sql` 将会话事实源迁移到 AgentCore，`V004__remove_local_user_mirror.sql` 将用户管理边界收口到外部平台。
 
 ## 1. 数据库分类
 
@@ -22,9 +22,6 @@
 
 ```mermaid
 erDiagram
-    tbl_users ||--o{ tbl_template_instances : owns
-    tbl_users ||--o{ tbl_report_instances : owns
-    tbl_users ||--o{ tbl_export_jobs : owns
     tbl_report_templates ||--o{ tbl_template_instances : instantiates
     tbl_report_templates ||--o{ tbl_report_instances : generates
     tbl_template_instances ||--o{ tbl_report_instances : freezes
@@ -34,18 +31,6 @@ erDiagram
 ```
 
 ### 2.2 字段定义
-
-#### `tbl_users`
-
-| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
-|---|---|---|---|---|---|
-| `id` | `VARCHAR` | 是 | - | PK | 外部用户标识 |
-| `display_name` | `VARCHAR` | 是 | `""` | - | 展示名称 |
-| `status` | `VARCHAR` | 是 | `active` | - | 用户状态 |
-| `profile_json` | `JSON` | 是 | `{}` | - | 用户扩展信息 |
-| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
-| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
-| `last_seen_at` | `DATETIME` | 否 | `NULL` | - | 最近访问时间 |
 
 #### `tbl_report_templates`
 
@@ -68,7 +53,7 @@ erDiagram
 | `template_id` | `VARCHAR` | 是 | - | FK `tbl_report_templates.id`，INDEX | 来源模板 |
 | `conversation_id` | `VARCHAR` | 是 | - | INDEX | AgentCore 来源会话 |
 | `chat_id` | `VARCHAR` | 否 | `NULL` | INDEX | AgentCore 最近关联轮次 |
-| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `user_id` | `VARCHAR` | 是 | - | INDEX | 外部用户身份归属键 |
 | `status` | `VARCHAR` | 是 | - | - | 实例状态 |
 | `capture_stage` | `VARCHAR` | 是 | - | - | 捕获阶段 |
 | `revision` | `INTEGER` | 是 | `1` | - | 修订号 |
@@ -84,7 +69,7 @@ erDiagram
 | `id` | `VARCHAR` | 是 | UUID | PK | 报告 ID |
 | `template_id` | `VARCHAR` | 是 | - | FK `tbl_report_templates.id`，INDEX | 来源模板 |
 | `template_instance_id` | `VARCHAR` | 是 | - | FK `tbl_template_instances.id`，INDEX | 冻结实例 |
-| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `user_id` | `VARCHAR` | 是 | - | INDEX | 外部用户身份归属键 |
 | `source_conversation_id` | `VARCHAR` | 否 | `NULL` | INDEX | AgentCore 来源会话 |
 | `source_chat_id` | `VARCHAR` | 否 | `NULL` | INDEX | AgentCore 来源轮次 |
 | `status` | `VARCHAR` | 是 | - | - | 报告状态 |
@@ -115,7 +100,7 @@ erDiagram
 |---|---|---|---|---|---|
 | `id` | `VARCHAR` | 是 | UUID | PK | 任务 ID |
 | `report_instance_id` | `VARCHAR` | 是 | - | FK `tbl_report_instances.id`，INDEX | 所属报告 |
-| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
+| `user_id` | `VARCHAR` | 是 | - | INDEX | 外部用户身份归属键 |
 | `current_format` | `VARCHAR` | 是 | - | - | 当前格式 |
 | `status` | `VARCHAR` | 是 | - | - | 任务状态 |
 | `dependency_job_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_export_jobs.id` | 前置任务 |
@@ -131,16 +116,6 @@ erDiagram
 可执行文件见 [`V001__initialize_business_tables.sql`](../../../../modules/backend/src/infrastructure/persistence/upgrades/V001__initialize_business_tables.sql)。
 
 ```sql
-CREATE TABLE tbl_users (
-    id VARCHAR NOT NULL PRIMARY KEY,
-    display_name VARCHAR NOT NULL,
-    status VARCHAR NOT NULL,
-    profile_json JSON NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    last_seen_at DATETIME
-);
-
 CREATE TABLE tbl_report_templates (
     id VARCHAR NOT NULL PRIMARY KEY,
     category VARCHAR NOT NULL,
@@ -157,7 +132,7 @@ CREATE TABLE tbl_template_instances (
     template_id VARCHAR NOT NULL REFERENCES tbl_report_templates (id),
     conversation_id VARCHAR NOT NULL,
     chat_id VARCHAR,
-    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    user_id VARCHAR NOT NULL,
     status VARCHAR NOT NULL,
     capture_stage VARCHAR NOT NULL,
     revision INTEGER NOT NULL,
@@ -175,7 +150,7 @@ CREATE TABLE tbl_report_instances (
     id VARCHAR NOT NULL PRIMARY KEY,
     template_id VARCHAR NOT NULL REFERENCES tbl_report_templates (id),
     template_instance_id VARCHAR NOT NULL REFERENCES tbl_template_instances (id),
-    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    user_id VARCHAR NOT NULL,
     source_conversation_id VARCHAR,
     source_chat_id VARCHAR,
     status VARCHAR NOT NULL,
@@ -193,7 +168,7 @@ CREATE INDEX ix_tbl_report_instances_user_id ON tbl_report_instances (user_id);
 CREATE TABLE tbl_export_jobs (
     id VARCHAR NOT NULL PRIMARY KEY,
     report_instance_id VARCHAR NOT NULL REFERENCES tbl_report_instances (id),
-    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
+    user_id VARCHAR NOT NULL,
     current_format VARCHAR NOT NULL,
     status VARCHAR NOT NULL,
     dependency_job_id VARCHAR REFERENCES tbl_export_jobs (id),

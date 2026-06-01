@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ from ..contexts.conversation.application.models import (
 from ..infrastructure.dependencies import build_conversation_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ConflictError, NotFoundError, UnsupportedCapabilityError, ValidationError
-from ..shared.kernel.http import resolve_user_id
+from ..shared.kernel.http import get_current_user_id
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -53,8 +53,8 @@ class ChatForkRequest(BaseModel):
 
 
 @router.get("")
-def list_sessions(db: Session = Depends(get_db), user_id: Optional[str] = Header(default=None, alias="X-User-Id")):
-    return [session_summary_to_dict(item) for item in build_conversation_service(db).list_sessions(user_id=resolve_user_id(user_id))]
+def list_sessions(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)):
+    return [session_summary_to_dict(item) for item in build_conversation_service(db).list_sessions(user_id=user_id)]
 
 
 @router.post("")
@@ -62,12 +62,12 @@ def chat(
     data: ChatRequestPayload,
     request: Request = None,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
         payload = build_conversation_service(db).chat(
             data=chat_command_from_payload(data.model_dump(exclude_none=True)),
-            user_id=resolve_user_id(user_id),
+            user_id=user_id,
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -85,10 +85,10 @@ def chat(
 def get_session(
     conversation_id: str,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
-        return session_detail_to_dict(build_conversation_service(db).get_session(conversation_id=conversation_id, user_id=resolve_user_id(user_id)))
+        return session_detail_to_dict(build_conversation_service(db).get_session(conversation_id=conversation_id, user_id=user_id))
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -97,11 +97,11 @@ def get_session(
 def delete_session(
     conversation_id: str,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
         return delete_result_to_dict(
-            build_conversation_service(db).delete_session(conversation_id=conversation_id, user_id=resolve_user_id(user_id))
+            build_conversation_service(db).delete_session(conversation_id=conversation_id, user_id=user_id)
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -113,13 +113,13 @@ def delete_session(
 def fork_session(
     data: ChatForkRequest,
     db: Session = Depends(get_db),
-    user_id: Optional[str] = Header(default=None, alias="X-User-Id"),
+    user_id: str = Depends(get_current_user_id),
 ):
     try:
         return fork_session_result_to_dict(
             build_conversation_service(db).fork_session(
                 data=fork_session_command_from_payload(data.model_dump(exclude_none=True)),
-                user_id=resolve_user_id(user_id),
+                user_id=user_id,
             )
         )
     except NotFoundError as exc:

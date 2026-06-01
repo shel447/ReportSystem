@@ -60,6 +60,7 @@
 - `chat/import` 保存完整 `ChatResp` 与 `meta.scenario`，用于恢复场景轨迹。
 - 本地业务库不保存 `tbl_conversations/tbl_chats` 投影。
 - 用户身份统一由请求上下文解析。
+- 正式业务请求必须携带由上游网关注入的非空 `X-User-Id`；conversation 不维护用户资料。
 - 报告实例只记录来源会话和来源消息，不由会话表反向维护单一报告宿主字段。
 
 ## 6. 明确不做

@@ -35,7 +35,7 @@ class CustomContentResolver:
         self.gateway = gateway
         self.schema_gateway = schema_gateway
 
-    def resolve(self, *, template_instance, user_id: str = "default") -> ResolvedCustomContent:
+    def resolve(self, *, template_instance, user_id: str) -> ResolvedCustomContent:
         resolved = ResolvedCustomContent()
         root = _merge_parameter_payloads({}, list(template_instance.parameters or []))
         if (template_instance.structure_type or "flow") == "paged":

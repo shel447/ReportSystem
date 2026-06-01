@@ -13,5 +13,5 @@ class CustomContentGateway:
     def __init__(self, *, gateway: ExternalBusinessGateway | None = None) -> None:
         self.gateway = gateway or ExternalBusinessGateway()
 
-    def post_json(self, *, url: str, payload: dict[str, Any], user_id: str = "default") -> dict[str, Any]:
+    def post_json(self, *, url: str, payload: dict[str, Any], user_id: str) -> dict[str, Any]:
         return self.gateway.post_json(path_or_url=url, payload=payload, user_id=user_id)

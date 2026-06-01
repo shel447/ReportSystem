@@ -60,7 +60,7 @@ class ExternalDataCatalogGateway:
         self.cache = cache or platform_cache
 
     def list_logical_entities(self, *, user_id: str) -> list[dict[str, Any]]:
-        key = "datacatalog:logical_entities"
+        key = f"datacatalog:{user_id}:logical_entities"
         cached = self.cache.get(key)
         if cached is not None:
             return deepcopy(cached)
@@ -76,7 +76,7 @@ class ExternalDataCatalogGateway:
 
     def get_logical_entity(self, *, name: str, user_id: str) -> dict[str, Any]:
         return self._cached_get(
-            key=f"datacatalog:logical_entity:{name}",
+            key=f"datacatalog:{user_id}:logical_entity:{name}",
             path="/rest/odae/v3/datacatalog/model/logicalentity",
             params={"logicalEntityName": name},
             user_id=user_id,
@@ -84,7 +84,7 @@ class ExternalDataCatalogGateway:
 
     def get_dataset(self, *, name: str, user_id: str) -> dict[str, Any]:
         return self._cached_get(
-            key=f"datacatalog:dataset:{name}",
+            key=f"datacatalog:{user_id}:dataset:{name}",
             path=f"/rest/odae/v3/datacatalog/model/datasets/{name}",
             params=None,
             user_id=user_id,
@@ -100,7 +100,7 @@ class ExternalDataCatalogGateway:
         return list((payload.get("data") or {}).get("results") or [])
 
     def get_logical_relation(self, *, name: str, user_id: str) -> dict[str, Any]:
-        key = f"datacatalog:logical_relation:{name}"
+        key = f"datacatalog:{user_id}:logical_relation:{name}"
         cached = self.cache.get(key)
         if cached is not None:
             return deepcopy(cached)
@@ -130,7 +130,7 @@ class ExternalKnowledgeGateway:
         self.cache = cache or platform_cache
 
     def retrieve_multi_index(self, *, query: str, user_id: str) -> list[dict[str, Any]]:
-        key = f"rag:retriever:{query}"
+        key = f"rag:{user_id}:retriever:{query}"
         cached = self.cache.get(key)
         if cached is not None:
             return deepcopy(cached)

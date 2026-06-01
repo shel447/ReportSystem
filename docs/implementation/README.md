@@ -24,6 +24,8 @@
 - `contexts/data_analysis`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
+用户管理属于平台外部模块。ReportSystem 不实现用户 context，不保存用户档案，只消费网关注入的可信 `X-User-Id` 作为不透明数据归属键。
+
 依赖方向：
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context

@@ -4,12 +4,7 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from src.main import create_app
-from src.infrastructure.persistence.database import Base
-from src.infrastructure.persistence.models import User
 
 
 class FrontendServingTests(unittest.TestCase):
@@ -72,26 +67,39 @@ class FrontendServingTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 404, path)
                 self.assertNotIn("spa-entry", response.text)
 
-    def test_chatbi_request_creates_user_mirror_record(self):
+    def test_chatbi_business_routes_require_non_blank_user_header(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             index_path = os.path.join(temp_dir, "index.html")
             with open(index_path, "w", encoding="utf-8") as f:
                 f.write("<html><body>spa-entry</body></html>")
 
-            db_path = os.path.join(temp_dir, "test.db")
-            engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
-            testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-            Base.metadata.create_all(bind=engine)
+            client = TestClient(create_app(frontend_dir=temp_dir))
 
-            with patch("src.main.SessionLocal", testing_session_local), patch("src.main.init_db", lambda: None):
-                client = TestClient(create_app(frontend_dir=temp_dir))
+            requests = (
+                lambda: client.get("/rest/chatbi/v1/templates"),
+                lambda: client.get("/rest/chatbi/v1/chat"),
+                lambda: client.post("/rest/chatbi/v1/parameter-options/resolve", json={}),
+                lambda: client.get("/rest/chatbi/v1/reports/rpt_missing"),
+            )
+            for send in requests:
+                response = send()
+                self.assertEqual(response.status_code, 401)
+                self.assertEqual(response.json()["detail"], "X-User-Id header is required")
 
-                response = client.get("/rest/chatbi/v1/unknown", headers={"X-User-Id": "middleware-user"})
+            blank = client.get("/rest/chatbi/v1/templates", headers={"X-User-Id": "   "})
+            self.assertEqual(blank.status_code, 401)
 
-                self.assertEqual(response.status_code, 404)
-                with testing_session_local() as db:
-                    user = db.query(User).filter(User.id == "middleware-user").first()
-                    self.assertIsNotNone(user)
+    def test_dev_routes_do_not_require_user_header(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            index_path = os.path.join(temp_dir, "index.html")
+            with open(index_path, "w", encoding="utf-8") as f:
+                f.write("<html><body>spa-entry</body></html>")
+
+            client = TestClient(create_app(frontend_dir=temp_dir))
+
+            response = client.get("/rest/dev/docs")
+
+            self.assertEqual(response.status_code, 200)
 
 
 if __name__ == "__main__":

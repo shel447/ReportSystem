@@ -15,7 +15,7 @@ class ParameterOptionsGateway:
     def __init__(self, *, gateway: ExternalBusinessGateway | None = None) -> None:
         self.gateway = gateway or ExternalBusinessGateway(timeout_seconds=3.0)
 
-    def resolve(self, *, source: str, request_payload: dict[str, list[dict[str, Any]]], user_id: str = "default") -> dict[str, Any]:
+    def resolve(self, *, source: str, request_payload: dict[str, list[dict[str, Any]]], user_id: str) -> dict[str, Any]:
         source_url = str(source or "").strip()
         if not source_url:
             raise ValidationError("source is required")

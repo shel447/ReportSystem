@@ -49,15 +49,19 @@ function withApiHeaders(url: string, options?: RequestOptions): RequestOptions |
     return options;
   }
 
-  const nextHeaders = new Headers(options?.headers ?? {});
-  if (!nextHeaders.has("X-User-Id")) {
-    nextHeaders.set("X-User-Id", "default");
-  }
-
   return {
     ...options,
-    headers: nextHeaders,
+    headers: withChatbiHeaders(options?.headers),
   };
+}
+
+export function withChatbiHeaders(headers?: HeadersInit): Headers {
+  const nextHeaders = new Headers(headers ?? {});
+  const developmentUserId = import.meta.env.DEV ? String(import.meta.env.VITE_DEV_USER_ID ?? "").trim() : "";
+  if (!nextHeaders.has("X-User-Id") && developmentUserId) {
+    nextHeaders.set("X-User-Id", developmentUserId);
+  }
+  return nextHeaders;
 }
 
 function isChatbiUrl(url: string): boolean {

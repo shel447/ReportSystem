@@ -194,7 +194,7 @@ def test_testdata_templates_import_create_update_export_roundtrip(tmp_path):
     fixtures = sorted(fixture_path("report-templates").glob("*.json"))
     assert fixtures
 
-    with TestClient(create_app(frontend_dir=str(tmp_path))) as client:
+    with TestClient(create_app(frontend_dir=str(tmp_path)), headers={"X-User-Id": "template-admin"}) as client:
         for fixture in fixtures:
             template = deepcopy(load_json_fixture("report-templates", fixture.name))
             template["id"] = f"tpl_roundtrip_{fixture.stem.replace('-', '_')}"

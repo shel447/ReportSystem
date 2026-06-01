@@ -17,18 +17,6 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-class User(Base):
-    __tablename__ = "tbl_users"
-
-    id = Column(String, primary_key=True)
-    display_name = Column(String, nullable=False, default="")
-    status = Column(String, nullable=False, default="active")
-    profile_json = Column(JSON, nullable=False, default=dict)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-    last_seen_at = Column(DateTime, nullable=True)
-
-
 class ReportTemplate(Base):
     __tablename__ = "tbl_report_templates"
 
@@ -49,7 +37,7 @@ class TemplateInstance(Base):
     template_id = Column(String, ForeignKey("tbl_report_templates.id"), nullable=False, index=True)
     conversation_id = Column(String, nullable=False, index=True)
     chat_id = Column(String, nullable=True, index=True)
-    user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
     status = Column(String, nullable=False)
     capture_stage = Column(String, nullable=False)
     revision = Column(Integer, nullable=False, default=1)
@@ -65,7 +53,7 @@ class ReportInstance(Base):
     id = Column(String, primary_key=True, default=gen_id)
     template_id = Column(String, ForeignKey("tbl_report_templates.id"), nullable=False, index=True)
     template_instance_id = Column(String, ForeignKey("tbl_template_instances.id"), nullable=False, index=True)
-    user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
     source_conversation_id = Column(String, nullable=True, index=True)
     source_chat_id = Column(String, nullable=True, index=True)
     status = Column(String, nullable=False)
@@ -96,7 +84,7 @@ class ExportJob(Base):
 
     id = Column(String, primary_key=True, default=gen_id)
     report_instance_id = Column(String, ForeignKey("tbl_report_instances.id"), nullable=False, index=True)
-    user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
+    user_id = Column(String, nullable=False, index=True)
     current_format = Column(String, nullable=False)
     status = Column(String, nullable=False)
     dependency_job_id = Column(String, ForeignKey("tbl_export_jobs.id"), nullable=True)

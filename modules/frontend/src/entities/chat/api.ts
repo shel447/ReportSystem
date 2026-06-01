@@ -1,4 +1,4 @@
-import { ApiError, chatbiPath, deleteJson, postJson, requestJson } from "../../shared/api/http";
+import { ApiError, chatbiPath, deleteJson, postJson, requestJson, withChatbiHeaders } from "../../shared/api/http";
 import type { ChatForkRequest, ChatRequest, ChatResponse, ChatStreamEvent, ConversationDetail, ConversationSummary } from "./types";
 
 export function fetchConversations() {
@@ -46,11 +46,10 @@ export async function sendChatMessageStream(
   };
   const response = await fetch(chatbiPath("/chat"), {
     method: "POST",
-    headers: {
+    headers: withChatbiHeaders({
       Accept: "text/event-stream",
       "Content-Type": "application/json",
-      "X-User-Id": "default",
-    },
+    }),
     body: JSON.stringify(requestPayload),
   });
   if (!response.ok) {
