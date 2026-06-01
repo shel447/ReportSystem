@@ -1,16 +1,25 @@
-"""报告文档生成与下载应用服务。"""
+"""报告文档生成、列表与下载应用服务。"""
 
 from __future__ import annotations
 
-from .generation_models import DocumentGenerationResult, DownloadResolution
-from .generation_service import ReportGenerationService
+import hashlib
+import json
+
+from ....shared.kernel.errors import NotFoundError, ValidationError
+from .generation_models import DocumentGenerationJobView, DocumentGenerationResult, DocumentView, DownloadResolution
 
 
 class ReportDocumentService:
-    """对外提供 report-scoped 文档生命周期能力。"""
+    """拥有 report-scoped 文档生命周期。"""
 
-    def __init__(self, *, generation_service: ReportGenerationService) -> None:
+    def __init__(self, *, generation_service, document_repository, export_job_repository, document_gateway) -> None:
         self.generation_service = generation_service
+        self.document_repository = document_repository
+        self.export_job_repository = export_job_repository
+        self.document_gateway = document_gateway
+
+    def list_documents(self, *, report_id: str) -> list[DocumentView]:
+        return [self.document_gateway.serialize_document(item) for item in self.document_repository.list_by_report(report_id)]
 
     def generate_documents(
         self,
@@ -23,15 +32,72 @@ class ReportDocumentService:
         strict_validation: bool,
         regenerate_if_exists: bool,
     ) -> DocumentGenerationResult:
-        return self.generation_service.generate_documents(
-            report_id=report_id,
-            user_id=user_id,
-            formats=formats,
-            pdf_source=pdf_source,
-            theme=theme,
-            strict_validation=strict_validation,
-            regenerate_if_exists=regenerate_if_exists,
-        )
+        normalized_formats = [str(item or "").strip().lower() for item in formats]
+        if "pdf" in normalized_formats:
+            raise ValidationError("PDF export is not available yet")
+        unsupported_formats = sorted(set(normalized_formats) - {"word", "ppt", "markdown"})
+        if unsupported_formats:
+            raise ValidationError(f"Unsupported document format: {unsupported_formats[0]}")
+        report = self.generation_service.get_report_instance(report_id, user_id=user_id).report
+        existing = self.document_repository.list_by_report(report_id)
+        reusable = [] if regenerate_if_exists else [self.document_gateway.serialize_document(item) for item in existing]
+        jobs: list[DocumentGenerationJobView] = []
+        documents: list[DocumentView] = []
+        request_hash = hashlib.sha1(
+            json.dumps(
+                {
+                    "formats": normalized_formats,
+                    "pdfSource": pdf_source,
+                    "theme": theme,
+                    "strictValidation": strict_validation,
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        dependency_job_id = None
+        for format_name in normalized_formats:
+            job = self.export_job_repository.create(
+                report_instance_id=report_id,
+                user_id=user_id,
+                current_format=format_name,
+                status="queued",
+                dependency_job_id=dependency_job_id,
+                exporter_backend="java_office_exporter" if format_name in {"word", "ppt", "pdf"} else "local_markdown",
+                request_payload_hash=request_hash,
+            )
+            jobs.append(
+                DocumentGenerationJobView(
+                    job_id=job.id,
+                    format=format_name,
+                    status="queued" if dependency_job_id is None else "blocked_by_dependency",
+                    depends_on=dependency_job_id,
+                )
+            )
+            artifact = self.document_gateway.generate_document(
+                report=report,
+                report_id=report_id,
+                format_name=format_name,
+                theme=theme,
+                strict_validation=strict_validation,
+                pdf_source=pdf_source,
+            )
+            document = self.document_repository.create(
+                report_instance_id=report_id,
+                artifact_kind=format_name,
+                source_format=pdf_source if format_name == "pdf" else None,
+                generation_mode="sync",
+                mime_type=artifact.mime_type,
+                storage_key=artifact.storage_key,
+                status="ready",
+            )
+            documents.append(self.document_gateway.serialize_document(document))
+            dependency_job_id = job.id if format_name in {"word", "ppt"} else dependency_job_id
+        return DocumentGenerationResult(report_id=report_id, jobs=jobs, documents=reusable + documents)
 
     def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> DownloadResolution:
-        return self.generation_service.resolve_download(report_id=report_id, document_id=document_id, user_id=user_id)
+        self.generation_service.get_report_instance(report_id, user_id=user_id)
+        document = self.document_repository.get_for_report(report_id, document_id)
+        if document is None:
+            raise NotFoundError("Document not found")
+        return self.document_gateway.resolve_download(document)

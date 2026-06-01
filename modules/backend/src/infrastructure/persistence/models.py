@@ -56,6 +56,7 @@ class Chat(Base):
     conversation_id = Column(String, ForeignKey("tbl_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
     role = Column(String, nullable=False)
+    scenario_key = Column(String, nullable=True, index=True)
     content = Column(JSON, nullable=False, default=dict)
     action = Column(JSON, nullable=True)
     meta = Column(JSON, nullable=False, default=dict)

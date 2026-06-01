@@ -93,16 +93,28 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_conversation_application_uses_report_application_boundary_only(self):
         violations: list[str] = []
-        root = ROOT / "contexts" / "conversation" / "application"
+        root = ROOT / "contexts" / "conversation"
         for path in root.rglob("*.py"):
             tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.ImportFrom):
                     continue
                 module = _resolve_import_from(path, node.module, node.level)
-                if module.startswith("backend.contexts.report.") and not module.startswith("backend.contexts.report.application."):
+                if module.startswith("backend.contexts.report."):
                     violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
         self.assertEqual([], violations, "\n".join(violations))
+
+    def test_report_dsl_compiler_has_no_infrastructure_dependencies(self):
+        path = ROOT / "contexts" / "report" / "domain" / "report_dsl_compiler.py"
+        source = path.read_text(encoding="utf-8-sig")
+        for forbidden in ("infrastructure", "httpx", "jsonschema", "sqlite3"):
+            self.assertNotIn(forbidden, source)
+
+    def test_report_generation_service_does_not_own_document_dependencies(self):
+        path = ROOT / "contexts" / "report" / "application" / "generation_service.py"
+        source = path.read_text(encoding="utf-8-sig")
+        for forbidden in ("document_repository", "export_job_repository", "document_gateway"):
+            self.assertNotIn(forbidden, source)
 
     def test_report_routers_use_single_report_service_builder(self):
         violations: list[str] = []

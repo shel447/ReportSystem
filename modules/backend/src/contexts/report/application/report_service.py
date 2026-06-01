@@ -73,7 +73,9 @@ class ReportService:
         )
 
     def get_report_view(self, report_id: str, *, user_id: str) -> ReportView:
-        return self.generation_service.get_report_view(report_id, user_id=user_id)
+        view = self.generation_service.get_report_view(report_id, user_id=user_id)
+        view.answer.documents = self.document_service.list_documents(report_id=report_id)
+        return view
 
     def generate_documents(
         self,

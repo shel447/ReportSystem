@@ -15,6 +15,7 @@ from ..domain.template_instance_builder import (
     parameters_to_value_map,
 )
 from ..domain.template_models import Parameter, ReportTemplate
+from ..domain.parameter_resolver import ParameterResolver
 from .scenario_models import (
     ReportAskPayload,
     ReportContext,
@@ -205,17 +206,7 @@ class ReportScenarioService:
 
 def missing_required_parameters(*, template: ReportTemplate, template_instance: TemplateInstance) -> list[Parameter]:
     """兼容旧调用方；新编排通过 ReportParameterService 调用。"""
-    values = parameters_to_value_map(
-        collect_instance_parameters(
-            parameters=template_instance.parameters,
-            catalogs=template_instance.catalogs,
-        )
-    )
-    return [
-        parameter
-        for parameter in collect_template_parameters(template)
-        if parameter.required and not list(values.get(parameter.id) or [])
-    ]
+    return ParameterResolver.missing_required(template=template, template_instance=template_instance)
 
 
 def _template_instance_from_payload(payload: TemplateInstance, *, chat_id: str, status: str, capture_stage: str) -> TemplateInstance:

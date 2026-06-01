@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    TI[TemplateInstance] --> APP[BuildReportDslService]
+    TI[TemplateInstance] --> APP[ReportDslCompiler]
     APP --> DSL[Report DSL]
     DSL --> RI[ReportInstance]
     RI --> EX[ExportReportService]
@@ -22,7 +22,7 @@ flowchart LR
 
 ### 2.1 应用层
 
-- `BuildReportDslService`
+- `ReportDslCompiler`
 - `FreezeReportInstanceService`
 - `ExportReportService`
 

@@ -10,8 +10,14 @@ from src.contexts.conversation.application.models import (
     ChatCommand,
     ChatResponse,
 )
-from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView
-from src.contexts.report.application.scenario_models import ReportAskPayload, ReportContext, ReportSegmentAnswer
+from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView, report_answer_view_to_dict
+from src.contexts.report.application.scenario_models import (
+    ReportAskPayload,
+    ReportContext,
+    ReportSegmentAnswer,
+    report_ask_payload_to_dict,
+    report_segment_answer_to_dict,
+)
 from src.contexts.report.domain.generation_models import (
     MarkdownComponent,
     MarkdownDataProperties,
@@ -108,9 +114,11 @@ class ChatContractApiTests(unittest.TestCase):
                         type="confirm_params",
                         title="请确认报告诉求",
                         text="请确认报告诉求后开始生成。",
-                        report_payload=ReportAskPayload(
-                            parameters=_sample_template_instance().parameters,
-                            report_context=ReportContext(template_instance=_sample_template_instance()),
+                        fields=report_ask_payload_to_dict(
+                            ReportAskPayload(
+                                parameters=_sample_template_instance().parameters,
+                                report_context=ReportContext(template_instance=_sample_template_instance()),
+                            )
                         ),
                     ),
                     answer=None,
@@ -154,7 +162,7 @@ class ChatContractApiTests(unittest.TestCase):
                     ask=None,
                     answer=ChatAnswerEnvelope(
                         answer_type="REPORT",
-                        report=ReportAnswerView(
+                        payload=report_answer_view_to_dict(ReportAnswerView(
                             report_id="rpt_001",
                             status="generating",
                             report=ReportDsl(
@@ -170,7 +178,7 @@ class ChatContractApiTests(unittest.TestCase):
                             template_instance=_sample_template_instance(status="generating", capture_stage="generate_report"),
                             documents=[],
                             generation_progress=GenerationProgressView(total_sections=8, completed_sections=2, total_catalogs=0, completed_catalogs=0),
-                        ),
+                        )),
                     ),
                     errors=[],
                     request_id="req_002",
@@ -246,7 +254,7 @@ class ChatContractApiTests(unittest.TestCase):
                     ask=None,
                     answer=ChatAnswerEnvelope(
                         answer_type="REPORT",
-                        report=ReportAnswerView(
+                        payload=report_answer_view_to_dict(ReportAnswerView(
                             report_id="rpt_001",
                             status="available",
                             report=ReportDsl(
@@ -286,7 +294,7 @@ class ChatContractApiTests(unittest.TestCase):
                                 total_catalogs=1,
                                 completed_catalogs=1,
                             ),
-                        ),
+                        )),
                     ),
                     errors=[],
                     request_id="req_stream",
@@ -387,7 +395,7 @@ class ChatContractApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(captured["data"].reply.report_payload.parameters["scope"], ["hq-network", "bj-network"])
+        self.assertEqual(captured["data"].reply.raw_payload["parameters"]["scope"], ["hq-network", "bj-network"])
 
     def test_post_chat_stream_returns_report_segment_delta(self):
         segment = ReportSegmentAnswer(
@@ -406,7 +414,7 @@ class ChatContractApiTests(unittest.TestCase):
                     conversation_id="conv_001",
                     chat_id="chat_020",
                     status="finished",
-                    answer=ChatAnswerEnvelope(answer_type="REPORT_SEGMENT", report_segment=segment),
+                    answer=ChatAnswerEnvelope(answer_type="REPORT_SEGMENT", payload=report_segment_answer_to_dict(segment)),
                 )
             },
         )()

@@ -17,6 +17,7 @@ TEMPLATE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-template.schema.json
 TEMPLATE_INSTANCE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "template-instance.schema.json"
 PARAMETER_OPTION_REQUEST_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-request.schema.json"
 PARAMETER_OPTION_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-response.schema.json"
+REPORT_DSL_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-dsl.schema.json"
 
 
 def _read_schema(path: Path) -> dict[str, Any]:
@@ -26,6 +27,7 @@ def _read_schema(path: Path) -> dict[str, Any]:
 _TEMPLATE_SCHEMA = _read_schema(TEMPLATE_SCHEMA_PATH)
 _TEMPLATE_INSTANCE_SCHEMA = _read_schema(TEMPLATE_INSTANCE_SCHEMA_PATH)
 _PARAMETER_OPTION_RESPONSE_SCHEMA = _read_schema(PARAMETER_OPTION_RESPONSE_SCHEMA_PATH)
+_REPORT_DSL_SCHEMA = _read_schema(REPORT_DSL_SCHEMA_PATH)
 
 _TEMPLATE_VALIDATOR = Draft202012Validator(_TEMPLATE_SCHEMA)
 _PARAMETER_OPTION_STORE = {
@@ -43,6 +45,13 @@ _PARAMETER_OPTION_RESPONSE_VALIDATOR = Draft202012Validator(
         referrer=_PARAMETER_OPTION_RESPONSE_SCHEMA,
         store=_PARAMETER_OPTION_STORE,
     ),
+)
+_REPORT_DSL_VALIDATOR = Draft202012Validator(_REPORT_DSL_SCHEMA)
+_REPORT_CATALOG_VALIDATOR = Draft202012Validator(
+    {"$schema": _REPORT_DSL_SCHEMA.get("$schema"), "$defs": _REPORT_DSL_SCHEMA.get("$defs", {}), "$ref": "#/$defs/Catalog"}
+)
+_REPORT_SECTION_VALIDATOR = Draft202012Validator(
+    {"$schema": _REPORT_DSL_SCHEMA.get("$schema"), "$defs": _REPORT_DSL_SCHEMA.get("$defs", {}), "$ref": "#/$defs/Section"}
 )
 
 
@@ -82,6 +91,25 @@ def validate_parameter_option_source_response(payload: dict[str, Any]) -> dict[s
         candidate["defaultValue"] = []
     _raise_first_error(_PARAMETER_OPTION_RESPONSE_VALIDATOR, candidate, "动态参数数据源响应校验失败")
     return candidate
+
+
+class ReportDslSchemaGateway:
+    """集中校验完整 Report DSL 与外部 custom 片段。"""
+
+    def validate_report(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_REPORT_DSL_VALIDATOR, payload, "报告 DSL 校验失败")
+
+    def validate_catalog(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_REPORT_CATALOG_VALIDATOR, payload, "custom catalog DSL 校验失败")
+
+    def validate_section(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_REPORT_SECTION_VALIDATOR, payload, "custom section DSL 校验失败")
+
+    @staticmethod
+    def _validate(validator: Draft202012Validator, payload: dict[str, Any], prefix: str) -> dict[str, Any]:
+        candidate = copy.deepcopy(payload or {})
+        _raise_first_error(validator, candidate, prefix)
+        return candidate
 
 
 def _raise_first_error(validator: Draft202012Validator, payload: dict[str, Any], prefix: str) -> None:

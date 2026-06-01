@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..application.models import (
+from ..domain.models import (
     ConversationMessageAction,
     ConversationMessageContent,
     ConversationMessageMeta,
@@ -19,4 +19,3 @@ __all__ = [
     "conversation_message_content_to_dict",
     "conversation_message_meta_to_dict",
 ]
-

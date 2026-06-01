@@ -80,6 +80,7 @@ class SqlAlchemyChatRepository:
         content: ConversationMessageContent,
         action: ConversationMessageAction | None = None,
         meta: ConversationMessageMeta | None = None,
+        scenario_key: str | None = None,
         chat_id: str | None = None,
     ) -> ChatRow:
         # 序号字段是单条会话消息流的权威排序键。
@@ -89,6 +90,7 @@ class SqlAlchemyChatRepository:
             conversation_id=conversation_id,
             user_id=user_id,
             role=role,
+            scenario_key=scenario_key,
             content=conversation_message_content_to_dict(content),
             action=conversation_message_action_to_dict(action),
             meta=conversation_message_meta_to_dict(meta) or {},
@@ -106,6 +108,29 @@ class SqlAlchemyChatRepository:
             .filter(ChatRow.conversation_id == conversation_id, ChatRow.user_id == user_id)
             .order_by(ChatRow.seq_no.asc())
             .all()
+        )
+
+    def get_for_conversation(self, conversation_id: str, chat_id: str, *, user_id: str) -> ChatRow | None:
+        return (
+            self.db.query(ChatRow)
+            .filter(
+                ChatRow.id == chat_id,
+                ChatRow.conversation_id == conversation_id,
+                ChatRow.user_id == user_id,
+            )
+            .one_or_none()
+        )
+
+    def get_latest_assistant(self, conversation_id: str, *, user_id: str) -> ChatRow | None:
+        return (
+            self.db.query(ChatRow)
+            .filter(
+                ChatRow.conversation_id == conversation_id,
+                ChatRow.user_id == user_id,
+                ChatRow.role == "assistant",
+            )
+            .order_by(ChatRow.seq_no.desc())
+            .first()
         )
 
     def mark_ask_replied(self, *, conversation_id: str, user_id: str, source_chat_id: str) -> bool:

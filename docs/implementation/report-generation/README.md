@@ -27,7 +27,7 @@
 - `TemplateInstance.template` 必须组合完整 `ReportTemplate` dataclass 快照
 - `TemplateInstance.structureType` 缺省为 `flow`；flow 实例使用 `catalogs`，paged 实例使用 `chapters -> slides -> sections`
 - `ReportDsl.structureType` 缺省为 `flow`；flow DSL 使用 `catalogs + layout`，paged DSL 使用 `content`
-- 本轮补齐 paged Report DSL 核心模型与 schema；`BuildReportDslService` 仍只编译 flow 结构，模板 paged 到 PPT DSL 的映射后续实现
+- 本轮补齐 paged Report DSL 核心模型与 schema；`ReportDslCompiler` 仍只编译 flow 结构，模板 paged 到 PPT DSL 的映射后续实现
 - `ReportInstance.report` 必须组合完整 `ReportDsl` dataclass
 - 入库、出库、导出时才允许做 JSON 序列化
 
@@ -37,9 +37,9 @@
 
 ### 3.1 `ReportService`
 
-`ReportService` 是 router 和其他 context 访问 report context 的唯一入口：
+`ReportService` 是 router 和系统装配层访问 report context 的唯一入口：
 
-- `conversation` 通过 `ReportService.chat()` 交付严格 `ReportScenarioCommand`
+- 系统装配层的 report 场景 handler 通过 `ReportService.chat()` 交付严格 `ReportScenarioCommand`
 - 模板、参数候选、报告详情和文档路由也只依赖 `ReportService`
 - 内部服务可以协作，但不直接泄漏给 router 或其他 context
 
@@ -63,7 +63,7 @@
 - 判断必填参数缺失
 - 构造报告场景 `ask.parameters` 与 `ask.reportContext`
 
-领域层的 `ParameterResolver` 只负责纯参数归一化和作用域解析，不访问外部数据源，不构造聊天响应。
+领域层的 `ParameterResolver` 负责纯参数归一化、作用域解析、标量转换和缺参判断，不访问外部数据源，不构造聊天响应。动态候选值的本地或 HTTP 调用由基础设施 gateway 负责。
 
 ### 3.4 `ReportGenerationService`
 
@@ -76,17 +76,13 @@
   - 按会话读取最近一次模板实例快照
 - `generate_report_from_template_instance`
   - 读取模板实例与模板快照
-  - 构建 `Report DSL`
-  - 校验 DSL
+  - 解析 custom 动态内容
+  - 调用纯领域 `ReportDslCompiler` 构建 `Report DSL`
+  - 通过 Schema gateway 校验 DSL
   - 创建 `ReportInstance`
   - 把模板实例状态推进到 `completed/report_ready`
 - `get_report_view`
-  - 组装 `/reports/{reportId}` 聚合视图
-- `generate_documents`
-  - 生成 Word/PPT/Markdown 产物；PDF 暂未开放
-  - 创建 `ExportJob` 和 `DocumentArtifact`
-- `resolve_download`
-  - 解析 report-scoped 下载请求
+  - 读取报告核心视图；文档列表由 `ReportService` 组合
 - `serialize_report_answer`
   - 统一 `/chat` 与 `/reports` 的报告答案载荷
 - `preview_section_regeneration`
@@ -102,17 +98,22 @@
 承担以下功能职责：
 
 - 把下载能力收束为 report-scoped 子服务
-- 把文档生成能力从报告冻结流程中分组暴露
+- 校验文档格式和复用策略
+- 生成 Word/PPT/Markdown 产物；PDF 暂未开放
+- 创建 `ExportJob` 和 `DocumentArtifact`
+- 提供报告文档列表和 report-scoped 下载
 - 不暴露独立 document 资源集合
 
 ## 4. 领域职责
 
 - `ParameterResolver`：参数归一化、作用域收集和值映射
+- `ReportDslCompiler`：把已解析的实例树编译为 flow Report DSL；不访问数据库、HTTP 或 Schema 文件
 - `template_instance_builder`：构建 `TemplateInstance`，并在同一递归过程中展开 `foreach/foreachCase/custom` 动态结构
 - `placeholder_renderer`：渲染参数占位符和诉求要素占位符
-- `generation_service.build_report_dsl`：当前 flow DSL 编译入口；后续 paged 编译接入时再独立为 compiler
 
-## 5. BuildReportDslService 规则
+application 层的 custom 内容解析器负责调用外部 gateway 并校验返回片段，再把强类型 catalog/section 交给 compiler。
+
+## 5. ReportDslCompiler 规则
 
 输入：
 

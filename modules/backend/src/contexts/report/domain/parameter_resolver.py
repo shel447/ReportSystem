@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from .generation_models import TemplateInstanceCatalog
@@ -50,3 +51,28 @@ class ParameterResolver:
         catalogs: list[TemplateInstanceCatalog] | None,
     ) -> list[Parameter]:
         return collect_instance_parameters(parameters=parameters, catalogs=catalogs)
+
+    @staticmethod
+    def scalar_to_value(raw_value: Any, *, definition: Parameter) -> ParameterValue:
+        """把 reply 中的标量解释为模板定义对应的正式参数值。"""
+        candidates: list[ParameterValue] = []
+        for values in (definition.options, definition.values, definition.default_value):
+            candidates.extend(list(values or []))
+        for candidate in candidates:
+            if raw_value in {candidate.label, candidate.value, candidate.query}:
+                return copy.deepcopy(candidate)
+        return ParameterValue(label=raw_value, value=raw_value, query=raw_value)
+
+    @staticmethod
+    def missing_required(*, template: ReportTemplate, template_instance) -> list[Parameter]:
+        values = ParameterResolver.parameters_to_value_map(
+            ParameterResolver.collect_instance_parameters(
+                parameters=template_instance.parameters,
+                catalogs=template_instance.catalogs,
+            )
+        )
+        return [
+            parameter
+            for parameter in ParameterResolver.collect_template_parameters(template)
+            if parameter.required and not list(values.get(parameter.id) or [])
+        ]

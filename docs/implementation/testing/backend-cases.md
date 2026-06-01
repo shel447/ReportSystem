@@ -16,12 +16,13 @@
 
 | 文件 | 源码用例数 | 主要覆盖目标 |
 |---|---:|---|
-| `tests/architecture/test_architecture_boundaries.py` | 7 | Context、router 和分层依赖边界 |
+| `tests/architecture/test_architecture_boundaries.py` | 9 | Context、router、compiler 和文档职责边界 |
 | `tests/architecture/test_dataclass_alias_contract.py` | 4 | lowerCamelCase 序列化契约 |
 | `tests/architecture/test_service_type_contracts.py` | 4 | 应用服务正式类型 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
 | `tests/conversation/api/test_chat_contract_api.py` | 7 | `/chat` ask/reply、SSE、报告与章节 delta |
-| `tests/conversation/unit/test_conversation_service.py` | 5 | 通用追问生命周期与场景分发 |
+| `tests/conversation/unit/test_conversation_service.py` | 6 | 通用追问生命周期、场景分发和 fork 轨迹保留 |
+| `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
 | `tests/dev_support/api/test_docs_router.py` | 4 | 文档索引、读取、ZIP 和逃逸防护 |
 | `tests/dev_support/api/test_feedback_router.py` | 1 | 反馈 CRUD 与 ZIP |
 | `tests/dev_support/api/test_system_settings_router.py` | 4 | 设置读取保存、连接测试和 reindex |
@@ -37,3 +38,5 @@
 | `tests/report/contract/test_shared_fixtures.py` | 2 | `testdata/` 模板与 Report DSL Schema |
 | `tests/report/integration/test_dynamic_source_service.py` | 5 | 动态参数数据源 |
 | `tests/report/unit/test_report_generation_service.py` | 30 | 模板实例、DSL 编译、动态结构和自定义内容 |
+| `tests/report/unit/test_report_document_service.py` | 2 | 文档格式校验、任务记录、列表和下载 |
+| `tests/report/unit/test_parameter_resolver.py` | 2 | 参数标量解释和缺参判断纯规则 |

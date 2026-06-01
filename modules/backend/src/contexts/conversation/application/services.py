@@ -5,36 +5,38 @@ from __future__ import annotations
 from typing import Any
 
 from ....shared.kernel.errors import NotFoundError, ValidationError
-from ...report.application.scenario_models import (
-    ReportScenarioCommand,
-    report_ask_payload_from_dict,
-    report_scenario_answer_from_dict,
+from ..domain.models import (
+    ChatContext,
+    ConversationMessageAction,
+    ConversationMessageContent,
+    ConversationMessageMeta,
+    ForkSource,
+    ScenarioTrace,
+    scenario_trace_from_dict,
 )
 from .models import (
     ChatAnswerEnvelope,
     ChatAsk,
     ChatCommand,
-    ChatContext,
     ChatResponse,
     DeleteResult,
-    ConversationMessageAction,
-    ConversationMessageContent,
-    ConversationMessageMeta,
     ForkSessionCommand,
     ForkSessionResult,
     SessionDetail,
     SessionMessage,
     SessionSummary,
+    chat_response_to_dict,
 )
+from .scenarios import ScenarioDispatchService, ScenarioResult
 
 
 class ConversationService:
     """拥有聊天协议、消息流水和通用追问生命周期的应用服务。"""
 
-    def __init__(self, *, conversation_repository, chat_repository, report_service) -> None:
+    def __init__(self, *, conversation_repository, chat_repository, scenario_dispatcher: ScenarioDispatchService) -> None:
         self.conversation_repository = conversation_repository
         self.chat_repository = chat_repository
-        self.report_service = report_service
+        self.scenario_dispatcher = scenario_dispatcher
 
     def list_sessions(self, *, user_id: str) -> list[SessionSummary]:
         """返回会话列表视图，仅包含最后一条消息预览。"""
@@ -88,18 +90,22 @@ class ConversationService:
         source = self.conversation_repository.get(source_conversation_id, user_id=user_id)
         if source is None:
             raise NotFoundError("Source conversation not found")
-        messages = self.chat_repository.list_by_conversation(source_conversation_id, user_id=user_id)
-        target = next((row for row in messages if row.id == source_chat_id), None)
+        target = self.chat_repository.get_for_conversation(source_conversation_id, source_chat_id, user_id=user_id)
         if target is None:
             raise NotFoundError("Source chat not found")
         new_conversation = self.conversation_repository.create(conversation_id=None, user_id=user_id)
+        source_trace = _scenario_trace_from_row(target)
         self.chat_repository.append_message(
             conversation_id=new_conversation.id,
             user_id=user_id,
             role=target.role,
             content=_message_content_from_row(target),
             action=_message_action_from_row(target),
-            meta=ConversationMessageMeta(status=None, forked_from={"conversationId": source_conversation_id, "chatId": source_chat_id}),
+            meta=ConversationMessageMeta(
+                forked_from=ForkSource(conversation_id=source_conversation_id, chat_id=source_chat_id),
+                scenario=source_trace,
+            ),
+            scenario_key=source_trace.key if source_trace else None,
         )
         new_conversation.title = source.title or _message_preview(_message_content_from_row(target))
         self.conversation_repository.save(new_conversation)
@@ -107,51 +113,51 @@ class ConversationService:
 
     def chat(self, *, data: ChatCommand, user_id: str) -> ChatResponse:
         """通过通用聊天通道推进一次业务场景交互。"""
-        instruction = str(data.instruction or "generate_report").strip() or "generate_report"
-        if instruction == "extract_report_template":
-            result = self.report_service.chat(
-                command=ReportScenarioCommand(
-                    conversation_id=data.conversation_id or "",
-                    chat_id=data.chat_id or "",
-                    user_id=user_id,
-                    instruction=instruction,
-                    question=data.question,
-                )
+        initial_resolution = self.scenario_dispatcher.resolve(
+            instruction=data.instruction,
+            question=data.question,
+            reply_source_trace=None,
+            previous_trace=None,
+        )
+        if self.scenario_dispatcher.is_stateless(initial_resolution):
+            context = _build_context(data=data, user_id=user_id, chat_id=data.chat_id or "", resolution=initial_resolution)
+            result = self.scenario_dispatcher.dispatch(resolution=initial_resolution, context=context, payload=_dispatch_payload(data))
+            return _response_from_scenario_result(
+                data=data,
+                conversation_id=data.conversation_id or "",
+                chat_id=data.chat_id or "",
+                result=result,
             )
-            return _response_from_scenario_result(data=data, conversation_id=data.conversation_id or "", chat_id=data.chat_id or "", result=result)
 
         conversation = self._ensure_conversation(data=data, user_id=user_id)
+        reply_source = self._reply_source_row(data=data, conversation_id=conversation.id, user_id=user_id)
+        previous = self.chat_repository.get_latest_assistant(conversation.id, user_id=user_id)
+        resolution = self.scenario_dispatcher.resolve(
+            instruction=data.instruction,
+            question=data.question,
+            reply_source_trace=_scenario_trace_from_row(reply_source),
+            previous_trace=_scenario_trace_from_row(previous),
+        )
+        self._consume_reply(data=data, conversation_id=conversation.id, user_id=user_id)
+        user_trace = resolution.to_trace()
         user_chat = self.chat_repository.append_message(
             conversation_id=conversation.id,
             user_id=user_id,
             role="user",
             content=ConversationMessageContent(question=str(data.question or "")),
+            meta=ConversationMessageMeta(scenario=user_trace),
+            scenario_key=resolution.key,
             chat_id=data.chat_id,
         )
-        context = ChatContext(
-            conversation_id=conversation.id,
-            chat_id=user_chat.id,
+        context = _build_context(
+            data=data,
             user_id=user_id,
-            instruction=instruction,
-            question=data.question,
-            reply_type=data.reply.type if data.reply else None,
-            source_chat_id=data.reply.source_chat_id if data.reply else None,
-            request_id=data.request_id,
-            api_version=data.api_version or "v1",
+            chat_id=user_chat.id,
+            resolution=resolution,
+            previous_trace=_scenario_trace_from_row(previous),
+            conversation_id=conversation.id,
         )
-        self._consume_reply(context=context)
-        result = self.report_service.chat(
-            command=ReportScenarioCommand(
-                conversation_id=context.conversation_id,
-                chat_id=context.chat_id,
-                user_id=context.user_id,
-                instruction=context.instruction,
-                question=context.question,
-                reply_type=context.reply_type,
-                reply=data.reply.report_payload if data.reply else None,
-                segment=data.report_segment,
-            )
-        )
+        result = self.scenario_dispatcher.dispatch(resolution=resolution, context=context, payload=_dispatch_payload(data))
         if result.conversation_title and not conversation.title:
             conversation.title = result.conversation_title
             self.conversation_repository.save(conversation)
@@ -161,19 +167,30 @@ class ConversationService:
             chat_id=_random_id("chat"),
             result=result,
         )
-        self._append_assistant_message(conversation_id=conversation.id, user_id=user_id, chat_id=response.chat_id, response=response)
+        self._append_assistant_message(
+            conversation_id=conversation.id,
+            user_id=user_id,
+            chat_id=response.chat_id,
+            response=response,
+            trace=resolution.to_trace(continuation_state=result.status),
+        )
         return response
 
-    def _consume_reply(self, *, context: ChatContext) -> None:
+    def _reply_source_row(self, *, data: ChatCommand, conversation_id: str, user_id: str):
+        if data.reply is None or not str(data.reply.source_chat_id or "").strip():
+            return None
+        return self.chat_repository.get_for_conversation(conversation_id, data.reply.source_chat_id, user_id=user_id)
+
+    def _consume_reply(self, *, data: ChatCommand, conversation_id: str, user_id: str) -> None:
         """消费任意业务场景的结构化答复，不解释其业务字段。"""
-        if context.reply_type is None:
+        if data.reply is None:
             return
-        source_chat_id = str(context.source_chat_id or "").strip()
+        source_chat_id = str(data.reply.source_chat_id or "").strip()
         if not source_chat_id:
             raise ValidationError("reply.sourceChatId is required")
         if not self.chat_repository.mark_ask_replied(
-            conversation_id=context.conversation_id,
-            user_id=context.user_id,
+            conversation_id=conversation_id,
+            user_id=user_id,
             source_chat_id=source_chat_id,
         ):
             raise ValidationError("reply.sourceChatId must reference a pending ask in the same conversation")
@@ -187,19 +204,60 @@ class ConversationService:
             return existing
         return self.conversation_repository.create(conversation_id=None, user_id=user_id)
 
-    def _append_assistant_message(self, *, conversation_id: str, user_id: str, chat_id: str, response: ChatResponse) -> None:
+    def _append_assistant_message(
+        self,
+        *,
+        conversation_id: str,
+        user_id: str,
+        chat_id: str,
+        response: ChatResponse,
+        trace: ScenarioTrace,
+    ) -> None:
         self.chat_repository.append_message(
             conversation_id=conversation_id,
             user_id=user_id,
             role="assistant",
-            content=ConversationMessageContent(response=response),
+            content=ConversationMessageContent(response=chat_response_to_dict(response)),
             action=ConversationMessageAction(type="chat_response"),
-            meta=ConversationMessageMeta(status=response.status),
+            meta=ConversationMessageMeta(status=response.status, scenario=trace),
+            scenario_key=trace.key,
             chat_id=chat_id,
         )
 
 
-def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, chat_id: str, result) -> ChatResponse:
+def _build_context(
+    *,
+    data: ChatCommand,
+    user_id: str,
+    chat_id: str,
+    resolution,
+    previous_trace: ScenarioTrace | None = None,
+    conversation_id: str | None = None,
+) -> ChatContext:
+    return ChatContext(
+        conversation_id=conversation_id if conversation_id is not None else data.conversation_id or "",
+        chat_id=chat_id,
+        user_id=user_id,
+        instruction=resolution.instruction,
+        scenario_key=resolution.key,
+        previous_scenario_key=previous_trace.key if previous_trace else None,
+        scenario_resolution=resolution.source,
+        question=data.question,
+        reply_type=data.reply.type if data.reply else None,
+        source_chat_id=data.reply.source_chat_id if data.reply else None,
+        request_id=data.request_id,
+        api_version=data.api_version or "v1",
+    )
+
+
+def _dispatch_payload(data: ChatCommand) -> dict[str, Any]:
+    payload = dict(data.raw_payload)
+    if data.reply is not None and "reply" not in payload:
+        payload["reply"] = dict(data.reply.raw_payload)
+    return payload
+
+
+def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, chat_id: str, result: ScenarioResult) -> ChatResponse:
     ask = None
     if result.ask is not None:
         ask = ChatAsk(
@@ -208,16 +266,11 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
             type=result.ask.type,
             title=result.ask.title,
             text=result.ask.text,
-            report_payload=result.ask.payload,
+            fields=dict(result.ask.fields),
         )
     answer = None
     if result.answer is not None:
-        answer = ChatAnswerEnvelope(
-            answer_type=result.answer.answer_type,
-            report=result.answer.report,
-            report_template_preview=result.answer.report_template_preview,
-            report_segment=result.answer.report_segment,
-        )
+        answer = ChatAnswerEnvelope(answer_type=result.answer.answer_type, payload=dict(result.answer.payload))
     return ChatResponse(
         conversation_id=conversation_id,
         chat_id=chat_id,
@@ -234,73 +287,49 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
 def _message_preview(content: ConversationMessageContent) -> str:
     if content.question:
         return str(content.question)[:80]
-    response = content.response
-    if response is not None and response.ask is not None:
-        return str(response.ask.title or response.ask.text or "")[:80]
-    return ""
+    response = content.response or {}
+    ask = response.get("ask") if isinstance(response.get("ask"), dict) else None
+    return str((ask or {}).get("title") or (ask or {}).get("text") or "")[:80]
 
 
 def _message_content_from_row(row) -> ConversationMessageContent:
-    content = row.content if isinstance(row.content, dict) else {}
-    response_payload = content.get("response") if isinstance(content.get("response"), dict) else None
-    response = _chat_response_from_payload(response_payload) if response_payload is not None else None
-    return ConversationMessageContent(question=content.get("question"), response=response)
+    content = row.content if row is not None and isinstance(row.content, dict) else {}
+    response = content.get("response") if isinstance(content.get("response"), dict) else None
+    return ConversationMessageContent(question=content.get("question"), response=dict(response) if response is not None else None)
 
 
 def _message_action_from_row(row) -> ConversationMessageAction | None:
-    if not isinstance(row.action, dict):
+    if row is None or not isinstance(row.action, dict):
         return None
     action_type = str(row.action.get("type") or "").strip()
     return ConversationMessageAction(type=action_type) if action_type else None
 
 
 def _message_meta_from_row(row) -> ConversationMessageMeta | None:
-    if not isinstance(row.meta, dict):
+    if row is None or not isinstance(row.meta, dict):
         return None
     forked_from = row.meta.get("forkedFrom") if isinstance(row.meta.get("forkedFrom"), dict) else None
     status = str(row.meta.get("status") or "").strip() or None
-    return ConversationMessageMeta(status=status, forked_from=dict(forked_from) if forked_from else None)
+    return ConversationMessageMeta(
+        status=status,
+        forked_from=ForkSource(
+            conversation_id=str(forked_from.get("conversationId") or ""),
+            chat_id=str(forked_from.get("chatId") or ""),
+        )
+        if forked_from
+        else None,
+        scenario=scenario_trace_from_dict(row.meta.get("scenario")),
+    )
 
 
-def _chat_response_from_payload(payload: dict[str, Any]) -> ChatResponse:
-    ask_payload = payload.get("ask") if isinstance(payload.get("ask"), dict) else None
-    answer_payload = payload.get("answer") if isinstance(payload.get("answer"), dict) else None
-    ask = (
-        ChatAsk(
-            status=str(ask_payload.get("status") or ""),
-            mode=str(ask_payload.get("mode") or ""),
-            type=str(ask_payload.get("type") or ""),
-            title=str(ask_payload.get("title") or ""),
-            text=str(ask_payload.get("text") or ""),
-            report_payload=report_ask_payload_from_dict(ask_payload),
-        )
-        if ask_payload is not None
-        else None
-    )
-    answer = None
-    if answer_payload is not None:
-        answer_type = str(answer_payload.get("answerType") or "")
-        restored = report_scenario_answer_from_dict(
-            answer_type,
-            answer_payload.get("answer") if isinstance(answer_payload.get("answer"), dict) else {},
-        )
-        answer = ChatAnswerEnvelope(
-            answer_type=restored.answer_type,
-            report=restored.report,
-            report_template_preview=restored.report_template_preview,
-            report_segment=restored.report_segment,
-        )
-    return ChatResponse(
-        conversation_id=str(payload.get("conversationId") or ""),
-        chat_id=str(payload.get("chatId") or ""),
-        status=str(payload.get("status") or ""),
-        ask=ask,
-        answer=answer,
-        errors=[str(item) for item in list(payload.get("errors") or [])],
-        request_id=str(payload.get("requestId") or "") or None,
-        timestamp=int(payload.get("timestamp") or 0) or None,
-        api_version=str(payload.get("apiVersion") or "v1"),
-    )
+def _scenario_trace_from_row(row) -> ScenarioTrace | None:
+    if row is None:
+        return None
+    trace = scenario_trace_from_dict((row.meta or {}).get("scenario") if isinstance(row.meta, dict) else None)
+    if trace is not None:
+        return trace
+    key = str(getattr(row, "scenario_key", None) or "").strip()
+    return ScenarioTrace(key=key, resolution="unmatched", confidence=0.0) if key else None
 
 
 def _random_id(prefix: str) -> str:

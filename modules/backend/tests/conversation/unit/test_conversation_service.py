@@ -9,6 +9,7 @@ from src.contexts.conversation.application.models import (
     ChatCommand,
     ChatReply,
     ChatResponse,
+    ForkSessionCommand,
     ConversationMessageAction,
     ConversationMessageContent,
     ConversationMessageMeta,
@@ -21,6 +22,8 @@ from src.contexts.report.application.parameter_service import ReportParameterSer
 from src.contexts.conversation.application.services import ConversationService
 from src.contexts.report.application.scenario_models import ReportContext, ReportReplyPayload
 from src.contexts.report.application.scenario_service import ReportScenarioService, missing_required_parameters
+from src.contexts.conversation.application.scenarios import ScenarioDispatchService, ScenarioRegistry
+from src.infrastructure.scenarios.report_conversation import report_scenario_registration
 from src.contexts.report.domain.generation_models import (
     ParameterConfirmation,
     ReportBasicInfo,
@@ -238,7 +241,7 @@ class _InMemoryConversation:
 
 
 class _InMemoryChat:
-    def __init__(self, chat_id: str, conversation_id: str, user_id: str, role: str, content: dict, action=None, meta=None) -> None:
+    def __init__(self, chat_id: str, conversation_id: str, user_id: str, role: str, content: dict, action=None, meta=None, scenario_key=None) -> None:
         self.id = chat_id
         self.conversation_id = conversation_id
         self.user_id = user_id
@@ -246,6 +249,7 @@ class _InMemoryChat:
         self.content = content
         self.action = action
         self.meta = meta
+        self.scenario_key = scenario_key
         self.created_at = None
 
 
@@ -260,7 +264,7 @@ class _ConversationRepository:
         return None
 
     def create(self, *, conversation_id: str | None, user_id: str):
-        row = _InMemoryConversation(conversation_id or "conv_001", user_id)
+        row = _InMemoryConversation(conversation_id or f"conv_{len(self.rows) + 1:03d}", user_id)
         self.rows[row.id] = row
         return row
 
@@ -285,6 +289,7 @@ class _ChatRepository:
         content: ConversationMessageContent,
         action: ConversationMessageAction | None = None,
         meta: ConversationMessageMeta | None = None,
+        scenario_key=None,
         chat_id=None,
     ):
         row = _InMemoryChat(
@@ -295,12 +300,20 @@ class _ChatRepository:
             conversation_message_content_to_dict(content),
             conversation_message_action_to_dict(action),
             conversation_message_meta_to_dict(meta),
+            scenario_key,
         )
         self.rows.append(row)
         return row
 
     def list_by_conversation(self, conversation_id: str, *, user_id: str):
         return [row for row in self.rows if row.conversation_id == conversation_id and row.user_id == user_id]
+
+    def get_for_conversation(self, conversation_id: str, chat_id: str, *, user_id: str):
+        return next((row for row in self.rows if row.id == chat_id and row.conversation_id == conversation_id and row.user_id == user_id), None)
+
+    def get_latest_assistant(self, conversation_id: str, *, user_id: str):
+        rows = [row for row in self.rows if row.conversation_id == conversation_id and row.user_id == user_id and row.role == "assistant"]
+        return rows[-1] if rows else None
 
     def mark_ask_replied(self, *, conversation_id: str, user_id: str, source_chat_id: str) -> bool:
         for row in self.rows:
@@ -357,14 +370,59 @@ def _conversation_service(*, template, conversation_repository, chat_repository,
         generation_service=runtime_service,
         parameter_service=ReportParameterService(),
     )
+    registry = ScenarioRegistry()
+    registry.register(report_scenario_registration(report_service=SimpleNamespace(chat=report_scenario_service.handle)))
+    registry.seal()
     return ConversationService(
         conversation_repository=conversation_repository,
         chat_repository=chat_repository,
-        report_service=SimpleNamespace(chat=report_scenario_service.handle),
+        scenario_dispatcher=ScenarioDispatchService(registry=registry),
     )
 
 
 class ConversationServiceAskStatusTests(unittest.TestCase):
+    def test_fork_preserves_source_message_scenario_trace(self):
+        template = report_template_from_dict({
+            "id": "tpl_network_daily",
+            "category": "network_operations",
+            "name": "网络运行日报",
+            "description": "面向网络运维中心的统一日报模板。",
+            "schemaVersion": "template.v3",
+            "parameters": [],
+            "catalogs": [],
+        })
+        conversation_repository = _ConversationRepository()
+        chat_repository = _ChatRepository()
+        service = _conversation_service(
+            template=template,
+            conversation_repository=conversation_repository,
+            chat_repository=chat_repository,
+            runtime_service=_RuntimeService(),
+        )
+        first = service.chat(
+            data=ChatCommand(instruction="generate_report", question="帮我生成网络运行日报"),
+            user_id="default",
+        )
+
+        forked = service.fork_session(
+            data=ForkSessionCommand(
+                source_kind="chat",
+                source_conversation_id=first.conversation_id,
+                source_chat_id=first.chat_id,
+            ),
+            user_id="default",
+        )
+
+        copied = chat_repository.rows[-1]
+        self.assertEqual(forked.conversation_id, "conv_002")
+        self.assertEqual(copied.conversation_id, forked.conversation_id)
+        self.assertEqual(copied.scenario_key, "report")
+        self.assertEqual(copied.meta["scenario"]["key"], "report")
+        self.assertEqual(
+            copied.meta["forkedFrom"],
+            {"conversationId": first.conversation_id, "chatId": first.chat_id},
+        )
+
     def test_reply_marks_previous_ask_as_replied(self):
         template = report_template_from_dict({
             "id": "tpl_network_daily",
@@ -407,10 +465,12 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
                 reply=ChatReply(
                     type="fill_params",
                     source_chat_id=first.chat_id,
-                    report_payload=ReportReplyPayload(
-                        parameters={"report_date": ["2026-04-18"]},
-                        report_context=ReportContext(template_instance=runtime_service.instance),
-                    ),
+                    raw_payload={
+                        "type": "fill_params",
+                        "sourceChatId": first.chat_id,
+                        "parameters": {"report_date": ["2026-04-18"]},
+                        "reportContext": {"templateInstance": {}},
+                    },
                 ),
             ),
             user_id="default",
@@ -420,6 +480,8 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
         self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
         self.assertEqual(assistant_messages[-1].content["response"]["ask"]["status"], "pending")
+        self.assertTrue(all(row.scenario_key == "report" for row in chat_repository.rows))
+        self.assertTrue(all(row.meta["scenario"]["key"] == "report" for row in chat_repository.rows))
 
     def test_reply_uses_source_chat_id_instead_of_latest_pending_guess(self):
         template = report_template_from_dict({
@@ -470,10 +532,12 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
                 reply=ChatReply(
                     type="fill_params",
                     source_chat_id=first.chat_id,
-                    report_payload=ReportReplyPayload(
-                        parameters={"report_date": ["2026-04-18"]},
-                        report_context=ReportContext(template_instance=runtime_service.instance),
-                    ),
+                    raw_payload={
+                        "type": "fill_params",
+                        "sourceChatId": first.chat_id,
+                        "parameters": {"report_date": ["2026-04-18"]},
+                        "reportContext": {"templateInstance": {}},
+                    },
                 ),
             ),
             user_id="default",

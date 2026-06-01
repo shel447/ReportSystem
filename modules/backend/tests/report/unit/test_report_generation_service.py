@@ -92,9 +92,6 @@ def _build_runtime_service():
             update=lambda instance, user_id: instance,
         ),
         report_instance_repository=SimpleNamespace(),
-        document_repository=SimpleNamespace(list_by_report=lambda report_id: []),
-        export_job_repository=SimpleNamespace(),
-        document_gateway=SimpleNamespace(),
     )
 
 
@@ -167,9 +164,6 @@ class ReportGenerationServiceTests(unittest.TestCase):
             template_repository=SimpleNamespace(),
             template_instance_repository=SimpleNamespace(get=lambda instance_id, user_id: instance),
             report_instance_repository=SimpleNamespace(get=lambda report_id, user_id: SimpleNamespace(template_instance_id=instance.id)),
-            document_repository=SimpleNamespace(),
-            export_job_repository=SimpleNamespace(),
-            document_gateway=SimpleNamespace(),
         )
 
         preview = service.preview_section_regeneration(

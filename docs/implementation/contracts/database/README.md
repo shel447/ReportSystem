@@ -1,6 +1,6 @@
 # 数据库契约
 
-本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。
+本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。`V002__add_chat_scenario_tracking.sql` 为既有业务库补充每轮消息的场景归属。
 
 ## 1. 数据库分类
 
@@ -72,6 +72,7 @@ erDiagram
 | `conversation_id` | `VARCHAR` | 是 | - | FK `tbl_conversations.id`，INDEX | 所属会话 |
 | `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
 | `role` | `VARCHAR` | 是 | - | - | 消息角色 |
+| `scenario_key` | `VARCHAR` | 否 | `NULL` | INDEX | 本轮业务场景归属 |
 | `content` | `JSON` | 是 | `{}` | - | 消息内容 |
 | `action` | `JSON` | 否 | `NULL` | - | 结构化动作 |
 | `meta` | `JSON` | 是 | `{}` | - | 消息元信息 |
@@ -188,6 +189,7 @@ CREATE TABLE tbl_chats (
     conversation_id VARCHAR NOT NULL REFERENCES tbl_conversations (id) ON DELETE CASCADE,
     user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
     role VARCHAR NOT NULL,
+    scenario_key VARCHAR,
     content JSON NOT NULL,
     action JSON,
     meta JSON NOT NULL,
@@ -196,6 +198,7 @@ CREATE TABLE tbl_chats (
 );
 CREATE INDEX ix_tbl_chats_conversation_id ON tbl_chats (conversation_id);
 CREATE INDEX ix_tbl_chats_user_id ON tbl_chats (user_id);
+CREATE INDEX ix_tbl_chats_scenario_key ON tbl_chats (scenario_key);
 
 CREATE TABLE tbl_report_templates (
     id VARCHAR NOT NULL PRIMARY KEY,

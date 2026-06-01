@@ -208,7 +208,7 @@ X-User-Id: <external-user-id>
 
 - `conversationId`：会话 id
 - `chatId`：当前轮 id
-- `instruction`：当前正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`
+- `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`
 - `reply`：承接对某条追问的结构化答复；业务字段按 instruction 场景定义
 - `attachments`：仅在 `extract_report_template` 且需要上传原始材料时必填
 - `histories`：仅在“基于历史对话生成报告”场景下必填
@@ -216,6 +216,7 @@ X-User-Id: <external-user-id>
 - `question` / `reply` / `template`：`generate_report` 场景下 `question` 或 `reply` 至少出现一个；`generate_report_segment` 场景下 `template` 必填，`question` 和 `reply` 不使用
 - `extract_report_template` 用于"从附件、原始文本或自然语言描述中提取模板草案"；其结果是预览态，不直接落库
 - `generate_report_segment` 用于"报告生成完成后，基于编辑后的章节大纲重新生成单个章节"；返回预览结果，不直接更新报告实例
+- 未传 `instruction` 时，通用对话会结合当前输入和上一轮场景识别业务场景；无法可靠识别时返回 `clarify_scenario`
 
 ##### ChatRequest.reply 子结构
 
@@ -405,6 +406,18 @@ X-User-Id: <external-user-id>
   "reportContext": {
     "templateInstance": {}
   }
+}
+```
+
+无法可靠识别业务场景时，conversation 返回通用澄清追问：
+
+```json
+{
+  "status": "pending",
+  "mode": "natural_language",
+  "type": "clarify_scenario",
+  "title": "请补充你的需求",
+  "text": "请再说明希望系统帮助你完成什么任务。"
 }
 ```
 

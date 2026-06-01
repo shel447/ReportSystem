@@ -6,24 +6,21 @@ import copy
 import re
 from typing import Any
 
-import httpx
-
-from ....infrastructure.demo.dynamic_sources import get_dynamic_option_items
 from ....shared.kernel.errors import ValidationError
 from ..domain.generation_models import TemplateInstance
 from ..domain.parameter_resolver import ParameterResolver
 from ..domain.template_models import Parameter, ParameterValue, ReportTemplate, parameter_value_from_dict
 from .scenario_models import ReportAskPayload, ReportContext, ReportScenarioAsk
 from .template_models import ParameterOptionsResult
-from ..infrastructure.template_schema import validate_parameter_option_source_response
-
-MAX_REQUEST_BODY_BYTES = 32 * 1024
-UPSTREAM_TIMEOUT_SECONDS = 3.0
+from ..infrastructure.parameter_options import ParameterOptionsGateway
 DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
 class ReportParameterService:
     """解释报告参数，并通过正式数据源解析动态候选值。"""
+
+    def __init__(self, *, options_gateway: ParameterOptionsGateway | None = None) -> None:
+        self.options_gateway = options_gateway or ParameterOptionsGateway()
 
     def resolve_options(
         self,
@@ -35,36 +32,11 @@ class ReportParameterService:
     ) -> ParameterOptionsResult:
         # 报告系统始终通过统一的提交契约调用动态源，即使是本地演示源也不例外，
         # 这样对话层只需要面对一种返回结构。
-        source_url = str(source or "").strip()
-        if not source_url:
-            raise ValidationError("source is required")
-
         request_payload = {
             parameter_id: [{"label": item.label, "value": item.value, "query": item.query} for item in values]
             for parameter_id, values in dict(context_values or {}).items()
         }
-        body_size = len(httpx.Request("POST", "http://local", json=request_payload).content)
-        if body_size > MAX_REQUEST_BODY_BYTES:
-            raise ValidationError("request body too large")
-
-        if source_url.startswith("api:/"):
-            response = {
-                "options": get_dynamic_option_items(source_url),
-                "defaultValue": [],
-            }
-            return _to_parameter_options_result(validate_parameter_option_source_response(response))
-
-        try:
-            with httpx.Client(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
-                response = client.post(source_url, json=request_payload)
-                response.raise_for_status()
-                payload = response.json()
-        except httpx.TimeoutException as exc:
-            raise ValidationError(f"动态参数数据源超时: {source_url}") from exc
-        except Exception as exc:
-            raise ValidationError(f"动态参数数据源调用失败: {exc}") from exc
-
-        return _to_parameter_options_result(validate_parameter_option_source_response(payload))
+        return _to_parameter_options_result(self.options_gateway.resolve(source=source, request_payload=request_payload))
 
     def resolve(
         self,
@@ -151,7 +123,7 @@ class ReportParameterService:
                 raise ValidationError(f"reply.parameters contains unknown parameter id: {normalized_id}")
             if not isinstance(raw_values, list):
                 raise ValidationError(f"reply.parameters.{normalized_id} must be an array")
-            resolved[normalized_id] = [self._scalar_to_parameter_value(item, definition=definition) for item in raw_values]
+            resolved[normalized_id] = [ParameterResolver.scalar_to_value(item, definition=definition) for item in raw_values]
         return resolved
 
     def missing_required_parameters(
@@ -160,17 +132,7 @@ class ReportParameterService:
         template: ReportTemplate,
         template_instance: TemplateInstance,
     ) -> list[Parameter]:
-        values = ParameterResolver.parameters_to_value_map(
-            ParameterResolver.collect_instance_parameters(
-                parameters=template_instance.parameters,
-                catalogs=template_instance.catalogs,
-            )
-        )
-        return [
-            parameter
-            for parameter in ParameterResolver.collect_template_parameters(template)
-            if parameter.required and not list(values.get(parameter.id) or [])
-        ]
+        return ParameterResolver.missing_required(template=template, template_instance=template_instance)
 
     def build_ask(self, *, template: ReportTemplate, template_instance: TemplateInstance) -> ReportScenarioAsk:
         """构造报告场景的参数补充或确认追问。"""
@@ -223,17 +185,6 @@ class ReportParameterService:
                 if not multi:
                     break
         return choices or None
-
-    @staticmethod
-    def _scalar_to_parameter_value(raw_value: Any, *, definition: Parameter) -> ParameterValue:
-        candidates = []
-        for values in (definition.options, definition.values, definition.default_value):
-            candidates.extend(list(values or []))
-        for candidate in candidates:
-            if raw_value in {candidate.label, candidate.value, candidate.query}:
-                return copy.deepcopy(candidate)
-        return ParameterValue(label=raw_value, value=raw_value, query=raw_value)
-
 
 def _to_parameter_options_result(payload: dict[str, Any]) -> ParameterOptionsResult:
     return ParameterOptionsResult(

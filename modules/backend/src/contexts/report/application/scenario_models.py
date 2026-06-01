@@ -22,7 +22,8 @@ from ..domain.template_models import (
     report_template_from_dict,
 )
 from .generation_models import DocumentView, GenerationProgressView, ReportAnswerView
-from .template_models import TemplateImportPreview
+from .generation_models import report_answer_view_to_dict
+from .template_models import TemplateImportPreview, template_import_preview_to_dict
 
 Scalar = str | int | float | bool
 
@@ -190,6 +191,16 @@ def report_segment_answer_to_dict(answer: ReportSegmentAnswer) -> dict[str, obje
         "reportMeta": report_generate_meta_to_dict(answer.report_meta),
         "outline": outline_definition_to_dict(answer.outline),
     }
+
+
+def report_scenario_answer_to_dict(answer: ReportScenarioAnswer) -> dict[str, object]:
+    if answer.report is not None:
+        return report_answer_view_to_dict(answer.report)
+    if answer.report_template_preview is not None:
+        return template_import_preview_to_dict(answer.report_template_preview)
+    if answer.report_segment is not None:
+        return report_segment_answer_to_dict(answer.report_segment)
+    return {}
 
 
 def report_scenario_answer_from_dict(answer_type: str, payload: dict[str, object]) -> ReportScenarioAnswer:
