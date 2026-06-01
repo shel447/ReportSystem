@@ -1,10 +1,13 @@
 # Backend DDD Context 划分评审
 
 **日期**：2026-06-01
-**分支**：`master`
-**Commit**：`64aba7d3149c7737e12f7d4f3103d53d7d51c4d3`
+**评审分支**：`master`
+**评审 Commit**：`64aba7d3149c7737e12f7d4f3103d53d7d51c4d3`
+**处理分支**：`master`
+**处理 Commit**：`cdbf2af03ee43a97871c73987bd477cf4d957c77`
 **评审范围**：`modules/backend/src/contexts/`
 **评审人**：Claude Code
+**状态**：已闭环
 
 ## 1. 当前结构
 
@@ -233,7 +236,45 @@ class ReportDocumentService:
 | 低 | 统一 instruction 路由 | `conversation/services.py` + `scenario_service.py` | 中：改变控制流 |
 | 低 | 梳理 ParameterService 边界 | `parameter_service.py` + `template_instance_builder.py` | 低：函数移动 |
 
-## 5. 不在本次评审范围内
+## 5. 处理记录
+
+处理提交范围：`64aba7d` → `cdbf2af`（4 个提交：`f8cc0da`、`3024a9f`、`4b6b3fc`、`cdbf2af`）
+
+### 5.1 [高] 提取 ReportDslCompiler 为领域服务 ✅
+
+**处理结果**：已采纳。新建 `report/domain/report_dsl_compiler.py`（449 行），`ReportDslCompiler` 类负责将 `TemplateInstance` 编译为 `ReportDsl`。`ReportGenerationService` 从 856 行缩减到 213 行，变为纯编排层，委托编译器处理所有 DSL 构建。形成对称的领域服务层次：`TemplateInstanceBuilder`（template → instance）、`ReportDslCompiler`（instance → dsl）。
+
+### 5.2 [高] 填补 conversation domain 层 ✅
+
+**处理结果**：已采纳。新建 `conversation/domain/models.py`（120 行），包含 `ScenarioTrace`、`ChatContext`、`ForkSource`、`ConversationMessageContent`、`ConversationMessageAction`、`ConversationMessageMeta` 等核心领域模型。`application/models.py` 瘦身，仅保留应用边界类型（`ChatCommand`、`ChatResponse`、`SessionSummary` 等），通过 import 引用领域模型，不再重复定义。
+
+### 5.3 [中] 引入 Anti-Corruption Layer ✅
+
+**处理结果**：已采纳，且实现超出预期。团队引入了通用场景调度框架而非简单的 ACL：
+
+- `conversation/application/scenarios.py` — `ScenarioRegistry` + `ScenarioRecognizer` + `ScenarioDispatchService`，实现可注册、可扩展的场景分发
+- `infrastructure/scenarios/report_conversation.py` — `ReportConversationScenarioHandler` + `ReportConversationScenarioCodec`，作为 report ↔ conversation 的唯一翻译点
+- `ConversationService` 不再直接导入任何 report 领域类型，零领域耦合
+- 未来新增业务场景（如 `fault_diagnosis`）只需新增 `ScenarioRegistration`，不改 conversation 核心逻辑
+
+### 5.4 [中] 充实 ReportDocumentService ✅
+
+**处理结果**：已采纳。`document_service.py` 从 37 行透传增长到 104 行。`ReportDocumentService` 现在直接注入 `document_repository`、`export_job_repository`、`document_gateway`，实现完整的文档生成编排：格式验证、去重检测、导出作业依赖链管理、下载解析。`ReportGenerationService` 聚焦"冻结实例 → 报告"核心链路。
+
+### 5.5 [低] 统一 instruction 路由 ✅
+
+**处理结果**：已采纳。`ScenarioDispatchService.resolve()` 实现统一路由，按优先级：显式指令 → 回复链追踪 → 连续性追踪 → 识别器启发式。`ConversationService.chat()` 不再包含硬编码的 `if instruction == "..."` 分支，全部通过 `ScenarioDispatchService` 分发。
+
+### 5.6 [低] 梳理 ParameterService 与 TemplateInstanceBuilder 的边界 ✅
+
+**处理结果**：已采纳。`parameter_service.py` 重写后边界清晰：
+
+- 领域层：`ParameterResolver`、`template_instance_builder.py` 中的合并/展开/校验逻辑
+- 应用层：`parameter_service.py` 编排提取 → 合并 → 构建实例流程
+- `ParameterOptionsGateway` 通过注入获得，脱离 HTTP 实现细节
+- 新增 `parameter_options.py`（infrastructure）封装 HTTP 选项解析
+
+## 6. 不在本次评审范围内
 
 - 前端架构
 - exporter 模块

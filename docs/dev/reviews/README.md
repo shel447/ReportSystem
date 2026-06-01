@@ -20,4 +20,4 @@
 
 | 日期 | 评审主题 | 基线 | 状态 | 文件 |
 |------|---------|------|------|------|
-| 2026-06-01 | Backend DDD Context 划分评审 | `master` @ `64aba7d` | 待处理 | [2026-06-01-backend-context-review.md](2026-06-01-backend-context-review.md) |
+| 2026-06-01 | Backend DDD Context 划分评审 | `master` @ `64aba7d` | 已闭环 | [2026-06-01-backend-context-review.md](2026-06-01-backend-context-review.md) |
