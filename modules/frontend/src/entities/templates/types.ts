@@ -19,8 +19,11 @@ export type TemplateSummary = {
   name: string;
   description: string;
   schemaVersion: string;
+  structureType?: TemplateStructureType;
   updatedAt?: string | null;
 };
+
+export type TemplateStructureType = "flow" | "paged";
 
 export type ParameterRuntimeContext = {
   valueSource?: "user_input" | "default" | "dynamic_candidate" | "parameter_ref" | "system_fill";
@@ -74,7 +77,8 @@ export type DatasetDefinition = {
   id: string;
   name?: string;
   sourceType: "sql" | "api" | "llm" | "compose";
-  sourceRef: string;
+  source?: string;
+  sourceRef?: string;
   dependsOn?: string[];
   description?: string;
 };
@@ -92,6 +96,8 @@ export type MergeRowDefinition = {
 export type TableLayout = {
   kind: "table";
   showHeader?: boolean;
+  showTitle?: boolean;
+  defaultDisplayRows?: number;
   columns?: Array<{ key: string; title: string; width?: string; align?: "left" | "center" | "right" }>;
   mergeColumns?: MergeColumnInfo[];
   mergeRows?: MergeRowDefinition[];
@@ -188,7 +194,35 @@ export type CatalogDefinition = {
   sections?: SectionDefinition[];
 };
 
-export type ReportTemplate = {
+export type SlideLayoutDefinition = {
+  layoutId?: string;
+  variant?: string;
+  notes?: string;
+  [key: string]: unknown;
+};
+
+export type SlideDefinition = {
+  id: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  parameters?: TemplateParameter[];
+  dynamic?: DynamicDefinition;
+  layout?: SlideLayoutDefinition;
+  sections?: SectionDefinition[];
+};
+
+export type ChapterDefinition = {
+  id: string;
+  title?: string;
+  description?: string;
+  implicit?: boolean;
+  parameters?: TemplateParameter[];
+  dynamic?: DynamicDefinition;
+  slides?: SlideDefinition[];
+};
+
+export type ReportTemplateBase = {
   id: string;
   category: string;
   name: string;
@@ -197,8 +231,21 @@ export type ReportTemplate = {
   createdAt?: string | null;
   updatedAt?: string | null;
   parameters: TemplateParameter[];
-  catalogs: CatalogDefinition[];
 };
+
+export type FlowReportTemplate = ReportTemplateBase & {
+  structureType?: "flow";
+  catalogs: CatalogDefinition[];
+  chapters?: never;
+};
+
+export type PagedReportTemplate = ReportTemplateBase & {
+  structureType: "paged";
+  catalogs?: never;
+  chapters: ChapterDefinition[];
+};
+
+export type ReportTemplate = FlowReportTemplate | PagedReportTemplate;
 
 export type TemplateImportPreview = {
   normalizedTemplate: ReportTemplate;

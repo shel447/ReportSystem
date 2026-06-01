@@ -6,11 +6,14 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { createTemplate, deleteTemplate, fetchTemplate, updateTemplate } from "../entities/templates/api";
 import type {
   CatalogDefinition,
+  ChapterDefinition,
+  FlowReportTemplate,
   ParameterValue,
   PresentationBlock,
   ReportTemplate,
   RequirementItemDefinition,
   SectionDefinition,
+  TemplateStructureType,
   TemplateParameter,
   WarningItem,
 } from "../entities/templates/types";
@@ -93,12 +96,16 @@ export function TemplateDetailPage() {
   const activeDraft = draft;
   const summary = useMemo(() => {
     if (!activeDraft) {
-      return { parameters: 0, catalogs: 0, sections: 0 };
+      return { structureType: "flow" as TemplateStructureType, parameters: 0, catalogs: 0, chapters: 0, slides: 0, sections: 0 };
     }
+    const structureType = resolveTemplateStructure(activeDraft);
     return {
+      structureType,
       parameters: activeDraft.parameters.length,
-      catalogs: countCatalogs(activeDraft.catalogs),
-      sections: countSections(activeDraft.catalogs),
+      catalogs: structureType === "flow" ? countCatalogs(getTemplateCatalogs(activeDraft)) : 0,
+      chapters: structureType === "paged" ? getTemplateChapters(activeDraft).length : 0,
+      slides: structureType === "paged" ? countSlides(getTemplateChapters(activeDraft)) : 0,
+      sections: structureType === "flow" ? countSections(getTemplateCatalogs(activeDraft)) : countPagedSections(getTemplateChapters(activeDraft)),
     };
   }, [activeDraft]);
 
@@ -139,8 +146,10 @@ export function TemplateDetailPage() {
           )}
           summary={(
             <SurfaceCard className="summary-strip">
+              <div className="summary-strip__item"><span>结构</span><strong>{summary.structureType === "paged" ? "PPT" : "Flow"}</strong></div>
               <div className="summary-strip__item"><span>参数数</span><strong>{summary.parameters}</strong></div>
-              <div className="summary-strip__item"><span>目录数</span><strong>{summary.catalogs}</strong></div>
+              <div className="summary-strip__item"><span>{summary.structureType === "paged" ? "章节数" : "目录数"}</span><strong>{summary.structureType === "paged" ? summary.chapters : summary.catalogs}</strong></div>
+              {summary.structureType === "paged" ? <div className="summary-strip__item"><span>页面数</span><strong>{summary.slides}</strong></div> : null}
               <div className="summary-strip__item"><span>章节数</span><strong>{summary.sections}</strong></div>
             </SurfaceCard>
           )}
@@ -160,6 +169,7 @@ export function TemplateDetailPage() {
                   <label className="field"><span className="field-label">分类</span><input value={activeDraft.category} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, category: e.target.value }))} /></label>
                   <label className="field"><span className="field-label">名称</span><input value={activeDraft.name} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, name: e.target.value }))} /></label>
                   <label className="field"><span className="field-label">Schema Version</span><input value={activeDraft.schemaVersion} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, schemaVersion: e.target.value }))} /></label>
+                  <label className="field"><span className="field-label">模板结构</span><input value={summary.structureType === "paged" ? "PPT / paged" : "Flow"} readOnly /></label>
                   <label className="field field--full"><span className="field-label">描述</span><textarea rows={3} value={activeDraft.description} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, description: e.target.value }))} /></label>
                 </div>
               </SurfaceCard>
@@ -172,23 +182,27 @@ export function TemplateDetailPage() {
                 <ParameterEditorList parameters={activeDraft.parameters} onChange={(parameters) => setDraftValue(setDraft, (next) => ({ ...next, parameters }))} />
               </SurfaceCard>
 
-              <SurfaceCard className="settings-grid__wide">
-                <div className="list-header">
-                  <div><p className="section-kicker">Catalogs</p><h3>递归目录与章节</h3></div>
-                  <button className="secondary-button" type="button" onClick={() => appendRootCatalog(setDraft)}>新增根目录</button>
-                </div>
-                <div className="stack-list">
-                  {activeDraft.catalogs.map((catalog, index) => (
-                    <CatalogEditor
-                      key={`${catalog.id}-${index}`}
-                      catalog={catalog}
-                      path={[index]}
-                      onChange={(nextCatalog) => updateCatalogAtPath(setDraft, [index], nextCatalog)}
-                      onRemove={() => removeRootCatalog(setDraft, index)}
-                    />
-                  ))}
-                </div>
-              </SurfaceCard>
+              {summary.structureType === "paged" ? (
+                <PagedTemplateOverview template={activeDraft} />
+              ) : (
+                <SurfaceCard className="settings-grid__wide">
+                  <div className="list-header">
+                    <div><p className="section-kicker">Catalogs</p><h3>递归目录与章节</h3></div>
+                    <button className="secondary-button" type="button" onClick={() => appendRootCatalog(setDraft)}>新增根目录</button>
+                  </div>
+                  <div className="stack-list">
+                    {getTemplateCatalogs(activeDraft).map((catalog, index) => (
+                      <CatalogEditor
+                        key={`${catalog.id}-${index}`}
+                        catalog={catalog}
+                        path={[index]}
+                        onChange={(nextCatalog) => updateCatalogAtPath(setDraft, [index], nextCatalog)}
+                        onRemove={() => removeRootCatalog(setDraft, index)}
+                      />
+                    ))}
+                  </div>
+                </SurfaceCard>
+              )}
 
               {!isCreateMode ? (
                 <SurfaceCard className="settings-grid__wide">
@@ -326,7 +340,7 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
           <div key={`${dataset.id}-${index}`} className="template-inline-row template-inline-row--wide">
             <input value={dataset.id} onChange={(e) => updateDataset(section, index, { id: e.target.value }, onChange)} placeholder="dataset id" />
             <select value={dataset.sourceType} onChange={(e) => updateDataset(section, index, { sourceType: e.target.value as "sql" | "api" | "llm" | "compose" }, onChange)}><option value="sql">sql</option><option value="api">api</option><option value="llm">llm</option><option value="compose">compose</option></select>
-            <input value={dataset.sourceRef} onChange={(e) => updateDataset(section, index, { sourceRef: e.target.value }, onChange)} placeholder="sourceRef" />
+            <input value={dataset.source ?? dataset.sourceRef ?? ""} onChange={(e) => updateDataset(section, index, { source: e.target.value }, onChange)} placeholder="source" />
             <input value={dataset.name ?? ""} onChange={(e) => updateDataset(section, index, { name: e.target.value || undefined }, onChange)} placeholder="名称" />
             <button className="ghost-button ghost-button--inline" type="button" onClick={() => onChange({ ...section, content: { ...section.content, datasets: removeAtIndex(section.content.datasets ?? [], index) } })}>删除</button>
           </div>
@@ -347,6 +361,41 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         ))}
       </div>
     </article>
+  );
+}
+
+function PagedTemplateOverview({ template }: { template: ReportTemplate }) {
+  const chapters = getTemplateChapters(template);
+  return (
+    <SurfaceCard className="settings-grid__wide">
+      <div className="list-header">
+        <div><p className="section-kicker">Paged Structure</p><h3>PPT 章节与页面</h3></div>
+      </div>
+      <StatusBanner tone="info" title="分页模板当前以导入保存为主">
+        这类模板会完整保留 chapters、slides、dynamic、layout 和 presentation 配置；当前页面先提供结构摘要和 JSON 查看，不做细粒度可视化编辑。
+      </StatusBanner>
+      <div className="stack-list">
+        {chapters.map((chapter, chapterIndex) => (
+          <article key={`${chapter.id}-${chapterIndex}`} className="template-editor-card">
+            <div className="template-editor-card__header">
+              <strong>{chapter.title || chapter.id || `章节 ${chapterIndex + 1}`}</strong>
+              <span className="status-chip status-chip--soft">{chapter.slides?.length ?? 0} 页</span>
+            </div>
+            {(chapter.slides ?? []).map((slide, slideIndex) => (
+              <div key={`${slide.id}-${slideIndex}`} className="template-inline-row template-inline-row--wide">
+                <strong>{slide.title || slide.id || `页面 ${slideIndex + 1}`}</strong>
+                <span>{slide.sections?.length ?? 0} 个 section</span>
+                {slide.layout?.layoutId ? <span>layout: {slide.layout.layoutId}</span> : null}
+              </div>
+            ))}
+          </article>
+        ))}
+      </div>
+      <details className="json-details">
+        <summary>查看完整模板 JSON</summary>
+        <pre>{formatJson(template)}</pre>
+      </details>
+    </SurfaceCard>
   );
 }
 
@@ -379,7 +428,7 @@ function ParameterEditorList({ parameters, onChange }: { parameters: TemplatePar
 }
 
 function createEmptyTemplate(): ReportTemplate {
-  return { id: "", category: "", name: "", description: "", schemaVersion: "template.v3", parameters: [], catalogs: [] };
+  return { id: "", category: "", name: "", description: "", schemaVersion: "template.v3", structureType: "flow", parameters: [], catalogs: [] };
 }
 
 function createEmptyParameter(): TemplateParameter {
@@ -412,7 +461,7 @@ function createEmptyRequirementItem(): RequirementItemDefinition {
 }
 
 function createEmptyDataset() {
-  return { id: `dataset_${Date.now()}`, sourceType: "sql" as const, sourceRef: "", name: "" };
+  return { id: `dataset_${Date.now()}`, sourceType: "sql" as const, source: "", name: "" };
 }
 
 function createEmptyBlock(): PresentationBlock {
@@ -428,16 +477,22 @@ function setDraftValue(setDraft: Dispatch<SetStateAction<ReportTemplate | null>>
 }
 
 function appendRootCatalog(setDraft: Dispatch<SetStateAction<ReportTemplate | null>>) {
-  setDraftValue(setDraft, (draft) => ({ ...cloneTemplate(draft), catalogs: [...draft.catalogs, createEmptyCatalog()] }));
+  setDraftValue(setDraft, (draft) => {
+    const flow = asFlowTemplate(cloneTemplate(draft));
+    return { ...flow, catalogs: [...flow.catalogs, createEmptyCatalog()] };
+  });
 }
 
 function removeRootCatalog(setDraft: Dispatch<SetStateAction<ReportTemplate | null>>, index: number) {
-  setDraftValue(setDraft, (draft) => ({ ...cloneTemplate(draft), catalogs: removeAtIndex(draft.catalogs, index) }));
+  setDraftValue(setDraft, (draft) => {
+    const flow = asFlowTemplate(cloneTemplate(draft));
+    return { ...flow, catalogs: removeAtIndex(flow.catalogs, index) };
+  });
 }
 
 function updateCatalogAtPath(setDraft: Dispatch<SetStateAction<ReportTemplate | null>>, path: number[], nextCatalog: CatalogDefinition) {
   setDraftValue(setDraft, (draft) => {
-    const next = cloneTemplate(draft);
+    const next = asFlowTemplate(cloneTemplate(draft));
     next.catalogs = replaceCatalogAtPath(next.catalogs, path, nextCatalog);
     return next;
   });
@@ -511,12 +566,44 @@ function normalizeForeachDynamic(parameterId: string, asValue: string) {
   return { type: "foreach" as const, parameterId: parameterId.trim(), as: asValue.trim() || "item" };
 }
 
+function resolveTemplateStructure(template: ReportTemplate): TemplateStructureType {
+  return template.structureType === "paged" ? "paged" : "flow";
+}
+
+function getTemplateCatalogs(template: ReportTemplate): CatalogDefinition[] {
+  return Array.isArray((template as { catalogs?: CatalogDefinition[] }).catalogs)
+    ? ((template as { catalogs?: CatalogDefinition[] }).catalogs ?? [])
+    : [];
+}
+
+function getTemplateChapters(template: ReportTemplate): ChapterDefinition[] {
+  return Array.isArray((template as { chapters?: ChapterDefinition[] }).chapters)
+    ? ((template as { chapters?: ChapterDefinition[] }).chapters ?? [])
+    : [];
+}
+
+function asFlowTemplate(template: ReportTemplate): FlowReportTemplate {
+  const { chapters: _chapters, ...rest } = template as ReportTemplate & { chapters?: ChapterDefinition[] };
+  return { ...rest, structureType: "flow", catalogs: getTemplateCatalogs(template) };
+}
+
 function countCatalogs(catalogs: CatalogDefinition[]): number {
   return catalogs.reduce((sum, catalog) => sum + 1 + countCatalogs(catalog.subCatalogs ?? []), 0);
 }
 
 function countSections(catalogs: CatalogDefinition[]): number {
   return catalogs.reduce((sum, catalog) => sum + (catalog.sections?.length ?? 0) + countSections(catalog.subCatalogs ?? []), 0);
+}
+
+function countSlides(chapters: ChapterDefinition[]): number {
+  return chapters.reduce((sum, chapter) => sum + (chapter.slides?.length ?? 0), 0);
+}
+
+function countPagedSections(chapters: ChapterDefinition[]): number {
+  return chapters.reduce(
+    (sum, chapter) => sum + (chapter.slides ?? []).reduce((slideSum, slide) => slideSum + (slide.sections?.length ?? 0), 0),
+    0,
+  );
 }
 
 function formatJson(value: unknown) {

@@ -43,6 +43,13 @@
 
 导入预览直接消费 `normalizedTemplate`。
 
+当前模板工作台按结构类型分层处理：
+
+- `structureType = flow`：继续提供目录、章节、诉求、数据集和展示块的结构化编辑。
+- `structureType = paged`：首版优先保证导入、查看、保存和后续生成闭环，页面展示 `chapters -> slides -> sections` 结构摘要和完整 JSON，不把 `chapters` 转成 `catalogs`，也不裁剪 `dynamic/layout/properties` 等复杂字段。
+- 列表页使用 `TemplateSummary.structureType` 区分 Flow 与 PPT 模板；模板详情页按结构类型计算目录、章节、页面和 section 数量。
+- 模板态数据集字段使用正式 `source`；只有运行态模板实例才使用 `sourceRef`。
+
 ## 4. 对话与报告页
 
 对话页负责：

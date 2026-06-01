@@ -83,6 +83,7 @@ export function TemplatesPage() {
                       <p>{template.description || "暂无模板描述"}</p>
                     </div>
                     <div className="asset-list__meta">
+                      <span className="status-chip status-chip--soft">{template.structureType === "paged" ? "PPT" : "Flow"}</span>
                       <span className="status-chip status-chip--soft">{template.category}</span>
                       <span>{template.schemaVersion}</span>
                       <span>{template.updatedAt ? formatDateTime(template.updatedAt) : "未记录更新时间"}</span>

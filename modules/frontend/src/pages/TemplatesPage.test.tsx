@@ -30,6 +30,7 @@ describe("TemplatesPage", () => {
           name: "网络运行日报",
           description: "面向网络运维中心的统一日报模板。",
           schemaVersion: "template.v3",
+          structureType: "paged",
           updatedAt: "2026-04-18T09:00:00Z",
         },
       ]),
@@ -39,8 +40,44 @@ describe("TemplatesPage", () => {
     renderPage();
 
     expect(await screen.findByText("网络运行日报")).toBeInTheDocument();
+    expect(screen.getByText("PPT")).toBeInTheDocument();
     expect(screen.getByText("network_operations")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /网络运行日报/ })).toHaveClass("asset-list__row");
+  });
+
+  it("previews selected template json before opening import draft", async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/rest/chatbi/v1/templates/import/preview") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            normalizedTemplate: {
+              id: "tpl_imported_paged",
+              category: "network_operations",
+              name: "导入分页模板",
+              description: "分页模板",
+              schemaVersion: "template.v3",
+              structureType: "paged",
+              parameters: [],
+              chapters: [],
+            },
+            warnings: [],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderPage();
+
+    const file = new File([JSON.stringify({ id: "tpl_imported_paged" })], "template.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("导入模板文件"), { target: { files: [file] } });
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => url === "/rest/chatbi/v1/templates/import/preview");
+      expect(call).toBeTruthy();
+      expect(JSON.parse(String(call?.[1]?.body)).content.id).toBe("tpl_imported_paged");
+    });
   });
 
   it("shows import failure for invalid json", async () => {

@@ -411,6 +411,7 @@ class TemplateSummary:
     name: str
     description: str
     schema_version: str = _alias_field("schemaVersion")
+    structure_type: str = _alias_field("structureType", default="flow")
     updated_at: datetime | None = _alias_field("updatedAt", default=None)
 
 

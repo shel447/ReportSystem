@@ -1,12 +1,15 @@
 import json
 import unittest
+from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 from src.contexts.report.application.template_models import TemplateImportPreview
 from src.contexts.report.domain.template_models import TemplateSummary, report_template_from_dict
+from src.main import create_app
 from src.routers.templates import (
     TemplateImportPreviewRequest,
     TemplateUpsertRequest,
@@ -17,6 +20,8 @@ from src.routers.templates import (
     update_template,
 )
 from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+from tests.support.builders import load_json_fixture
+from tests.support.paths import testdata_path as fixture_path
 
 
 def _sample_template():
@@ -55,6 +60,7 @@ class TemplatesRouterTests(unittest.TestCase):
             payload = list_templates(db=object())
 
         self.assertEqual(payload[0]["id"], "tpl_network_daily")
+        self.assertEqual(payload[0]["structureType"], "flow")
         self.assertNotIn("parameters", payload[0])
         self.assertNotIn("catalogs", payload[0])
 
@@ -131,6 +137,25 @@ class TemplatesRouterTests(unittest.TestCase):
             )
 
         self.assertEqual(result["normalizedTemplate"]["id"], "tpl_network_daily")
+        self.assertEqual(result["warnings"], [])
+
+    def test_preview_import_template_returns_structured_warnings(self):
+        normalized = report_template_from_dict(_sample_template())
+        fake_service = SimpleNamespace(
+            preview_import_template=lambda raw_content: TemplateImportPreview(
+                normalized_template=normalized,
+                warnings=["已自动补齐缺省结构类型"],
+            )
+        )
+
+        with patch("src.routers.templates.build_report_service", return_value=fake_service):
+            result = preview_import_template(
+                TemplateImportPreviewRequest(content=normalized),
+                db=object(),
+            )
+
+        self.assertEqual(result["warnings"][0]["code"], "import_warning")
+        self.assertEqual(result["warnings"][0]["message"], "已自动补齐缺省结构类型")
 
     def test_preview_import_template_validation_error_maps_to_http_400(self):
         fake_service = SimpleNamespace(
@@ -163,3 +188,54 @@ class TemplatesRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_testdata_templates_import_create_update_export_roundtrip(tmp_path):
+    fixtures = sorted(fixture_path("report-templates").glob("*.json"))
+    assert fixtures
+
+    with TestClient(create_app(frontend_dir=str(tmp_path))) as client:
+        for fixture in fixtures:
+            template = deepcopy(load_json_fixture("report-templates", fixture.name))
+            template["id"] = f"tpl_roundtrip_{fixture.stem.replace('-', '_')}"
+            structure_type = template.get("structureType") or "flow"
+
+            preview = client.post("/rest/chatbi/v1/templates/import/preview", json={"content": template})
+            assert preview.status_code == 200, preview.text
+            preview_payload = preview.json()
+            assert preview_payload["normalizedTemplate"]["id"] == template["id"]
+            assert preview_payload["normalizedTemplate"]["structureType"] == structure_type
+            assert all(isinstance(item, dict) and item.get("code") and item.get("message") is not None for item in preview_payload["warnings"])
+
+            created = client.post("/rest/chatbi/v1/templates", json=preview_payload["normalizedTemplate"])
+            assert created.status_code == 200, created.text
+            created_payload = created.json()
+            assert created_payload["structureType"] == structure_type
+            if structure_type == "paged":
+                assert "chapters" in created_payload
+                assert "catalogs" not in created_payload
+            else:
+                assert "catalogs" in created_payload
+                assert "chapters" not in created_payload
+
+            listed = client.get("/rest/chatbi/v1/templates")
+            assert listed.status_code == 200
+            listed_item = next(item for item in listed.json() if item["id"] == template["id"])
+            assert listed_item["structureType"] == structure_type
+
+            detail = client.get(f"/rest/chatbi/v1/templates/{template['id']}")
+            assert detail.status_code == 200
+            assert detail.json()["structureType"] == structure_type
+
+            updated_template = deepcopy(detail.json())
+            updated_template["description"] = f"{updated_template['description']} roundtrip"
+            updated = client.put(f"/rest/chatbi/v1/templates/{template['id']}", json=updated_template)
+            assert updated.status_code == 200, updated.text
+            assert updated.json()["structureType"] == structure_type
+
+            exported = client.get(f"/rest/chatbi/v1/templates/{template['id']}/export")
+            assert exported.status_code == 200
+            assert exported.json()["structureType"] == structure_type
+
+            deleted = client.delete(f"/rest/chatbi/v1/templates/{template['id']}")
+            assert deleted.status_code == 200

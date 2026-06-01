@@ -85,11 +85,13 @@ def _to_template(row: ReportTemplateRow) -> ReportTemplate:
 
 
 def _to_summary(row: ReportTemplateRow) -> TemplateSummary:
+    content = dict(row.content or {})
     return TemplateSummary(
         id=row.id,
         category=row.category,
         name=row.name,
         description=row.description or "",
         schema_version=row.schema_version,
+        structure_type=str(content.get("structureType") or "flow"),
         updated_at=row.updated_at,
     )

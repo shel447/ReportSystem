@@ -236,7 +236,7 @@ def report_scenario_answer_from_dict(answer_type: str, payload: dict[str, object
     elif answer_type == "REPORT_TEMPLATE":
         answer.report_template_preview = TemplateImportPreview(
             normalized_template=report_template_from_dict(payload.get("normalizedTemplate") or {}),
-            warnings=[str(item) for item in list(payload.get("warnings") or [])],
+            warnings=list(payload.get("warnings") or []),
         )
     elif answer_type == "REPORT_SEGMENT":
         from ..domain.generation_models import report_generate_meta_from_dict, report_section_from_dict
