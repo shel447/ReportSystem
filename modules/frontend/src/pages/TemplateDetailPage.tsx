@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Download, FileText, ListTree, Plus, Save, Trash2 } from "lucide-react";
 
 import { createTemplate, deleteTemplate, fetchTemplate, updateTemplate } from "../entities/templates/api";
 import type {
@@ -17,11 +18,8 @@ import type {
   TemplateParameter,
   WarningItem,
 } from "../entities/templates/types";
-import { DetailPageLayout } from "../shared/layouts/DetailPageLayout";
-import { PageIntroBar } from "../shared/layouts/PageIntroBar";
 import { PageSection } from "../shared/ui/PageSection";
 import { StatusBanner } from "../shared/ui/StatusBanner";
-import { SurfaceCard } from "../shared/ui/SurfaceCard";
 
 type LocationState = {
   importDraft?: ReportTemplate;
@@ -29,6 +27,15 @@ type LocationState = {
 };
 
 const EMPTY_PARAMETER_VALUE: ParameterValue = { label: "", value: "", query: "" };
+
+type TemplateSummaryStats = {
+  structureType: TemplateStructureType;
+  parameters: number;
+  catalogs: number;
+  chapters: number;
+  slides: number;
+  sections: number;
+};
 
 export function TemplateDetailPage() {
   const { templateId } = useParams();
@@ -120,104 +127,158 @@ export function TemplateDetailPage() {
   }
 
   return (
-    <div className="template-detail-page">
-      <PageSection>
-        <DetailPageLayout
-          intro={(
-            <PageIntroBar
-              title={isCreateMode ? "新建模板" : "模板详情"}
-              badge={isCreateMode ? "新建模板" : activeDraft.id}
-              actions={(
-                <>
-                  {!isCreateMode ? (
-                    <a
-                      className="secondary-button button-link"
-                      href={`/rest/chatbi/v1/templates/${encodeURIComponent(activeDraft.id)}/export`}
-                    >
-                      导出 JSON
-                    </a>
-                  ) : null}
-                  <button className="primary-button" type="button" onClick={() => saveMutation.mutate(activeDraft)}>
-                    {saveMutation.isPending ? "保存中..." : "保存模板"}
-                  </button>
-                </>
-              )}
-            />
-          )}
-          summary={(
-            <SurfaceCard className="summary-strip">
-              <div className="summary-strip__item"><span>结构</span><strong>{summary.structureType === "paged" ? "PPT" : "Flow"}</strong></div>
-              <div className="summary-strip__item"><span>参数数</span><strong>{summary.parameters}</strong></div>
-              <div className="summary-strip__item"><span>{summary.structureType === "paged" ? "章节数" : "目录数"}</span><strong>{summary.structureType === "paged" ? summary.chapters : summary.catalogs}</strong></div>
-              {summary.structureType === "paged" ? <div className="summary-strip__item"><span>页面数</span><strong>{summary.slides}</strong></div> : null}
-              <div className="summary-strip__item"><span>章节数</span><strong>{summary.sections}</strong></div>
-            </SurfaceCard>
-          )}
-          content={(
-            <div className="settings-grid">
-              {importWarnings.length ? (
-                <StatusBanner tone="warning" title="导入提示">
-                  {importWarnings.map((item) => item.message).join("；")}
-                </StatusBanner>
-              ) : null}
-              {saveError ? <StatusBanner tone="warning" title="操作失败">{saveError}</StatusBanner> : null}
+    <div className="template-detail-workbench">
+      <header className="template-detail-toolbar">
+        <div className="template-detail-toolbar__title">
+          <Link className="icon-button button-link" to="/templates" aria-label="返回模板列表" title="返回模板列表">
+            <ArrowLeft size={16} aria-hidden="true" />
+          </Link>
+          <div>
+            <p>{isCreateMode ? "新建模板" : activeDraft.id}</p>
+            <h1>{activeDraft.name || (isCreateMode ? "新建模板" : "未命名模板")}</h1>
+          </div>
+          <span className="status-chip status-chip--soft">{summary.structureType === "paged" ? "PPT" : "Flow"}</span>
+        </div>
+        <div className="template-detail-toolbar__actions">
+          {!isCreateMode ? (
+            <a className="secondary-button button-link" href={`/rest/chatbi/v1/templates/${encodeURIComponent(activeDraft.id)}/export`}>
+              <Download size={16} aria-hidden="true" />
+              导出 JSON
+            </a>
+          ) : null}
+          <button className="primary-button" type="button" onClick={() => saveMutation.mutate(activeDraft)}>
+            <Save size={16} aria-hidden="true" />
+            {saveMutation.isPending ? "保存中..." : "保存模板"}
+          </button>
+        </div>
+      </header>
 
-              <SurfaceCard className="settings-grid__wide">
-                <div className="list-header"><div><p className="section-kicker">Metadata</p><h3>模板元信息</h3></div></div>
-                <div className="form-grid">
-                  <label className="field"><span className="field-label">模板 ID</span><input value={activeDraft.id} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, id: e.target.value }))} /></label>
-                  <label className="field"><span className="field-label">分类</span><input value={activeDraft.category} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, category: e.target.value }))} /></label>
-                  <label className="field"><span className="field-label">名称</span><input value={activeDraft.name} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, name: e.target.value }))} /></label>
-                  <label className="field"><span className="field-label">Schema Version</span><input value={activeDraft.schemaVersion} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, schemaVersion: e.target.value }))} /></label>
-                  <label className="field"><span className="field-label">模板结构</span><input value={summary.structureType === "paged" ? "PPT / paged" : "Flow"} readOnly /></label>
-                  <label className="field field--full"><span className="field-label">描述</span><textarea rows={3} value={activeDraft.description} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, description: e.target.value }))} /></label>
-                </div>
-              </SurfaceCard>
+      {importWarnings.length ? (
+        <StatusBanner tone="warning" title="导入提示">
+          {importWarnings.map((item) => item.message).join("；")}
+        </StatusBanner>
+      ) : null}
+      {saveError ? <StatusBanner tone="warning" title="操作失败">{saveError}</StatusBanner> : null}
 
-              <SurfaceCard className="settings-grid__wide">
-                <div className="list-header">
-                  <div><p className="section-kicker">Parameters</p><h3>根参数定义</h3></div>
-                  <button className="secondary-button" type="button" onClick={() => setDraftValue(setDraft, (next) => ({ ...next, parameters: [...next.parameters, createEmptyParameter()] }))}>新增参数</button>
-                </div>
-                <ParameterEditorList parameters={activeDraft.parameters} onChange={(parameters) => setDraftValue(setDraft, (next) => ({ ...next, parameters }))} />
-              </SurfaceCard>
-
-              {summary.structureType === "paged" ? (
-                <PagedTemplateOverview template={activeDraft} />
-              ) : (
-                <SurfaceCard className="settings-grid__wide">
-                  <div className="list-header">
-                    <div><p className="section-kicker">Catalogs</p><h3>递归目录与章节</h3></div>
-                    <button className="secondary-button" type="button" onClick={() => appendRootCatalog(setDraft)}>新增根目录</button>
-                  </div>
-                  <div className="stack-list">
-                    {getTemplateCatalogs(activeDraft).map((catalog, index) => (
-                      <CatalogEditor
-                        key={`${catalog.id}-${index}`}
-                        catalog={catalog}
-                        path={[index]}
-                        onChange={(nextCatalog) => updateCatalogAtPath(setDraft, [index], nextCatalog)}
-                        onRemove={() => removeRootCatalog(setDraft, index)}
-                      />
-                    ))}
-                  </div>
-                </SurfaceCard>
-              )}
-
-              {!isCreateMode ? (
-                <SurfaceCard className="settings-grid__wide">
-                  <div className="list-header"><div><p className="section-kicker">Danger Zone</p><h3>删除模板</h3></div></div>
-                  <div className="action-row">
-                    <button className="ghost-button ghost-button--inline" type="button" onClick={() => deleteMutation.mutate()}>{deleteMutation.isPending ? "删除中..." : "删除模板"}</button>
-                    <Link className="secondary-button button-link" to="/templates">返回模板列表</Link>
-                  </div>
-                </SurfaceCard>
-              ) : null}
+      <div className="template-detail-layout">
+        <TemplateWorkspaceNav template={activeDraft} summary={summary} />
+        <main className="template-detail-main">
+          <section id="template-meta" className="template-panel">
+            <PanelHeader kicker="Metadata" title="模板元信息" description="最小必要信息放在同一区域，减少来回滚动。" />
+            <div className="template-compact-grid">
+              <label className="field"><span className="field-label">模板 ID</span><input value={activeDraft.id} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, id: e.target.value }))} /></label>
+              <label className="field"><span className="field-label">分类</span><input value={activeDraft.category} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, category: e.target.value }))} /></label>
+              <label className="field"><span className="field-label">名称</span><input value={activeDraft.name} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, name: e.target.value }))} /></label>
+              <label className="field"><span className="field-label">Schema Version</span><input value={activeDraft.schemaVersion} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, schemaVersion: e.target.value }))} /></label>
+              <label className="field"><span className="field-label">模板结构</span><input value={summary.structureType === "paged" ? "PPT / paged" : "Flow"} readOnly /></label>
+              <label className="field field--full"><span className="field-label">描述</span><textarea rows={2} value={activeDraft.description} onChange={(e) => setDraftValue(setDraft, (next) => ({ ...next, description: e.target.value }))} /></label>
             </div>
-          )}
-        />
-      </PageSection>
+          </section>
+
+          <section id="template-parameters" className="template-panel">
+            <PanelHeader
+              kicker="Parameters"
+              title="根参数"
+              description="常用字段一行内编辑，默认值和候选项放到展开区。"
+            />
+            <ParameterEditorList parameters={activeDraft.parameters} onChange={(parameters) => setDraftValue(setDraft, (next) => ({ ...next, parameters }))} />
+          </section>
+
+          <section id="template-structure" className="template-panel">
+            <PanelHeader
+              kicker={summary.structureType === "paged" ? "Paged" : "Catalogs"}
+              title={summary.structureType === "paged" ? "PPT 章节与页面" : "目录与章节树"}
+              description={summary.structureType === "paged" ? "分页模板保持完整 JSON 导入保存，当前以结构摘要呈现。" : "目录、子目录和 section 以折叠树方式编辑。"}
+              action={summary.structureType === "flow" ? <button className="secondary-button" type="button" onClick={() => appendRootCatalog(setDraft)}><Plus size={16} aria-hidden="true" />新增根目录</button> : undefined}
+            />
+            {summary.structureType === "paged" ? (
+              <PagedTemplateOverview template={activeDraft} />
+            ) : (
+              <div className="template-tree">
+                {getTemplateCatalogs(activeDraft).map((catalog, index) => (
+                  <CatalogEditor
+                    key={`${catalog.id}-${index}`}
+                    catalog={catalog}
+                    path={[index]}
+                    onChange={(nextCatalog) => updateCatalogAtPath(setDraft, [index], nextCatalog)}
+                    onRemove={() => removeRootCatalog(setDraft, index)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {!isCreateMode ? (
+            <section id="template-danger" className="template-panel template-panel--danger">
+              <PanelHeader kicker="Danger Zone" title="删除模板" description="删除后模板不可用于新的报告生成。" />
+              <div className="template-danger-row">
+                <button className="ghost-button ghost-button--inline" type="button" onClick={() => deleteMutation.mutate()}>
+                  <Trash2 size={16} aria-hidden="true" />
+                  {deleteMutation.isPending ? "删除中..." : "删除模板"}
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </main>
+      </div>
     </div>
+  );
+}
+
+function PanelHeader({ kicker, title, description, action }: { kicker: string; title: string; description?: string; action?: ReactNode }) {
+  return (
+    <div className="template-panel__header">
+      <div>
+        <p className="section-kicker">{kicker}</p>
+        <h2>{title}</h2>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {action ? <div className="template-panel__action">{action}</div> : null}
+    </div>
+  );
+}
+
+function TemplateWorkspaceNav({ template, summary }: { template: ReportTemplate; summary: TemplateSummaryStats }) {
+  const flowCatalogs = getTemplateCatalogs(template);
+  const pagedChapters = getTemplateChapters(template);
+  return (
+    <aside className="template-workspace-nav" aria-label="模板结构导航">
+      <div className="template-workspace-nav__card">
+        <div className="template-workspace-nav__title">
+          <FileText size={16} aria-hidden="true" />
+          <strong>模板概览</strong>
+        </div>
+        <div className="template-workspace-nav__stats">
+          <span><strong>{summary.parameters}</strong><small>参数</small></span>
+          <span><strong>{summary.structureType === "paged" ? summary.chapters : summary.catalogs}</strong><small>{summary.structureType === "paged" ? "章节" : "目录"}</small></span>
+          <span><strong>{summary.structureType === "paged" ? summary.slides : summary.sections}</strong><small>{summary.structureType === "paged" ? "页面" : "Section"}</small></span>
+        </div>
+      </div>
+      <nav className="template-workspace-nav__links">
+        <a href="#template-meta">模板元信息</a>
+        <a href="#template-parameters">根参数</a>
+        <a href="#template-structure">{summary.structureType === "paged" ? "PPT 结构" : "目录树"}</a>
+      </nav>
+      <div className="template-workspace-nav__outline">
+        <div className="template-workspace-nav__title">
+          <ListTree size={16} aria-hidden="true" />
+          <strong>{summary.structureType === "paged" ? "章节页面" : "目录结构"}</strong>
+        </div>
+        {summary.structureType === "paged" ? (
+          <div className="template-workspace-nav__tree">
+            {pagedChapters.map((chapter, index) => (
+              <span key={`${chapter.id}-${index}`}>{chapter.title || chapter.id || `章节 ${index + 1}`}</span>
+            ))}
+          </div>
+        ) : (
+          <div className="template-workspace-nav__tree">
+            {flowCatalogs.map((catalog, index) => (
+              <span key={`${catalog.id}-${index}`}>{catalog.title || catalog.id || `目录 ${index + 1}`}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
   );
 }
 
@@ -229,31 +290,35 @@ type CatalogEditorProps = {
 };
 
 function CatalogEditor({ catalog, onChange, onRemove, path }: CatalogEditorProps) {
+  const pathLabel = path.map((item) => item + 1).join(".");
   return (
-    <article className="template-editor-card">
-      <div className="template-editor-card__header">
-        <strong>{catalog.title || `目录 ${path.join(".") || 1}`}</strong>
-        <div className="action-row action-row--compact">
-          <button className="secondary-button" type="button" onClick={() => onChange({ ...catalog, subCatalogs: [...(catalog.subCatalogs ?? []), createEmptyCatalog()] })}>新增子目录</button>
-          <button className="secondary-button" type="button" onClick={() => onChange({ ...catalog, sections: [...(catalog.sections ?? []), createEmptySection()] })}>新增章节</button>
-          <button className="ghost-button ghost-button--inline" type="button" onClick={onRemove}>删除目录</button>
+    <details className="template-tree-node" open>
+      <summary>
+        <span className="template-tree-node__index">{pathLabel}</span>
+        <strong>{catalog.title || catalog.id || `目录 ${pathLabel}`}</strong>
+        <small>{catalog.subCatalogs?.length ?? 0} 子目录 · {catalog.sections?.length ?? 0} section</small>
+      </summary>
+      <div className="template-tree-node__body">
+        <div className="template-node-actions">
+          <button className="secondary-button" type="button" onClick={() => onChange({ ...catalog, subCatalogs: [...(catalog.subCatalogs ?? []), createEmptyCatalog()] })}><Plus size={16} aria-hidden="true" />新增子目录</button>
+          <button className="secondary-button" type="button" onClick={() => onChange({ ...catalog, sections: [...(catalog.sections ?? []), createEmptySection()] })}><Plus size={16} aria-hidden="true" />新增章节</button>
+          <button className="ghost-button ghost-button--inline" type="button" onClick={onRemove}><Trash2 size={16} aria-hidden="true" />删除目录</button>
         </div>
-      </div>
-      <div className="form-grid">
+        <div className="template-compact-grid">
         <label className="field"><span className="field-label">目录 ID</span><input value={catalog.id} onChange={(e) => onChange({ ...catalog, id: e.target.value })} /></label>
         <label className="field"><span className="field-label">目录标题</span><input value={catalog.title} onChange={(e) => onChange({ ...catalog, title: e.target.value })} /></label>
         <label className="field field--full"><span className="field-label">目录描述</span><textarea rows={2} value={catalog.description ?? ""} onChange={(e) => onChange({ ...catalog, description: e.target.value || undefined })} /></label>
         <label className="field"><span className="field-label">Dynamic Foreach 参数</span><input value={getForeachDynamic(catalog.dynamic)?.parameterId ?? ""} onChange={(e) => onChange({ ...catalog, dynamic: normalizeForeachDynamic(e.target.value, getForeachDynamic(catalog.dynamic)?.as ?? "item") })} /></label>
         <label className="field"><span className="field-label">Dynamic Foreach 别名</span><input value={getForeachDynamic(catalog.dynamic)?.as ?? ""} onChange={(e) => onChange({ ...catalog, dynamic: normalizeForeachDynamic(getForeachDynamic(catalog.dynamic)?.parameterId ?? "", e.target.value) })} /></label>
-      </div>
+        </div>
 
-      <div className="template-inline-group">
+      <div className="template-inline-group template-inline-group--compact">
         <div className="template-inline-group__header"><strong>目录级参数</strong></div>
         <ParameterEditorList parameters={catalog.parameters ?? []} onChange={(parameters) => onChange({ ...catalog, parameters: parameters.length ? parameters : undefined })} />
       </div>
 
       {(catalog.subCatalogs ?? []).length ? (
-        <div className="stack-list">
+        <div className="template-tree-node__children">
           {(catalog.subCatalogs ?? []).map((subCatalog, index) => (
             <CatalogEditor
               key={`${subCatalog.id}-${index}`}
@@ -290,7 +355,8 @@ function CatalogEditor({ catalog, onChange, onRemove, path }: CatalogEditorProps
           }}
         />
       ))}
-    </article>
+      </div>
+    </details>
   );
 }
 
@@ -302,12 +368,17 @@ type SectionEditorProps = {
 
 function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
   return (
-    <article className="template-editor-subcard">
-      <div className="template-editor-card__header">
+    <details className="template-section-node" open>
+      <summary>
+        <span className="template-tree-node__index">S</span>
         <strong>{section.id || "章节"}</strong>
-        <button className="ghost-button ghost-button--inline" type="button" onClick={onRemove}>删除章节</button>
-      </div>
-      <div className="form-grid">
+        <small>{section.content.presentation.kind} · {section.content.presentation.blocks.length} blocks</small>
+      </summary>
+      <div className="template-tree-node__body">
+        <div className="template-node-actions">
+          <button className="ghost-button ghost-button--inline" type="button" onClick={onRemove}><Trash2 size={16} aria-hidden="true" />删除章节</button>
+        </div>
+      <div className="template-compact-grid">
         <label className="field"><span className="field-label">章节 ID</span><input value={section.id} onChange={(e) => onChange({ ...section, id: e.target.value })} /></label>
         <label className="field field--full"><span className="field-label">章节描述</span><textarea rows={2} value={section.description ?? ""} onChange={(e) => onChange({ ...section, description: e.target.value || undefined })} /></label>
         <label className="field field--full"><span className="field-label">诉求文本</span><textarea rows={3} value={section.outline.requirement} onChange={(e) => onChange({ ...section, outline: { ...section.outline, requirement: e.target.value } })} /></label>
@@ -316,9 +387,9 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         <label className="field"><span className="field-label">展示种类</span><select value={section.content.presentation.kind} onChange={(e) => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, kind: e.target.value as SectionDefinition["content"]["presentation"]["kind"] } } })}><option value="text">text</option><option value="table">table</option><option value="chart">chart</option><option value="mixed">mixed</option></select></label>
       </div>
 
-      <div className="template-inline-group"><div className="template-inline-group__header"><strong>章节级参数</strong></div><ParameterEditorList parameters={section.parameters ?? []} onChange={(parameters) => onChange({ ...section, parameters: parameters.length ? parameters : undefined })} /></div>
+      <div className="template-inline-group template-inline-group--compact"><div className="template-inline-group__header"><strong>章节级参数</strong></div><ParameterEditorList parameters={section.parameters ?? []} onChange={(parameters) => onChange({ ...section, parameters: parameters.length ? parameters : undefined })} /></div>
 
-      <div className="template-inline-group">
+      <div className="template-inline-group template-inline-group--compact">
         <div className="template-inline-group__header"><strong>诉求项</strong><button className="secondary-button" type="button" onClick={() => onChange({ ...section, outline: { ...section.outline, items: [...section.outline.items, createEmptyRequirementItem()] } })}>新增诉求项</button></div>
         {section.outline.items.map((item, index) => (
           <div key={`${item.id}-${index}`} className="template-inline-row template-inline-row--wide">
@@ -334,7 +405,7 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         ))}
       </div>
 
-      <div className="template-inline-group">
+      <div className="template-inline-group template-inline-group--compact">
         <div className="template-inline-group__header"><strong>数据集</strong><button className="secondary-button" type="button" onClick={() => onChange({ ...section, content: { ...section.content, datasets: [...(section.content.datasets ?? []), createEmptyDataset()] } })}>新增数据集</button></div>
         {(section.content.datasets ?? []).map((dataset, index) => (
           <div key={`${dataset.id}-${index}`} className="template-inline-row template-inline-row--wide">
@@ -347,7 +418,7 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
         ))}
       </div>
 
-      <div className="template-inline-group">
+      <div className="template-inline-group template-inline-group--compact">
         <div className="template-inline-group__header"><strong>展示块</strong><button className="secondary-button" type="button" onClick={() => onChange({ ...section, content: { ...section.content, presentation: { ...section.content.presentation, blocks: [...section.content.presentation.blocks, createEmptyBlock()] } } })}>新增展示块</button></div>
         {section.content.presentation.blocks.map((block, index) => (
           <div key={`${block.id}-${index}`} className="template-inline-row template-inline-row--wide">
@@ -360,24 +431,22 @@ function SectionEditor({ section, onChange, onRemove }: SectionEditorProps) {
           </div>
         ))}
       </div>
-    </article>
+      </div>
+    </details>
   );
 }
 
 function PagedTemplateOverview({ template }: { template: ReportTemplate }) {
   const chapters = getTemplateChapters(template);
   return (
-    <SurfaceCard className="settings-grid__wide">
-      <div className="list-header">
-        <div><p className="section-kicker">Paged Structure</p><h3>PPT 章节与页面</h3></div>
-      </div>
+    <div className="paged-template-overview">
       <StatusBanner tone="info" title="分页模板当前以导入保存为主">
         这类模板会完整保留 chapters、slides、dynamic、layout 和 presentation 配置；当前页面先提供结构摘要和 JSON 查看，不做细粒度可视化编辑。
       </StatusBanner>
-      <div className="stack-list">
+      <div className="paged-template-overview__chapters">
         {chapters.map((chapter, chapterIndex) => (
-          <article key={`${chapter.id}-${chapterIndex}`} className="template-editor-card">
-            <div className="template-editor-card__header">
+          <article key={`${chapter.id}-${chapterIndex}`} className="paged-template-overview__chapter">
+            <div className="paged-template-overview__chapter-head">
               <strong>{chapter.title || chapter.id || `章节 ${chapterIndex + 1}`}</strong>
               <span className="status-chip status-chip--soft">{chapter.slides?.length ?? 0} 页</span>
             </div>
@@ -395,21 +464,28 @@ function PagedTemplateOverview({ template }: { template: ReportTemplate }) {
         <summary>查看完整模板 JSON</summary>
         <pre>{formatJson(template)}</pre>
       </details>
-    </SurfaceCard>
+    </div>
   );
 }
 
 function ParameterEditorList({ parameters, onChange }: { parameters: TemplateParameter[]; onChange: (parameters: TemplateParameter[]) => void }) {
   return (
-    <div className="stack-list">
-      <button className="secondary-button" type="button" onClick={() => onChange([...parameters, createEmptyParameter()])}>新增参数</button>
+    <div className="template-parameter-list">
+      <div className="template-parameter-list__toolbar">
+        <span>{parameters.length ? `${parameters.length} 个参数` : "暂无参数"}</span>
+        <button className="secondary-button" type="button" onClick={() => onChange([...parameters, createEmptyParameter()])}><Plus size={16} aria-hidden="true" />新增参数</button>
+      </div>
       {parameters.map((parameter, index) => (
-        <article key={`${parameter.id}-${index}`} className="template-editor-card">
-          <div className="template-editor-card__header">
+        <details key={`${parameter.id}-${index}`} className="template-parameter-row" open>
+          <summary>
             <strong>{parameter.label || `参数 ${index + 1}`}</strong>
-            <button className="ghost-button ghost-button--inline" type="button" onClick={() => onChange(removeAtIndex(parameters, index))}>删除</button>
-          </div>
-          <div className="form-grid">
+            <small>{parameter.id || "未设置 ID"} · {parameter.inputType} · {parameter.required ? "必填" : "可选"}</small>
+          </summary>
+          <div className="template-parameter-row__body">
+            <div className="template-node-actions">
+              <button className="ghost-button ghost-button--inline" type="button" onClick={() => onChange(removeAtIndex(parameters, index))}><Trash2 size={16} aria-hidden="true" />删除参数</button>
+            </div>
+          <div className="template-compact-grid">
             <label className="field"><span className="field-label">ID</span><input value={parameter.id} onChange={(e) => updateParameter(parameters, index, { id: e.target.value }, onChange)} /></label>
             <label className="field"><span className="field-label">标签</span><input value={parameter.label} onChange={(e) => updateParameter(parameters, index, { label: e.target.value }, onChange)} /></label>
             <label className="field"><span className="field-label">输入类型</span><select value={parameter.inputType} onChange={(e) => updateParameter(parameters, index, { inputType: e.target.value as TemplateParameter["inputType"] }, onChange)}><option value="free_text">free_text</option><option value="date">date</option><option value="enum">enum</option><option value="dynamic">dynamic</option></select></label>
@@ -421,7 +497,8 @@ function ParameterEditorList({ parameters, onChange }: { parameters: TemplatePar
             {parameter.inputType === "enum" ? <label className="field field--full"><span className="field-label">候选项（JSON ParameterValue[]）</span><textarea rows={5} value={formatJson(parameter.options ?? [EMPTY_PARAMETER_VALUE])} onChange={(e) => updateParameterJson(parameters, index, "options", e.target.value, onChange)} /></label> : null}
             {parameter.inputType === "dynamic" ? <label className="field field--full"><span className="field-label">候选值来源 URL</span><input value={parameter.source ?? ""} onChange={(e) => updateParameter(parameters, index, { source: e.target.value || undefined }, onChange)} /></label> : null}
           </div>
-        </article>
+          </div>
+        </details>
       ))}
     </div>
   );

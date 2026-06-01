@@ -40,9 +40,11 @@ describe("TemplatesPage", () => {
     renderPage();
 
     expect(await screen.findByText("网络运行日报")).toBeInTheDocument();
-    expect(screen.getByText("PPT")).toBeInTheDocument();
-    expect(screen.getByText("network_operations")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /网络运行日报/ })).toHaveClass("asset-list__row");
+    expect(screen.getAllByText("PPT").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("network_operations").length).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText("搜索 ID、名称、描述或分类")).toBeInTheDocument();
+    expect(screen.getByLabelText("结构类型筛选")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /网络运行日报/ })).toHaveClass("template-table__row");
   });
 
   it("previews selected template json before opening import draft", async () => {

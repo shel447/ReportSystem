@@ -128,8 +128,9 @@ describe("TemplateDetailPage", () => {
 
     expect(screen.getByDisplayValue("PPT / paged")).toBeInTheDocument();
     expect(screen.getByText("PPT 章节与页面")).toBeInTheDocument();
-    expect(screen.getByText("运行概览")).toBeInTheDocument();
-    expect(screen.getByText("流量趋势")).toBeInTheDocument();
+    expect(screen.getByLabelText("模板结构导航")).toBeInTheDocument();
+    expect(screen.getAllByText("运行概览").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("流量趋势").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "新增根目录" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "保存模板" }));
