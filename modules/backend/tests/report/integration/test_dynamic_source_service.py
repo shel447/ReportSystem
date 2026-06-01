@@ -69,7 +69,7 @@ class DynamicSourceServiceTests(unittest.TestCase):
         transport = httpx.MockTransport(handler)
         client_type = httpx.Client
         with patch(
-            "src.contexts.report.infrastructure.external_business.httpx.Client",
+            "src.infrastructure.platform.http_client.httpx.Client",
             side_effect=lambda **kwargs: client_type(transport=transport, **kwargs),
         ):
             result = ExternalBusinessGateway(base_url="http://mock.example").post_json(

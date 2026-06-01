@@ -1,12 +1,12 @@
 # 数据库契约
 
-本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。`V002__add_chat_scenario_tracking.sql` 为既有业务库补充每轮消息的场景归属。
+本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。`V003__delegate_conversation_history_to_agentcore.sql` 将会话事实源迁移到 AgentCore。
 
 ## 1. 数据库分类
 
 | 数据库 | 默认文件 | 职责 | 升级 SQL |
 |---|---|---|---|
-| 正式业务库 | `.runtime/report_system.db` | 保存模板、会话、报告和文档任务 | `upgrades/*.sql` |
+| 正式业务库 | `.runtime/report_system.db` | 保存模板、报告和文档任务 | `upgrades/*.sql` |
 | 开发辅助库 | `.runtime/dev_support.db` | 保存 `/rest/dev/*` 使用的设置和反馈 | `upgrades/dev/*.sql` |
 | 查询演示库 | `.runtime/telecom_demo.db` | 保存本地电信网络演示数据 | 由 demo 初始化器维护 |
 
@@ -22,15 +22,10 @@
 
 ```mermaid
 erDiagram
-    tbl_users ||--o{ tbl_conversations : owns
-    tbl_users ||--o{ tbl_chats : owns
     tbl_users ||--o{ tbl_template_instances : owns
     tbl_users ||--o{ tbl_report_instances : owns
     tbl_users ||--o{ tbl_export_jobs : owns
-    tbl_conversations ||--o{ tbl_chats : contains
     tbl_report_templates ||--o{ tbl_template_instances : instantiates
-    tbl_conversations ||--o{ tbl_template_instances : captures
-    tbl_chats o|--o{ tbl_template_instances : updates
     tbl_report_templates ||--o{ tbl_report_instances : generates
     tbl_template_instances ||--o{ tbl_report_instances : freezes
     tbl_report_instances ||--o{ tbl_report_documents : exports
@@ -52,33 +47,6 @@ erDiagram
 | `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
 | `last_seen_at` | `DATETIME` | 否 | `NULL` | - | 最近访问时间 |
 
-#### `tbl_conversations`
-
-| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
-|---|---|---|---|---|---|
-| `id` | `VARCHAR` | 是 | UUID | PK | 会话 ID |
-| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
-| `title` | `VARCHAR` | 是 | `""` | - | 会话标题 |
-| `fork_meta` | `JSON` | 是 | `{}` | - | 会话派生信息 |
-| `status` | `VARCHAR` | 是 | `active` | - | 会话状态 |
-| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
-| `updated_at` | `DATETIME` | 是 | 当前时间 | - | 更新时间 |
-
-#### `tbl_chats`
-
-| 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
-|---|---|---|---|---|---|
-| `id` | `VARCHAR` | 是 | UUID | PK | 消息 ID |
-| `conversation_id` | `VARCHAR` | 是 | - | FK `tbl_conversations.id`，INDEX | 所属会话 |
-| `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
-| `role` | `VARCHAR` | 是 | - | - | 消息角色 |
-| `scenario_key` | `VARCHAR` | 否 | `NULL` | INDEX | 本轮业务场景归属 |
-| `content` | `JSON` | 是 | `{}` | - | 消息内容 |
-| `action` | `JSON` | 否 | `NULL` | - | 结构化动作 |
-| `meta` | `JSON` | 是 | `{}` | - | 消息元信息 |
-| `seq_no` | `INTEGER` | 是 | - | - | 会话内顺序 |
-| `created_at` | `DATETIME` | 是 | 当前时间 | - | 创建时间 |
-
 #### `tbl_report_templates`
 
 | 字段 | 类型 | 必填 | 默认值 | 键或索引 | 说明 |
@@ -98,8 +66,8 @@ erDiagram
 |---|---|---|---|---|---|
 | `id` | `VARCHAR` | 是 | UUID | PK | 模板实例 ID |
 | `template_id` | `VARCHAR` | 是 | - | FK `tbl_report_templates.id`，INDEX | 来源模板 |
-| `conversation_id` | `VARCHAR` | 是 | - | FK `tbl_conversations.id`，INDEX | 来源会话 |
-| `chat_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_chats.id`，INDEX | 最近关联消息 |
+| `conversation_id` | `VARCHAR` | 是 | - | INDEX | AgentCore 来源会话 |
+| `chat_id` | `VARCHAR` | 否 | `NULL` | INDEX | AgentCore 最近关联轮次 |
 | `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
 | `status` | `VARCHAR` | 是 | - | - | 实例状态 |
 | `capture_stage` | `VARCHAR` | 是 | - | - | 捕获阶段 |
@@ -117,8 +85,8 @@ erDiagram
 | `template_id` | `VARCHAR` | 是 | - | FK `tbl_report_templates.id`，INDEX | 来源模板 |
 | `template_instance_id` | `VARCHAR` | 是 | - | FK `tbl_template_instances.id`，INDEX | 冻结实例 |
 | `user_id` | `VARCHAR` | 是 | - | FK `tbl_users.id`，INDEX | 用户归属 |
-| `source_conversation_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_conversations.id`，INDEX | 来源会话 |
-| `source_chat_id` | `VARCHAR` | 否 | `NULL` | FK `tbl_chats.id`，INDEX | 来源消息 |
+| `source_conversation_id` | `VARCHAR` | 否 | `NULL` | INDEX | AgentCore 来源会话 |
+| `source_chat_id` | `VARCHAR` | 否 | `NULL` | INDEX | AgentCore 来源轮次 |
 | `status` | `VARCHAR` | 是 | - | - | 报告状态 |
 | `schema_version` | `VARCHAR` | 是 | - | - | DSL 版本 |
 | `content` | `JSON` | 是 | `{}` | - | 完整 Report DSL |
@@ -173,33 +141,6 @@ CREATE TABLE tbl_users (
     last_seen_at DATETIME
 );
 
-CREATE TABLE tbl_conversations (
-    id VARCHAR NOT NULL PRIMARY KEY,
-    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
-    title VARCHAR NOT NULL,
-    fork_meta JSON NOT NULL,
-    status VARCHAR NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
-CREATE INDEX ix_tbl_conversations_user_id ON tbl_conversations (user_id);
-
-CREATE TABLE tbl_chats (
-    id VARCHAR NOT NULL PRIMARY KEY,
-    conversation_id VARCHAR NOT NULL REFERENCES tbl_conversations (id) ON DELETE CASCADE,
-    user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
-    role VARCHAR NOT NULL,
-    scenario_key VARCHAR,
-    content JSON NOT NULL,
-    action JSON,
-    meta JSON NOT NULL,
-    seq_no INTEGER NOT NULL,
-    created_at DATETIME NOT NULL
-);
-CREATE INDEX ix_tbl_chats_conversation_id ON tbl_chats (conversation_id);
-CREATE INDEX ix_tbl_chats_user_id ON tbl_chats (user_id);
-CREATE INDEX ix_tbl_chats_scenario_key ON tbl_chats (scenario_key);
-
 CREATE TABLE tbl_report_templates (
     id VARCHAR NOT NULL PRIMARY KEY,
     category VARCHAR NOT NULL,
@@ -214,8 +155,8 @@ CREATE TABLE tbl_report_templates (
 CREATE TABLE tbl_template_instances (
     id VARCHAR NOT NULL PRIMARY KEY,
     template_id VARCHAR NOT NULL REFERENCES tbl_report_templates (id),
-    conversation_id VARCHAR NOT NULL REFERENCES tbl_conversations (id),
-    chat_id VARCHAR REFERENCES tbl_chats (id),
+    conversation_id VARCHAR NOT NULL,
+    chat_id VARCHAR,
     user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
     status VARCHAR NOT NULL,
     capture_stage VARCHAR NOT NULL,
@@ -235,8 +176,8 @@ CREATE TABLE tbl_report_instances (
     template_id VARCHAR NOT NULL REFERENCES tbl_report_templates (id),
     template_instance_id VARCHAR NOT NULL REFERENCES tbl_template_instances (id),
     user_id VARCHAR NOT NULL REFERENCES tbl_users (id),
-    source_conversation_id VARCHAR REFERENCES tbl_conversations (id),
-    source_chat_id VARCHAR REFERENCES tbl_chats (id),
+    source_conversation_id VARCHAR,
+    source_chat_id VARCHAR,
     status VARCHAR NOT NULL,
     schema_version VARCHAR NOT NULL,
     content JSON NOT NULL,
@@ -390,10 +331,10 @@ VALUES (1, 0);
 - `tbl_report_templates.content` 保存完整 `ReportTemplate`。
 - `tbl_template_instances.content` 保存完整 `TemplateInstance`。
 - `tbl_report_instances.content` 保存完整 Report DSL。
-- `tbl_conversations`、`tbl_chats`、`tbl_template_instances`、`tbl_report_instances`、`tbl_export_jobs` 直接按 `user_id` 隔离。
+- `tbl_template_instances`、`tbl_report_instances`、`tbl_export_jobs` 直接按 `user_id` 隔离；会话历史由 AgentCore 按用户隔离。
 - `tbl_report_documents` 通过 `report_instance_id -> tbl_report_instances.user_id` 间接隔离。
 - dev 数据库不承载业务资源，不参与用户报告数据查询。
 
 ## 6. 非正式表
 
-仓库当前只保留已接入业务链路的表结构。未进入正式 context 的能力不预建数据库表；后续“智能问数”等能力形成独立 context 后，再按同一方式补充业务库或独立库契约。
+仓库当前只保留已接入且确实需要本地持久化的表结构。智能问数已经形成独立 context，但首版不新增本地业务表；会话历史仍由 AgentCore 托管，查询结果随对话答案归档。

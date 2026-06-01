@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Any
 
-from ....shared.kernel.errors import ValidationError
+from ....shared.kernel.errors import UpstreamError, ValidationError
 from ..domain.generation_models import DatasetExecutionResult, TemplateInstance, WarningItem
 from ..domain.template_models import DatasetDefinition, Parameter, ParameterValue, parameter_value_to_dict
 
@@ -18,8 +18,8 @@ LOGGER = logging.getLogger(__name__)
 class DatasetExecutionService:
     """执行 SQL/API 数据集，并把外部响应收口为强类型结果。"""
 
-    def __init__(self, *, gateway, schema_gateway) -> None:
-        self.gateway = gateway
+    def __init__(self, *, query_service, schema_gateway) -> None:
+        self.query_service = query_service
         self.schema_gateway = schema_gateway
 
     def resolve(self, *, template_instance: TemplateInstance, user_id: str) -> dict[str, dict[str, DatasetExecutionResult]]:
@@ -57,14 +57,10 @@ class DatasetExecutionService:
         }
         if dataset.source_type == "sql":
             query = _render_sql(dataset.source_ref, parameters)
-            response = self.gateway.post_json(
-                path_or_url="/rest/onequery",
-                payload={"query": query, "context": context},
-                user_id=user_id,
-            )
+            execute = lambda: self.query_service.execute_sql(query=query, context=context, user_id=user_id)
         elif dataset.source_type == "api":
-            response = self.gateway.post_json(
-                path_or_url=dataset.source_ref,
+            execute = lambda: self.query_service.execute_api(
+                source=dataset.source_ref,
                 payload={
                     "parameters": {
                         key: [parameter_value_to_dict(item) for item in items]
@@ -76,10 +72,13 @@ class DatasetExecutionService:
             )
         else:
             raise ValidationError(f"dataset sourceType is not executable yet: {dataset.source_type}")
-        payload = self.schema_gateway.validate_dataset_response(response)
-        ret_code = int(payload["retCode"])
-        if ret_code != 0:
-            ret_info = str(payload.get("retInfo") or "")
+        try:
+            result = execute()
+        except UpstreamError as exc:
+            ret_code = exc.details.get("retCode")
+            if ret_code is None:
+                raise
+            ret_info = str(exc)
             warning = WarningItem(
                 code="external_dataset_query_failed",
                 message=f"dataset {dataset.id} query failed: retCode={ret_code}, retInfo={ret_info}",
@@ -87,13 +86,12 @@ class DatasetExecutionService:
             )
             LOGGER.warning(warning.message)
             return DatasetExecutionResult(dataset_id=dataset.id, warnings=[warning])
-        data = payload["data"]
-        columns = copy.deepcopy(dict(data.get("columns") or {}))
+        columns = {item.key: copy.deepcopy(item.metadata) for item in result.columns}
         _validate_lineage(columns=columns, enabled=bool(context["lineage.tracing.enable"]))
         return DatasetExecutionResult(
             dataset_id=dataset.id,
             columns=[{"key": key, **metadata} for key, metadata in columns.items()],
-            rows=copy.deepcopy(list(data.get("results") or [])),
+            rows=copy.deepcopy(list(result.rows)),
         )
 
 

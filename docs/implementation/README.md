@@ -12,7 +12,8 @@
 6. [前端](frontend/README.md)
 7. [文档导出](document-export/README.md)
 8. [外部集成](integrations/外部集成实现.md)
-9. [实现变更日志](changelog/README.md)
+9. [智能问数](data-analysis/README.md)
+10. [实现变更日志](changelog/README.md)
 
 ## 模块映射
 
@@ -20,12 +21,14 @@
 
 - `contexts/conversation`
 - `contexts/report`
+- `contexts/data_analysis`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
 依赖方向：
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
 - `report` 通过系统装配层的 codec 和强类型 handler 注册到 `conversation`
+- `data_analysis` 通过系统装配层注册 `query_data` 场景，并向 `report` 提供可复用查询能力
 - 系统装配层负责跨 context 的严格 DTO 转换；`conversation` 不读取 `report.application` 或 `report.domain`
 - `report` 内部用 `application/domain/infrastructure` 三层组织；模板管理、报告生成和报告管理只在源文件命名上区分，不拆成子 context 目录。
 - application 层只能通过 port 访问基础设施
@@ -41,7 +44,7 @@
 
 `report.domain` 不使用泛化的 `*Service` 命名。当前由 `ParameterResolver`、`ReportDslCompiler`、`template_instance_builder` 和 `placeholder_renderer` 表达纯领域职责；递归动态结构展开保持在模板实例构建器内部，避免把同一棵实例树拆成互相回调的零散步骤。
 
-后续“智能问数”规划为独立 context；本轮不创建空目录或未接入实现。
+`data_analysis` 是独立 bounded context：负责语义数据目录、知识增强、查询生成、安全校验、OneQuery 执行和可视化建议。`report` 不复制这些规则。
 
 禁止 router 直接操作 ORM、application 层直接使用 `Session`，或由基础设施反向定义领域对象。
 

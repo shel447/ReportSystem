@@ -20,7 +20,7 @@ from ..contexts.conversation.application.models import (
 )
 from ..infrastructure.dependencies import build_conversation_service
 from ..infrastructure.persistence.database import get_db
-from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+from ..shared.kernel.errors import ConflictError, NotFoundError, UnsupportedCapabilityError, ValidationError
 from ..shared.kernel.http import resolve_user_id
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -105,6 +105,8 @@ def delete_session(
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except UnsupportedCapabilityError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
 
 
 @router.post("/forks")
@@ -126,6 +128,8 @@ def fork_session(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except UnsupportedCapabilityError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
 
 
 def _wants_sse(request: Request | None) -> bool:

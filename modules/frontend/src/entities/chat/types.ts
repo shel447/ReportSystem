@@ -143,11 +143,11 @@ export type ReportAnswerPayload = {
 export type ChatAsk = {
   status: "pending" | "replied";
   mode: "form" | "natural_language";
-  type: "fill_params" | "confirm_params";
+  type: "fill_params" | "confirm_params" | "clarify_scenario";
   title: string;
   text: string;
-  parameters: TemplateParameter[];
-  reportContext: {
+  parameters?: TemplateParameter[];
+  reportContext?: {
     templateInstance: TemplateInstance;
   };
 };
@@ -170,6 +170,17 @@ export type ChatResponse = {
     | {
         answerType: "REPORT";
         answer: ReportAnswerPayload;
+      }
+    | {
+        answerType: "DATA_ANALYSIS";
+        answer: {
+          summary: string;
+          querySpec: Record<string, unknown>;
+          sql: string;
+          data: { columns: Record<string, unknown>; results: Array<Record<string, unknown>> };
+          visualizations: { components: Array<Record<string, unknown>> };
+          warnings: Array<Record<string, unknown>>;
+        };
       }
     | null;
   errors: unknown[];

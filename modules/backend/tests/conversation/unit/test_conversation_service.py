@@ -17,6 +17,7 @@ from src.contexts.conversation.application.models import (
     conversation_message_content_to_dict,
     conversation_message_meta_to_dict,
 )
+from src.contexts.conversation.application.ports import GuardrailResult, HostedChat, HostedConversation
 from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView
 from src.contexts.report.application.parameter_service import ReportParameterService
 from src.contexts.conversation.application.services import ConversationService
@@ -35,6 +36,7 @@ from src.contexts.report.domain.generation_models import (
 from src.contexts.report.domain.template_instance_builder import instantiate_template_instance
 from src.contexts.report.application.template_models import ParameterOptionsResult
 from src.contexts.report.domain.template_models import ParameterValue, report_template_from_dict
+from src.shared.kernel.errors import UnsupportedCapabilityError
 
 
 def _service():
@@ -231,100 +233,44 @@ class ReportScenarioServiceScopedParameterTests(unittest.TestCase):
         self.assertEqual(summary_part.runtime_context.prompt, "总结问题。")
 
 
-class _InMemoryConversation:
-    def __init__(self, conversation_id: str, user_id: str) -> None:
-        self.id = conversation_id
-        self.user_id = user_id
-        self.title = ""
-        self.status = "active"
-        self.updated_at = None
-
-
-class _InMemoryChat:
-    def __init__(self, chat_id: str, conversation_id: str, user_id: str, role: str, content: dict, action=None, meta=None, scenario_key=None) -> None:
-        self.id = chat_id
-        self.conversation_id = conversation_id
-        self.user_id = user_id
-        self.role = role
-        self.content = content
-        self.action = action
-        self.meta = meta
-        self.scenario_key = scenario_key
-        self.created_at = None
-
-
-class _ConversationRepository:
+class _HistoryGateway:
     def __init__(self) -> None:
-        self.rows: dict[str, _InMemoryConversation] = {}
+        self.conversations: dict[str, HostedConversation] = {}
+        self.chats: dict[str, HostedChat] = {}
 
-    def get(self, conversation_id: str, *, user_id: str):
-        row = self.rows.get(conversation_id)
-        if row and row.user_id == user_id:
-            return row
-        return None
-
-    def create(self, *, conversation_id: str | None, user_id: str):
-        row = _InMemoryConversation(conversation_id or f"conv_{len(self.rows) + 1:03d}", user_id)
-        self.rows[row.id] = row
+    def create_conversation(self, *, title: str, description: str | None, user_id: str):
+        row = HostedConversation(conversation_id=f"conv_{len(self.conversations) + 1:03d}", title=title)
+        self.conversations[row.conversation_id] = row
         return row
 
-    def save(self, row):
-        self.rows[row.id] = row
+    def create_chat(self, *, conversation_id: str, question: str, user_id: str):
+        row = HostedChat(chat_id=f"chat_{len(self.chats) + 1}", conversation_id=conversation_id, question=question)
+        self.chats[row.chat_id] = row
         return row
 
-    def list_all(self, *, user_id: str):
-        return [row for row in self.rows.values() if row.user_id == user_id]
+    def import_chat(self, *, chat: HostedChat, user_id: str) -> None:
+        self.chats[chat.chat_id] = deepcopy(chat)
+
+    def query_chat_history(self, *, conversation_id: str, page_num: int, page_size: int, user_id: str):
+        return [deepcopy(item) for item in self.chats.values() if item.conversation_id == conversation_id]
+
+    def get_chat_detail(self, *, chat_id: str, user_id: str):
+        row = self.chats.get(chat_id)
+        return deepcopy(row) if row else None
+
+    def list_conversations(self, *, page_num: int, page_size: int, user_id: str):
+        return list(self.conversations.values())
 
 
-class _ChatRepository:
-    def __init__(self) -> None:
-        self.rows: list[_InMemoryChat] = []
+class _AllowGuardrail:
+    def check_question(self, question: str, *, user_id: str) -> GuardrailResult:
+        return GuardrailResult(passed=True)
 
-    def append_message(
-        self,
-        *,
-        conversation_id: str,
-        user_id: str,
-        role: str,
-        content: ConversationMessageContent,
-        action: ConversationMessageAction | None = None,
-        meta: ConversationMessageMeta | None = None,
-        scenario_key=None,
-        chat_id=None,
-    ):
-        row = _InMemoryChat(
-            chat_id or f"chat_{len(self.rows) + 1}",
-            conversation_id,
-            user_id,
-            role,
-            conversation_message_content_to_dict(content),
-            conversation_message_action_to_dict(action),
-            conversation_message_meta_to_dict(meta),
-            scenario_key,
-        )
-        self.rows.append(row)
-        return row
+    def check_answer(self, answer: str, *, user_id: str) -> GuardrailResult:
+        return GuardrailResult(passed=True)
 
-    def list_by_conversation(self, conversation_id: str, *, user_id: str):
-        return [row for row in self.rows if row.conversation_id == conversation_id and row.user_id == user_id]
-
-    def get_for_conversation(self, conversation_id: str, chat_id: str, *, user_id: str):
-        return next((row for row in self.rows if row.id == chat_id and row.conversation_id == conversation_id and row.user_id == user_id), None)
-
-    def get_latest_assistant(self, conversation_id: str, *, user_id: str):
-        rows = [row for row in self.rows if row.conversation_id == conversation_id and row.user_id == user_id and row.role == "assistant"]
-        return rows[-1] if rows else None
-
-    def mark_ask_replied(self, *, conversation_id: str, user_id: str, source_chat_id: str) -> bool:
-        for row in self.rows:
-            if row.id != source_chat_id or row.conversation_id != conversation_id or row.user_id != user_id or row.role != "assistant":
-                continue
-            response = row.content.get("response") if isinstance(row.content, dict) else None
-            ask = response.get("ask") if isinstance(response, dict) else None
-            if isinstance(ask, dict) and ask.get("status") == "pending":
-                ask["status"] = "replied"
-                return True
-        return False
+    def check_application_security(self, *, kind: str, content: str, user_id: str) -> GuardrailResult:
+        return GuardrailResult(passed=True)
 
 
 class _RuntimeService:
@@ -363,7 +309,7 @@ class _RuntimeService:
         )
 
 
-def _conversation_service(*, template, conversation_repository, chat_repository, runtime_service):
+def _conversation_service(*, template, history_gateway, runtime_service, audit_dispatcher=None):
     report_scenario_service = ReportScenarioService(
         template_service=SimpleNamespace(get_template=lambda template_id: template),
         template_repository=SimpleNamespace(list_all=lambda: [template]),
@@ -374,14 +320,15 @@ def _conversation_service(*, template, conversation_repository, chat_repository,
     registry.register(report_scenario_registration(report_service=SimpleNamespace(chat=report_scenario_service.handle)))
     registry.seal()
     return ConversationService(
-        conversation_repository=conversation_repository,
-        chat_repository=chat_repository,
+        history_gateway=history_gateway,
+        guardrail_gateway=_AllowGuardrail(),
         scenario_dispatcher=ScenarioDispatchService(registry=registry),
+        audit_dispatcher=audit_dispatcher,
     )
 
 
 class ConversationServiceAskStatusTests(unittest.TestCase):
-    def test_fork_preserves_source_message_scenario_trace(self):
+    def test_successful_chat_submits_best_effort_audit_event(self):
         template = report_template_from_dict({
             "id": "tpl_network_daily",
             "category": "network_operations",
@@ -391,12 +338,36 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             "parameters": [],
             "catalogs": [],
         })
-        conversation_repository = _ConversationRepository()
-        chat_repository = _ChatRepository()
+        events = []
         service = _conversation_service(
             template=template,
-            conversation_repository=conversation_repository,
-            chat_repository=chat_repository,
+            history_gateway=_HistoryGateway(),
+            runtime_service=_RuntimeService(),
+            audit_dispatcher=SimpleNamespace(submit=events.append),
+        )
+
+        response = service.chat(
+            data=ChatCommand(instruction="generate_report", question="帮我生成网络运行日报"),
+            user_id="default",
+        )
+
+        self.assertEqual(events[0].operation, "conversation.chat")
+        self.assertIn(response.chat_id, events[0].target_obj)
+
+    def test_fork_is_explicitly_unavailable_while_agentcore_has_no_contract(self):
+        template = report_template_from_dict({
+            "id": "tpl_network_daily",
+            "category": "network_operations",
+            "name": "网络运行日报",
+            "description": "面向网络运维中心的统一日报模板。",
+            "schemaVersion": "template.v3",
+            "parameters": [],
+            "catalogs": [],
+        })
+        history_gateway = _HistoryGateway()
+        service = _conversation_service(
+            template=template,
+            history_gateway=history_gateway,
             runtime_service=_RuntimeService(),
         )
         first = service.chat(
@@ -404,24 +375,15 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             user_id="default",
         )
 
-        forked = service.fork_session(
-            data=ForkSessionCommand(
-                source_kind="chat",
-                source_conversation_id=first.conversation_id,
-                source_chat_id=first.chat_id,
-            ),
-            user_id="default",
-        )
-
-        copied = chat_repository.rows[-1]
-        self.assertEqual(forked.conversation_id, "conv_002")
-        self.assertEqual(copied.conversation_id, forked.conversation_id)
-        self.assertEqual(copied.scenario_key, "report")
-        self.assertEqual(copied.meta["scenario"]["key"], "report")
-        self.assertEqual(
-            copied.meta["forkedFrom"],
-            {"conversationId": first.conversation_id, "chatId": first.chat_id},
-        )
+        with self.assertRaises(UnsupportedCapabilityError):
+            service.fork_session(
+                data=ForkSessionCommand(
+                    source_kind="chat",
+                    source_conversation_id=first.conversation_id,
+                    source_chat_id=first.chat_id,
+                ),
+                user_id="default",
+            )
 
     def test_reply_marks_previous_ask_as_replied(self):
         template = report_template_from_dict({
@@ -442,13 +404,11 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             ],
             "catalogs": [],
         })
-        conversation_repository = _ConversationRepository()
-        chat_repository = _ChatRepository()
+        history_gateway = _HistoryGateway()
         runtime_service = _RuntimeService()
         service = _conversation_service(
             template=template,
-            conversation_repository=conversation_repository,
-            chat_repository=chat_repository,
+            history_gateway=history_gateway,
             runtime_service=runtime_service,
         )
 
@@ -477,11 +437,10 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         )
 
         self.assertEqual(second.ask.status, "pending")
-        assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
-        self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
-        self.assertEqual(assistant_messages[-1].content["response"]["ask"]["status"], "pending")
-        self.assertTrue(all(row.scenario_key == "report" for row in chat_repository.rows))
-        self.assertTrue(all(row.meta["scenario"]["key"] == "report" for row in chat_repository.rows))
+        messages = list(history_gateway.chats.values())
+        self.assertEqual(messages[0].response_payload["ask"]["status"], "replied")
+        self.assertEqual(messages[-1].response_payload["ask"]["status"], "pending")
+        self.assertTrue(all(row.meta["scenario"]["key"] == "report" for row in messages))
 
     def test_reply_uses_source_chat_id_instead_of_latest_pending_guess(self):
         template = report_template_from_dict({
@@ -502,13 +461,11 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             ],
             "catalogs": [],
         })
-        conversation_repository = _ConversationRepository()
-        chat_repository = _ChatRepository()
+        history_gateway = _HistoryGateway()
         runtime_service = _RuntimeService()
         service = _conversation_service(
             template=template,
-            conversation_repository=conversation_repository,
-            chat_repository=chat_repository,
+            history_gateway=history_gateway,
             runtime_service=runtime_service,
         )
 
@@ -544,11 +501,11 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         )
 
         self.assertEqual(third.ask.status, "pending")
-        assistant_messages = [row for row in chat_repository.rows if row.role == "assistant"]
-        self.assertEqual(assistant_messages[0].id, first.chat_id)
-        self.assertEqual(assistant_messages[0].content["response"]["ask"]["status"], "replied")
-        self.assertEqual(assistant_messages[1].id, second.chat_id)
-        self.assertEqual(assistant_messages[1].content["response"]["ask"]["status"], "pending")
+        messages = list(history_gateway.chats.values())
+        self.assertEqual(messages[0].chat_id, first.chat_id)
+        self.assertEqual(messages[0].response_payload["ask"]["status"], "replied")
+        self.assertEqual(messages[1].chat_id, second.chat_id)
+        self.assertEqual(messages[1].response_payload["ask"]["status"], "pending")
 
 
 if __name__ == "__main__":

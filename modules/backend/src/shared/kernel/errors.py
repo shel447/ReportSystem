@@ -36,3 +36,7 @@ class ConflictError(ApplicationError):
 
 class UpstreamError(ApplicationError):
     pass
+
+
+class UnsupportedCapabilityError(ApplicationError):
+    pass

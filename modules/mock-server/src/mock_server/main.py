@@ -5,7 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from threading import RLock
+import time
 from typing import Any
+import uuid
 
 from fastapi import FastAPI, Header, HTTPException
 
@@ -35,6 +38,9 @@ def _dataset_business_error() -> dict[str, Any]:
 
 def create_app() -> FastAPI:
     app = FastAPI(title="ReportSystem Mock External Service")
+    conversations: dict[str, dict[str, Any]] = {}
+    chats: dict[str, dict[str, Any]] = {}
+    lock = RLock()
 
     @app.get("/health")
     def health():
@@ -43,7 +49,25 @@ def create_app() -> FastAPI:
     @app.post("/v1/chat/completions")
     def chat_completions(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         empty = _apply_scenario(x_mock_scenario, empty="")
-        content = empty if empty is not None else "completion test ok"
+        messages = list(payload.get("messages") or [])
+        system = str((messages[0] if messages else {}).get("content") or "")
+        if empty is not None:
+            content = empty
+        elif "必须包含 sql" in system:
+            content = json.dumps(
+                {
+                    "intent": "查询网络健康数据",
+                    "sql": "select * from network_health",
+                    "entities": ["network_health"],
+                    "dimensions": ["device_name"],
+                    "measures": ["health_score"],
+                },
+                ensure_ascii=False,
+            )
+        elif "简洁中文结论" in system:
+            content = "查询结果显示网络设备健康状态整体稳定，建议优先关注评分较低的设备。"
+        else:
+            content = "completion test ok"
         return {"model": payload.get("model") or "mock-chat", "choices": [{"message": {"content": content}}]}
 
     @app.post("/v1/embeddings")
@@ -63,7 +87,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail=f"unknown parameter options: {name}")
         return values
 
-    @app.post("/rest/onequery")
+    @app.post("/rest/dte/v1/onequery/uql/query")
     def onequery(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         if x_mock_scenario == "business-error":
             return _dataset_business_error()
@@ -73,6 +97,152 @@ def create_app() -> FastAPI:
         query = str(payload.get("query") or "").lower()
         key = next((item for item in _load_fixtures()["queryMatches"] if item in query), "default")
         return _dataset_response(_load_fixtures()["datasets"][key])
+
+    @app.post("/rest/naie/guardrail/v1/question/check")
+    def question_guardrail(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
+        _apply_scenario(x_mock_scenario, empty=None)
+        blocked = x_mock_scenario == "blocked" or any("危险" in str(item) for item in list(payload.get("questions") or []))
+        return {"checkResults": [{"isLegal": not blocked, "response": "请求未通过安全检查" if blocked else ""}]}
+
+    @app.post("/rest/naie/guardrail/v1/answer/check")
+    def answer_guardrail(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
+        _apply_scenario(x_mock_scenario, empty=None)
+        blocked = x_mock_scenario == "blocked"
+        return {"checkResults": [{"isLegal": not blocked, "response": "回答未通过安全检查" if blocked else ""}]}
+
+    @app.post("/rest/naie/guardrail/v1/application-sec/check")
+    def application_guardrail(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
+        _apply_scenario(x_mock_scenario, empty=None)
+        blocked = x_mock_scenario == "blocked" or "drop table" in str(payload.get("content") or "").lower()
+        return {"status": blocked, "error_msg": "生成内容存在风险" if blocked else None}
+
+    @app.post("/rest/naie/aiagentcore/v1/conversation")
+    def create_conversation(payload: dict[str, Any]):
+        conversation_id = f"conv_{uuid.uuid4().hex[:12]}"
+        with lock:
+            conversations[conversation_id] = {
+                "conversationId": conversation_id,
+                "title": str(payload.get("title") or "新会话"),
+                "status": "active",
+                "updatedAt": int(time.time() * 1000),
+            }
+        return {"conversationId": conversation_id}
+
+    @app.post("/rest/naie/aiagentcore/v1/chat/create")
+    def create_chat(payload: dict[str, Any]):
+        chat_id = f"chat_{uuid.uuid4().hex[:12]}"
+        conversation_id = str(payload.get("conversationId") or "")
+        with lock:
+            if conversation_id not in conversations:
+                raise HTTPException(status_code=404, detail="conversation not found")
+            chats[chat_id] = {
+                "id": chat_id,
+                "chatId": chat_id,
+                "conversationId": conversation_id,
+                "question": json.dumps({"content": str(payload.get("question") or "")}, ensure_ascii=False),
+                "answers": [],
+                "askTime": int(time.time() * 1000),
+            }
+        return {"chatId": chat_id}
+
+    @app.post("/rest/naie/aiagent/v1/chat/import")
+    def import_chat(payload: dict[str, Any]):
+        chat_id = str(payload.get("chatId") or "")
+        conversation_id = str(payload.get("conversationId") or "")
+        with lock:
+            row = dict(chats.get(chat_id) or {"id": chat_id, "chatId": chat_id, "conversationId": conversation_id, "question": ""})
+            row["answers"] = [{"type": "PIU", "status": "SUCCESS", "content": payload.get("content", {}).get("answers", {})}]
+            chats[chat_id] = row
+            if conversation_id in conversations:
+                conversations[conversation_id]["updatedAt"] = int(time.time() * 1000)
+                conversations[conversation_id]["lastMessagePreview"] = str((payload.get("content", {}).get("answers", {}).get("response") or {}).get("status") or "")
+        return {"status": "ok"}
+
+    @app.post("/rest/naie/aiagentcore/v2/chat/history")
+    def chat_history(payload: dict[str, Any]):
+        conversation_id = str(payload.get("conversationId") or "")
+        with lock:
+            records = [dict(item) for item in chats.values() if item.get("conversationId") == conversation_id]
+        records.sort(key=lambda item: int(item.get("askTime") or 0))
+        return {"records": records, "total": len(records), "pageNum": int(payload.get("pageNum") or 1), "pageSize": int(payload.get("pageSize") or 10)}
+
+    @app.get("/rest/naie/aiagentcore/v1/chat/detail/{chat_id}")
+    def chat_detail(chat_id: str):
+        with lock:
+            row = chats.get(chat_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail="chat not found")
+            return dict(row)
+
+    @app.get("/rest/naie/aiagentcore/v1/conversations")
+    def list_conversations():
+        with lock:
+            return {"records": [dict(item) for item in conversations.values()]}
+
+    @app.post("/rest/odae/v3/datacatalog/model/logicalentities/list")
+    def logical_entities(_: dict[str, Any]):
+        return {
+            "retCode": 0,
+            "retInfo": "",
+            "data": {
+                "results": [
+                    {"name": "network_health", "description": "网络设备健康数据", "columns": ["device_name", "health_score", "status"]},
+                    {"name": "network_alarm", "description": "网络告警数据", "columns": ["level", "count"]},
+                ],
+                "totalCount": 2,
+            },
+        }
+
+    @app.get("/rest/odae/v3/datacatalog/model/logicalentity")
+    def logical_entity(logicalEntityName: str):
+        return {"data": {"name": logicalEntityName}}
+
+    @app.get("/rest/odae/v3/datacatalog/model/datasets/{name}")
+    def dataset_metadata(name: str):
+        return {"data": {"name": name}}
+
+    @app.post("/rest/dte/v2/datacatalog/product/model/logicalrelations/query")
+    def logical_relations(_: dict[str, Any]):
+        return {"retCode": 0, "retInfo": "", "data": {"results": [], "totalCount": 0}}
+
+    @app.get("/rest/dte/v2/datacatalog/product/model/logicalrelation")
+    def logical_relation(name: str):
+        return {"retCode": 0, "retInfo": "", "data": {"name": name}}
+
+    @app.get("/rest/naie/knwl/v1/knowledge")
+    def knowledge():
+        return {"total": 0, "ragIndex": "mock", "knowledgeList": []}
+
+    @app.post("/rest/naie/rag/v1/retriever-klg")
+    def retrieve_knowledge(_: dict[str, Any]):
+        return {"query": "", "recommends": []}
+
+    @app.post("/rest/naie/rag/v1/retriever")
+    def retrieve_multi(_: dict[str, Any]):
+        return {"query": "", "recommends": [{"id": "nl2sql_1", "description": "网络健康查询样例", "rerankScore": 0.9}]}
+
+    @app.get("/rest/nodeagent/v2/csi/appconf")
+    def app_config(watch: str = "false"):
+        return {"externalServices": {"mock": True}, "watch": watch}
+
+    @app.post("/rest/plat/audit/v1/logs")
+    def operation_audit(_: dict[str, Any]):
+        return {"status": "ok"}
+
+    @app.post("/rest/plat/audit/v1/seculogs")
+    def security_audit(_: dict[str, Any]):
+        return {"status": "ok"}
+
+    @app.get("/rest/entassistantservice/v1/chatbi/package/register/process")
+    def metadata_sync():
+        return {"status": "complete", "version": "mock-v1"}
+
+    @app.post("/__mock__/reset")
+    def reset():
+        with lock:
+            conversations.clear()
+            chats.clear()
+        return {"status": "ok"}
 
     @app.post("/rest/datasets/{name}")
     def api_dataset(name: str, _: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):

@@ -27,8 +27,6 @@
 主业务表固定为：
 
 - `tbl_users`
-- `tbl_conversations`
-- `tbl_chats`
 - `tbl_report_templates`
 - `tbl_template_instances`
 - `tbl_report_instances`
@@ -75,7 +73,7 @@
 ## 4. 读写约束
 
 - 用户归属业务查询强制带 `user_id`
-- 会话消息按 `conversation_id + seq_no` 读取
+- 会话消息由 AgentCore 托管；本地只保存报告来源归因 ID
 - 文档下载通过 `report_id + document_id` 双重校验
 - 导出任务直接按 `user_id` 隔离；文档产物通过报告实例间接隔离
 - 删除历史旧表与旧 ORM，不保留旧 SQLite 兼容升级代码

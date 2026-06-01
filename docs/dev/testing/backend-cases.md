@@ -4,7 +4,8 @@
 
 | ID | 分类 | 目标 | 实现位置 |
 |---|---|---|---|
-| BE-CONV | 通用对话 | 会话、消息、追问答复、fork 与 SSE 契约 | `modules/backend/tests/conversation/` |
+| BE-CONV | 通用对话 | AgentCore 托管会话、轮次 upsert、追问答复、暂未开放能力与 SSE 契约 | `modules/backend/tests/conversation/` |
+| BE-DATA | 智能问数 | NL2SQL 编排、安全检查、查询协议与 BI 可视化建议 | `modules/backend/tests/data_analysis/` |
 | BE-REPORT | 报告生成 | 模板、参数、模板实例、Report DSL 和章节重生成 | `modules/backend/tests/report/` |
 | BE-INFRA | 基础设施 | 数据库升级、查询、动态数据源、前端托管与文档网关 | `modules/backend/tests/infrastructure/` |
 | BE-DEV | 开发辅助 | docs、feedback 和系统设置接口 | `modules/backend/tests/dev_support/` |
@@ -21,8 +22,10 @@
 | `tests/architecture/test_service_type_contracts.py` | 4 | 应用服务正式类型 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
 | `tests/conversation/api/test_chat_contract_api.py` | 7 | `/chat` ask/reply、SSE、报告与章节 delta |
-| `tests/conversation/unit/test_conversation_service.py` | 6 | 通用追问生命周期、场景分发和 fork 轨迹保留 |
+| `tests/conversation/unit/test_conversation_service.py` | 7 | AgentCore 托管对话、通用追问生命周期、upsert 消费、暂未开放 fork 和异步审计提交 |
 | `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
+| `tests/data_analysis/unit/test_data_analysis_service.py` | 2 | 智能问数编排、SQL 安全拒绝和 BI 可视化建议 |
+| `tests/data_analysis/infrastructure/test_external_query_gateways.py` | 3 | OneQuery 正式路径、字段元数据和新版查询包络必填字段 |
 | `tests/dev_support/api/test_docs_router.py` | 4 | 文档索引、读取、ZIP 和逃逸防护 |
 | `tests/dev_support/api/test_feedback_router.py` | 1 | 反馈 CRUD 与 ZIP |
 | `tests/dev_support/api/test_system_settings_router.py` | 4 | 设置读取保存、连接测试和 reindex |
@@ -30,6 +33,7 @@
 | `tests/features/test_complex_mock_template_export_flow.py` | 1 | 四份复杂开发模板真实 Word/PPT Office 包闭环 |
 | `tests/features/test_template_management_flow.py` | 1 | 模板 CRUD、导入预览和导出 API 闭环 |
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 6 | 业务库、开发库和升级规则 |
+| `tests/infrastructure/platform/test_platform_runtime.py` | 3 | NodeAgent 分层配置、环境应急覆盖和审计尽力投递 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
 | `tests/infrastructure/web/test_frontend_serving.py` | 5 | SPA 托管和用户镜像 |
 | `tests/infrastructure/web/test_report_document_gateway.py` | 5 | Markdown、下载、PDF 拒绝和 CLI 参数 |

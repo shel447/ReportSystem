@@ -14,6 +14,9 @@
 - [dataset-source-response.schema.json](dataset-source-response.schema.json)
 - [dynamic-custom-source-request.schema.json](dynamic-custom-source-request.schema.json)
 - [dynamic-custom-source-response.schema.json](dynamic-custom-source-response.schema.json)
+- [guardrail-check.schema.json](guardrail-check.schema.json)
+- [agentcore-chat-import.schema.json](agentcore-chat-import.schema.json)
+- [data-analysis-answer.schema.json](data-analysis-answer.schema.json)
 
 ## 示例
 

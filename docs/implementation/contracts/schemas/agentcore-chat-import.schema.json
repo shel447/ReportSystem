@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "agentcore-chat-import.schema.json",
+  "title": "AgentCore Chat Import",
+  "type": "object",
+  "required": ["conversationId", "chatId", "type", "content"],
+  "properties": {
+    "conversationId": {"type": "string"},
+    "chatId": {"type": "string"},
+    "type": {"const": "PIU"},
+    "content": {
+      "type": "object",
+      "required": ["piuName", "piuVersion", "answers"],
+      "properties": {
+        "piuName": {"type": "string"},
+        "piuVersion": {"type": "string"},
+        "answers": {"type": "object"}
+      }
+    }
+  }
+}

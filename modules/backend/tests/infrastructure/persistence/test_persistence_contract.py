@@ -24,15 +24,15 @@ def test_business_upgrades_create_current_schema_and_are_idempotent(tmp_path):
     db_path = tmp_path / "report-system.db"
     engine = _engine(db_path)
 
-    assert apply_upgrades(database_path=db_path, upgrades_dir=BUSINESS_UPGRADES, engine=engine, metadata=Base.metadata) == 2
-    assert apply_upgrades(database_path=db_path, upgrades_dir=BUSINESS_UPGRADES, engine=engine, metadata=Base.metadata) == 2
+    assert apply_upgrades(database_path=db_path, upgrades_dir=BUSINESS_UPGRADES, engine=engine, metadata=Base.metadata) == 3
+    assert apply_upgrades(database_path=db_path, upgrades_dir=BUSINESS_UPGRADES, engine=engine, metadata=Base.metadata) == 3
 
     inspector = inspect(engine)
     assert set(Base.metadata.tables) <= set(inspector.get_table_names())
     assert {"user_id"} <= {item["name"] for item in inspector.get_columns("tbl_export_jobs")}
     assert "ix_tbl_export_jobs_user_id" in {item["name"] for item in inspector.get_indexes("tbl_export_jobs")}
-    assert {"scenario_key"} <= {item["name"] for item in inspector.get_columns("tbl_chats")}
-    assert "ix_tbl_chats_scenario_key" in {item["name"] for item in inspector.get_indexes("tbl_chats")}
+    assert "tbl_chats" not in inspector.get_table_names()
+    assert "tbl_conversations" not in inspector.get_table_names()
     assert {
         ("user_id", "tbl_users", "id"),
     } <= {
@@ -40,7 +40,7 @@ def test_business_upgrades_create_current_schema_and_are_idempotent(tmp_path):
         for item in inspector.get_foreign_keys("tbl_export_jobs")
     }
     with sqlite3.connect(db_path) as connection:
-        assert connection.execute("SELECT current_version FROM __db_schema_version WHERE id = 1").fetchone() == (2,)
+        assert connection.execute("SELECT current_version FROM __db_schema_version WHERE id = 1").fetchone() == (3,)
 
 
 def test_dev_upgrades_create_separate_development_schema(tmp_path):

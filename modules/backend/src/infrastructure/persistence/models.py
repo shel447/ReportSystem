@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 import uuid
 
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from .database import Base
@@ -30,40 +29,6 @@ class User(Base):
     last_seen_at = Column(DateTime, nullable=True)
 
 
-class Conversation(Base):
-    __tablename__ = "tbl_conversations"
-
-    id = Column(String, primary_key=True, default=gen_id)
-    user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
-    title = Column(String, nullable=False, default="")
-    fork_meta = Column(JSON, nullable=False, default=dict)
-    status = Column(String, nullable=False, default="active")
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    chats = relationship(
-        "Chat",
-        cascade="all, delete-orphan",
-        order_by="Chat.seq_no",
-        lazy="selectin",
-    )
-
-
-class Chat(Base):
-    __tablename__ = "tbl_chats"
-
-    id = Column(String, primary_key=True, default=gen_id)
-    conversation_id = Column(String, ForeignKey("tbl_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
-    role = Column(String, nullable=False)
-    scenario_key = Column(String, nullable=True, index=True)
-    content = Column(JSON, nullable=False, default=dict)
-    action = Column(JSON, nullable=True)
-    meta = Column(JSON, nullable=False, default=dict)
-    seq_no = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=utc_now, nullable=False)
-
-
 class ReportTemplate(Base):
     __tablename__ = "tbl_report_templates"
 
@@ -82,8 +47,8 @@ class TemplateInstance(Base):
 
     id = Column(String, primary_key=True, default=gen_id)
     template_id = Column(String, ForeignKey("tbl_report_templates.id"), nullable=False, index=True)
-    conversation_id = Column(String, ForeignKey("tbl_conversations.id"), nullable=False, index=True)
-    chat_id = Column(String, ForeignKey("tbl_chats.id"), nullable=True, index=True)
+    conversation_id = Column(String, nullable=False, index=True)
+    chat_id = Column(String, nullable=True, index=True)
     user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
     status = Column(String, nullable=False)
     capture_stage = Column(String, nullable=False)
@@ -101,8 +66,8 @@ class ReportInstance(Base):
     template_id = Column(String, ForeignKey("tbl_report_templates.id"), nullable=False, index=True)
     template_instance_id = Column(String, ForeignKey("tbl_template_instances.id"), nullable=False, index=True)
     user_id = Column(String, ForeignKey("tbl_users.id"), nullable=False, index=True)
-    source_conversation_id = Column(String, ForeignKey("tbl_conversations.id"), nullable=True, index=True)
-    source_chat_id = Column(String, ForeignKey("tbl_chats.id"), nullable=True, index=True)
+    source_conversation_id = Column(String, nullable=True, index=True)
+    source_chat_id = Column(String, nullable=True, index=True)
     status = Column(String, nullable=False)
     schema_version = Column(String, nullable=False)
     content = Column(JSON, nullable=False, default=dict)

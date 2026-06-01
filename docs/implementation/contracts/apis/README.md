@@ -12,12 +12,26 @@ flowchart LR
     parameterSource["动态参数数据源"]
     customSource["Dynamic Custom 内容源"]
     querySource["业务查询数据源<br/>SQL 或 API"]
+    guardrail["AgentCore Guardrail"]
+    agentcore["AgentCore 会话历史"]
+    dataCatalog["DataCatalog"]
+    knowledge["Knowledge / RAG"]
+    nodeAgent["NodeAgent 配置"]
+    audit["Audit 审计"]
+    metadata["元数据同步"]
 
     client -->|"REST / SSE<br/>/rest/chatbi/v1/*"| reportSystem
     reportSystem -->|"/chat/completions<br/>/embeddings"| llm
     reportSystem -->|"POST 模板 parameter.source"| parameterSource
     reportSystem -->|"POST 模板 dynamic.custom.url"| customSource
     reportSystem -->|"按运行上下文查询<br/>条件能力"| querySource
+    reportSystem -->|"问题、答案、SQL 安全检查"| guardrail
+    reportSystem -->|"会话、轮次、历史归档与查询"| agentcore
+    reportSystem -->|"实体、数据集、逻辑关系"| dataCatalog
+    reportSystem -->|"知识与 NL2SQL 样例检索"| knowledge
+    reportSystem -->|"启动和周期加载配置"| nodeAgent
+    reportSystem -->|"异步操作与安全审计"| audit
+    reportSystem -->|"周期检查元数据更新"| metadata
 ```
 
 ### 1.1 对外提供的业务接口
@@ -37,8 +51,8 @@ flowchart LR
 | 通用对话 | `GET /chat` | 查询会话列表 |
 | 通用对话 | `POST /chat` | 发送消息，支持 SSE 流式响应 |
 | 通用对话 | `GET /chat/{conversationId}` | 获取会话详情 |
-| 通用对话 | `DELETE /chat/{conversationId}` | 删除会话 |
-| 通用对话 | `POST /chat/forks` | 从历史节点派生会话分支 |
+| 通用对话 | `DELETE /chat/{conversationId}` | 暂未开放，返回 `501 capability_not_available` |
+| 通用对话 | `POST /chat/forks` | 暂未开放，返回 `501 capability_not_available` |
 | 报告管理 | `GET /reports/{reportId}` | 获取完成态报告详情 |
 | 文档导出 | `POST /reports/{reportId}/document-generations` | 为冻结报告创建文档生成任务 |
 | 文档导出 | `GET /reports/{reportId}/documents/{documentId}/download` | 下载已生成文档 |
@@ -57,8 +71,22 @@ X-User-Id: <external-user-id>
 | OpenAI Compatible 向量化 | `POST {baseUrl}/embeddings` | 模板语义索引和召回 | 已实现，地址由系统设置提供 |
 | Parameter Options 数据源 | `POST {parameter.source}` | 解析动态参数候选项 | 已实现，地址由模板声明 |
 | Dynamic Custom 内容源 | `POST {dynamic.custom.url}` | 获取目录、章节或组件 DSL 片段 | 已实现，地址由模板声明 |
-| SQL 查询数据源 | `POST {externalBusinessBaseUrl}/rest/onequery` | 根据模板 SQL 和绑定参数查询报告数据 | 已定义正式协议 |
 | API 查询数据源 | `POST {externalBusinessBaseUrl}{dataset.source}` | 根据模板声明的 `/rest/...` 地址查询报告数据 | 已定义正式协议 |
+| OneQuery | `POST /rest/dte/v1/onequery/uql/query` | 执行 SQL/UQL 查询 | 已实现 |
+| Guardrail | `POST /rest/naie/guardrail/v1/question/check` | 用户输入进入场景前 | 已实现 |
+| Guardrail | `POST /rest/naie/guardrail/v1/answer/check` | 最终答案返回前 | 已实现 |
+| Guardrail | `POST /rest/naie/guardrail/v1/application-sec/check` | SQL/Python 执行前 | 已实现 |
+| AgentCore | `POST /rest/naie/aiagentcore/v1/conversation` | 创建会话 | 已实现 |
+| AgentCore | `POST /rest/naie/aiagentcore/v1/chat/create` | 创建轮次 | 已实现 |
+| AgentCore | `POST /rest/naie/aiagent/v1/chat/import` | 归档或 upsert 完整 ChatResp | 已实现 |
+| AgentCore | `POST /rest/naie/aiagentcore/v2/chat/history` | 查询会话历史 | 已实现 |
+| AgentCore | `GET /rest/naie/aiagentcore/v1/chat/detail/{id}` | 查询单轮详情 | 已实现 |
+| AgentCore | `GET /rest/naie/aiagentcore/v1/conversations` | 查询会话列表 | 已实现 |
+| DataCatalog | `GET/POST /rest/odae/...`、`/rest/dte/v2/datacatalog/...` | 获取实体、数据集和逻辑关系 | 已实现 |
+| Knowledge/RAG | `GET /rest/naie/knwl/v1/knowledge`、`POST /rest/naie/rag/v1/retriever-klg`、`POST /rest/naie/rag/v1/retriever` | 检索知识和 NL2SQL 样例 | 已实现 |
+| NodeAgent | `GET /rest/nodeagent/v2/csi/appconf?watch=false` | 加载平台运行配置 | 已实现 |
+| Audit | `POST /rest/plat/audit/v1/logs`、`POST /rest/plat/audit/v1/seculogs` | 异步审计 | 已实现 |
+| Metadata Sync | `GET /rest/entassistantservice/v1/chatbi/package/register/process` | 检查元数据更新并触发缓存失效 | 已实现 |
 
 ### 1.3 路由实现映射
 
@@ -209,7 +237,7 @@ X-User-Id: <external-user-id>
 
 - `conversationId`：会话 id
 - `chatId`：当前轮 id
-- `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`
+- `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`；智能问数正式支持 `query_data`
 - `reply`：承接对某条追问的结构化答复；业务字段按 instruction 场景定义
 - `attachments`：仅在 `extract_report_template` 且需要上传原始材料时必填
 - `histories`：仅在“基于历史对话生成报告”场景下必填
@@ -217,6 +245,7 @@ X-User-Id: <external-user-id>
 - `question` / `reply` / `template`：`generate_report` 场景下 `question` 或 `reply` 至少出现一个；`generate_report_segment` 场景下 `template` 必填，`question` 和 `reply` 不使用
 - `extract_report_template` 用于"从附件、原始文本或自然语言描述中提取模板草案"；其结果是预览态，不直接落库
 - `generate_report_segment` 用于"报告生成完成后，基于编辑后的章节大纲重新生成单个章节"；返回预览结果，不直接更新报告实例
+- `query_data` 用于智能问数；服务端返回结论、QuerySpec、SQL、明细数据和 BI Engine 可视化建议
 - 未传 `instruction` 时，通用对话会结合当前输入和上一轮场景识别业务场景；无法可靠识别时返回 `clarify_scenario`
 
 ##### ChatRequest.reply 子结构
@@ -370,6 +399,9 @@ X-User-Id: <external-user-id>
 - `generate_report_segment`
   - 至少经历 `status -> answer -> done`
   - `answer` 事件承载 `REPORT_SEGMENT`，过程中可承载 `delta`
+- `query_data`
+  - 至少经历 `status -> answer -> done`
+  - `answer` 事件承载 `DATA_ANALYSIS`
 - 若中途失败：
   - 先发 `error`
   - 最后仍应发 `done`
@@ -594,6 +626,37 @@ paged Report DSL 示例：
 - `section` 是重新生成的 Report DSL `Section` 片段，结构满足 `report-dsl.schema.json` 的 Section 定义
 - `generateMeta` 是章节生成证据，结构与 `reportMeta[sectionId]` 一致
 - 该结果不会自动更新 ReportInstance；后续确认更新接口待设计
+
+`query_data` 时，`answerType` 为 `DATA_ANALYSIS`：
+
+```json
+{
+  "answerType": "DATA_ANALYSIS",
+  "answer": {
+    "summary": "核心设备整体稳定，建议关注评分较低的设备。",
+    "querySpec": {
+      "intent": "查询核心设备健康评分",
+      "sql": "select device_name, health_score from network_health"
+    },
+    "sql": "select device_name, health_score from network_health",
+    "data": {
+      "columns": {},
+      "results": []
+    },
+    "visualizations": {
+      "components": []
+    },
+    "warnings": []
+  }
+}
+```
+
+规则：
+
+- 查询执行前必须通过应用安全检查。
+- DataCatalog 用于理解实体与字段；Knowledge/RAG 不可用时允许降级为空上下文。
+- OneQuery、DataCatalog 或 SQL 安全检查失败时，本次智能问数明确失败，不伪装为正常空结果。
+- `visualizations.components` 使用 BI Engine 可消费的组件结构。
 
 ##### ChatResponse.delta 子结构
 
@@ -918,7 +981,7 @@ X-User-Id: <external-user-id>
 当 `dataset.sourceType = sql` 时，ReportSystem 先渲染模板 SQL，再调用固定接口：
 
 ```http
-POST {externalBusinessBaseUrl}/rest/onequery
+POST {externalBusinessBaseUrl}/rest/dte/v1/onequery/uql/query
 ```
 
 ```json

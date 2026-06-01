@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "data-analysis-answer.schema.json",
+  "title": "DATA_ANALYSIS Answer",
+  "type": "object",
+  "required": ["summary", "querySpec", "sql", "data", "visualizations", "warnings"],
+  "properties": {
+    "summary": {"type": "string"},
+    "querySpec": {"type": "object"},
+    "sql": {"type": "string"},
+    "data": {
+      "type": "object",
+      "required": ["columns", "results"],
+      "properties": {
+        "columns": {"type": "object"},
+        "results": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "visualizations": {
+      "type": "object",
+      "required": ["components"],
+      "properties": {"components": {"type": "array", "items": {"type": "object"}}}
+    },
+    "warnings": {"type": "array"}
+  }
+}

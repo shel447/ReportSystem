@@ -13,10 +13,11 @@ from src.contexts.report.domain.template_instance_builder import instantiate_tem
 from src.contexts.report.domain.template_models import DatasetDefinition, PresentationBlock, report_template_from_dict
 from src.contexts.report.application.dataset_execution_service import DatasetExecutionService
 from src.contexts.report.infrastructure.template_schema import ReportDslSchemaGateway
-from src.shared.kernel.errors import ValidationError
+from src.shared.kernel.errors import UpstreamError, ValidationError
 from tests.support.builders import load_json_fixture
 from tests.support.mock_external import (
     COMPLEX_TEMPLATE_FIXTURES,
+    FixtureDataQueryService,
     FixtureExternalBusinessGateway,
     compile_complex_template,
 )
@@ -109,20 +110,24 @@ def test_dataset_response_requires_lineage_when_report_generation_enables_tracin
     )
 
     with pytest.raises(ValidationError, match="dataset column lineage is required when tracing is enabled: status"):
-        DatasetExecutionService(gateway=gateway, schema_gateway=ReportDslSchemaGateway()).resolve(
+        DatasetExecutionService(query_service=FixtureDataQueryService(gateway), schema_gateway=ReportDslSchemaGateway()).resolve(
             template_instance=instance,
             user_id="fixture-user",
         )
 
 
 def test_dataset_business_error_becomes_empty_result_with_warning():
-    gateway = type(
-        "BusinessErrorGateway",
+    query_service = type(
+        "BusinessErrorQueryService",
         (),
-        {"post_json": lambda self, **kwargs: {"retCode": 1001, "retInfo": "query temporarily unavailable"}},
+        {
+            "execute_sql": lambda self, **kwargs: (_ for _ in ()).throw(
+                UpstreamError("query temporarily unavailable", details={"retCode": 1001})
+            )
+        },
     )()
 
-    result = DatasetExecutionService(gateway=gateway, schema_gateway=ReportDslSchemaGateway())._execute(
+    result = DatasetExecutionService(query_service=query_service, schema_gateway=ReportDslSchemaGateway())._execute(
         dataset=DatasetDefinition(id="dataset_health", source_type="sql", source_ref="select 1"),
         template_instance_id="ti_business_error",
         section_id="section_health",
@@ -179,6 +184,6 @@ def test_referenced_non_executable_dataset_returns_explicit_error(source_type):
 
     with pytest.raises(ValidationError, match=f"dataset sourceType is not executable yet: {source_type}"):
         DatasetExecutionService(
-            gateway=FixtureExternalBusinessGateway(),
+            query_service=FixtureDataQueryService(FixtureExternalBusinessGateway()),
             schema_gateway=ReportDslSchemaGateway(),
         ).resolve(template_instance=instance, user_id="fixture-user")

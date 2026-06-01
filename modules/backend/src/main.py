@@ -13,6 +13,7 @@ from .infrastructure.persistence.models import User
 from .routers import chat, docs, feedback, parameter_options, reports, system_settings, templates
 from .shared.kernel.http import resolve_user_id
 from .shared.kernel.paths import project_root
+from .infrastructure.platform.runtime import start_platform_runtime, stop_platform_runtime
 
 CHATBI_PREFIX = "/rest/chatbi/v1"
 DEV_PREFIX = "/rest/dev"
@@ -66,8 +67,13 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     @app.on_event("startup")
     def on_startup() -> None:
         init_db()
+        start_platform_runtime()
         print("Database initialized")
         print("Server startup complete")
+
+    @app.on_event("shutdown")
+    def on_shutdown() -> None:
+        stop_platform_runtime()
 
     return app
 

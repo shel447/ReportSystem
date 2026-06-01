@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Send, Trash2, WandSparkles, X } from "lucide-react";
+import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Send, WandSparkles, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { deleteConversation, fetchConversation, fetchConversations, sendChatMessageStream } from "../entities/chat/api";
+import { fetchConversation, fetchConversations, sendChatMessageStream } from "../entities/chat/api";
 import type { ChatAsk, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
 import type { ParameterScalar } from "../entities/templates/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
@@ -74,23 +74,9 @@ export function ChatPage() {
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteConversation,
-    onSuccess: async (_, conversationId) => {
-      if (conversationId === activeConversationId) {
-        setActiveConversationId("");
-        setLatestResponse(null);
-      }
-      await queryClient.invalidateQueries({ queryKey: ["conversations"] });
-    },
-    onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : "删除会话失败。");
-    },
-  });
-
   const currentAsk = latestResponse?.ask?.status === "pending" ? latestResponse.ask : null;
   const currentTemplateInstance = useMemo(() => {
-    if (latestResponse?.ask) {
+    if (latestResponse?.ask?.reportContext) {
       return latestResponse.ask.reportContext.templateInstance;
     }
     if (latestResponse?.answer?.answerType === "REPORT") {
@@ -106,7 +92,7 @@ export function ChatPage() {
       return;
     }
     const nextDrafts: ParameterDrafts = {};
-    for (const parameter of currentAsk.parameters) {
+    for (const parameter of currentAsk.parameters ?? []) {
       nextDrafts[parameter.id] = parameter.values ?? [];
     }
     setParameterDrafts(nextDrafts);
@@ -115,13 +101,13 @@ export function ChatPage() {
   useEffect(() => {
     let cancelled = false;
     async function loadDynamicOptions(ask: ChatAsk) {
-      const entries = ask.parameters.filter((parameter) => parameter.inputType === "dynamic" && parameter.source);
+      const entries = (ask.parameters ?? []).filter((parameter) => parameter.inputType === "dynamic" && parameter.source);
       if (!entries.length) {
         setDynamicOptions({});
         return;
       }
       const resolved: DynamicOptionMap = {};
-      const contextValues = parametersToValueMap(ask.reportContext.templateInstance.parameters);
+      const contextValues = parametersToValueMap(ask.reportContext?.templateInstance.parameters ?? []);
       for (const parameter of entries) {
         try {
           const response = await resolveParameterOptions({ parameterId: parameter.id, source: parameter.source ?? "", contextValues });
@@ -145,6 +131,7 @@ export function ChatPage() {
   const conversationMessages = useMemo(() => normalizeConversationMessages(conversationQuery.data), [conversationQuery.data]);
   const streamReport = useMemo(() => reduceStreamReport(streamDeltas), [streamDeltas]);
   const reportAnswer = latestResponse?.answer?.answerType === "REPORT" ? latestResponse.answer.answer : null;
+  const dataAnalysisAnswer = latestResponse?.answer?.answerType === "DATA_ANALYSIS" ? latestResponse.answer.answer : null;
   const artifactReport = demoReport ?? reportAnswer?.report ?? streamReport;
   const artifactReportId = activeDemoTemplate?.id ?? reportAnswer?.reportId;
   const artifactEditable = Boolean(demoReport || reportAnswer);
@@ -233,7 +220,7 @@ export function ChatPage() {
 
   const submitQuestion = useCallback(() => {
     if (!canSubmitQuestion) return;
-    sendMutation.mutate({ conversationId: activeConversationId || undefined, instruction: "generate_report", question: question.trim() });
+    sendMutation.mutate({ conversationId: activeConversationId || undefined, question: question.trim() });
   }, [activeConversationId, canSubmitQuestion, question, sendMutation]);
 
   const startReportResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
@@ -274,7 +261,6 @@ export function ChatPage() {
                   <strong>{item.title || "未命名会话"}</strong>
                   <span>{item.lastMessagePreview || "暂无摘要"}</span>
                 </button>
-                <button className="icon-button chat-history-item__delete" type="button" title="删除会话" aria-label={`删除会话 ${item.title}`} onClick={() => deleteMutation.mutate(item.conversationId)}><Trash2 size={14} /></button>
               </article>
             ))}
           </div>
@@ -322,7 +308,7 @@ export function ChatPage() {
                     <article className="message-bubble message-bubble--assistant message-bubble--has-action">
                       <strong>{latestResponse.ask.title}</strong>
                       <p>{latestResponse.ask.text}</p>
-                      {latestResponse.ask.status === "pending" ? (
+                      {latestResponse.ask.status === "pending" && latestResponse.ask.reportContext ? (
                         <AskPanel
                           ask={latestResponse.ask}
                           parameterDrafts={parameterDrafts}
@@ -349,6 +335,21 @@ export function ChatPage() {
                   </div>
                 </div>
               ) : null}
+              {dataAnalysisAnswer ? (
+                <div className="message-entry message-entry--assistant">
+                  <div className="message-entry__body">
+                    <article className="message-bubble message-bubble--assistant">
+                      <strong>智能问数结果</strong>
+                      <p>{dataAnalysisAnswer.summary}</p>
+                      <details>
+                        <summary>查看查询语句与结果</summary>
+                        <pre>{dataAnalysisAnswer.sql}</pre>
+                        <pre>{JSON.stringify(dataAnalysisAnswer.data.results, null, 2)}</pre>
+                      </details>
+                    </article>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -359,7 +360,7 @@ export function ChatPage() {
             <textarea
               id="chat-input"
               rows={1}
-              placeholder="描述你想生成的报告..."
+              placeholder="描述报告诉求，或直接询问业务数据..."
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               onKeyDown={(event) => {
@@ -415,7 +416,7 @@ type AskPanelProps = {
 function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill, onSubmitConfirm, submitting }: AskPanelProps) {
   return (
     <div className="stack-list">
-      {ask.parameters.map((parameter) => {
+      {(ask.parameters ?? []).map((parameter) => {
         const value = parameterDrafts[parameter.id] ?? parameter.values ?? [];
         const options = parameter.inputType === "dynamic" ? dynamicOptions[parameter.id] ?? parameter.options ?? [] : parameter.options ?? [];
         const currentText = value.map((item) => String(item.label ?? "")).filter(Boolean).join("\n");
@@ -583,6 +584,13 @@ function extractMessageText(content: Record<string, unknown>) {
       if (answerRecord.answerType === "REPORT_TEMPLATE") {
         return "模板草案已提取";
       }
+      if (answerRecord.answerType === "DATA_ANALYSIS") {
+        const payload = answerRecord.answer;
+        if (payload && typeof payload === "object" && typeof (payload as Record<string, unknown>).summary === "string") {
+          return String((payload as Record<string, unknown>).summary);
+        }
+        return "智能问数已完成";
+      }
     }
   }
   return "";
@@ -613,7 +621,8 @@ function submitAskReply(
   mutate: (payload: Parameters<typeof sendChatMessageStream>[0]) => void,
 ) {
   if (!response.ask) return;
-  const mergedParameters = mergeAskParameters(response.ask.parameters, parameterDrafts, dynamicOptions);
+  if (!response.ask.reportContext) return;
+  const mergedParameters = mergeAskParameters(response.ask.parameters ?? [], parameterDrafts, dynamicOptions);
   mutate({
     conversationId: response.conversationId,
     instruction: "generate_report",

@@ -3,7 +3,8 @@
 | ID | 特性 | 场景 | 状态 |
 |---|---|---|---|
 | E2E-TPL | 模板管理 | 创建、列表、详情、更新、导入预览、导出、删除和非法 Schema | 已建立主闭环 |
-| E2E-CONV | 通用对话 | 会话创建、历史、详情、删除、fork 和用户隔离 | 持续补齐 |
+| E2E-CONV | 通用对话 | AgentCore 托管的会话创建、轮次 upsert、历史和详情；删除、fork 暂返回 `501` | 持续补齐 |
+| E2E-DATA | 智能问数 | 自然语言问题、DataCatalog、Knowledge、SQL 安全检查、OneQuery 和 BI 可视化建议 | 持续补齐 |
 | E2E-RPT | 报告生成 | 参数追问、确认、正式报告和章节重新生成 | 持续补齐 |
 | E2E-DOC-MD | Markdown 导出 | 通过 API 生成隔离目录产物；任务复用和下载继续扩展 | 已建立主入口 |
 | E2E-DOC-OFFICE | Word/PPT 导出 | 真实 Java CLI、下载和 OOXML 结构校验 | 已建立跨模块入口 |

@@ -18,11 +18,12 @@
 ## 功能导航
 
 1. [模板管理](template-management/README.md)：维护可复用的报告模板。
-2. [通用对话](conversation/README.md)：管理会话、历史记录和分支对话。
+2. [通用对话](conversation/README.md)：管理会话和历史记录。
 3. [报告生成](report-generation/README.md)：通过对话生成报告并重新生成单个章节。
-4. [报告管理](report-management/README.md)：查看、预览和管理已经生成的报告。
-5. [文档导出](document-export/README.md)：生成 Word、PPT 和 PDF 文档。
-6. [规格变更日志](changelog/README.md)：按年度记录用户可感知的能力变化。
+4. [智能问数](data-analysis/README.md)：通过自然语言查询业务数据并获得解释和图表。
+5. [报告管理](report-management/README.md)：查看、预览和管理已经生成的报告。
+6. [文档导出](document-export/README.md)：生成 Word、PPT 和 PDF 文档。
+7. [规格变更日志](changelog/README.md)：按年度记录用户可感知的能力变化。
 
 ## 统一原则
 

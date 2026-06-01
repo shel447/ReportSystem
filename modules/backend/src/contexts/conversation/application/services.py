@@ -1,18 +1,20 @@
-"""通用对话应用服务，负责会话、多轮澄清和业务场景分发。"""
+"""通用对话应用服务，负责 AgentCore 会话、多轮澄清和场景分发。"""
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from ....shared.kernel.errors import NotFoundError, ValidationError
+from ....shared.kernel.errors import NotFoundError, UnsupportedCapabilityError, ValidationError
+from ....shared.kernel.audit import AuditEvent
 from ..domain.models import (
     ChatContext,
     ConversationMessageAction,
     ConversationMessageContent,
     ConversationMessageMeta,
-    ForkSource,
     ScenarioTrace,
     scenario_trace_from_dict,
+    scenario_trace_to_dict,
 )
 from .models import (
     ChatAnswerEnvelope,
@@ -27,92 +29,87 @@ from .models import (
     SessionSummary,
     chat_response_to_dict,
 )
+from .ports import ConversationHistoryGateway, GuardrailGateway, HostedChat
 from .scenarios import ScenarioDispatchService, ScenarioResult
 
 
 class ConversationService:
-    """拥有聊天协议、消息流水和通用追问生命周期的应用服务。"""
+    """拥有聊天协议和通用追问生命周期；会话事实源由 AgentCore 托管。"""
 
-    def __init__(self, *, conversation_repository, chat_repository, scenario_dispatcher: ScenarioDispatchService) -> None:
-        self.conversation_repository = conversation_repository
-        self.chat_repository = chat_repository
+    def __init__(
+        self,
+        *,
+        history_gateway: ConversationHistoryGateway,
+        guardrail_gateway: GuardrailGateway,
+        scenario_dispatcher: ScenarioDispatchService,
+        audit_dispatcher=None,
+    ) -> None:
+        self.history_gateway = history_gateway
+        self.guardrail_gateway = guardrail_gateway
         self.scenario_dispatcher = scenario_dispatcher
+        self.audit_dispatcher = audit_dispatcher
 
     def list_sessions(self, *, user_id: str) -> list[SessionSummary]:
-        """返回会话列表视图，仅包含最后一条消息预览。"""
-        result = []
-        for conversation in self.conversation_repository.list_all(user_id=user_id):
-            messages = self.chat_repository.list_by_conversation(conversation.id, user_id=user_id)
-            latest = messages[-1] if messages else None
-            result.append(
-                SessionSummary(
-                    conversation_id=conversation.id,
-                    title=conversation.title or "未命名会话",
-                    status=conversation.status,
-                    updated_at=conversation.updated_at.isoformat().replace("+00:00", "Z") if conversation.updated_at else None,
-                    last_message_preview=_message_preview(_message_content_from_row(latest) if latest else ConversationMessageContent()),
-                )
+        return [
+            SessionSummary(
+                conversation_id=item.conversation_id,
+                title=item.title or "未命名会话",
+                status=item.status,
+                updated_at=item.updated_at,
+                last_message_preview=item.last_message_preview,
             )
-        return result
+            for item in self.history_gateway.list_conversations(page_num=1, page_size=100, user_id=user_id)
+        ]
 
     def get_session(self, *, conversation_id: str, user_id: str) -> SessionDetail:
-        """加载单个会话，并按顺序组装聊天消息流。"""
-        conversation = self.conversation_repository.get(conversation_id, user_id=user_id)
+        conversations = self.history_gateway.list_conversations(page_num=1, page_size=100, user_id=user_id)
+        conversation = next((item for item in conversations if item.conversation_id == conversation_id), None)
         if conversation is None:
             raise NotFoundError("Conversation not found")
-        messages = self.chat_repository.list_by_conversation(conversation_id, user_id=user_id)
+        rounds = self.history_gateway.query_chat_history(conversation_id=conversation_id, page_num=1, page_size=200, user_id=user_id)
+        messages: list[SessionMessage] = []
+        for item in rounds:
+            if item.question:
+                messages.append(
+                    SessionMessage(
+                        chat_id=item.chat_id,
+                        role="user",
+                        content=ConversationMessageContent(question=item.question),
+                        action=None,
+                        meta=ConversationMessageMeta(scenario=_trace_from_hosted(item)),
+                        created_at=item.created_at,
+                    )
+                )
+            if item.response_payload:
+                messages.append(
+                    SessionMessage(
+                        chat_id=item.chat_id,
+                        role="assistant",
+                        content=ConversationMessageContent(response=dict(item.response_payload)),
+                        action=ConversationMessageAction(type="chat_response"),
+                        meta=ConversationMessageMeta(
+                            status=str(item.response_payload.get("status") or "") or None,
+                            scenario=_trace_from_hosted(item),
+                        ),
+                        created_at=item.created_at,
+                    )
+                )
         return SessionDetail(
-            conversation_id=conversation.id,
+            conversation_id=conversation.conversation_id,
             title=conversation.title,
             status=conversation.status,
-            messages=[
-                SessionMessage(
-                    chat_id=row.id,
-                    role=row.role,
-                    content=_message_content_from_row(row),
-                    action=_message_action_from_row(row),
-                    meta=_message_meta_from_row(row),
-                    created_at=row.created_at.isoformat().replace("+00:00", "Z") if row.created_at else None,
-                )
-                for row in messages
-            ],
+            messages=messages,
         )
 
     def delete_session(self, *, conversation_id: str, user_id: str) -> DeleteResult:
-        if not self.conversation_repository.delete(conversation_id, user_id=user_id):
-            raise NotFoundError("Conversation not found")
-        return DeleteResult(message="deleted")
+        raise UnsupportedCapabilityError("capability_not_available: AgentCore conversation deletion is not available")
 
     def fork_session(self, *, data: ForkSessionCommand, user_id: str) -> ForkSessionResult:
-        """从历史聊天节点派生出一个新会话。"""
-        source_conversation_id = str(data.source_conversation_id or "").strip()
-        source_chat_id = str(data.source_chat_id or "").strip()
-        source = self.conversation_repository.get(source_conversation_id, user_id=user_id)
-        if source is None:
-            raise NotFoundError("Source conversation not found")
-        target = self.chat_repository.get_for_conversation(source_conversation_id, source_chat_id, user_id=user_id)
-        if target is None:
-            raise NotFoundError("Source chat not found")
-        new_conversation = self.conversation_repository.create(conversation_id=None, user_id=user_id)
-        source_trace = _scenario_trace_from_row(target)
-        self.chat_repository.append_message(
-            conversation_id=new_conversation.id,
-            user_id=user_id,
-            role=target.role,
-            content=_message_content_from_row(target),
-            action=_message_action_from_row(target),
-            meta=ConversationMessageMeta(
-                forked_from=ForkSource(conversation_id=source_conversation_id, chat_id=source_chat_id),
-                scenario=source_trace,
-            ),
-            scenario_key=source_trace.key if source_trace else None,
-        )
-        new_conversation.title = source.title or _message_preview(_message_content_from_row(target))
-        self.conversation_repository.save(new_conversation)
-        return ForkSessionResult(conversation_id=new_conversation.id)
+        raise UnsupportedCapabilityError("capability_not_available: AgentCore conversation fork is not available")
 
     def chat(self, *, data: ChatCommand, user_id: str) -> ChatResponse:
         """通过通用聊天通道推进一次业务场景交互。"""
+        self._ensure_question_allowed(data=data, user_id=user_id)
         initial_resolution = self.scenario_dispatcher.resolve(
             instruction=data.instruction,
             question=data.question,
@@ -122,118 +119,146 @@ class ConversationService:
         if self.scenario_dispatcher.is_stateless(initial_resolution):
             context = _build_context(data=data, user_id=user_id, chat_id=data.chat_id or "", resolution=initial_resolution)
             result = self.scenario_dispatcher.dispatch(resolution=initial_resolution, context=context, payload=_dispatch_payload(data))
-            return _response_from_scenario_result(
+            response = _response_from_scenario_result(
                 data=data,
                 conversation_id=data.conversation_id or "",
                 chat_id=data.chat_id or "",
                 result=result,
             )
+            self._ensure_answer_allowed(response=response, user_id=user_id)
+            return response
 
-        conversation = self._ensure_conversation(data=data, user_id=user_id)
-        reply_source = self._reply_source_row(data=data, conversation_id=conversation.id, user_id=user_id)
-        previous = self.chat_repository.get_latest_assistant(conversation.id, user_id=user_id)
+        conversation_id = self._ensure_conversation(data=data, user_id=user_id)
+        rounds = self.history_gateway.query_chat_history(conversation_id=conversation_id, page_num=1, page_size=200, user_id=user_id)
+        reply_source = self._reply_source(data=data, rounds=rounds, user_id=user_id)
+        previous = rounds[-1] if rounds else None
         resolution = self.scenario_dispatcher.resolve(
             instruction=data.instruction,
             question=data.question,
-            reply_source_trace=_scenario_trace_from_row(reply_source),
-            previous_trace=_scenario_trace_from_row(previous),
+            reply_source_trace=_trace_from_hosted(reply_source),
+            previous_trace=_trace_from_hosted(previous),
         )
-        self._consume_reply(data=data, conversation_id=conversation.id, user_id=user_id)
-        user_trace = resolution.to_trace()
-        user_chat = self.chat_repository.append_message(
-            conversation_id=conversation.id,
-            user_id=user_id,
-            role="user",
-            content=ConversationMessageContent(question=str(data.question or "")),
-            meta=ConversationMessageMeta(scenario=user_trace),
-            scenario_key=resolution.key,
-            chat_id=data.chat_id,
-        )
+        self._consume_reply(data=data, source=reply_source, user_id=user_id)
+        hosted_chat = self._ensure_chat(data=data, conversation_id=conversation_id, user_id=user_id)
         context = _build_context(
             data=data,
             user_id=user_id,
-            chat_id=user_chat.id,
+            chat_id=hosted_chat.chat_id,
             resolution=resolution,
-            previous_trace=_scenario_trace_from_row(previous),
-            conversation_id=conversation.id,
+            previous_trace=_trace_from_hosted(previous),
+            conversation_id=conversation_id,
         )
         result = self.scenario_dispatcher.dispatch(resolution=resolution, context=context, payload=_dispatch_payload(data))
-        if result.conversation_title and not conversation.title:
-            conversation.title = result.conversation_title
-            self.conversation_repository.save(conversation)
-        response = _response_from_scenario_result(
-            data=data,
-            conversation_id=context.conversation_id,
-            chat_id=_random_id("chat"),
-            result=result,
-        )
-        self._append_assistant_message(
-            conversation_id=conversation.id,
+        response = _response_from_scenario_result(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, result=result)
+        self._ensure_answer_allowed(response=response, user_id=user_id)
+        self.history_gateway.import_chat(
+            chat=HostedChat(
+                chat_id=hosted_chat.chat_id,
+                conversation_id=conversation_id,
+                question=str(data.question or ""),
+                request_payload=dict(data.raw_payload),
+                response_payload=chat_response_to_dict(response),
+                meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=result.status)) or {}},
+            ),
             user_id=user_id,
-            chat_id=response.chat_id,
-            response=response,
-            trace=resolution.to_trace(continuation_state=result.status),
+        )
+        self._audit(
+            AuditEvent(
+                operation="conversation.chat",
+                detail=f"completed scenario={resolution.key or 'unmatched'} status={result.status}",
+                user_id=user_id,
+                target_obj=f"{conversation_id}/{hosted_chat.chat_id}",
+            )
         )
         return response
 
-    def _reply_source_row(self, *, data: ChatCommand, conversation_id: str, user_id: str):
-        if data.reply is None or not str(data.reply.source_chat_id or "").strip():
-            return None
-        return self.chat_repository.get_for_conversation(conversation_id, data.reply.source_chat_id, user_id=user_id)
-
-    def _consume_reply(self, *, data: ChatCommand, conversation_id: str, user_id: str) -> None:
-        """消费任意业务场景的结构化答复，不解释其业务字段。"""
-        if data.reply is None:
+    def _ensure_question_allowed(self, *, data: ChatCommand, user_id: str) -> None:
+        question = str(data.question or "").strip()
+        if not question:
             return
+        result = self.guardrail_gateway.check_question(question, user_id=user_id)
+        if not result.passed:
+            self._audit(
+                AuditEvent(
+                    operation="conversation.guardrail.question",
+                    detail=result.reason or "question blocked",
+                    user_id=user_id,
+                    result="FAILED",
+                    level="WARNING",
+                    kind="security",
+                )
+            )
+            raise ValidationError(result.reason or "用户输入未通过安全检查")
+
+    def _ensure_answer_allowed(self, *, response: ChatResponse, user_id: str) -> None:
+        if response.answer is None:
+            return
+        result = self.guardrail_gateway.check_answer(json.dumps(response.answer.payload, ensure_ascii=False), user_id=user_id)
+        if not result.passed:
+            self._audit(
+                AuditEvent(
+                    operation="conversation.guardrail.answer",
+                    detail=result.reason or "answer blocked",
+                    user_id=user_id,
+                    result="FAILED",
+                    level="WARNING",
+                    kind="security",
+                )
+            )
+            raise ValidationError(result.reason or "系统回答未通过安全检查")
+
+    def _ensure_conversation(self, *, data: ChatCommand, user_id: str) -> str:
+        conversation_id = str(data.conversation_id or "").strip()
+        if conversation_id:
+            return conversation_id
+        created = self.history_gateway.create_conversation(title=str(data.question or "新会话")[:80], description=None, user_id=user_id)
+        if not created.conversation_id:
+            raise ValidationError("AgentCore did not return conversationId")
+        return created.conversation_id
+
+    def _ensure_chat(self, *, data: ChatCommand, conversation_id: str, user_id: str) -> HostedChat:
+        chat_id = str(data.chat_id or "").strip()
+        if chat_id:
+            return HostedChat(chat_id=chat_id, conversation_id=conversation_id, question=str(data.question or ""))
+        created = self.history_gateway.create_chat(conversation_id=conversation_id, question=str(data.question or ""), user_id=user_id)
+        if not created.chat_id:
+            raise ValidationError("AgentCore did not return chatId")
+        return created
+
+    def _reply_source(self, *, data: ChatCommand, rounds: list[HostedChat], user_id: str) -> HostedChat | None:
+        if data.reply is None:
+            return None
         source_chat_id = str(data.reply.source_chat_id or "").strip()
         if not source_chat_id:
             raise ValidationError("reply.sourceChatId is required")
-        if not self.chat_repository.mark_ask_replied(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            source_chat_id=source_chat_id,
-        ):
+        source = next((item for item in rounds if item.chat_id == source_chat_id), None)
+        return source or self.history_gateway.get_chat_detail(chat_id=source_chat_id, user_id=user_id)
+
+    def _consume_reply(self, *, data: ChatCommand, source: HostedChat | None, user_id: str) -> None:
+        if data.reply is None:
+            return
+        if source is None:
             raise ValidationError("reply.sourceChatId must reference a pending ask in the same conversation")
+        ask = source.response_payload.get("ask") if isinstance(source.response_payload.get("ask"), dict) else None
+        if not isinstance(ask, dict) or ask.get("status") != "pending":
+            raise ValidationError("reply.sourceChatId must reference a pending ask in the same conversation")
+        updated = dict(source.response_payload)
+        updated_ask = dict(ask)
+        updated_ask["status"] = "replied"
+        updated["ask"] = updated_ask
+        source.response_payload = updated
+        self.history_gateway.import_chat(chat=source, user_id=user_id)
 
-    def _ensure_conversation(self, *, data: ChatCommand, user_id: str):
-        conversation_id = str(data.conversation_id or "").strip()
-        if conversation_id:
-            existing = self.conversation_repository.get(conversation_id, user_id=user_id)
-            if existing is None:
-                raise NotFoundError("Conversation not found")
-            return existing
-        return self.conversation_repository.create(conversation_id=None, user_id=user_id)
-
-    def _append_assistant_message(
-        self,
-        *,
-        conversation_id: str,
-        user_id: str,
-        chat_id: str,
-        response: ChatResponse,
-        trace: ScenarioTrace,
-    ) -> None:
-        self.chat_repository.append_message(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            role="assistant",
-            content=ConversationMessageContent(response=chat_response_to_dict(response)),
-            action=ConversationMessageAction(type="chat_response"),
-            meta=ConversationMessageMeta(status=response.status, scenario=trace),
-            scenario_key=trace.key,
-            chat_id=chat_id,
-        )
+    def _audit(self, event: AuditEvent) -> None:
+        if self.audit_dispatcher is None:
+            return
+        try:
+            self.audit_dispatcher.submit(event)
+        except Exception:
+            return
 
 
-def _build_context(
-    *,
-    data: ChatCommand,
-    user_id: str,
-    chat_id: str,
-    resolution,
-    previous_trace: ScenarioTrace | None = None,
-    conversation_id: str | None = None,
-) -> ChatContext:
+def _build_context(*, data: ChatCommand, user_id: str, chat_id: str, resolution, previous_trace=None, conversation_id: str | None = None) -> ChatContext:
     return ChatContext(
         conversation_id=conversation_id if conversation_id is not None else data.conversation_id or "",
         chat_id=chat_id,
@@ -258,19 +283,8 @@ def _dispatch_payload(data: ChatCommand) -> dict[str, Any]:
 
 
 def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, chat_id: str, result: ScenarioResult) -> ChatResponse:
-    ask = None
-    if result.ask is not None:
-        ask = ChatAsk(
-            status="pending",
-            mode=result.ask.mode,
-            type=result.ask.type,
-            title=result.ask.title,
-            text=result.ask.text,
-            fields=dict(result.ask.fields),
-        )
-    answer = None
-    if result.answer is not None:
-        answer = ChatAnswerEnvelope(answer_type=result.answer.answer_type, payload=dict(result.answer.payload))
+    ask = ChatAsk(status="pending", mode=result.ask.mode, type=result.ask.type, title=result.ask.title, text=result.ask.text, fields=dict(result.ask.fields)) if result.ask else None
+    answer = ChatAnswerEnvelope(answer_type=result.answer.answer_type, payload=dict(result.answer.payload)) if result.answer else None
     return ChatResponse(
         conversation_id=conversation_id,
         chat_id=chat_id,
@@ -284,58 +298,8 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
     )
 
 
-def _message_preview(content: ConversationMessageContent) -> str:
-    if content.question:
-        return str(content.question)[:80]
-    response = content.response or {}
-    ask = response.get("ask") if isinstance(response.get("ask"), dict) else None
-    return str((ask or {}).get("title") or (ask or {}).get("text") or "")[:80]
-
-
-def _message_content_from_row(row) -> ConversationMessageContent:
-    content = row.content if row is not None and isinstance(row.content, dict) else {}
-    response = content.get("response") if isinstance(content.get("response"), dict) else None
-    return ConversationMessageContent(question=content.get("question"), response=dict(response) if response is not None else None)
-
-
-def _message_action_from_row(row) -> ConversationMessageAction | None:
-    if row is None or not isinstance(row.action, dict):
-        return None
-    action_type = str(row.action.get("type") or "").strip()
-    return ConversationMessageAction(type=action_type) if action_type else None
-
-
-def _message_meta_from_row(row) -> ConversationMessageMeta | None:
-    if row is None or not isinstance(row.meta, dict):
-        return None
-    forked_from = row.meta.get("forkedFrom") if isinstance(row.meta.get("forkedFrom"), dict) else None
-    status = str(row.meta.get("status") or "").strip() or None
-    return ConversationMessageMeta(
-        status=status,
-        forked_from=ForkSource(
-            conversation_id=str(forked_from.get("conversationId") or ""),
-            chat_id=str(forked_from.get("chatId") or ""),
-        )
-        if forked_from
-        else None,
-        scenario=scenario_trace_from_dict(row.meta.get("scenario")),
-    )
-
-
-def _scenario_trace_from_row(row) -> ScenarioTrace | None:
-    if row is None:
-        return None
-    trace = scenario_trace_from_dict((row.meta or {}).get("scenario") if isinstance(row.meta, dict) else None)
-    if trace is not None:
-        return trace
-    key = str(getattr(row, "scenario_key", None) or "").strip()
-    return ScenarioTrace(key=key, resolution="unmatched", confidence=0.0) if key else None
-
-
-def _random_id(prefix: str) -> str:
-    import uuid
-
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+def _trace_from_hosted(chat: HostedChat | None) -> ScenarioTrace | None:
+    return scenario_trace_from_dict((chat.meta or {}).get("scenario")) if chat is not None else None
 
 
 def _epoch_ms() -> int:

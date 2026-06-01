@@ -9,6 +9,7 @@ from src.contexts.conversation.application.scenarios import (
     ScenarioResult,
 )
 from src.contexts.conversation.application.models import ChatCommand
+from src.contexts.conversation.application.ports import GuardrailResult
 from src.contexts.conversation.application.services import ConversationService
 from src.contexts.conversation.domain.models import ChatContext, ScenarioTrace
 from src.shared.kernel.errors import ValidationError
@@ -132,13 +133,20 @@ def test_unknown_explicit_instruction_is_rejected():
 def test_stateless_instruction_does_not_create_conversation_messages():
     dispatcher = _dispatcher(_registration())
 
-    class _NoWriteRepository:
+    class _NoUseGateway:
         def __getattr__(self, name):
-            raise AssertionError(f"stateless dispatch must not call repository method: {name}")
+            raise AssertionError(f"stateless dispatch must not call history gateway method: {name}")
+
+    class _AllowGuardrail:
+        def check_question(self, question: str, *, user_id: str):
+            return GuardrailResult(passed=True)
+
+        def check_answer(self, answer: str, *, user_id: str):
+            return GuardrailResult(passed=True)
 
     response = ConversationService(
-        conversation_repository=_NoWriteRepository(),
-        chat_repository=_NoWriteRepository(),
+        history_gateway=_NoUseGateway(),
+        guardrail_gateway=_AllowGuardrail(),
         scenario_dispatcher=dispatcher,
     ).chat(
         data=ChatCommand(instruction="extract_report_template", question="解析模板"),

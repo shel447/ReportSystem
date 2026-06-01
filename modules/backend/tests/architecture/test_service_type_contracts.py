@@ -3,12 +3,8 @@ from typing import get_type_hints
 
 from src.contexts.conversation.application.models import ChatCommand, ChatResponse
 from src.contexts.conversation.application.services import ConversationService
-from src.contexts.conversation.infrastructure.models import (
-    ConversationMessageAction,
-    ConversationMessageContent,
-    ConversationMessageMeta,
-)
-from src.contexts.conversation.infrastructure.repositories import SqlAlchemyChatRepository
+from src.contexts.conversation.application.ports import HostedChat
+from src.contexts.conversation.infrastructure.agentcore import ExternalConversationHistoryGateway
 from src.contexts.report.application.generation_models import ReportAnswerView, ReportView
 from src.contexts.report.application.generation_service import ReportGenerationService
 from src.contexts.report.application.report_service import ReportService
@@ -45,15 +41,13 @@ class ServiceTypeContractTests(unittest.TestCase):
 
         self.assertIs(get_view_hints["return"], ReportView)
 
-    def test_conversation_service_and_chat_repository_use_formal_types(self):
+    def test_conversation_service_and_agentcore_gateway_use_formal_types(self):
         chat_hints = get_type_hints(ConversationService.chat)
-        append_hints = get_type_hints(SqlAlchemyChatRepository.append_message)
+        import_hints = get_type_hints(ExternalConversationHistoryGateway.import_chat)
 
         self.assertIs(chat_hints["data"], ChatCommand)
         self.assertIs(chat_hints["return"], ChatResponse)
-        self.assertIs(append_hints["content"], ConversationMessageContent)
-        self.assertEqual(append_hints["action"], ConversationMessageAction | None)
-        self.assertEqual(append_hints["meta"], ConversationMessageMeta | None)
+        self.assertIs(import_hints["chat"], HostedChat)
 
 
 if __name__ == "__main__":

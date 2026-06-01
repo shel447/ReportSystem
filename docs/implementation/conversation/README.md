@@ -2,15 +2,14 @@
 
 ## 1. 模块定位
 
-`contexts/conversation` 负责通用会话容器、消息流水、fork、追问/答复生命周期、场景注册、场景识别、场景分发和 SSE 事件输出。它允许业务场景使用严格类型扩展载荷，但不在本模块定义报告模板、参数模型或 Report DSL。
+`contexts/conversation` 负责通用会话、追问/答复生命周期、场景注册、场景识别、场景分发、安全检查和 SSE 事件输出。会话事实源由 AgentCore 托管。它允许业务场景使用严格类型扩展载荷，但不定义报告模板、参数模型或 Report DSL。
 
 ## 2. 应用服务
 
 `ConversationService` 负责：
 
-- 创建、读取和删除会话。
-- 记录用户与系统消息。
-- 按来源会话和来源消息 fork 新会话。
+- 通过 AgentCore 创建、读取和归档会话。
+- 使用 `chat/import` 的 upsert 语义更新已消费追问。
 - 创建 `ChatContext`，承载当前会话、消息、用户、instruction、问题、答复和请求元信息。
 - 按 `reply.sourceChatId` 精确消费一条 `pending` 追问，并将其状态更新为 `replied`。
 - 按顺序输出 `status / step_delta / delta / answer / done`。
@@ -57,9 +56,9 @@
 
 ## 5. 持久化边界
 
-- `tbl_conversations` 保存会话容器。
-- `tbl_chats` 保存消息流水和每轮 `scenario_key`。
-- `tbl_chats.meta.scenario` 保存识别方式、置信度和延续状态，便于诊断。
+- AgentCore 是会话和轮次的唯一事实源。
+- `chat/import` 保存完整 `ChatResp` 与 `meta.scenario`，用于恢复场景轨迹。
+- 本地业务库不保存 `tbl_conversations/tbl_chats` 投影。
 - 用户身份统一由请求上下文解析。
 - 报告实例只记录来源会话和来源消息，不由会话表反向维护单一报告宿主字段。
 
@@ -71,3 +70,4 @@
 - 不直接生成 Office 文档。
 - 不把报告场景的阶段状态提升为通用会话状态。
 - 不提供运行时场景热注册或管理 API。
+- AgentCore 暂未提供删除和 fork 契约，因此对应公开路由返回 `501 capability_not_available`。
