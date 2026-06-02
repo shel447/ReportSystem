@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ...shared.kernel.errors import ValidationError
 from ...contexts.conversation.application.scenarios import (
     ScenarioAnswerProjection,
     ScenarioAskProjection,
@@ -14,6 +15,7 @@ from ...contexts.conversation.domain.models import ChatContext
 from ...contexts.report.application.scenario_models import (
     ReportScenarioCommand,
     report_ask_payload_to_dict,
+    report_bootstrap_request_from_dict,
     report_reply_payload_from_dict,
     report_scenario_answer_to_dict,
     report_segment_request_from_dict,
@@ -58,6 +60,9 @@ class ReportConversationScenarioCodec:
 
     def decode(self, *, context: ChatContext, payload: dict[str, Any]) -> ReportScenarioCommand:
         reply_payload = payload.get("reply") if isinstance(payload.get("reply"), dict) else None
+        bootstrap = report_bootstrap_request_from_dict(payload.get("report"))
+        if bootstrap is not None and reply_payload is not None:
+            raise ValidationError("report cannot be used together with reply")
         return ReportScenarioCommand(
             conversation_id=context.conversation_id,
             chat_id=context.chat_id,
@@ -66,6 +71,7 @@ class ReportConversationScenarioCodec:
             question=context.question,
             reply_type=context.reply_type,
             reply=report_reply_payload_from_dict(reply_payload) if reply_payload is not None else None,
+            bootstrap=bootstrap,
             segment=report_segment_request_from_dict(payload.get("template")),
         )
 

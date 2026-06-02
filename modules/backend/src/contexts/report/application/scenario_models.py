@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ....shared.kernel.errors import ValidationError
 from ..domain.generation_models import (
     ReportGenerateMeta,
     ReportSection,
@@ -53,6 +54,22 @@ class ReportSegmentRequest:
 
 
 @dataclass(slots=True)
+class ReportBootstrapParameter:
+    """外部系统首次交接的根级参数快照。"""
+
+    parameter: Parameter
+    provided_fields: set[str] = field(default_factory=set)
+
+
+@dataclass(slots=True)
+class ReportBootstrapRequest:
+    """外部系统已经识别模板并提取部分根级参数后的交接输入。"""
+
+    template_name: str
+    parameters: list[ReportBootstrapParameter] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class ReportAskPayload:
     """报告场景附加到通用追问外壳中的业务内容。"""
 
@@ -71,6 +88,7 @@ class ReportScenarioCommand:
     question: str | None = None
     reply_type: str | None = None
     reply: ReportReplyPayload | None = None
+    bootstrap: ReportBootstrapRequest | None = None
     segment: ReportSegmentRequest | None = None
 
 
@@ -178,6 +196,98 @@ def report_segment_request_from_dict(payload: object) -> ReportSegmentRequest | 
         section_id=str(payload.get("sectionId") or ""),
         outline=outline_definition_from_dict(outline_payload),
     )
+
+
+def report_bootstrap_request_from_dict(payload: object) -> ReportBootstrapRequest | None:
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise ValidationError("report must be an object")
+    unexpected_fields = set(payload) - {"templateName", "parameters"}
+    if unexpected_fields:
+        raise ValidationError(f"report contains unsupported fields: {', '.join(sorted(unexpected_fields))}")
+    template_name = str(payload.get("templateName") or "").strip()
+    if not template_name:
+        raise ValidationError("report.templateName is required")
+    raw_parameters = payload.get("parameters", [])
+    if not isinstance(raw_parameters, list):
+        raise ValidationError("report.parameters must be an array")
+    return ReportBootstrapRequest(
+        template_name=template_name,
+        parameters=[_report_bootstrap_parameter_from_dict(item, index=index) for index, item in enumerate(raw_parameters)],
+    )
+
+
+def _report_bootstrap_parameter_from_dict(payload: object, *, index: int) -> ReportBootstrapParameter:
+    if not isinstance(payload, dict):
+        raise ValidationError(f"report.parameters[{index}] must be an object")
+    allowed_fields = {
+        "id",
+        "label",
+        "inputType",
+        "required",
+        "multi",
+        "interactionMode",
+        "priority",
+        "description",
+        "placeholder",
+        "defaultValue",
+        "options",
+        "values",
+        "source",
+    }
+    unexpected_fields = set(payload) - allowed_fields
+    if unexpected_fields:
+        raise ValidationError(
+            f"report.parameters[{index}] contains unsupported fields: {', '.join(sorted(unexpected_fields))}"
+        )
+    required_fields = {"id", "label", "inputType", "required", "multi", "interactionMode"}
+    missing_fields = required_fields - set(payload)
+    if missing_fields:
+        raise ValidationError(
+            f"report.parameters[{index}] requires fields: {', '.join(sorted(missing_fields))}"
+        )
+    for field_name in ("id", "label", "inputType", "interactionMode"):
+        if not isinstance(payload.get(field_name), str) or not str(payload[field_name]).strip():
+            raise ValidationError(f"report.parameters[{index}].{field_name} must be a non-empty string")
+    if payload["inputType"] not in {"free_text", "date", "enum", "dynamic"}:
+        raise ValidationError(f"report.parameters[{index}].inputType is invalid")
+    if payload["interactionMode"] not in {"form", "natural_language"}:
+        raise ValidationError(f"report.parameters[{index}].interactionMode is invalid")
+    for field_name in ("required", "multi"):
+        if not isinstance(payload.get(field_name), bool):
+            raise ValidationError(f"report.parameters[{index}].{field_name} must be a boolean")
+    for field_name in ("source", "description", "placeholder"):
+        if field_name in payload and not isinstance(payload[field_name], str):
+            raise ValidationError(f"report.parameters[{index}].{field_name} must be a string")
+    if "priority" in payload and (
+        not isinstance(payload["priority"], int)
+        or isinstance(payload["priority"], bool)
+        or not 0 <= payload["priority"] <= 99
+    ):
+        raise ValidationError(f"report.parameters[{index}].priority must be an integer between 0 and 99")
+    if str(payload.get("inputType") or "") == "dynamic" and not str(payload.get("source") or "").strip():
+        raise ValidationError(f"report.parameters[{index}].source is required for dynamic parameter")
+    for field_name in ("options", "defaultValue", "values"):
+        if field_name not in payload:
+            continue
+        values = payload[field_name]
+        if not isinstance(values, list) or any(not isinstance(item, dict) for item in values):
+            raise ValidationError(f"report.parameters[{index}].{field_name} must be an array of parameter values")
+        for value_index, value in enumerate(values):
+            _validate_report_bootstrap_parameter_value(value, path=f"report.parameters[{index}].{field_name}[{value_index}]")
+    return ReportBootstrapParameter(
+        parameter=parameter_from_dict(payload),
+        provided_fields=set(payload),
+    )
+
+
+def _validate_report_bootstrap_parameter_value(payload: dict[str, object], *, path: str) -> None:
+    if set(payload) != {"label", "value", "query"}:
+        raise ValidationError(f"{path} requires exactly label, value and query")
+    for field_name in ("label", "value", "query"):
+        if not isinstance(payload[field_name], (str, int, float, bool)):
+            raise ValidationError(f"{path}.{field_name} must be a scalar")
 
 
 def report_segment_answer_to_dict(answer: ReportSegmentAnswer) -> dict[str, object]:

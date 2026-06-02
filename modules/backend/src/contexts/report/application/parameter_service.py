@@ -10,7 +10,7 @@ from ....shared.kernel.errors import ValidationError
 from ..domain.generation_models import TemplateInstance
 from ..domain.parameter_resolver import ParameterResolver
 from ..domain.template_models import Parameter, ParameterValue, ReportTemplate, parameter_value_from_dict
-from .scenario_models import ReportAskPayload, ReportContext, ReportScenarioAsk
+from .scenario_models import ReportAskPayload, ReportBootstrapRequest, ReportContext, ReportScenarioAsk
 from .template_models import ParameterOptionsResult
 from ..infrastructure.parameter_options import ParameterOptionsGateway
 DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
@@ -59,13 +59,19 @@ class ReportParameterService:
         template: ReportTemplate,
         question: str,
         user_id: str,
+        skip_parameter_ids: set[str] | None = None,
+        fixed_option_parameter_ids: set[str] | None = None,
     ) -> dict[str, list[ParameterValue]]:
         """按报告参数定义从自然语言中抽取首轮取值。"""
         parameter_values: dict[str, list[ParameterValue]] = {}
         question_text = question or ""
+        skipped = set(skip_parameter_ids or set())
+        fixed_options = set(fixed_option_parameter_ids or set())
         definitions = ParameterResolver.collect_template_parameters(template)
         for parameter in definitions:
             param_id = str(parameter.id or "").strip()
+            if param_id in skipped:
+                continue
             input_type = str(parameter.input_type or "")
             matched = None
             if input_type == "date":
@@ -76,18 +82,20 @@ class ReportParameterService:
             elif input_type == "enum":
                 matched = self._match_options(question_text, list(parameter.options or []), multi=parameter.multi)
             elif input_type == "dynamic":
-                try:
-                    resolved = self.resolve_options(
-                        user_id=user_id,
-                        parameter_id=param_id,
-                        source=str(parameter.source or "").strip(),
-                        context_values=parameter_values,
-                    )
-                except Exception:
-                    resolved = None
+                resolved = None
+                if param_id not in fixed_options:
+                    try:
+                        resolved = self.resolve_options(
+                            user_id=user_id,
+                            parameter_id=param_id,
+                            source=str(parameter.source or "").strip(),
+                            context_values=parameter_values,
+                        )
+                    except Exception:
+                        resolved = None
                 matched = self._match_options(
                     question_text,
-                    list((resolved.options if resolved is not None else []) or []),
+                    list((resolved.options if resolved is not None else parameter.options) or []),
                     multi=parameter.multi,
                 )
             elif input_type == "free_text" and question_text.strip():
@@ -98,6 +106,41 @@ class ReportParameterService:
             parameter_definitions=definitions,
             current_values={},
             incoming_values=parameter_values,
+        )
+
+    def merge_bootstrap_values(
+        self,
+        *,
+        template: ReportTemplate,
+        bootstrap: ReportBootstrapRequest,
+        question: str,
+        user_id: str,
+    ) -> tuple[ReportTemplate, dict[str, list[ParameterValue]]]:
+        """合并外部系统交接的根级参数快照，并补提取尚未赋值的参数。"""
+        try:
+            merged_template = ParameterResolver.apply_root_parameter_snapshots(
+                template=template,
+                snapshots=[(item.parameter, item.provided_fields) for item in bootstrap.parameters],
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        external_values = ParameterResolver.parameters_to_value_map(merged_template.parameters)
+        fixed_option_parameter_ids = {
+            item.parameter.id
+            for item in bootstrap.parameters
+            if "options" in item.provided_fields
+        }
+        extracted_values = self.extract_values(
+            template=merged_template,
+            question=question,
+            user_id=user_id,
+            skip_parameter_ids=set(external_values),
+            fixed_option_parameter_ids=fixed_option_parameter_ids,
+        )
+        return merged_template, ParameterResolver.merge_values(
+            parameter_definitions=ParameterResolver.collect_template_parameters(merged_template),
+            current_values=external_values,
+            incoming_values=extracted_values,
         )
 
     def merge_reply_values(

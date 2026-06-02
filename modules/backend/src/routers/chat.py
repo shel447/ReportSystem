@@ -39,6 +39,7 @@ class ChatRequestPayload(BaseModel):
     question: Optional[str] = None
     instruction: Optional[str] = None
     reply: Optional[ReplyPayload] = None
+    report: Optional[dict[str, Any]] = None
     template: Optional[dict[str, Any]] = None
     attachments: list[dict[str, Any]] = []
     histories: list[dict[str, Any]] = []

@@ -397,6 +397,67 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(captured["data"].reply.raw_payload["parameters"]["scope"], ["hq-network", "bj-network"])
 
+    def test_post_chat_json_and_sse_preserve_report_bootstrap_payload(self):
+        captured = []
+
+        class FakeConversationService:
+            def chat(self, data, user_id):
+                captured.append(data.raw_payload["report"])
+                return ChatResponse(
+                    conversation_id="conv_001",
+                    chat_id="chat_003",
+                    status="waiting_user",
+                    steps=[],
+                    ask=None,
+                    answer=None,
+                    errors=[],
+                    request_id="req_003",
+                    timestamp=1713427200000,
+                    api_version="v1",
+                )
+
+        request_payload = {
+            "conversationId": "conv_001",
+            "chatId": "chat_003",
+            "instruction": "generate_report",
+            "question": "重点突出异常项和趋势变化",
+            "report": {
+                "templateName": "网络运行日报",
+                "parameters": [
+                    {
+                        "id": "scope",
+                        "label": "分析范围",
+                        "inputType": "dynamic",
+                        "required": True,
+                        "multi": True,
+                        "interactionMode": "natural_language",
+                        "source": "/rest/parameter-options/network/scopes",
+                        "options": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
+                        "values": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
+                    }
+                ],
+            },
+        }
+
+        with patch("src.routers.chat.build_conversation_service", return_value=FakeConversationService()):
+            json_response = self.client.post(
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default"},
+                json=request_payload,
+            )
+            with self.client.stream(
+                "POST",
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default", "Accept": "text/event-stream"},
+                json=request_payload,
+            ) as stream_response:
+                "".join(stream_response.iter_text())
+
+        self.assertEqual(json_response.status_code, 200)
+        self.assertEqual(stream_response.status_code, 200)
+        self.assertEqual(captured[0]["templateName"], "网络运行日报")
+        self.assertEqual(captured[1]["parameters"][0]["values"][0]["value"], "hq-network")
+
     def test_post_chat_stream_returns_report_segment_delta(self):
         segment = ReportSegmentAnswer(
             report_id="rpt_001",

@@ -281,7 +281,11 @@ export type ChatRequest = {
   conversationId?: string;
   chatId?: string;
   question?: string;
-  instruction?: "generate_report" | "extract_report_template";
+  instruction?: "generate_report" | "extract_report_template" | "generate_report_segment" | "query_data";
+  report?: {
+    templateName: string;
+    parameters?: TemplateParameter[];
+  } | null;
   reply?: {
     type: "fill_params" | "confirm_params";
     sourceChatId: string;

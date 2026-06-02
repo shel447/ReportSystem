@@ -49,6 +49,7 @@
 
 - 处理 `generate_report`、`extract_report_template` 与 `generate_report_segment` instruction。
 - 识别模板，并调用 `ReportParameterService` 处理参数语义。
+- 接收外部系统首次交接的 `report.templateName + report.parameters`，精确定位模板并初始化根级参数快照。
 - 推进同一个 `TemplateInstance`，并在确认后调用报告冻结服务。
 
 `ReportContext` 是报告场景运行上下文，当前包含完整 `TemplateInstance`。其中来源归因统一使用 `conversationId/chatId`；它不管理聊天消息状态。
@@ -60,10 +61,14 @@
 - 提取用户自然语言中已出现的参数值
 - 解析 `reply.parameters`
 - 调用动态候选值数据源
+- 校验外部系统交接的根级参数定义，并将外部 `options/defaultValue/values` 合并到模板副本
+- 仅对外部尚未赋值的参数继续执行自然语言补提取
 - 判断必填参数缺失
 - 构造报告场景 `ask.parameters` 与 `ask.reportContext`
 
 领域层的 `ParameterResolver` 负责纯参数归一化、作用域解析、标量转换和缺参判断，不访问外部数据源，不构造聊天响应。动态候选值的本地或 HTTP 调用由基础设施 gateway 负责。
+
+外部交接载荷由系统装配层的 report codec 解码为严格 `ReportBootstrapRequest`。conversation 只透传顶层 JSON，不识别模板或参数。首版只允许交接 `ReportTemplate.parameters` 根级参数；catalog、section、chapter 与 slide 局部参数继续由 ReportSystem 自身流程解析。
 
 ### 3.4 `ReportGenerationService`
 

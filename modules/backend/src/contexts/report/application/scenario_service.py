@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import math
 
-from ....shared.kernel.errors import ValidationError
+from ....shared.kernel.errors import ConflictError, ValidationError
 from ..domain.generation_models import TemplateInstance
 from ..domain.template_instance_builder import (
     collect_instance_parameters,
@@ -48,6 +48,8 @@ class ReportScenarioService:
 
     def handle(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
         """按报告 instruction 推进一次场景状态机。"""
+        if command.bootstrap is not None and command.instruction != "generate_report":
+            raise ValidationError("report is only supported for generate_report")
         if command.instruction == "extract_report_template":
             return self._extract_report_template(command=command)
         if command.instruction == "generate_report_segment":
@@ -98,6 +100,8 @@ class ReportScenarioService:
             conversation_id=command.conversation_id,
             user_id=command.user_id,
         )
+        if command.bootstrap is not None and current_instance is not None:
+            raise ConflictError("report is only supported before a template instance exists")
 
         if command.reply_type == "confirm_params":
             template_instance = reply.report_context.template_instance if reply and reply.report_context else None
@@ -164,8 +168,24 @@ class ReportScenarioService:
             persisted = self.generation_service.persist_template_instance(instance, user_id=command.user_id)
             return ReportScenarioResult(status="waiting_user", ask=self.parameter_service.build_ask(template=template, template_instance=persisted))
 
-        template = self._match_template(str(command.question or ""))
-        initial_values = self.parameter_service.extract_values(template=template, question=str(command.question or ""), user_id=command.user_id)
+        if command.bootstrap is not None:
+            question = str(command.question or "").strip()
+            if not question:
+                raise ValidationError("generate_report with report requires question")
+            template = self.template_service.get_template_by_name(command.bootstrap.template_name)
+            template, initial_values = self.parameter_service.merge_bootstrap_values(
+                template=template,
+                bootstrap=command.bootstrap,
+                question=question,
+                user_id=command.user_id,
+            )
+        else:
+            template = self._match_template(str(command.question or ""))
+            initial_values = self.parameter_service.extract_values(
+                template=template,
+                question=str(command.question or ""),
+                user_id=command.user_id,
+            )
         instance = instantiate_template_instance(
             instance_id=_random_id("ti"),
             template=template,

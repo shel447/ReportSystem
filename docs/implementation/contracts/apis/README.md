@@ -235,6 +235,7 @@ X-User-Id: <external-user-id>
   "question": "帮我生成总部网络运行日报",
   "instruction": "generate_report",
   "reply": null,
+  "report": null,
   "template": null,
   "attachments": [],
   "histories": [],
@@ -249,10 +250,11 @@ X-User-Id: <external-user-id>
 - `chatId`：当前轮 id
 - `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`；智能问数正式支持 `query_data`
 - `reply`：承接对某条追问的结构化答复；业务字段按 instruction 场景定义
+- `report`：仅在外部系统已经识别报告模板并预提取部分根级参数时使用，承载报告场景首次交接载荷（详见 2.2 ChatRequest.report 子结构）
 - `attachments`：仅在 `extract_report_template` 且需要上传原始材料时必填
 - `histories`：仅在“基于历史对话生成报告”场景下必填
 - `template`：仅在 `generate_report_segment` 时必填，承载章节重新生成的定位与大纲信息（详见 2.2 ChatRequest.template 子结构）
-- `question` / `reply` / `template`：`generate_report` 场景下 `question` 或 `reply` 至少出现一个；`generate_report_segment` 场景下 `template` 必填，`question` 和 `reply` 不使用
+- `question` / `reply` / `report` / `template`：普通 `generate_report` 场景下 `question` 或 `reply` 至少出现一个；携带 `report` 的首次交接请求中 `question` 仍必填；`generate_report_segment` 场景下 `template` 必填，`question` 和 `reply` 不使用
 - `extract_report_template` 用于"从附件、原始文本或自然语言描述中提取模板草案"；其结果是预览态，不直接落库
 - `generate_report_segment` 用于"报告生成完成后，基于编辑后的章节大纲重新生成单个章节"；返回预览结果，不直接更新报告实例
 - `query_data` 用于智能问数；服务端返回结论、QuerySpec、SQL、明细数据和 BI Engine 可视化建议
@@ -301,6 +303,47 @@ X-User-Id: <external-user-id>
 - `CatalogDefinition` 与 `SectionDefinition` 的动态展开统一通过 `dynamic` 返回；旧 `foreach` 字段不再属于公开模板契约
 - 模板实例中的展开来源统一通过 `dynamicContext` 返回；`foreach/foreachCase` 字段包含 `type/parameterId/itemValue/caseId`，`custom` 字段包含 `type/url/nodeType`；`nodeType` 取值为 `catalog | section | slide`；旧 `foreachContext` 只作为历史数据读取兼容，不再作为新响应字段
 - `dynamic.type = foreachCase` 时，服务端按 `ParameterValue.value` 匹配 `cases[].values`，多选参数按每个选中值生成对应分支内容
+
+##### ChatRequest.report 子结构（`generate_report` 首次交接专用）
+
+当外部系统已经识别出报告模板并提取出部分根级参数时，可在首次 `generate_report` 请求中携带：
+
+```json
+{
+  "templateName": "网络运行日报",
+  "parameters": [
+    {
+      "id": "reportDate",
+      "label": "统计日期",
+      "inputType": "date",
+      "required": true,
+      "multi": false,
+      "interactionMode": "form",
+      "options": [],
+      "defaultValue": [
+        {"value": "2026-06-01", "label": "2026-06-01", "query": "dt = '2026-06-01'"}
+      ],
+      "values": [
+        {"value": "2026-06-02", "label": "2026-06-02", "query": "dt = '2026-06-02'"}
+      ]
+    }
+  ]
+}
+```
+
+规则：
+
+- `report` 仅允许用于 `instruction = generate_report` 的首次请求，并且不能和 `reply` 同时出现。
+- `report.templateName` 必填。服务端按名称精确匹配共享模板；不存在返回 `404`，重名返回 `409`。
+- `report.parameters` 可省略或只提交一部分参数，但每个 `id` 必须唯一，并且只能引用模板根级 `template.parameters`。
+- 目录、章节、分页章节或分页页面中的局部参数不能由外部交接；提交局部参数返回 `400`。
+- 每个外部参数必须提供 `id/label/inputType/required/multi/interactionMode`。动态参数还必须携带 `source`。
+- 外部定义字段必须与正式模板一致，包括 `label/inputType/required/multi/interactionMode/source`，以及请求实际携带的 `priority/description/placeholder`。
+- 外部携带的 `options/defaultValue/values` 覆盖本轮根级参数快照；省略字段时沿用模板值，显式空数组表示清空。
+- `enum/dynamic` 参数的 `values/defaultValue` 必须属于最终生效的 `options`；单选参数最多只能携带一个当前值。
+- ReportSystem 会继续从 `question` 中补提取外部尚未赋值的参数。局部参数仍完全由 ReportSystem 自身流程处理。
+- 同一会话已经存在 `TemplateInstance` 时，不能再次传入 `report` 覆盖运行态，服务端返回 `409`。
+- 接续生成仍会返回既有 `fill_params` 或 `confirm_params` 追问，不会绕过最终确认。
 
 ##### ChatRequest.template 子结构（`generate_report_segment` 专用）
 

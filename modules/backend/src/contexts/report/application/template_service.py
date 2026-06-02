@@ -46,6 +46,16 @@ class ReportTemplateService:
             raise NotFoundError("Template not found")
         return template
 
+    def get_template_by_name(self, template_name: str) -> ReportTemplate:
+        """按外部交接使用的展示名称精确定位唯一正式模板。"""
+        normalized_name = str(template_name or "").strip()
+        matches = [template for template in self.repository.list_all() if template.name == normalized_name]
+        if not matches:
+            raise NotFoundError("Template not found")
+        if len(matches) > 1:
+            raise ConflictError("Template name is ambiguous")
+        return matches[0]
+
     def list_templates(self) -> list[TemplateSummary]:
         """返回模板列表页使用的紧凑摘要。"""
         return self.repository.list_summaries()
