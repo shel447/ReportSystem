@@ -1,0 +1,394 @@
+{
+  "openaiCompatible": {
+    "chatCompletion": {
+      "request": {
+        "model": "mock-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "生成总部网络运行日报"
+          }
+        ],
+        "temperature": 0.2,
+        "max_tokens": 1024
+      },
+      "response": {
+        "model": "mock-chat",
+        "choices": [
+          {
+            "message": {
+              "content": "生成结果"
+            }
+          }
+        ],
+        "usage": {
+          "total_tokens": 16
+        }
+      }
+    },
+    "embedding": {
+      "request": {
+        "model": "mock-embedding",
+        "input": [
+          "网络运行日报"
+        ]
+      },
+      "response": {
+        "model": "mock-embedding",
+        "data": [
+          {
+            "embedding": [
+              0.1,
+              0.2,
+              0.3
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "agentcore": {
+    "createConversation": {
+      "request": {
+        "title": "网络运行日报",
+        "description": "生成总部网络运行日报"
+      },
+      "response": {
+        "conversationId": "conv_001"
+      }
+    },
+    "createChat": {
+      "request": {
+        "conversationId": "conv_001",
+        "question": "生成总部网络运行日报"
+      },
+      "response": {
+        "chatId": "chat_001"
+      }
+    },
+    "importChat": {
+      "request": {
+        "conversationId": "conv_001",
+        "chatId": "chat_001",
+        "type": "PIU",
+        "content": {
+          "piuName": "dtecommon-uis-uiboard",
+          "piuVersion": "1.0.0",
+          "answers": {
+            "request": {
+              "question": "生成总部网络运行日报"
+            },
+            "response": {
+              "status": "available"
+            },
+            "meta": {
+              "scenario": "report"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": "ok"
+      }
+    },
+    "history": {
+      "request": {
+        "conversationId": "conv_001",
+        "pageNum": 1,
+        "pageSize": 200
+      },
+      "response": {
+        "records": [
+          {
+            "chatId": "chat_001",
+            "conversationId": "conv_001",
+            "question": "生成总部网络运行日报",
+            "answers": {},
+            "askTime": 1780368000000
+          }
+        ],
+        "total": 1,
+        "pageNum": 1,
+        "pageSize": 200
+      }
+    },
+    "chatDetail": {
+      "response": {
+        "chatId": "chat_001",
+        "conversationId": "conv_001",
+        "question": "生成总部网络运行日报",
+        "answers": {},
+        "askTime": 1780368000000
+      }
+    },
+    "conversations": {
+      "response": {
+        "records": [
+          {
+            "conversationId": "conv_001",
+            "title": "网络运行日报",
+            "status": "active",
+            "updatedAt": 1780368000000,
+            "lastMessagePreview": "available"
+          }
+        ]
+      }
+    }
+  },
+  "guardrail": {
+    "questionCheck": {
+      "request": {
+        "questions": [
+          "生成总部网络运行日报"
+        ]
+      },
+      "response": {
+        "checkResults": [
+          {
+            "isLegal": true,
+            "response": ""
+          }
+        ]
+      }
+    },
+    "answerCheck": {
+      "request": {
+        "answers": [
+          "网络运行状态整体稳定。"
+        ]
+      },
+      "response": {
+        "checkResults": [
+          {
+            "isLegal": true,
+            "response": ""
+          }
+        ]
+      }
+    },
+    "applicationSecurity": {
+      "request": {
+        "type": "sql",
+        "content": "select * from network_health"
+      },
+      "response": {
+        "status": false,
+        "error_msg": ""
+      }
+    }
+  },
+  "dataQuery": {
+    "oneQuery": {
+      "request": {
+        "query": "select health_score from network_health",
+        "context": {
+          "lineage.tracing.enable": true,
+          "templateInstanceId": "ti_001",
+          "sectionId": "section_health",
+          "datasetId": "dataset_health"
+        }
+      }
+    },
+    "apiDataset": {
+      "request": {
+        "parameters": {},
+        "context": {
+          "lineage.tracing.enable": true,
+          "templateInstanceId": "ti_001",
+          "sectionId": "section_health",
+          "datasetId": "dataset_health"
+        }
+      }
+    },
+    "response": {
+      "retCode": 0,
+      "retInfo": "",
+      "data": {
+        "columns": {
+          "health_score": {
+            "type": "double",
+            "lineageTracing": {
+              "type": "original",
+              "sources": [
+                {
+                  "dataSourceName": "network_health",
+                  "dataSourceType": "logicalEntity",
+                  "field": "health_score",
+                  "businessName": "Health Score",
+                  "businessName_cn": "健康评分",
+                  "enumValues": "",
+                  "ui": ""
+                }
+              ]
+            }
+          }
+        },
+        "results": [
+          {
+            "health_score": 96
+          }
+        ]
+      }
+    }
+  },
+  "datacatalog": {
+    "listLogicalEntities": {
+      "request": {
+        "pageSize": 100,
+        "pageNo": 1,
+        "filter": {
+          "includeSchemaOfParent": true
+        }
+      },
+      "response": {
+        "retCode": 0,
+        "retInfo": "",
+        "data": {
+          "results": [
+            {
+              "name": "network_health"
+            }
+          ],
+          "totalCount": 1
+        }
+      }
+    },
+    "logicalEntity": {
+      "response": {
+        "data": {
+          "name": "network_health"
+        }
+      }
+    },
+    "dataset": {
+      "response": {
+        "data": {
+          "name": "network_health"
+        }
+      }
+    },
+    "listLogicalRelations": {
+      "request": {
+        "pageSize": 100,
+        "pageNo": 1,
+        "filter": {}
+      },
+      "response": {
+        "retCode": 0,
+        "retInfo": "",
+        "data": {
+          "results": [],
+          "totalCount": 0
+        }
+      }
+    },
+    "logicalRelation": {
+      "response": {
+        "retCode": 0,
+        "retInfo": "",
+        "data": {
+          "name": "network_link"
+        }
+      }
+    }
+  },
+  "knowledgeRag": {
+    "knowledge": {
+      "response": {
+        "knowledgeList": []
+      }
+    },
+    "retrieveKnowledge": {
+      "request": {
+        "query": "网络设备健康",
+        "ragIndex": "network_knowledge",
+        "extensions": [],
+        "esTopN": 5,
+        "vsTopN": 5,
+        "rankTopN": 3
+      },
+      "response": {
+        "recommends": []
+      }
+    },
+    "retrieveMultiIndex": {
+      "request": {
+        "query": "网络设备健康",
+        "rankTopN": 3,
+        "ragIndexes": [
+          {
+            "ragIndex": "nl2sql_cache",
+            "indexType": "NL2SQL",
+            "esTopN": 5,
+            "vsTopN": 5,
+            "filters": {}
+          }
+        ],
+        "ranking_options": {
+          "ranker": "DEFAULT",
+          "score_threshold": 0.5
+        },
+        "enableHybridResults": true
+      },
+      "response": {
+        "recommends": [
+          {
+            "id": "nl2sql_1",
+            "description": "网络健康查询样例"
+          }
+        ]
+      }
+    }
+  },
+  "platformRuntime": {
+    "nodeAgent": {
+      "response": {
+        "externalServices": {
+          "agentcore": {
+            "baseUrl": "https://agentcore.example.test"
+          }
+        }
+      }
+    },
+    "metadataSync": {
+      "response": {
+        "status": "complete",
+        "version": "2026-06-02T00:00:00Z"
+      }
+    }
+  },
+  "audit": {
+    "operation": {
+      "request": {
+        "operation": "report.generate",
+        "detail": "generated report rpt_001",
+        "userId": "user_001",
+        "targetObj": "rpt_001",
+        "source": "ReportSystem",
+        "terminal": "server",
+        "result": "SUCCESSFUL",
+        "level": "INFORMATION",
+        "dateTime": 1780368000000
+      },
+      "response": {
+        "status": "ok"
+      }
+    },
+    "security": {
+      "request": {
+        "operation": "guardrail.block",
+        "detail": "blocked unsafe sql",
+        "userId": "user_001",
+        "targetObj": "chat_001",
+        "source": "ReportSystem",
+        "terminal": "server",
+        "result": "SUCCESSFUL",
+        "level": "INFORMATION",
+        "dateTime": 1780368000000
+      },
+      "response": {
+        "status": "ok"
+      }
+    }
+  }
+}

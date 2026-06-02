@@ -5,10 +5,11 @@
 ## 导航
 
 1. [API 契约](apis/README.md)
-2. [数据库契约](database/README.md)
-3. [JSON Schema 与示例](schemas/README.md)
-4. [报告模板字段级手册](manuals/报告模板定义与使用说明书.md)
-5. [Report DSL 字段级手册](manuals/报告DSL定义与使用说明书.md)
+2. [外部依赖接口技术契约](apis/external-dependencies.md)
+3. [数据库契约](database/README.md)
+4. [JSON Schema 与示例](schemas/README.md)
+5. [报告模板字段级手册](manuals/报告模板定义与使用说明书.md)
+6. [Report DSL 字段级手册](manuals/报告DSL定义与使用说明书.md)
 
 ## 维护原则
 

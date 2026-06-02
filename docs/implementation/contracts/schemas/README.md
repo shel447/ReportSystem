@@ -14,8 +14,13 @@
 - [dataset-source-response.schema.json](dataset-source-response.schema.json)
 - [dynamic-custom-source-request.schema.json](dynamic-custom-source-request.schema.json)
 - [dynamic-custom-source-response.schema.json](dynamic-custom-source-response.schema.json)
-- [guardrail-check.schema.json](guardrail-check.schema.json)
-- [agentcore-chat-import.schema.json](agentcore-chat-import.schema.json)
+- [openai-compatible.schema.json](openai-compatible.schema.json)
+- [agentcore.schema.json](agentcore.schema.json)
+- [guardrail.schema.json](guardrail.schema.json)
+- [datacatalog.schema.json](datacatalog.schema.json)
+- [knowledge-rag.schema.json](knowledge-rag.schema.json)
+- [platform-runtime.schema.json](platform-runtime.schema.json)
+- [audit.schema.json](audit.schema.json)
 - [data-analysis-answer.schema.json](data-analysis-answer.schema.json)
 
 ## 示例
@@ -25,5 +30,6 @@
 - [template-instance.example.json](examples/template-instance.example.json)
 - [report-dsl.example.json](examples/report-dsl.example.json)
 - [report-dsl-paged.example.json](examples/report-dsl-paged.example.json)
+- [external-dependencies.example.json](examples/external-dependencies.example.json)
 
 运行时代码如需校验，必须直接读取本目录文件，不得在代码目录中复制 Schema 镜像。

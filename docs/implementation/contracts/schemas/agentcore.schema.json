@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./agentcore.schema.json",
+  "title": "AgentCore Consumer Contract",
+  "description": "ReportSystem 使用的 AgentCore 标准请求与响应 fragment。历史兼容变体见外部依赖接口技术契约。",
+  "$defs": {
+    "CreateConversationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "description"],
+      "properties": {
+        "title": {"type": "string"},
+        "description": {"type": ["string", "null"]}
+      }
+    },
+    "CreateConversationResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["conversationId"],
+      "properties": {"conversationId": {"type": "string", "minLength": 1}}
+    },
+    "CreateChatRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conversationId", "question"],
+      "properties": {
+        "conversationId": {"type": "string", "minLength": 1},
+        "question": {"type": "string"}
+      }
+    },
+    "CreateChatResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["chatId"],
+      "properties": {"chatId": {"type": "string", "minLength": 1}}
+    },
+    "ImportChatRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conversationId", "chatId", "type", "content"],
+      "properties": {
+        "conversationId": {"type": "string", "minLength": 1},
+        "chatId": {"type": "string", "minLength": 1},
+        "type": {"const": "PIU"},
+        "content": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["piuName", "piuVersion", "answers"],
+          "properties": {
+            "piuName": {"type": "string", "minLength": 1},
+            "piuVersion": {"type": "string", "minLength": 1},
+            "answers": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["request", "response", "meta"],
+              "properties": {
+                "request": {"type": "object"},
+                "response": {"type": "object"},
+                "meta": {"type": "object"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "ImportChatResponse": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "HistoryRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conversationId", "pageNum", "pageSize"],
+      "properties": {
+        "conversationId": {"type": "string", "minLength": 1},
+        "pageNum": {"type": "integer", "minimum": 1},
+        "pageSize": {"type": "integer", "minimum": 1}
+      }
+    },
+    "ChatRecord": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["chatId"],
+      "properties": {
+        "chatId": {"type": "string", "minLength": 1},
+        "conversationId": {"type": "string"},
+        "question": {},
+        "answers": {},
+        "askTime": {}
+      }
+    },
+    "HistoryResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["records"],
+      "properties": {
+        "records": {"type": "array", "items": {"$ref": "#/$defs/ChatRecord"}},
+        "total": {"type": "integer"},
+        "pageNum": {"type": "integer"},
+        "pageSize": {"type": "integer"}
+      }
+    },
+    "ChatDetailResponse": {"$ref": "#/$defs/ChatRecord"},
+    "ConversationRecord": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["conversationId"],
+      "properties": {
+        "conversationId": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "status": {"type": "string"},
+        "updatedAt": {},
+        "lastMessagePreview": {"type": "string"}
+      }
+    },
+    "ConversationListResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["records"],
+      "properties": {
+        "records": {"type": "array", "items": {"$ref": "#/$defs/ConversationRecord"}}
+      }
+    }
+  }
+}

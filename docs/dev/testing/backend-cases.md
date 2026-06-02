@@ -34,6 +34,7 @@
 | `tests/features/test_template_management_flow.py` | 2 | 模板 CRUD、导入预览、导出 API 闭环和跨用户共享可见性 |
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 7 | 业务库、开发库、升级规则和 V004 用户镜像无损移除 |
 | `tests/infrastructure/platform/test_platform_runtime.py` | 3 | NodeAgent 分层配置、环境应急覆盖和审计尽力投递 |
+| `tests/infrastructure/platform/test_external_dependency_contracts.py` | 37 | 平台外部依赖消费者 Schema、集中示例、AgentCore upsert 与响应扩展兼容 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
 | `tests/infrastructure/web/test_frontend_serving.py` | 6 | SPA 托管、正式接口身份校验和开发辅助接口独立性 |
 | `tests/infrastructure/web/test_report_document_gateway.py` | 5 | Markdown、下载、PDF 拒绝和 CLI 参数 |

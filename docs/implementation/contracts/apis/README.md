@@ -69,7 +69,12 @@ X-User-Id: <external-user-id>
 
 ### 1.2 调用外部系统的接口
 
-除 OpenAI Compatible 服务外，外部 URL 由模板或运行上下文定义，不由 ReportSystem 提供统一路由。模板声明型外呼统一携带身份头：
+ReportSystem 调用的外部接口分为两类：
+
+- 模板声明型扩展点：模板作者通过 `parameter.source` 或 `dynamic.custom.url` 声明外部实现，协议见 [第 3 节](#3-模板声明型外部扩展协议)。
+- 平台外部依赖：由生产平台定义，ReportSystem 主动适配，详细协议统一见 [外部依赖接口技术契约](external-dependencies.md)。
+
+涉及用户业务数据的外呼统一携带身份头：
 
 ```http
 X-User-Id: <external-user-id>
@@ -898,25 +903,11 @@ paged Report DSL 示例：
 - `pdfSource` 为后续 PDF 派生转换预留；当前请求 `formats` 包含 `pdf` 时返回 `400`
 - `strictValidation = true` 时，服务端必须先按 `report-dsl.schema.json` 校验当前报告对应的 flow 或 paged 分支，再进入导出任务
 
-## 3. 服务端内部调用协议
+## 3. 模板声明型外部扩展协议
 
-以下协议由服务端向外部服务发起调用，前端不直接调用。OpenAI Compatible 服务地址由系统设置提供；模板声明型协议的接口 URL 由模板定义。
+以下协议由模板作者通过模板字段声明，外部系统按模板约定实现。ReportSystem 在运行时发起调用，前端不直接访问外部 URL。平台预置接口的详细协议统一见 [外部依赖接口技术契约](external-dependencies.md)。
 
-### 3.1 OpenAI Compatible 服务
-
-服务端通过统一 AI Gateway 使用 OpenAI Compatible 协议：
-
-```text
-POST {baseUrl}/chat/completions
-POST {baseUrl}/embeddings
-```
-
-- `baseUrl`、模型名称和凭证由系统设置提供。
-- 应用层只依赖统一能力 port，不直接依赖具体厂商 SDK。
-- 对话补全用于模板识别、参数提取、诉求整理和章节内容生成。
-- 向量化用于模板语义索引和召回。
-
-### 3.2 Parameter Options 外部数据源
+### 3.1 Parameter Options 外部数据源
 
 服务端在参数候选值解析时，向模板 `parameter.source` 定义的外部 URL 发起 `POST` 请求，获取动态参数候选值后再返回前端。前端不直接调用外部数据源 URL。
 
@@ -952,7 +943,7 @@ POST {baseUrl}/embeddings
 - 服务端用 `contextValues` 组装对外部 `source` 的统一请求体
 - 外部接口的正式请求、响应结构由本设计包的 JSON Schema 统一定义
 
-### 3.3 Dynamic Custom 外部内容生成
+### 3.2 Dynamic Custom 外部内容生成
 
 `dynamic.type = custom` 定义了外部内容生成接口。服务端在 Report DSL 生成阶段向模板 `dynamic.custom.url` 定义的 URL 发起 `POST` 请求，获取目录或章节 DSL 片段。
 
@@ -1019,108 +1010,9 @@ v6 正式请求体由 `parameters/templateNode/context` 组成：
 
 失败响应使用 `status = "error"` 与 `error.code/error.message`。
 
-### 3.4 业务查询数据源
+### 3.3 平台外部依赖
 
-动态参数、SQL 查询、API 查询和 Dynamic Custom 默认部署在同一个外部业务服务中。ReportSystem 使用装配层配置的 `externalBusinessBaseUrl` 解析相对 `/rest/...` 地址；历史绝对 URL 继续兼容。
-
-所有外部业务服务请求携带：
-
-```http
-X-User-Id: <external-user-id>
-```
-
-#### 3.4.1 SQL 查询
-
-当 `dataset.sourceType = sql` 时，ReportSystem 先渲染模板 SQL，再调用固定接口：
-
-```http
-POST {externalBusinessBaseUrl}/rest/dte/v1/onequery/uql/query
-```
-
-```json
-{
-  "query": "select device_name, health_score from network_device_health",
-  "context": {
-    "lineage.tracing.enable": true,
-    "templateInstanceId": "ti_001",
-    "sectionId": "section_health",
-    "datasetId": "dataset_health"
-  }
-}
-```
-
-#### 3.4.2 API 查询
-
-当 `dataset.sourceType = api` 时，`dataset.source` 必须是 `/rest/...` 风格相对地址或历史兼容绝对 URL。请求体：
-
-```json
-{
-  "parameters": {
-    "scope": [
-      {
-        "label": "总部网络",
-        "value": "hq-network",
-        "query": "scope_id = 'hq-network'"
-      }
-    ]
-  },
-  "context": {
-    "lineage.tracing.enable": true,
-    "templateInstanceId": "ti_001",
-    "sectionId": "section_health",
-    "datasetId": "dataset_health"
-  }
-}
-```
-
-#### 3.4.3 统一响应
-
-SQL 与 API 查询使用同一响应包络。`columns` 是字段名到字段元数据的映射，`results` 是数据行：
-
-```json
-{
-  "retCode": 0,
-  "retInfo": "",
-  "data": {
-    "columns": {
-      "device_name": {
-        "type": "string",
-        "lineageTracing": {
-          "type": "original",
-          "sources": [
-            {
-              "dataSourceName": "network_device",
-              "dataSourceType": "logicalEntity",
-              "field": "device_name",
-              "businessName": "Device Name",
-              "businessName_cn": "设备名称",
-              "enumValues": "",
-              "ui": ""
-            }
-          ]
-        }
-      }
-    },
-    "results": [
-      {"device_name": "核心交换机-A", "health_score": 96}
-    ]
-  }
-}
-```
-
-- `retCode/retInfo` 必填。`retCode = 0` 时 `data.columns/data.results` 必填；`retCode != 0` 时 `data` 可以省略或为空。
-- `columns[field].type` 是字段类型。进入 Report DSL 前会按正式字段类型做归一化，例如 `number -> double`。
-- 当请求 `context["lineage.tracing.enable"] = true` 时，每个字段必须返回非空 `lineageTracing.sources`。关闭时可以省略血缘。
-- 一个结果字段可以来源于多个源字段，因此 `sources` 始终是数组。当前标题取第一个来源的 `businessName_cn -> businessName -> field key`，完整来源数组会继续保留。
-- 查询层的 `lineageTracing.type` 和 `sources[].dataSourceType` 不进入 Report DSL；其余血缘字段进入 DSL 已有的 `Column.lineageTracing.sources`。
-- `results` 必须是字段名到取值的行对象数组。
-- `retCode != 0` 表示外部查询业务失败。ReportSystem 将其归一化为空数据集，记录包含 `retCode/retInfo/datasetId` 的告警并继续生成；HTTP 错误、超时和非法响应仍直接失败。
-
-正式结构见 JSON Schema：
-
-- `onequery-request.schema.json`
-- `api-dataset-request.schema.json`
-- `dataset-source-response.schema.json`
+OpenAI Compatible、OneQuery、API Dataset、AgentCore、Guardrail、DataCatalog、Knowledge/RAG、NodeAgent、Audit 与 Metadata Sync 都属于 ReportSystem 主动适配的平台外部依赖。完整请求、响应、身份头和失败语义见 [外部依赖接口技术契约](external-dependencies.md)。
 
 ## 4. 开发辅助接口
 

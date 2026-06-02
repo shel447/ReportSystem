@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./datacatalog.schema.json",
+  "title": "DataCatalog Consumer Contract",
+  "description": "ReportSystem 使用的 DataCatalog 请求与响应 fragment。实体、数据集和关系对象保持开放。",
+  "$defs": {
+    "PagedFilterRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pageSize", "pageNo", "filter"],
+      "properties": {
+        "pageSize": {"type": "integer", "minimum": 1},
+        "pageNo": {"type": "integer", "minimum": 1},
+        "filter": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "SuccessListResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["retCode", "data"],
+      "properties": {
+        "retCode": {"const": 0},
+        "retInfo": {"type": "string"},
+        "data": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["results"],
+          "properties": {
+            "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+            "totalCount": {"type": "integer"}
+          }
+        }
+      }
+    },
+    "OpenDataResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["data"],
+      "properties": {
+        "data": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "SuccessDataResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["retCode", "data"],
+      "properties": {
+        "retCode": {"const": 0},
+        "retInfo": {"type": "string"},
+        "data": {"type": "object", "additionalProperties": true}
+      }
+    }
+  }
+}

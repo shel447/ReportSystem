@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./knowledge-rag.schema.json",
+  "title": "Knowledge and RAG Consumer Contract",
+  "$defs": {
+    "KnowledgeQueryResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["knowledgeList"],
+      "properties": {
+        "knowledgeList": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+      }
+    },
+    "RetrieveKnowledgeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query", "ragIndex", "extensions", "esTopN", "vsTopN", "rankTopN"],
+      "properties": {
+        "query": {"type": "string"},
+        "ragIndex": {"type": "string", "minLength": 1},
+        "extensions": {"type": "array"},
+        "esTopN": {"type": "integer", "minimum": 1},
+        "vsTopN": {"type": "integer", "minimum": 1},
+        "rankTopN": {"type": "integer", "minimum": 1}
+      }
+    },
+    "RagIndex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ragIndex", "indexType", "esTopN", "vsTopN", "filters"],
+      "properties": {
+        "ragIndex": {"type": "string", "minLength": 1},
+        "indexType": {"type": "string", "minLength": 1},
+        "esTopN": {"type": "integer", "minimum": 1},
+        "vsTopN": {"type": "integer", "minimum": 1},
+        "filters": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "RetrieveMultiIndexRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query", "rankTopN", "ragIndexes", "ranking_options", "enableHybridResults"],
+      "properties": {
+        "query": {"type": "string"},
+        "rankTopN": {"type": "integer", "minimum": 1},
+        "ragIndexes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/RagIndex"}},
+        "ranking_options": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ranker", "score_threshold"],
+          "properties": {
+            "ranker": {"type": "string", "minLength": 1},
+            "score_threshold": {"type": "number"}
+          }
+        },
+        "enableHybridResults": {"type": "boolean"}
+      }
+    },
+    "RetrieveResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["recommends"],
+      "properties": {
+        "recommends": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+      }
+    }
+  }
+}

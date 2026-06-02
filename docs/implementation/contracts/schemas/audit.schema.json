@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./audit.schema.json",
+  "title": "Audit Consumer Contract",
+  "$defs": {
+    "AuditEventRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "detail", "userId", "targetObj", "source", "terminal", "result", "level", "dateTime"],
+      "properties": {
+        "operation": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"},
+        "userId": {"type": "string", "minLength": 1},
+        "targetObj": {"type": "string"},
+        "source": {"type": "string", "minLength": 1},
+        "terminal": {"type": "string", "minLength": 1},
+        "result": {"type": "string", "minLength": 1},
+        "level": {"type": "string", "minLength": 1},
+        "dateTime": {"type": "integer", "minimum": 0}
+      }
+    },
+    "AuditResponse": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

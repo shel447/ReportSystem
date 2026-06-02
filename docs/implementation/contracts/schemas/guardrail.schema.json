@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./guardrail.schema.json",
+  "title": "Guardrail Consumer Contract",
+  "$defs": {
+    "QuestionCheckRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["questions"],
+      "properties": {"questions": {"type": "array", "minItems": 1, "items": {"type": "string"}}}
+    },
+    "AnswerCheckRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answers"],
+      "properties": {"answers": {"type": "array", "minItems": 1, "items": {"type": "string"}}}
+    },
+    "LegalCheckResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["checkResults"],
+      "properties": {
+        "checkResults": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["isLegal"],
+            "properties": {
+              "isLegal": {"type": "boolean"},
+              "response": {"type": "string"}
+            }
+          }
+        }
+      }
+    },
+    "ApplicationSecurityRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "content"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "content": {"type": "string"}
+      }
+    },
+    "ApplicationSecurityResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["status"],
+      "properties": {
+        "status": {"type": "boolean"},
+        "error_msg": {"type": ["string", "null"]}
+      }
+    }
+  }
+}
