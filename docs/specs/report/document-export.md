@@ -65,4 +65,4 @@
 - 部分复杂图表在 Office 中会使用兼容展示方式，不一定都转换为原生 Office 图表。
 - 表格标题、表头和 Word/PPT 最大行数的独立配置仍需在 exporter 中进一步收敛，当前规格先记录目标行为。
 
-技术配置结构和现状差异见 [文档导出实现](../../implementation/document-export/README.md)。
+技术配置结构和现状差异见 [文档导出实现](../../implementation/report/document-export.md)。

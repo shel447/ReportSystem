@@ -2,7 +2,7 @@
 
 报告生成是通用对话机制承载的一种业务场景。它从用户报告诉求出发，完成模板识别、参数提取、补参、诉求确认、模板实例构建、Report DSL 编译、报告冻结和章节重新生成。
 
-模板的静态管理见 [模板管理](../template-management/README.md)，通用会话机制见 [通用对话](../conversation/README.md)，冻结后的报告资源管理见 [报告管理](../report-management/README.md)。
+模板的静态管理见 [模板管理](template-management.md)，通用会话机制见 [通用对话](../conversation/README.md)，冻结后的报告资源管理见 [报告管理](management.md)。
 
 ## 核心运行态
 

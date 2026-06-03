@@ -208,11 +208,9 @@ python3 scripts/setup_mock_demo.py
 
 - [文档总入口](docs/README.md)
 - [规格设计索引](docs/specs/README.md)
-- [模板管理](docs/specs/template-management/README.md)
+- [报告业务](docs/specs/report/README.md)
 - [通用对话](docs/specs/conversation/README.md)
-- [报告生成](docs/specs/report-generation/README.md)
-- [报告管理](docs/specs/report-management/README.md)
-- [文档导出](docs/specs/document-export/README.md)
+- [智能问数](docs/specs/data-analysis/README.md)
 
 ### 实现设计与技术契约
 
@@ -220,8 +218,8 @@ python3 scripts/setup_mock_demo.py
 - [技术契约](docs/implementation/contracts/README.md)
 - [API 契约](docs/implementation/contracts/apis/README.md)
 - [JSON Schema 与示例](docs/implementation/contracts/schemas/README.md)
+- [Report Context 实现](docs/implementation/report/README.md)
 - [前端实现](docs/implementation/frontend/README.md)
-- [文档导出实现](docs/implementation/document-export/README.md)
 - [开发测试体系](docs/dev/testing/README.md)
 
 ### 变更记录

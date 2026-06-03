@@ -2,7 +2,7 @@
 
 ## 1. 系统上下文与接口清单
 
-ReportSystem 对前端和业务调用方提供统一业务接口，并在模板解析、参数收集和报告生成过程中调用外部能力。Java Office Exporter 属于文档导出的内部适配器，其边界见 [文档导出实现](../../document-export/README.md)，不进入本业务上下文图。
+ReportSystem 对前端和业务调用方提供统一业务接口，并在模板解析、参数收集和报告生成过程中调用外部能力。Java Office Exporter 属于文档导出的内部适配器，其边界见 [文档导出实现](../../report/document-export.md)，不进入本业务上下文图。
 
 ```mermaid
 flowchart LR

@@ -1,6 +1,6 @@
 # 报告生成实现
 
-字段级结构以 [Report DSL Schema](../contracts/schemas/report-dsl.schema.json) 和 [Report DSL 技术手册](../contracts/manuals/报告DSL定义与使用说明书.md) 为准。历史上从业务规格中迁出的详细运行规则保留在 [业务规则技术参考](业务规则技术参考.md)。
+字段级结构以 [Report DSL Schema](../contracts/schemas/report-dsl.schema.json) 和 [Report DSL 技术手册](../contracts/manuals/报告DSL定义与使用说明书.md) 为准。历史上从业务规格中迁出的详细运行规则保留在 [业务规则技术参考](business-rules.md)。
 
 ## 1. 模块定位
 

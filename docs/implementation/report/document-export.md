@@ -2,7 +2,7 @@
 
 Report Exporter 位于 `modules/exporter`。它接收 Report DSL 或归一化后的 VDoc，通过 CLI 生成 DOCX 和 PPTX。Markdown 由后端直接生成。PDF 派生转换尚未实现，当前请求会被后端明确拒绝。
 
-业务侧可感知的默认效果和预留选项见 [文档导出业务规格](../../specs/document-export/README.md)。迁移前的完整配置说明保留在 [Document Configuration 技术参考](DocumentConfiguration技术参考.md)。
+业务侧可感知的默认效果和预留选项见 [文档导出业务规格](../../specs/report/document-export.md)。迁移前的完整配置说明保留在 [Document Configuration 技术参考](document-configuration.md)。
 
 ## 实现边界
 
@@ -42,4 +42,4 @@ Document Configuration 独立于 Report DSL。当前 exporter 使用内置默认
 - 后续实现时，Word 表格标题使用表格前独立标题段落；PPT 表格标题占用表格区域顶部一行，数据表向下收缩。
 - PDF 派生转换尚未接入；开放前后端稳定返回校验错误。
 
-完整 POI 转换细节见 [报告导出 POI 转换实现](报告导出POI转换实现.md)。
+完整 POI 转换细节见 [报告导出 POI 转换实现](poi-exporter.md)。

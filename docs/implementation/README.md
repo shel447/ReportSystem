@@ -6,15 +6,12 @@
 
 1. [技术契约](contracts/README.md)
 2. [Agent Flow 公共流程框架](agentflow/README.md)
-3. [模板管理](template-management/README.md)
+3. [Report Context 实现](report/README.md)
 4. [通用对话](conversation/README.md)
-5. [报告生成](report-generation/README.md)
-6. [报告管理](report-management/README.md)
-7. [前端](frontend/README.md)
-8. [文档导出](document-export/README.md)
-9. [外部集成](integrations/外部集成实现.md)
-10. [智能问数](data-analysis/README.md)
-11. [实现变更日志](changelog/README.md)
+5. [前端](frontend/README.md)
+6. [外部集成](integrations/外部集成实现.md)
+7. [智能问数](data-analysis/README.md)
+8. [实现变更日志](changelog/README.md)
 
 ## 模块映射
 

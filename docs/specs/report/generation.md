@@ -80,4 +80,4 @@
 - 分页汇报型报告的部分自动生成功能仍在逐步完善。
 - 报告生成依赖模板质量和可用数据；必要数据缺失时，系统需要明确提示。
 
-内部运行规则、技术契约和字段映射见 [报告生成实现](../../implementation/report-generation/README.md)。
+内部运行规则、技术契约和字段映射见 [报告生成实现](../../implementation/report/generation.md)。
