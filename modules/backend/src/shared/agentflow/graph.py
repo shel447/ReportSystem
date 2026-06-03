@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import copy
 from typing import Any, Callable, Protocol
 
 if False:  # pragma: no cover
@@ -70,3 +71,13 @@ class FlowGraph:
 
     def incoming(self, node_id: str) -> list[FlowEdge]:
         return [item for item in self.edges if item.target == node_id]
+
+    def copy(self) -> "FlowGraph":
+        return FlowGraph(
+            start=self.start,
+            nodes=dict(self.nodes),
+            edges=list(self.edges),
+        )
+
+    def deepcopy(self) -> "FlowGraph":
+        return copy.deepcopy(self)

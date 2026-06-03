@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from ....infrastructure.platform.cache import MemoryTtlCache, platform_cache
+from ....shared.agentflow.metrics import record_datacatalog_logical_entity
 from ....shared.kernel.errors import UpstreamError
 from ..domain.models import DatasetColumn, DatasetResult
 
@@ -71,10 +72,14 @@ class ExternalDataCatalogGateway:
         )
         _ensure_success(payload, service="DataCatalog")
         result = list((payload.get("data") or {}).get("results") or [])
+        for item in result:
+            if isinstance(item, dict):
+                record_datacatalog_logical_entity(str(item.get("name") or item.get("logicalEntityName") or ""))
         self.cache.set(key, deepcopy(result), ttl_seconds=600)
         return result
 
     def get_logical_entity(self, *, name: str, user_id: str) -> dict[str, Any]:
+        record_datacatalog_logical_entity(name)
         return self._cached_get(
             key=f"datacatalog:{user_id}:logical_entity:{name}",
             path="/rest/odae/v3/datacatalog/model/logicalentity",

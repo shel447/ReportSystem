@@ -116,6 +116,39 @@ flowchart TD
 - 汇合节点只有在无条件前置边完成后才执行。
 - 每个节点有执行次数上限，避免错误循环无限运行。
 - 动态改图只允许追加未来节点和边，不允许修改已经完成的节点，也不允许指向已完成节点。
+- Runtime 使用线程池执行同一批 ready 节点，适合同时生成多个互不依赖的报告章节或并发调用多个外部查询。
+- 事件序号由 `InMemoryFlowRuntime.emit()` 在全局锁内分配并入队，因此多线程节点同时发出事件时，消费者仍看到严格递增的 `sequence`。
+- `FlowRun.state` 继续兼容直接读写；并行节点推荐使用 `FlowContext.get_state()`、`set_state()`、`update_state()` 和 `mutate_state()` 做线程安全状态更新。
+- 并行失败策略为“收集失败”：某个已启动节点失败后，runtime 等待同批已启动节点结束，跳过尚未启动的下游节点，再统一发出失败事件。
+
+```mermaid
+flowchart TD
+    start["识别模板"] --> params["抽取参数"]
+    params --> sec1["生成章节 A"]
+    params --> sec2["生成章节 B"]
+    params --> sec3["生成章节 C"]
+    sec1 --> join["汇合章节结果"]
+    sec2 --> join
+    sec3 --> join
+    join --> freeze["冻结正式报告"]
+```
+
+## 4.1 流程图可视化
+
+AgentFlow 提供 `FlowGraphRenderer` 输出 Mermaid，支持查看 high level pattern build 前后的图：
+
+```python
+artifact = FlowGraphRenderer().build_artifact(flow, title="report-generation")
+print(artifact.before_mermaid)
+print(artifact.after_mermaid)
+```
+
+约定：
+
+- `before_graph` 表示业务方声明的原始图或 high level pattern materialize 后的稳定快照。
+- `after_graph` 表示运行器实际执行前可验证、可调试的图。
+- 当前 `SequentialFlow`、`ReactFlow` 的 build 前后图通常一致；后续加入自动插入 checkpoint、hook 或标准错误处理节点时，两个图会出现差异。
+- Mermaid 输出只用于调试、文档和设计评审，不参与运行逻辑。
 
 ## 5. 事件模型与对话投影
 
@@ -245,6 +278,35 @@ Hook 可以返回 `continue`、`skip`、`terminate`、`refuse`。业务领域规
 - `latest(run_id)`
 
 首版实现 `InMemoryCheckpointSaver`。后续持久化恢复只需要替换 saver，不修改节点代码。
+
+### Metrics
+
+AgentFlow 在每次流程结束时都会发布一次资源用量通知，不论流程成功、失败、取消、拒答或系统主动终止。
+
+核心对象：
+
+- `FlowMetricsCollector`：单次运行内的线程安全采集器。
+- `FlowMetrics`：流程结束时的指标快照。
+- `MetricsCenter`：指标中心，负责把快照发给一个或多个 sink。
+- `MetricsSink`：传输无关发布接口。
+- `NoopMetricsSink`：默认实现，不向外发送。
+- `InMemoryMetricsSink`：测试和本地调试实现。
+
+当前内置指标：
+
+- `durationMs`：流程耗时。
+- `logicalEntityCount`：使用到的 DataCatalog 逻辑实体去重数量。
+- `llmOutputTokens`：OpenAI-compatible 响应中的输出 token 数。
+- `nodeCount`：已启动节点数。
+- `failedNodeCount`：失败节点数。
+- `custom`：业务节点通过 `context.record_metric()` 主动记录的补充指标。
+
+发布规则：
+
+- Runtime 在 `finally` 中发布指标，保证成功和失败都能发送。
+- sink 失败不会改变业务流程结果。
+- AgentFlow 不绑定 Kafka；后续需要 Kafka、HTTP 或数据库通道时，只新增对应 `MetricsSink` 实现并注入 `MetricsCenter`。
+- DataCatalog、OpenAI-compatible 等基础设施适配器只有在当前线程位于 AgentFlow 上下文中时才记录指标；普通同步调用不受影响。
 
 ## 8. 子流程
 

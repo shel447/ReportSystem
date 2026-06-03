@@ -9,6 +9,7 @@ from src.contexts.data_analysis.infrastructure.gateways import (
     ExternalOneQueryGateway,
 )
 from src.infrastructure.platform.cache import MemoryTtlCache
+from src.shared.agentflow.metrics import FlowMetricsCollector, use_metrics_collector
 from src.shared.kernel.errors import UpstreamError
 
 
@@ -61,6 +62,18 @@ def test_datacatalog_cache_is_isolated_by_user_id():
     assert gateway.list_logical_entities(user_id="user-b") == [{"name": "device"}]
 
     assert [call["user_id"] for call in client.calls] == ["user-a", "user-b"]
+
+
+def test_datacatalog_records_logical_entity_metrics_when_flow_collector_exists():
+    client = _Client({"retCode": 0, "data": {"results": [{"name": "device"}, {"logicalEntityName": "interface"}, {"name": "device"}]}})
+    gateway = ExternalDataCatalogGateway(client=client, cache=MemoryTtlCache())
+    collector = FlowMetricsCollector()
+
+    with use_metrics_collector(collector):
+        gateway.list_logical_entities(user_id="user-a")
+
+    metrics = collector.snapshot(run_id="run_1", status="finished")
+    assert metrics.logical_entity_count == 2
 
 
 def test_rag_cache_is_isolated_by_user_id():

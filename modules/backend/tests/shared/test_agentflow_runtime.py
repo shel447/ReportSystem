@@ -1,7 +1,17 @@
 import threading
 import time
 
-from src.shared.agentflow import FlowEdge, FlowGraph, FlowNode, InMemoryFlowRuntime, ReactFlow, SequentialFlow
+from src.shared.agentflow import (
+    FlowEdge,
+    FlowGraph,
+    FlowGraphRenderer,
+    FlowNode,
+    InMemoryFlowRuntime,
+    InMemoryMetricsSink,
+    MetricsCenter,
+    ReactFlow,
+    SequentialFlow,
+)
 
 
 def test_sequential_flow_emits_steps_and_answer():
@@ -131,3 +141,120 @@ def test_cancel_by_chat_requires_matching_user():
     events = list(runtime.iter_events(run.run_id))
 
     assert any(event.status == "cancelled" for event in events)
+
+
+def test_parallel_branches_run_concurrently_and_preserve_event_sequence():
+    completed = []
+
+    def start(context):
+        context.emit_step(code="start.inner", title="start inner")
+
+    def section(name):
+        def handler(context):
+            time.sleep(0.15)
+            context.mutate_state("sections", [], lambda items: items.append(name))
+            completed.append(name)
+
+        return handler
+
+    def join(context):
+        context.emit_answer({"answerType": "TEXT", "answer": {"sections": sorted(context.get_state("sections", []))}})
+
+    graph = FlowGraph(start="start")
+    graph.add_node(FlowNode(id="start", handler=start))
+    graph.add_node(FlowNode(id="section.a", handler=section("a")))
+    graph.add_node(FlowNode(id="section.b", handler=section("b")))
+    graph.add_node(FlowNode(id="section.c", handler=section("c")))
+    graph.add_node(FlowNode(id="join", handler=join))
+    graph.add_edge(FlowEdge(source="start", target="section.a"))
+    graph.add_edge(FlowEdge(source="start", target="section.b"))
+    graph.add_edge(FlowEdge(source="start", target="section.c"))
+    graph.add_edge(FlowEdge(source="section.a", target="join"))
+    graph.add_edge(FlowEdge(source="section.b", target="join"))
+    graph.add_edge(FlowEdge(source="section.c", target="join"))
+
+    started = time.perf_counter()
+    events = InMemoryFlowRuntime(max_workers=3).run_sync(graph)
+    elapsed = time.perf_counter() - started
+
+    assert sorted(completed) == ["a", "b", "c"]
+    assert elapsed < 0.35
+    assert [event.sequence for event in events] == sorted(event.sequence for event in events)
+    assert any(event.event_type == "answer" and event.answer["answer"]["sections"] == ["a", "b", "c"] for event in events)
+
+
+def test_parallel_failure_collects_started_nodes_and_skips_downstream():
+    finished = []
+
+    def start(context):
+        pass
+
+    def ok(context):
+        time.sleep(0.05)
+        finished.append("ok")
+
+    def failed(context):
+        time.sleep(0.02)
+        raise RuntimeError("boom")
+
+    def downstream(context):
+        finished.append("downstream")
+
+    graph = FlowGraph(start="start")
+    graph.add_node(FlowNode(id="start", handler=start))
+    graph.add_node(FlowNode(id="ok", handler=ok))
+    graph.add_node(FlowNode(id="failed", handler=failed))
+    graph.add_node(FlowNode(id="downstream", handler=downstream))
+    graph.add_edge(FlowEdge(source="start", target="ok"))
+    graph.add_edge(FlowEdge(source="start", target="failed"))
+    graph.add_edge(FlowEdge(source="ok", target="downstream"))
+    graph.add_edge(FlowEdge(source="failed", target="downstream"))
+
+    events = InMemoryFlowRuntime(max_workers=2).run_sync(graph)
+
+    assert "ok" in finished
+    assert "downstream" not in finished
+    assert events[-1].status == "failed"
+    assert any(event.event_type == "error" and "failed" in event.error and "boom" in event.error for event in events)
+
+
+def test_graph_renderer_outputs_mermaid_for_before_and_after_build():
+    flow = SequentialFlow(
+        FlowNode(id="start", title="开始", handler=lambda context: None),
+        FlowNode(id="finish", title="结束", handler=lambda context: None),
+    )
+
+    artifact = FlowGraphRenderer().build_artifact(flow, title="demo")
+
+    assert artifact.before_mermaid.startswith("flowchart TD")
+    assert 'start["开始"]' in artifact.after_mermaid
+    assert "start --> finish" in artifact.after_mermaid
+
+
+def test_metrics_center_receives_terminal_metrics_on_success_and_failure():
+    sink = InMemoryMetricsSink()
+    runtime = InMemoryFlowRuntime(metrics_center=MetricsCenter([sink]))
+
+    def success(context):
+        context.record_datacatalog_logical_entity("device")
+        context.record_datacatalog_logical_entity("device")
+        context.record_llm_output_tokens(42)
+        context.emit_answer({"answerType": "TEXT", "answer": {"ok": True}})
+
+    runtime.run_sync(
+        SequentialFlow(FlowNode(id="success", handler=success)).to_graph(),
+        state={"conversation_id": "conv_1", "chat_id": "chat_1", "user_id": "user_a", "scenario_key": "report"},
+    )
+
+    assert sink.items[-1].status == "finished"
+    assert sink.items[-1].logical_entity_count == 1
+    assert sink.items[-1].llm_output_tokens == 42
+    assert sink.items[-1].chat_id == "chat_1"
+
+    def fail(context):
+        raise RuntimeError("bad")
+
+    runtime.run_sync(SequentialFlow(FlowNode(id="fail", handler=fail)).to_graph())
+
+    assert sink.items[-1].status == "failed"
+    assert sink.items[-1].failed_node_count == 1

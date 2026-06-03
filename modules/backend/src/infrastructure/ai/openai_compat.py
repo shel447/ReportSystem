@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Sequence
 
 import httpx
 
+from ...shared.agentflow.metrics import record_llm_usage
+
 
 class AIConfigurationError(Exception):
     pass
@@ -40,6 +42,7 @@ class OpenAICompatGateway:
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
         data = self._post(config, "/chat/completions", payload)
+        record_llm_usage(data)
         try:
             choice = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:

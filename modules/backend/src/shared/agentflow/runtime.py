@@ -6,6 +6,7 @@ import queue
 import threading
 import uuid
 import copy
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
@@ -13,6 +14,7 @@ from .checkpoints import CheckpointSaver, FlowCheckpoint, InMemoryCheckpointSave
 from .events import FlowEvent, FlowSignal, FlowStep
 from .graph import FlowEdge, FlowGraph, FlowNode
 from .hooks import FlowHook, HookContext, HookDecision
+from .metrics import FlowMetricsCollector, MetricsCenter, use_metrics_collector
 from .prompts import PromptAssembler, PromptMessage, PromptTemplate
 from .subflows import SubflowEventPolicy, SubflowRegistry
 from .termination import FlowCancelled, FlowRefused, FlowTerminated
@@ -33,17 +35,29 @@ class FlowRun:
     final_event: FlowEvent | None = None
     thread: threading.Thread | None = None
     state: dict[str, Any] = field(default_factory=dict)
+    state_lock: threading.RLock = field(default_factory=threading.RLock)
     active_node_id: str | None = None
     completed_nodes: set[str] = field(default_factory=set)
+    failed_nodes: set[str] = field(default_factory=set)
+    metrics: FlowMetricsCollector = field(default_factory=FlowMetricsCollector)
+    terminal_status: str = "running"
 
 
 class FlowContext:
     """节点运行上下文。"""
 
-    def __init__(self, *, run: FlowRun, runtime: "InMemoryFlowRuntime", state: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        run: FlowRun,
+        runtime: "InMemoryFlowRuntime",
+        state: dict[str, Any] | None = None,
+        current_node_id: str | None = None,
+    ) -> None:
         self.run = run
         self.runtime = runtime
         self.state = state if state is not None else {}
+        self.current_node_id = current_node_id
 
     @property
     def run_id(self) -> str:
@@ -113,7 +127,34 @@ class FlowContext:
         return self.runtime.prompt_assembler.render(template, variables)
 
     def save_checkpoint(self, *, reason: str = "manual") -> FlowCheckpoint:
-        return self.runtime.save_checkpoint(self.run, reason=reason)
+        return self.runtime.save_checkpoint(self.run, reason=reason, node_id=self.current_node_id)
+
+    def get_state(self, key: str, default: Any = None) -> Any:
+        with self.run.state_lock:
+            return self.state.get(key, default)
+
+    def set_state(self, key: str, value: Any) -> None:
+        with self.run.state_lock:
+            self.state[key] = value
+
+    def update_state(self, values: dict[str, Any]) -> None:
+        with self.run.state_lock:
+            self.state.update(values)
+
+    def mutate_state(self, key: str, default: Any, mutator) -> Any:
+        with self.run.state_lock:
+            value = self.state.setdefault(key, default)
+            mutator(value)
+            return value
+
+    def record_metric(self, name: str, value: int | float | str | bool, tags: dict[str, Any] | None = None) -> None:
+        self.run.metrics.record(name, value, tags=tags)
+
+    def record_datacatalog_logical_entity(self, entity: str | None) -> None:
+        self.run.metrics.record_datacatalog_logical_entity(entity)
+
+    def record_llm_output_tokens(self, tokens: int | None) -> None:
+        self.run.metrics.record_llm_output_tokens(tokens)
 
     def request_terminate(self, reason: str) -> None:
         self.runtime.emit(self.run, event_type="error", status="terminated", error=reason)
@@ -157,6 +198,8 @@ class InMemoryFlowRuntime:
         prompt_assembler: PromptAssembler | None = None,
         subflow_registry: SubflowRegistry | None = None,
         hooks: list[FlowHook] | None = None,
+        metrics_center: MetricsCenter | None = None,
+        max_workers: int = 4,
     ) -> None:
         self._runs: dict[str, FlowRun] = {}
         self._chat_index: dict[str, str] = {}
@@ -166,6 +209,8 @@ class InMemoryFlowRuntime:
         self.prompt_assembler = prompt_assembler or PromptAssembler()
         self.subflow_registry = subflow_registry or SubflowRegistry()
         self.hooks = list(hooks or [])
+        self.metrics_center = metrics_center or MetricsCenter()
+        self.max_workers = max(1, int(max_workers))
 
     def start(self, graph: FlowGraph, *, state: dict[str, Any] | None = None) -> FlowRun:
         run = FlowRun(run_id=f"run_{uuid.uuid4().hex[:16]}", graph=graph, state=dict(state or {}))
@@ -263,16 +308,19 @@ class InMemoryFlowRuntime:
             )
             if event_type in {"ask", "answer", "error", "done"}:
                 run.final_event = event
+            if event_type == "done":
+                run.terminal_status = status
             run.events.put(event)
             return event
 
-    def save_checkpoint(self, run: FlowRun, *, reason: str) -> FlowCheckpoint:
+    def save_checkpoint(self, run: FlowRun, *, reason: str, node_id: str | None = None) -> FlowCheckpoint:
         with self._lock:
             sequence = run.sequence
-            node_id = run.active_node_id
-            state = dict(run.state)
+            checkpoint_node_id = node_id or run.active_node_id
+        with run.state_lock:
+            state = copy.deepcopy(run.state)
         checkpoint = self.checkpoint_saver.save(
-            FlowCheckpoint(run_id=run.run_id, sequence=sequence, node_id=node_id, state=state, reason=reason)
+            FlowCheckpoint(run_id=run.run_id, sequence=sequence, node_id=checkpoint_node_id, state=state, reason=reason)
         )
         self.emit(
             run,
@@ -316,6 +364,7 @@ class InMemoryFlowRuntime:
             graph=spec.build_graph(dict(arguments)),
             state={**copy.deepcopy(context.state), "subflow_alias": subflow_alias, "subflow_call_id": call_id},
             cancel_requested=context.run.cancel_requested,
+            metrics=context.run.metrics,
         )
         child_context = FlowContext(run=child_run, runtime=self, state=child_run.state)
         original_events = child_run.events
@@ -413,6 +462,7 @@ class InMemoryFlowRuntime:
             self.emit(run, event_type="error", status="failed", error=str(exc))
             self.emit(run, event_type="done", status="failed")
         finally:
+            self._publish_metrics(run)
             run.done.set()
 
     def _execute_graph(self, graph: FlowGraph, context: FlowContext) -> None:
@@ -421,20 +471,69 @@ class InMemoryFlowRuntime:
         run = context.run
         ready = [graph.start]
         completed: set[str] = set()
+        scheduled: set[str] = set()
         executed_count: dict[str, int] = {}
         max_node_executions = 1000
+        failures: list[tuple[str, Exception]] = []
+        running: dict[Future[None], str] = {}
 
-        while ready:
-            context.check_cancelled()
-            node_id = ready.pop(0)
-            node = graph.nodes[node_id]
-            executed_count[node_id] = executed_count.get(node_id, 0) + 1
-            if executed_count[node_id] > max_node_executions:
-                raise RuntimeError(f"Flow node exceeded execution limit: {node_id}")
-            run.active_node_id = node_id
-            context.emit_step(code=node.id, title=node.title or node.id, status="running")
-            skip_node = False
-            try:
+        with ThreadPoolExecutor(max_workers=self.max_workers, thread_name_prefix="agentflow-node") as executor:
+            while ready or running:
+                context.check_cancelled()
+                while ready and not failures:
+                    node_id = ready.pop(0)
+                    scheduled.add(node_id)
+                    executed_count[node_id] = executed_count.get(node_id, 0) + 1
+                    if executed_count[node_id] > max_node_executions:
+                        raise RuntimeError(f"Flow node exceeded execution limit: {node_id}")
+                    node = self._graph_node(graph, node_id)
+                    node_context = FlowContext(run=run, runtime=self, state=run.state, current_node_id=node_id)
+                    running[executor.submit(self._execute_node, node, node_context)] = node_id
+
+                if not running:
+                    break
+
+                done, _pending = wait(running.keys(), timeout=0.1, return_when=FIRST_COMPLETED)
+                if not done:
+                    continue
+
+                for future in done:
+                    node_id = running.pop(future)
+                    scheduled.discard(node_id)
+                    try:
+                        future.result()
+                    except Exception as exc:
+                        run.failed_nodes.add(node_id)
+                        run.metrics.record_node_failed(node_id)
+                        failures.append((node_id, exc))
+                        continue
+
+                    completed.add(node_id)
+                    run.completed_nodes.add(node_id)
+                    for next_node_id in self._next_ready_nodes(graph, context, source_node_id=node_id, completed=completed, scheduled=scheduled):
+                        if next_node_id not in ready:
+                            ready.append(next_node_id)
+
+                if failures:
+                    ready.clear()
+
+        if failures:
+            for _node_id, exc in failures:
+                if isinstance(exc, (FlowCancelled, FlowTerminated, FlowRefused)):
+                    raise exc
+            detail = "; ".join(f"{node_id}: {exc}" for node_id, exc in failures)
+            raise RuntimeError(f"Flow parallel nodes failed: {detail}")
+
+    def _execute_node(self, node: FlowNode, context: FlowContext) -> None:
+        context.check_cancelled()
+        run = context.run
+        with self._lock:
+            run.active_node_id = node.id
+        run.metrics.record_node_started(node.id)
+        context.emit_step(code=node.id, title=node.title or node.id, status="running")
+        final_status = "finished"
+        try:
+            with use_metrics_collector(run.metrics):
                 decision = self._run_hooks("before_node", context, node=node)
                 skip_node = self._apply_hook_decision(context, decision)
                 if not skip_node:
@@ -442,24 +541,61 @@ class InMemoryFlowRuntime:
                 if node.checkpoint_policy.get("after"):
                     context.save_checkpoint(reason=f"after_node:{node.id}")
                 self._apply_hook_decision(context, self._run_hooks("after_node", context, node=node))
-            except Exception as exc:
-                decision = self._run_hooks("on_error", context, node=node, error=exc)
-                self._apply_hook_decision(context, decision)
-                raise
-            completed.add(node_id)
-            run.completed_nodes.add(node_id)
-            context.emit_step(code=node.id, title=node.title or node.id, status="finished")
-            run.active_node_id = None
+        except Exception as exc:
+            if isinstance(exc, FlowCancelled):
+                final_status = "cancelled"
+            elif isinstance(exc, FlowTerminated):
+                final_status = "terminated"
+            elif isinstance(exc, FlowRefused):
+                final_status = "refused"
+            else:
+                final_status = "failed"
+            decision = self._run_hooks("on_error", context, node=node, error=exc)
+            self._apply_hook_decision(context, decision)
+            raise
+        finally:
+            context.emit_step(code=node.id, title=node.title or node.id, status=final_status)
+            with self._lock:
+                if run.active_node_id == node.id:
+                    run.active_node_id = None
 
-            for edge in graph.outgoing(node_id):
-                if edge.condition is not None and not edge.condition(context):
-                    continue
-                incoming = graph.incoming(edge.target)
-                if incoming and all(item.source in completed for item in incoming if item.condition is None):
-                    if edge.target not in ready:
-                        ready.append(edge.target)
-                elif edge.target not in ready:
-                    ready.append(edge.target)
+    def _graph_node(self, graph: FlowGraph, node_id: str) -> FlowNode:
+        with self._lock:
+            return graph.nodes[node_id]
+
+    def _next_ready_nodes(
+        self,
+        graph: FlowGraph,
+        context: FlowContext,
+        *,
+        source_node_id: str,
+        completed: set[str],
+        scheduled: set[str],
+    ) -> list[str]:
+        ready: list[str] = []
+        with self._lock:
+            outgoing = list(graph.outgoing(source_node_id))
+        for edge in outgoing:
+            if edge.condition is not None and not edge.condition(context):
+                continue
+            with self._lock:
+                incoming = list(graph.incoming(edge.target))
+            if incoming and not all(item.source in completed for item in incoming if item.condition is None):
+                continue
+            if edge.target not in scheduled and edge.target not in ready:
+                ready.append(edge.target)
+        return ready
+
+    def _publish_metrics(self, run: FlowRun) -> None:
+        metrics = run.metrics.snapshot(
+            run_id=run.run_id,
+            status=run.terminal_status,
+            conversation_id=str(context_value(run, "conversation_id") or "") or None,
+            chat_id=str(context_value(run, "chat_id") or "") or None,
+            user_id=str(context_value(run, "user_id") or "") or None,
+            scenario_key=str(context_value(run, "scenario_key") or "") or None,
+        )
+        self.metrics_center.publish(metrics)
 
     def _run_hooks(
         self,

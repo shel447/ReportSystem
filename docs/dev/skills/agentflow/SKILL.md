@@ -15,6 +15,8 @@
 - 需要 `reason / act / observe / decide` 循环：使用 `ReactFlow`。
 - 需要条件分支、循环、并行、汇合、动态追加节点：直接构造 `FlowGraph`。
 - 高层流程最终都应 `to_graph()`，不要创建旁路运行器。
+- 多个互不依赖节点连接到同一个上游节点时，runtime 会用线程池并行执行；下游汇合节点等待所有无条件前置节点完成。
+- 并行节点失败时，已启动节点会先完成，未启动下游会被跳过，最终统一失败。
 
 ## 节点编写规范
 
@@ -29,7 +31,7 @@ def resolve_parameters(context):
         step_path=["report", "generate", "parameters"],
     )
     context.check_cancelled()
-    context.state["parameters"] = {"scope": "hq"}
+    context.set_state("parameters", {"scope": "hq"})
 ```
 
 常用能力：
@@ -45,6 +47,30 @@ def resolve_parameters(context):
 - `refuse()`：拒答并结束。
 - `request_terminate()`：系统主动终止。
 - `add_node()/add_edge()`：运行中追加后续分支。
+- `get_state()/set_state()/update_state()/mutate_state()`：并行节点中优先使用的线程安全状态读写。
+- `record_metric()`：记录自定义资源或质量指标。
+
+## 并行章节示例
+
+```python
+graph = FlowGraph(start="plan_sections")
+graph.add_node(FlowNode(id="plan_sections", handler=plan_sections))
+graph.add_node(FlowNode(id="section_a", handler=make_section_node("a")))
+graph.add_node(FlowNode(id="section_b", handler=make_section_node("b")))
+graph.add_node(FlowNode(id="join_sections", handler=join_sections))
+graph.add_edge(FlowEdge(source="plan_sections", target="section_a"))
+graph.add_edge(FlowEdge(source="plan_sections", target="section_b"))
+graph.add_edge(FlowEdge(source="section_a", target="join_sections"))
+graph.add_edge(FlowEdge(source="section_b", target="join_sections"))
+```
+
+章节节点写共享状态时使用：
+
+```python
+context.mutate_state("sections", [], lambda items: items.append(section_dsl))
+```
+
+不要在并行节点里对同一个 list/dict 做裸写，除非业务方自己持有锁。
 
 ## Tool
 
@@ -148,6 +174,37 @@ context.save_checkpoint(reason="after_dataset")
 
 后续接数据库时只替换 saver，不改节点代码。公开 `/chat` 不暴露内部 `runId`。
 
+## 流程图打印
+
+使用 Mermaid 打印 build 前后流程图：
+
+```python
+artifact = FlowGraphRenderer().build_artifact(flow, title="report-generation")
+print(artifact.before_mermaid)
+print(artifact.after_mermaid)
+```
+
+新增复杂流程前，建议把 `after_mermaid` 粘到设计文档或 PR 描述中，确认条件边、并行分支和汇合节点是否符合预期。
+
+## Metrics
+
+流程结束时 runtime 会通过 `MetricsCenter` 发布一次资源用量通知。默认是 `NoopMetricsSink`，不会发送到外部系统。
+
+节点可以记录自定义指标：
+
+```python
+context.record_metric("section_count", 3, tags={"template": "network-daily"})
+```
+
+内置采集包括：
+
+- 流程耗时。
+- 启动节点数和失败节点数。
+- DataCatalog 逻辑实体去重数量。
+- OpenAI-compatible 输出 token 数。
+
+不要在业务流程中直接写 Kafka。需要消息通道时，实现新的 `MetricsSink` 并注入 `MetricsCenter`。
+
 ## 动态追加分支
 
 只追加后续分支，不修改已完成节点：
@@ -171,6 +228,9 @@ def plan_sections(context):
 ## 验证清单
 
 - 单测覆盖正常完成、取消、拒答、工具失败、checkpoint、subflow 和 dynamic graph。
+- 并行测试确认耗时低于串行、事件 `sequence` 单调递增、失败策略符合“收集失败”。
+- 图测试确认 Mermaid 能展示 build 前后流程图。
+- Metrics 测试确认成功、失败、取消都能发布终态指标，sink 失败不影响业务结果。
 - SSE 测试确认事件能被 conversation 投影，不新增前端必须识别的新 `eventType`。
 - 业务测试确认取消、失败或拒答不会写入最终业务实例。
 - 子流程测试至少覆盖：answer 不覆盖父流程、重复调用不串事件、错误传播或捕获。
