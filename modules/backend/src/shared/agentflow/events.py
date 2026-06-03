@@ -14,6 +14,8 @@ class FlowStep:
     title: str | None = None
     status: str = "running"
     detail: str | None = None
+    parent_step_id: str | None = None
+    step_path: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -35,6 +37,7 @@ class FlowEvent:
     tool_result: dict[str, Any] | None = None
     refusal: dict[str, Any] | None = None
     checkpoint: dict[str, Any] | None = None
+    source_subflow: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)

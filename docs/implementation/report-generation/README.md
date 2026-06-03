@@ -52,7 +52,9 @@
 - 接收外部系统首次交接的 `report.templateName + report.parameters`，精确定位模板并初始化根级参数快照。
 - 推进同一个 `TemplateInstance`，并在确认后调用报告冻结服务。
 
-`generate_report` 和 `generate_report_segment` 通过 `shared/agentflow` 包装为 Flow。报告流程通过 `FlowContext.emit_step()` 发送阶段进展，通过 `emit_delta()` 发送报告增量，通过 `emit_answer()` 返回最终 `REPORT` 或 `REPORT_SEGMENT`。后续细化节点时可逐步使用 tool、prompt、hook、checkpoint 和动态追加分支；首版不要求把现有业务推进拆成过细节点。`extract_report_template` 仍保持无会话预览的同步能力。
+`generate_report` 和 `generate_report_segment` 通过 `shared/agentflow` 包装为 Flow。报告流程通过 `FlowContext.emit_step()` 发送阶段进展，通过 `emit_delta()` 发送报告增量，通过 `emit_answer()` 返回最终 `REPORT` 或 `REPORT_SEGMENT`。step 应尽量提供 `parentStepId/stepPath`，delta 应提供统一 `parent`，同时保留 flow 的 `parentCatalogId/parentCatalog` 和 paged 的 `chapterId/slideId` 兼容字段。后续细化节点时可逐步使用 tool、prompt、hook、checkpoint、子流程和动态追加分支；首版不要求把现有业务推进拆成过细节点。`extract_report_template` 仍保持无会话预览的同步能力。
+
+可复用的多步骤能力应优先封装为 AgentFlow 子流程，例如章节生成、数据分析和复杂内容评估。子流程内部的 step/delta/error 通过 `sourceSubflow` 与 `source` 汇入父流程；子流程 answer 默认只写入父流程 state 或作为 `subflow_result` delta，不覆盖报告流程最终 `REPORT`，除非显式启用 answer 冒泡。
 
 `ReportContext` 是报告场景运行上下文，当前包含完整 `TemplateInstance`。其中来源归因统一使用 `conversationId/chatId`；它不管理聊天消息状态。
 

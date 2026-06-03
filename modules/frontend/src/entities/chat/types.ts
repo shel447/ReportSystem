@@ -155,9 +155,8 @@ export type ChatAsk = {
 export type ChatResponse = {
   conversationId: string;
   chatId: string;
-  runId?: string | null;
   status: "waiting_user" | "running" | "finished" | "failed" | "cancelled" | "terminated" | "refused";
-  steps: unknown[];
+  steps: ChatStreamStep[];
   ask: ChatAsk | null;
   answer:
     | {
@@ -190,9 +189,27 @@ export type ChatResponse = {
   apiVersion: string;
 };
 
+export type ChatStreamStep = {
+  code: string;
+  stepId?: string;
+  status: string;
+  title?: string | null;
+  detail?: string | null;
+  parentStepId?: string | null;
+  stepPath?: string[];
+  sourceSubflow?: Record<string, unknown>;
+};
+
+export type ChatStreamDeltaParent = {
+  type: "report" | "catalog" | "chapter" | "slide" | "section" | "subflow";
+  id: string | null;
+  path?: Array<string | number> | null;
+};
+
 export type ChatStreamDelta =
   | {
       action: "init_report";
+      parent?: ChatStreamDeltaParent;
       report: {
         reportId: string;
         title: string;
@@ -202,6 +219,7 @@ export type ChatStreamDelta =
   | {
       action: "add_catalog";
       structureType?: "flow";
+      parent?: ChatStreamDeltaParent;
       parentCatalogId: string | null;
       parentCatalog: number[] | null;
       catalogs: Array<{
@@ -212,6 +230,7 @@ export type ChatStreamDelta =
   | {
       action: "add_chapter";
       structureType: "paged";
+      parent?: ChatStreamDeltaParent;
       chapters: Array<{
         id: string;
         title: string;
@@ -220,6 +239,7 @@ export type ChatStreamDelta =
   | {
       action: "add_slide";
       structureType: "paged";
+      parent?: ChatStreamDeltaParent;
       chapterId: string | null;
       slides: Array<{
         id: string;
@@ -230,6 +250,7 @@ export type ChatStreamDelta =
   | {
       action: "add_section";
       structureType?: "flow" | "paged";
+      parent?: ChatStreamDeltaParent;
       parentCatalogId: string | null;
       parentCatalog: number[] | null;
       chapterId?: string | null;
@@ -245,13 +266,12 @@ export type ChatStreamDelta =
 export type ChatStreamEvent = {
   conversationId: string;
   chatId: string;
-  runId?: string | null;
   eventType: "status" | "step_delta" | "ask" | "answer" | "error" | "done";
   sequence: number;
   timestamp: number;
   status: "waiting_user" | "running" | "finished" | "failed" | "cancelled" | "terminated" | "refused";
-  step?: unknown;
-  steps?: unknown[];
+  step?: ChatStreamStep;
+  steps?: ChatStreamStep[];
   ask?: ChatAsk | null;
   answer?: ChatResponse["answer"];
   error?: unknown;
@@ -260,6 +280,7 @@ export type ChatStreamEvent = {
   toolResult?: Record<string, unknown>;
   refusal?: Record<string, unknown>;
   checkpoint?: Record<string, unknown>;
+  sourceSubflow?: Record<string, unknown>;
 };
 
 export type ConversationSummary = {

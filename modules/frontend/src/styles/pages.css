@@ -2329,6 +2329,13 @@
   gap: 4px;
 }
 
+.chat-thread__toolbar-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .chat-history-panel__body {
   display: flex;
   min-height: 0;
@@ -2563,6 +2570,12 @@
   padding: 12px max(20px, calc((100% - 760px) / 2)) 16px;
   border-top: 1px solid var(--line-soft);
   background: rgba(255, 255, 255, 0.96);
+}
+
+.chat-queue-status {
+  margin: 0 2px 8px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
 }
 
 .chat-compose {

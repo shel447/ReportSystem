@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Send, WandSparkles, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { fetchConversation, fetchConversations, sendChatMessageStream } from "../entities/chat/api";
+import { buildChatId, fetchConversation, fetchConversations, sendChatMessageStream, stopChat } from "../entities/chat/api";
 import type { ChatAsk, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
 import type { ParameterScalar } from "../entities/templates/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
@@ -36,6 +36,8 @@ export function ChatPage() {
   const [editorDirty, setEditorDirty] = useState(false);
   const [activeDemoTemplate, setActiveDemoTemplate] = useState<DemoReportTemplate | null>(null);
   const [demoReport, setDemoReport] = useState<Record<string, unknown> | null>(null);
+  const [activeStreamingChatId, setActiveStreamingChatId] = useState<string | null>(null);
+  const [queuedChats, setQueuedChats] = useState<Array<{ chatId: string; question: string }>>([]);
   const demoTimers = useRef<number[]>([]);
 
   const settingsQuery = useQuery({ queryKey: ["system-settings"], queryFn: fetchSystemSettings });
@@ -53,12 +55,13 @@ export function ChatPage() {
           setStreamStatus(event.status);
         },
       }),
-    onMutate: () => {
+    onMutate: (payload) => {
       clearDemoTimers(demoTimers.current);
       setActiveDemoTemplate(null);
       setDemoReport(null);
       setStreamDeltas([]);
       setStreamStatus("running");
+      setActiveStreamingChatId(payload.chatId ?? null);
     },
     onSuccess: async (response) => {
       setLatestResponse(response);
@@ -71,6 +74,16 @@ export function ChatPage() {
     },
     onError: (error) => {
       setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
+    },
+    onSettled: () => {
+      setActiveStreamingChatId(null);
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: stopChat,
+    onError: (error) => {
+      setErrorMessage(error instanceof Error ? error.message : "停止当前对话失败。");
     },
   });
 
@@ -154,7 +167,7 @@ export function ChatPage() {
     }
   }, [artifactReport, demoReport, reportAnswer, streamReport]);
 
-  const canSubmitQuestion = question.trim().length > 0 && !sendMutation.isPending;
+  const canSubmitQuestion = question.trim().length > 0;
   const visibleMessages = activeDemoTemplate ? [
     { key: `${activeDemoTemplate.id}-user`, role: "user", text: `生成演示报告：${activeDemoTemplate.name}` },
     { key: `${activeDemoTemplate.id}-assistant`, role: "assistant", text: streamStatus === "running" ? "正在使用 mock delta 构造报告，右侧预览会逐步更新。" : "演示报告已生成，可以在右侧预览或切换到本地编辑。" },
@@ -220,8 +233,33 @@ export function ChatPage() {
 
   const submitQuestion = useCallback(() => {
     if (!canSubmitQuestion) return;
-    sendMutation.mutate({ conversationId: activeConversationId || undefined, question: question.trim() });
+    const nextQuestion = question.trim();
+    const chatId = buildChatId();
+    if (sendMutation.isPending) {
+      setQueuedChats((current) => current.concat({ chatId, question: nextQuestion }));
+      setQuestion("");
+      return;
+    }
+    sendMutation.mutate({ conversationId: activeConversationId || undefined, chatId, question: nextQuestion });
   }, [activeConversationId, canSubmitQuestion, question, sendMutation]);
+
+  useEffect(() => {
+    if (sendMutation.isPending || !queuedChats.length) {
+      return;
+    }
+    const [next, ...rest] = queuedChats;
+    setQueuedChats(rest);
+    sendMutation.mutate({
+      conversationId: activeConversationId || latestResponse?.conversationId || undefined,
+      chatId: next.chatId,
+      question: next.question,
+    });
+  }, [activeConversationId, latestResponse?.conversationId, queuedChats, sendMutation]);
+
+  const stopCurrentChat = useCallback(() => {
+    if (!activeStreamingChatId) return;
+    stopMutation.mutate(activeStreamingChatId);
+  }, [activeStreamingChatId, stopMutation]);
 
   const startReportResize = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -285,7 +323,14 @@ export function ChatPage() {
             <button className="icon-button chat-thread__history-toggle" type="button" title={historyCollapsed ? "展开会话列表" : "收起会话列表"} aria-label={historyCollapsed ? "展开会话列表" : "收起会话列表"} onClick={() => setHistoryCollapsed((current) => !current)}>{historyCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}</button>
             <strong>{activeDemoTemplate?.name ?? conversationQuery.data?.title ?? "新对话"}</strong>
           </div>
-          {artifactReport ? <button className="icon-text-button" type="button" onClick={() => { setReportOpen(true); setWorkspaceMode("report"); }}><PanelRightOpen size={16} />报告</button> : null}
+          <div className="chat-thread__toolbar-actions">
+            {activeStreamingChatId ? (
+              <button className="secondary-button" type="button" disabled={stopMutation.isPending} onClick={stopCurrentChat}>
+                {stopMutation.isPending ? "停止中..." : "停止"}
+              </button>
+            ) : null}
+            {artifactReport ? <button className="icon-text-button" type="button" onClick={() => { setReportOpen(true); setWorkspaceMode("report"); }}><PanelRightOpen size={16} />报告</button> : null}
+          </div>
         </div>
 
         <div className="chat-thread__scroll">
@@ -355,6 +400,7 @@ export function ChatPage() {
         </div>
 
         <div className="chat-compose-dock">
+          {queuedChats.length ? <div className="chat-queue-status">排队中 {queuedChats.length} 条，当前回复结束后自动发送。</div> : null}
           <div className="chat-compose">
             <label className="sr-only" htmlFor="chat-input">输入问题</label>
             <textarea
@@ -625,6 +671,7 @@ function submitAskReply(
   const mergedParameters = mergeAskParameters(response.ask.parameters ?? [], parameterDrafts, dynamicOptions);
   mutate({
     conversationId: response.conversationId,
+    chatId: buildChatId(),
     instruction: "generate_report",
     reply: {
       type,

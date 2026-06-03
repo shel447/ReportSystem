@@ -357,6 +357,7 @@ def _report_segment_delta_event(answer: dict[str, object]) -> dict[str, object]:
     return {
         "action": "add_section",
         "structureType": "flow",
+        "parent": {"type": "section", "id": str(segment.get("sectionId") or section.get("id") or ""), "path": []},
         "sections": [
             {
                 "sectionId": str(segment.get("sectionId") or section.get("id") or ""),
@@ -382,6 +383,11 @@ def _catalog_delta_events(
                 "structureType": "flow",
                 "parentCatalogId": parent_catalog_id,
                 "parentCatalog": parent_catalog_path,
+                "parent": {
+                    "type": "report" if parent_catalog_id is None else "catalog",
+                    "id": parent_catalog_id,
+                    "path": parent_catalog_path,
+                },
                 "catalogs": [
                     {
                         "catalogId": str(catalog.get("id") or ""),
@@ -401,6 +407,7 @@ def _catalog_delta_events(
                     "structureType": "flow",
                     "parentCatalogId": str(catalog.get("id") or ""),
                     "parentCatalog": catalog_path,
+                    "parent": {"type": "catalog", "id": str(catalog.get("id") or ""), "path": catalog_path},
                     "sections": [
                         {
                             "sectionId": str(section.get("id") or ""),

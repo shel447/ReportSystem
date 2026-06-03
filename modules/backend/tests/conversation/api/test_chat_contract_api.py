@@ -37,7 +37,7 @@ from src.contexts.report.domain.template_models import OutlineDefinition
 from src.infrastructure.persistence.database import get_db
 from src.routers.chat import router as chat_router
 from src.shared.kernel.errors import ValidationError
-from src.shared.agentflow import FlowEvent
+from src.shared.agentflow import FlowEvent, FlowStep
 
 
 def _sample_template_instance(status: str = "ready_for_confirmation", capture_stage: str = "confirm_params"):
@@ -503,7 +503,7 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertIn('"action": "add_section"', body)
         self.assertIn('"sectionId": "section_1"', body)
 
-    def test_post_chat_stream_can_forward_runtime_events_with_run_id(self):
+    def test_post_chat_stream_can_forward_runtime_events_without_public_run_id(self):
         class FakeConversationService:
             def chat_stream(self, data, user_id):
                 yield FlowEvent(
@@ -522,12 +522,28 @@ class ChatContractApiTests(unittest.TestCase):
                     event_type="tool_call",
                     status="running",
                     tool_call={"id": "tool_001", "name": "onequery", "arguments": {"sql": "select 1"}},
+                    source_subflow={"type": "subflow", "alias": "analysis", "callId": "subflow_001"},
                 )
                 yield FlowEvent(
                     run_id="run_001",
                     conversation_id="conv_001",
                     chat_id="chat_001",
                     sequence=3,
+                    event_type="step_delta",
+                    status="running",
+                    step=FlowStep(
+                        code="report.compile",
+                        title="编译报告",
+                        status="running",
+                        parent_step_id="report.generate",
+                        step_path=["report", "compile"],
+                    ),
+                )
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=4,
                     event_type="checkpoint",
                     status="running",
                     checkpoint={"runId": "run_001", "sequence": 3, "reason": "after_tool"},
@@ -536,7 +552,7 @@ class ChatContractApiTests(unittest.TestCase):
                     run_id="run_001",
                     conversation_id="conv_001",
                     chat_id="chat_001",
-                    sequence=4,
+                    sequence=5,
                     event_type="answer",
                     status="finished",
                     answer={"answerType": "TEXT", "answer": {"text": "ok"}},
@@ -545,7 +561,7 @@ class ChatContractApiTests(unittest.TestCase):
                     run_id="run_001",
                     conversation_id="conv_001",
                     chat_id="chat_001",
-                    sequence=5,
+                    sequence=6,
                     event_type="done",
                     status="finished",
                 )
@@ -560,36 +576,36 @@ class ChatContractApiTests(unittest.TestCase):
                 body = "".join(response.iter_text())
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn('"runId": "run_001"', body)
+        self.assertNotIn('"runId"', body)
         self.assertIn('"conversationId": "conv_001"', body)
         self.assertIn('"eventType": "step_delta"', body)
         self.assertIn('"toolCall": {"id": "tool_001"', body)
-        self.assertIn('"checkpoint": {"runId": "run_001"', body)
+        self.assertIn('"sourceSubflow": {"type": "subflow"', body)
+        self.assertIn('"parentStepId": "report.generate"', body)
+        self.assertIn('"checkpoint": {"sequence": 3', body)
         self.assertIn('"answerType": "TEXT"', body)
 
-    def test_run_cancel_and_input_endpoints(self):
+    def test_stop_chat_endpoint_uses_chat_id_and_old_run_endpoints_are_removed(self):
         class FakeConversationService:
-            def cancel_run(self, run_id):
-                return run_id == "run_001"
-
-            def send_run_input(self, run_id, payload):
-                self.payload = payload
-                return run_id == "run_001"
+            def stop_chat(self, chat_id, user_id):
+                self.user_id = user_id
+                return chat_id == "chat_001"
 
         fake_service = FakeConversationService()
         with patch("src.routers.chat.build_conversation_service", return_value=fake_service):
-            cancel_response = self.client.post("/rest/chatbi/v1/chat/runs/run_001/cancel", headers={"X-User-Id": "default"})
-            input_response = self.client.post(
+            stop_response = self.client.post("/rest/chatbi/v1/chat/chat_001/stop", headers={"X-User-Id": "default"})
+            old_cancel_response = self.client.post("/rest/chatbi/v1/chat/runs/run_001/cancel", headers={"X-User-Id": "default"})
+            old_input_response = self.client.post(
                 "/rest/chatbi/v1/chat/runs/run_001/input",
                 headers={"X-User-Id": "default"},
                 json={"text": "继续", "payload": {"foo": "bar"}},
             )
 
-        self.assertEqual(cancel_response.status_code, 200)
-        self.assertEqual(cancel_response.json()["status"], "cancel_requested")
-        self.assertEqual(input_response.status_code, 200)
-        self.assertEqual(fake_service.payload["text"], "继续")
-        self.assertEqual(fake_service.payload["foo"], "bar")
+        self.assertEqual(stop_response.status_code, 200)
+        self.assertEqual(stop_response.json(), {"chatId": "chat_001", "status": "stop_requested"})
+        self.assertEqual(fake_service.user_id, "default")
+        self.assertEqual(old_cancel_response.status_code, 404)
+        self.assertEqual(old_input_response.status_code, 404)
 
 
 if __name__ == "__main__":

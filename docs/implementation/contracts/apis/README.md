@@ -60,8 +60,7 @@ X-User-Id: <external-user-id>
 | 参数候选项 | `POST /parameter-options/resolve` | 根据当前参数上下文解析动态候选项 |
 | 通用对话 | `GET /chat` | 查询会话列表 |
 | 通用对话 | `POST /chat` | 发送消息，支持 SSE 流式响应 |
-| 通用对话 | `POST /chat/runs/{runId}/cancel` | 取消仍在运行中的对话流程 |
-| 通用对话 | `POST /chat/runs/{runId}/input` | 向等待输入的运行中流程补充内容 |
+| 通用对话 | `POST /chat/{chatId}/stop` | 请求停止仍在运行中的当前轮对话 |
 | 通用对话 | `GET /chat/{conversationId}` | 获取会话详情 |
 | 通用对话 | `DELETE /chat/{conversationId}` | 暂未开放，返回 `501 capability_not_available` |
 | 通用对话 | `POST /chat/forks` | 暂未开放，返回 `501 capability_not_available` |
@@ -413,12 +412,14 @@ X-User-Id: <external-user-id>
 {
   "conversationId": "conv_001",
   "chatId": "chat_003",
-  "runId": "run_001",
   "eventType": "answer",
   "timestamp": 1713427200300,
   "status": "running",
   "step": {
+    "code": "report.dsl.compile",
     "stepId": "report.dsl.compile",
+    "parentStepId": "report.generate",
+    "stepPath": ["report", "generate", "compile"],
     "title": "编译报告内容",
     "status": "running"
   },
@@ -433,7 +434,6 @@ X-User-Id: <external-user-id>
 
 - `conversationId`：会话 id
 - `chatId`：当前轮 id
-- `runId`：运行中流程 id；仅由 Agent Flow 承载的长流程返回，普通同步响应可为空
 - `eventType`：事件类型，枚举为 `status | step_delta | ask | answer | error | done`
 - `timestamp`：事件时间戳
 - `status`：当前链路状态
@@ -445,6 +445,7 @@ X-User-Id: <external-user-id>
 - `toolCall` / `toolResult`：工具调用进展；仅出现在 `step_delta` 事件上
 - `checkpoint`：流程 checkpoint 记录；仅表示运行态保存点，不承诺服务重启恢复
 - `refusal`：拒答原因；通常与 `answer` 同时出现，状态为 `refused`
+- `sourceSubflow`：事件来自子流程时携带来源信息，包含 `alias/callId`
 
 最小字段集约束：
 
@@ -485,53 +486,47 @@ X-User-Id: <external-user-id>
 取消运行中流程：
 
 ```http
-POST /chat/runs/{runId}/cancel
+POST /chat/{chatId}/stop
 ```
 
 成功响应：
 
 ```json
 {
-  "runId": "run_001",
-  "status": "cancel_requested"
-}
-```
-
-向等待输入的流程补充内容：
-
-```http
-POST /chat/runs/{runId}/input
-```
-
-请求体：
-
-```json
-{
-  "text": "继续分析总部网络",
-  "payload": {
-    "scope": "hq-network"
-  }
-}
-```
-
-成功响应：
-
-```json
-{
-  "runId": "run_001",
-  "status": "input_accepted"
+  "chatId": "chat_003",
+  "status": "stop_requested"
 }
 ```
 
 约束：
 
-- `runId` 只在当前服务进程内有效，重启后不可恢复。
+- `chatId` 必须属于当前用户，并且该轮对话仍处于运行中；找不到、已完成或跨用户访问时返回错误且不泄漏资源归属。
 - 取消采用协作式信号，已发出的外部调用不保证被强制中断。
-- 已经持久化为 `ask` 的下一轮答复仍使用 `/chat reply.sourceChatId`；运行中等待输入优先使用 `runId/input`。
+- 运行中不提供“补充输入”接口。普通追加说明由前端排队，当前轮结束后通过 `POST /chat` 创建下一轮 `chat`。
+- 已经持久化为 `ask` 的结构化答复仍使用 `/chat reply.sourceChatId` 创建新一轮消息。
 
 ##### ChatResponse.step / steps 子结构
 
 流式 SSE 事件使用 `step` 表达单个执行进度；非 SSE 最终响应使用 `steps` 聚合本轮流程中已发出的进度。
+
+```json
+{
+  "code": "report.dsl.compile",
+  "stepId": "report.dsl.compile",
+  "parentStepId": "report.generate",
+  "stepPath": ["report", "generate", "compile"],
+  "title": "编译报告内容",
+  "status": "running",
+  "detail": "正在校验章节结构"
+}
+```
+
+规则：
+
+- `code` 与 `stepId` 当前双写同一稳定值；新消费方优先读取 `stepId`。
+- `parentStepId` 表示父步骤，用于前端树状进度展示。
+- `stepPath` 表示从根步骤到当前步骤的路径，适合日志、审计和跨子流程定位。
+- 子流程步骤会带命名空间，并通过 `sourceSubflow` 标识来源。
 
 ##### ChatResponse.ask 子结构
 
@@ -797,6 +792,11 @@ paged Report DSL 示例：
   },
   {
     "action": "add_catalog",
+    "parent": {
+      "type": "report",
+      "id": null,
+      "path": null
+    },
     "parentCatalogId": null,
     "parentCatalog": null,
     "catalogs": [
@@ -809,6 +809,11 @@ paged Report DSL 示例：
   {
     "action": "add_section",
     "structureType": "flow",
+    "parent": {
+      "type": "catalog",
+      "id": "catalog_1",
+      "path": [0]
+    },
     "parentCatalogId": "catalog_1",
     "parentCatalog": [0],
     "sections": [
@@ -836,6 +841,10 @@ paged Report DSL 示例：
   },
   {
     "action": "add_slide",
+    "parent": {
+      "type": "chapter",
+      "id": "chapter_overview"
+    },
     "chapterId": "chapter_overview",
     "slides": [
       {
@@ -850,6 +859,11 @@ paged Report DSL 示例：
   {
     "action": "add_section",
     "structureType": "paged",
+    "parent": {
+      "type": "slide",
+      "id": "slide_kpi_overview",
+      "path": ["chapter_overview", "slide_kpi_overview"]
+    },
     "chapterId": "chapter_overview",
     "slideId": "slide_kpi_overview",
     "sections": [
@@ -881,6 +895,7 @@ paged Report DSL 示例：
 - flow 继续使用 `add_catalog/add_section` 表达目录和章节增量
 - paged 新增 `add_chapter/add_slide` 表达 PPT 章节和页面增量，并复用 `add_section` 表达 slide 内 section 新增或内容更新
 - `action` 当前正式枚举为：`init_report | add_catalog | add_chapter | add_slide | add_section`
+- `parent` 是统一父引用，可用于新消费者定位增量所属层级；`type` 可为 `report | catalog | chapter | slide | section | subflow`，`id` 可为空表示根节点或无法可靠计算父级。
 - flow `add_catalog` 中，`parentCatalogId` 是稳定定位字段，`parentCatalog` 是目录路径辅助字段；`parentCatalogId = null`、`parentCatalog = null` 表示根目录层；`catalogs[*]` 最小字段为：`id`、`name`
 - flow `add_section` 中，`structureType` 固定为 `flow`，使用 `parentCatalogId/parentCatalog/sections` 定位所属目录；`sections[*]` 最小字段为：`id`、`status`、`requirement`，如已有组件可附带 `components`
 - paged `add_chapter` 使用 `chapters[*].id/title` 定位和展示 PPT 章节
@@ -889,6 +904,7 @@ paged Report DSL 示例：
 - `add_section` 是 flow 与 paged 共用动作名；消费方根据 `structureType` 区分 flow（使用 `parentCatalogId/parentCatalog` 定位）和 paged（使用 `chapterId/slideId` 定位）
 - `generate_report_segment` 场景下，`delta` 复用 `add_section` 动作；前端根据 `sections[*].id` 是否已存在于当前报告中区分"新增"与"替换"语义
 - `add_section` 在 `generate_report_segment` 中的最小字段与 `generate_report` 一致：`structureType`、`id`、`status`、`requirement`，如已有组件可附带 `components`
+- `generate_report_segment` 至少按 `sectionId` 提供 `parent = { "type": "section", "id": "<sectionId>" }`；若父目录无法可靠计算，不强行补写 `parentCatalogId`。
 
 ### 2.3 `/reports` 契约
 

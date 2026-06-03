@@ -7,6 +7,7 @@ from .hooks import HookContext, HookDecision
 from .prompts import PromptAssembler, PromptMessage, PromptTemplate
 from .runtime import FlowContext, FlowRun, InMemoryFlowRuntime
 from .patterns import ReactFlow, SequentialFlow
+from .subflows import SubflowEventPolicy, SubflowRegistry, SubflowSpec
 from .termination import FlowCancelled, FlowRefused, FlowTerminated
 from .tools import ToolCall, ToolRegistry, ToolResult, ToolSpec
 
@@ -32,6 +33,9 @@ __all__ = [
     "PromptTemplate",
     "ReactFlow",
     "SequentialFlow",
+    "SubflowEventPolicy",
+    "SubflowRegistry",
+    "SubflowSpec",
     "ToolCall",
     "ToolRegistry",
     "ToolResult",

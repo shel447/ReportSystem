@@ -29,6 +29,10 @@ export function sendChatMessage(payload: ChatRequest) {
   });
 }
 
+export function stopChat(chatId: string) {
+  return postJson<{ chatId: string; status: "stop_requested" }>(chatbiPath(`/chat/${encodeURIComponent(chatId)}/stop`), {});
+}
+
 export async function sendChatMessageStream(
   payload: ChatRequest,
   options: {
@@ -73,7 +77,7 @@ export async function sendChatMessageStream(
   return finalResponse;
 }
 
-function buildChatId() {
+export function buildChatId() {
   return `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
@@ -85,7 +89,6 @@ function createEmptyChatResponse(payload: Record<string, unknown>): ChatResponse
   return {
     conversationId: String(payload.conversationId ?? ""),
     chatId: String(payload.chatId ?? ""),
-    runId: null,
     status: "running",
     steps: [],
     ask: null,
@@ -100,9 +103,6 @@ function createEmptyChatResponse(payload: Record<string, unknown>): ChatResponse
 function applyStreamEvent(target: ChatResponse, event: ChatStreamEvent) {
   target.conversationId = event.conversationId;
   target.chatId = event.chatId;
-  if (event.runId !== undefined) {
-    target.runId = event.runId;
-  }
   target.status = event.status;
   target.timestamp = event.timestamp;
   if (event.ask !== undefined) {
@@ -115,7 +115,7 @@ function applyStreamEvent(target: ChatResponse, event: ChatStreamEvent) {
     target.steps = event.steps;
   }
   if (event.step !== undefined) {
-    target.steps = target.steps.concat(event.step);
+    target.steps = target.steps.concat(event.sourceSubflow ? { ...event.step, sourceSubflow: event.sourceSubflow } : event.step);
   }
 }
 

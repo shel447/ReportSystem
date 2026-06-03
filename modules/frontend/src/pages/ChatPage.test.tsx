@@ -159,6 +159,61 @@ describe("ChatPage", () => {
     expect(screen.getByText("BI Engine 演示")).toBeInTheDocument();
   });
 
+  it("queues a follow-up question while the current chat is still streaming", async () => {
+    let resolveFirstPost: ((value: unknown) => void) | null = null;
+    let postCount = 0;
+    const postedQuestions: string[] = [];
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/rest/dev/system-settings") {
+        return Promise.resolve(systemSettingsResponse());
+      }
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body));
+        postedQuestions.push(String(payload.question || ""));
+        postCount += 1;
+        if (postCount === 1) {
+          return new Promise((resolve) => {
+            resolveFirstPost = resolve;
+          });
+        }
+        return Promise.resolve(createSseResponse([
+          { conversationId: "conv_queue", chatId: payload.chatId, eventType: "status", sequence: 1, timestamp: 1, status: "running" },
+          { conversationId: "conv_queue", chatId: payload.chatId, eventType: "done", sequence: 2, timestamp: 2, status: "finished" },
+        ]));
+      }
+      if (url === "/rest/chatbi/v1/chat/conv_queue") {
+        return Promise.resolve({ ok: true, json: async () => ({ conversationId: "conv_queue", title: "队列测试", status: "active", messages: [] }) });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("输入问题"), { target: { value: "第一条" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(postCount).toBe(1));
+
+    fireEvent.change(screen.getByLabelText("输入问题"), { target: { value: "第二条" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(await screen.findByText(/排队中 1 条/)).toBeInTheDocument();
+    expect(postCount).toBe(1);
+
+    await act(async () => {
+      resolveFirstPost?.(createSseResponse([
+        { conversationId: "conv_queue", chatId: "chat_first", eventType: "status", sequence: 1, timestamp: 1, status: "running" },
+        { conversationId: "conv_queue", chatId: "chat_first", eventType: "done", sequence: 2, timestamp: 2, status: "finished" },
+      ]));
+    });
+
+    await waitFor(() => expect(postCount).toBe(2));
+    expect(postedQuestions).toEqual(["第一条", "第二条"]);
+  });
+
   it("renders stream deltas from the sse channel", async () => {
     const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       if (url === "/rest/dev/system-settings") {

@@ -4,7 +4,7 @@
 
 `contexts/conversation` 负责通用会话、追问/答复生命周期、场景注册、场景识别、场景分发、安全检查和 SSE 事件输出。会话事实源由 AgentCore 托管。它允许业务场景使用严格类型扩展载荷，但不定义报告模板、参数模型或 Report DSL。
 
-运行中流程由 `shared/agentflow` 承载。conversation 只负责启动流程、订阅事件，并把 `step_delta/delta/answer/error` 投影成 `/chat` 响应。
+运行中流程由 `shared/agentflow` 承载。conversation 只负责启动流程、订阅事件，并把 `step_delta/delta/answer/error` 投影成 `/chat` 响应。AgentFlow 内部 `runId` 不进入公开响应、SSE、前端类型或 API 契约。
 
 ## 2. 应用服务
 
@@ -16,7 +16,8 @@
 - 按 `reply.sourceChatId` 精确消费一条 `pending` 追问，并将其状态更新为 `replied`。
 - 对同步场景直接返回 `ChatResponse`。
 - 对 Flow 场景启动 `InMemoryFlowRuntime`，按顺序输出 `status / step_delta / delta / ask / answer / error / done`。
-- 接收运行中的取消和补充输入信号，并转发给 `shared/agentflow`。
+- 接收运行中的 `chatId` 停止请求，并通过内部 `chatId -> runId` 索引转发给 `shared/agentflow`。
+- 普通运行中追加输入由前端本地排队，当前轮结束后再通过 `/chat` 创建新轮次；conversation 首版不维护服务端队列表。
 - 将显式 instruction 或识别出的业务场景分发到对应场景 handler。
 
 ## 3. 场景注册、识别和分发

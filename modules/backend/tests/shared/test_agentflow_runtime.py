@@ -110,3 +110,24 @@ def test_cancel_signal_stops_cooperative_node():
     events = list(runtime.iter_events(run.run_id))
 
     assert any(event.status == "cancelled" for event in events)
+
+
+def test_cancel_by_chat_requires_matching_user():
+    runtime = InMemoryFlowRuntime()
+
+    def slow_node(context):
+        while True:
+            context.check_cancelled()
+            time.sleep(0.01)
+
+    run = runtime.start(
+        SequentialFlow(FlowNode(id="slow", handler=slow_node)).to_graph(),
+        state={"chat_id": "chat_001", "user_id": "user_a"},
+    )
+    time.sleep(0.05)
+
+    assert not runtime.cancel_by_chat("chat_001", user_id="user_b")
+    assert runtime.cancel_by_chat("chat_001", user_id="user_a")
+    events = list(runtime.iter_events(run.run_id))
+
+    assert any(event.status == "cancelled" for event in events)

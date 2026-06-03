@@ -7,6 +7,9 @@ from src.shared.agentflow import (
     PromptMessage,
     PromptTemplate,
     SequentialFlow,
+    SubflowEventPolicy,
+    SubflowRegistry,
+    SubflowSpec,
     ToolRegistry,
     ToolSpec,
 )
@@ -136,3 +139,65 @@ def test_dynamic_edge_cannot_target_completed_node():
     )
 
     assert any(event.event_type == "error" and "completed node" in event.error for event in events)
+
+
+def test_subflow_events_are_namespaced_and_do_not_override_parent_answer():
+    def build_child(arguments):
+        def child_node(context):
+            context.emit_step(
+                code="query",
+                title="执行查询",
+                status="running",
+                parent_step_id="analysis",
+                step_path=["analysis", "query"],
+            )
+            context.emit_delta({"action": "add_section", "sections": [{"sectionId": arguments["sectionId"]}]})
+            context.emit_answer({"answerType": "CHILD", "answer": {"value": arguments["sectionId"]}})
+
+        return SequentialFlow(FlowNode(id="child", handler=child_node)).to_graph()
+
+    registry = SubflowRegistry([SubflowSpec(name="section_analysis", build_graph=build_child)])
+    runtime = InMemoryFlowRuntime(subflow_registry=registry)
+
+    def parent_node(context):
+        result = context.call_subflow("section_analysis", {"sectionId": "section_1"}, alias="analysis_a")
+        context.state["child_answer"] = result
+        context.emit_answer({"answerType": "PARENT", "answer": {"value": "ok"}})
+
+    events = runtime.run_sync(SequentialFlow(FlowNode(id="parent", handler=parent_node)).to_graph())
+
+    assert any(event.step and event.step.code == "analysis_a.child" for event in events)
+    assert any(event.source_subflow and event.source_subflow["alias"] == "analysis_a" for event in events)
+    assert any(
+        event.event_type == "delta"
+        and event.delta
+        and event.delta[0].get("source", {}).get("alias") == "analysis_a"
+        for event in events
+    )
+    assert any(
+        event.event_type == "delta"
+        and event.delta
+        and event.delta[0].get("action") == "subflow_result"
+        for event in events
+    )
+    assert any(event.event_type == "answer" and event.answer["answerType"] == "PARENT" for event in events)
+    assert not any(event.event_type == "answer" and event.answer["answerType"] == "CHILD" for event in events)
+
+
+def test_subflow_can_bubble_answer_when_explicitly_enabled():
+    def build_child(arguments):
+        def child_node(context):
+            context.emit_answer({"answerType": "CHILD", "answer": dict(arguments)})
+
+        return SequentialFlow(FlowNode(id="child", handler=child_node)).to_graph()
+
+    runtime = InMemoryFlowRuntime(
+        subflow_registry=SubflowRegistry([SubflowSpec(name="child", build_graph=build_child)])
+    )
+
+    def parent_node(context):
+        context.call_subflow("child", {"value": "ok"}, event_policy=SubflowEventPolicy(bubble_answer=True))
+
+    events = runtime.run_sync(SequentialFlow(FlowNode(id="parent", handler=parent_node)).to_graph())
+
+    assert any(event.event_type == "answer" and event.answer["answerType"] == "CHILD" for event in events)

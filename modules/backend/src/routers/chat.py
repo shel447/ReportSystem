@@ -54,11 +54,6 @@ class ChatForkRequest(BaseModel):
     source_chat_id: Optional[str] = None
 
 
-class RunInputRequest(BaseModel):
-    text: Optional[str] = None
-    payload: dict[str, Any] = {}
-
-
 @router.get("")
 def list_sessions(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)):
     return [session_summary_to_dict(item) for item in build_conversation_service(db).list_sessions(user_id=user_id)]
@@ -90,34 +85,16 @@ def chat(
     return chat_response_to_dict(payload)
 
 
-@router.post("/runs/{run_id}/cancel")
-def cancel_run(
-    run_id: str,
+@router.post("/{chat_id}/stop")
+def stop_chat(
+    chat_id: str,
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    _ = user_id
-    ok = build_conversation_service(db).cancel_run(run_id=run_id)
+    ok = build_conversation_service(db).stop_chat(chat_id=chat_id, user_id=user_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Flow run not found")
-    return {"runId": run_id, "status": "cancel_requested"}
-
-
-@router.post("/runs/{run_id}/input")
-def send_run_input(
-    run_id: str,
-    data: RunInputRequest,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    _ = user_id
-    payload = dict(data.payload or {})
-    if data.text is not None:
-        payload["text"] = data.text
-    ok = build_conversation_service(db).send_run_input(run_id=run_id, payload=payload)
-    if not ok:
-        raise HTTPException(status_code=404, detail="Flow run not found")
-    return {"runId": run_id, "status": "input_accepted"}
+        raise HTTPException(status_code=404, detail="Running chat not found")
+    return {"chatId": chat_id, "status": "stop_requested"}
 
 
 @router.get("/{conversation_id}")
@@ -198,7 +175,6 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "conversationId": event.conversation_id or "",
         "chatId": event.chat_id or "",
-        "runId": event.run_id,
         "eventType": public_event_type,
         "sequence": event.sequence,
         "timestamp": int(time.time() * 1000),
@@ -207,9 +183,12 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
     if event.step is not None:
         payload["step"] = {
             "code": event.step.code,
+            "stepId": event.step.code,
             "title": event.step.title,
             "status": event.step.status,
             "detail": event.step.detail,
+            "parentStepId": event.step.parent_step_id,
+            "stepPath": list(event.step.step_path),
         }
     if event.delta:
         payload["delta"] = list(event.delta)
@@ -226,7 +205,9 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
     if event.refusal is not None:
         payload["refusal"] = event.refusal
     if event.checkpoint is not None:
-        payload["checkpoint"] = event.checkpoint
+        payload["checkpoint"] = {key: value for key, value in event.checkpoint.items() if key != "runId"}
+    if event.source_subflow is not None:
+        payload["sourceSubflow"] = event.source_subflow
     return payload
 
 
@@ -303,6 +284,7 @@ def _report_segment_delta_event(answer: dict[str, Any]) -> dict[str, Any]:
     return {
         "action": "add_section",
         "structureType": "flow",
+        "parent": {"type": "section", "id": str(segment.get("sectionId") or section.get("id") or ""), "path": []},
         "sections": [
             {
                 "sectionId": str(segment.get("sectionId") or section.get("id") or ""),
@@ -328,6 +310,11 @@ def _catalog_delta_events(
                 "structureType": "flow",
                 "parentCatalogId": parent_catalog_id,
                 "parentCatalog": parent_catalog_path,
+                "parent": {
+                    "type": "report" if parent_catalog_id is None else "catalog",
+                    "id": parent_catalog_id,
+                    "path": parent_catalog_path,
+                },
                 "catalogs": [
                     {
                         "catalogId": str(catalog.get("id") or ""),
@@ -348,6 +335,7 @@ def _catalog_delta_events(
                     "structureType": "flow",
                     "parentCatalogId": str(catalog.get("id") or ""),
                     "parentCatalog": catalog_path,
+                    "parent": {"type": "catalog", "id": str(catalog.get("id") or ""), "path": catalog_path},
                     "sections": [
                         {
                             "sectionId": str(section.get("id") or ""),

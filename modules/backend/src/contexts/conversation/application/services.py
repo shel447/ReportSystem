@@ -160,6 +160,7 @@ class ConversationService:
                 conversation_id=conversation_id,
                 chat_id=hosted_chat.chat_id,
                 result=result,
+                user_id=user_id,
             )
         else:
             response = _response_from_scenario_result(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, result=result)
@@ -237,7 +238,10 @@ class ConversationService:
             yield from _events_from_response(response)
             return
 
-        run = self.flow_runtime.start(result.flow, state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id})
+        run = self.flow_runtime.start(
+            result.flow,
+            state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id, "user_id": user_id},
+        )
         events: list[FlowEvent] = []
         for event in self.flow_runtime.iter_events(run.run_id):
             events.append(event)
@@ -269,14 +273,19 @@ class ConversationService:
             )
         )
 
-    def cancel_run(self, *, run_id: str) -> bool:
-        return self.flow_runtime.cancel(run_id)
+    def stop_chat(self, *, chat_id: str, user_id: str) -> bool:
+        return self.flow_runtime.cancel_by_chat(chat_id, user_id=user_id)
 
-    def send_run_input(self, *, run_id: str, payload: dict[str, object]) -> bool:
-        return self.flow_runtime.send_input(run_id, payload)
-
-    def _run_flow_to_response(self, *, data: ChatCommand, conversation_id: str, chat_id: str, result: ScenarioResult) -> ChatResponse:
-        run = self.flow_runtime.start(result.flow, state={"conversation_id": conversation_id, "chat_id": chat_id})
+    def _run_flow_to_response(
+        self,
+        *,
+        data: ChatCommand,
+        conversation_id: str,
+        chat_id: str,
+        result: ScenarioResult,
+        user_id: str,
+    ) -> ChatResponse:
+        run = self.flow_runtime.start(result.flow, state={"conversation_id": conversation_id, "chat_id": chat_id, "user_id": user_id})
         events = list(self.flow_runtime.iter_events(run.run_id))
         return _response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=chat_id, events=events)
 
@@ -397,7 +406,6 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
         conversation_id=conversation_id,
         chat_id=chat_id,
         status=result.status,
-        run_id=None,
         ask=ask,
         answer=answer,
         errors=[],
@@ -412,7 +420,6 @@ def _response_from_flow_events(*, data: ChatCommand, conversation_id: str, chat_
     last_ask = next((item.ask for item in reversed(events) if item.ask), None)
     last_error = next((item.error for item in reversed(events) if item.error), None)
     last_status = next((item.status for item in reversed(events) if item.event_type in {"answer", "ask", "error", "done"}), "finished")
-    run_id = next((item.run_id for item in events if item.run_id), None)
     ask = None
     if isinstance(last_ask, dict):
         ask = ChatAsk(
@@ -432,10 +439,16 @@ def _response_from_flow_events(*, data: ChatCommand, conversation_id: str, chat_
     return ChatResponse(
         conversation_id=conversation_id,
         chat_id=chat_id,
-        run_id=run_id,
         status=str(last_status or "finished"),
         steps=[
-            ChatStep(code=item.step.code, status=item.step.status)
+            ChatStep(
+                code=item.step.code,
+                status=item.step.status,
+                title=item.step.title,
+                detail=item.step.detail,
+                parent_step_id=item.step.parent_step_id,
+                step_path=list(item.step.step_path),
+            )
             for item in events
             if item.step is not None and item.event_type == "step_delta"
         ],
@@ -450,7 +463,7 @@ def _response_from_flow_events(*, data: ChatCommand, conversation_id: str, chat_
 
 def _events_from_response(response: ChatResponse) -> list[FlowEvent]:
     sequence = 1
-    run_id = response.run_id or ""
+    run_id = ""
     events: list[FlowEvent] = [
         FlowEvent(run_id=run_id, sequence=sequence, event_type="status", status=response.status),
     ]
@@ -462,7 +475,14 @@ def _events_from_response(response: ChatResponse) -> list[FlowEvent]:
                 sequence=sequence,
                 event_type="step_delta",
                 status=step.status,
-                step=FlowStep(code=step.code, status=step.status),
+                step=FlowStep(
+                    code=step.code,
+                    title=step.title,
+                    status=step.status,
+                    detail=step.detail,
+                    parent_step_id=step.parent_step_id,
+                    step_path=list(step.step_path),
+                ),
             )
         )
         sequence += 1

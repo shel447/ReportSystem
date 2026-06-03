@@ -5,6 +5,7 @@ from __future__ import annotations
 import queue
 import threading
 import uuid
+import copy
 from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
@@ -13,6 +14,7 @@ from .events import FlowEvent, FlowSignal, FlowStep
 from .graph import FlowEdge, FlowGraph, FlowNode
 from .hooks import FlowHook, HookContext, HookDecision
 from .prompts import PromptAssembler, PromptMessage, PromptTemplate
+from .subflows import SubflowEventPolicy, SubflowRegistry
 from .termination import FlowCancelled, FlowRefused, FlowTerminated
 from .tools import ToolCall, ToolRegistry
 
@@ -54,12 +56,21 @@ class FlowContext:
     def emit_status(self, *, status: str = "running") -> FlowEvent:
         return self.runtime.emit(self.run, event_type="status", status=status)
 
-    def emit_step(self, *, code: str, title: str | None = None, status: str = "running", detail: str | None = None) -> FlowEvent:
+    def emit_step(
+        self,
+        *,
+        code: str,
+        title: str | None = None,
+        status: str = "running",
+        detail: str | None = None,
+        parent_step_id: str | None = None,
+        step_path: list[str] | None = None,
+    ) -> FlowEvent:
         return self.runtime.emit(
             self.run,
             event_type="step_delta",
             status=status,
-            step=FlowStep(code=code, title=title, status=status, detail=detail),
+            step=FlowStep(code=code, title=title, status=status, detail=detail, parent_step_id=parent_step_id, step_path=list(step_path or [])),
         )
 
     def emit_delta(self, delta: dict[str, Any] | list[dict[str, Any]], *, status: str = "running") -> FlowEvent:
@@ -87,6 +98,16 @@ class FlowContext:
 
     def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
         return self.runtime.call_tool(self, name=name, arguments=dict(arguments or {}))
+
+    def call_subflow(
+        self,
+        name: str,
+        arguments: dict[str, Any] | None = None,
+        *,
+        alias: str | None = None,
+        event_policy: SubflowEventPolicy | None = None,
+    ) -> Any:
+        return self.runtime.call_subflow(self, name=name, arguments=dict(arguments or {}), alias=alias, event_policy=event_policy)
 
     def render_prompt(self, template: PromptTemplate, variables: dict[str, Any]) -> list[PromptMessage]:
         return self.runtime.prompt_assembler.render(template, variables)
@@ -134,13 +155,16 @@ class InMemoryFlowRuntime:
         checkpoint_saver: CheckpointSaver | None = None,
         tool_registry: ToolRegistry | None = None,
         prompt_assembler: PromptAssembler | None = None,
+        subflow_registry: SubflowRegistry | None = None,
         hooks: list[FlowHook] | None = None,
     ) -> None:
         self._runs: dict[str, FlowRun] = {}
+        self._chat_index: dict[str, str] = {}
         self._lock = threading.RLock()
         self.checkpoint_saver = checkpoint_saver or InMemoryCheckpointSaver()
         self.tool_registry = tool_registry or ToolRegistry()
         self.prompt_assembler = prompt_assembler or PromptAssembler()
+        self.subflow_registry = subflow_registry or SubflowRegistry()
         self.hooks = list(hooks or [])
 
     def start(self, graph: FlowGraph, *, state: dict[str, Any] | None = None) -> FlowRun:
@@ -150,6 +174,9 @@ class InMemoryFlowRuntime:
         run.thread = thread
         with self._lock:
             self._runs[run.run_id] = run
+            chat_id = str(run.state.get("chat_id") or "")
+            if chat_id:
+                self._chat_index[chat_id] = run.run_id
         thread.start()
         return run
 
@@ -168,6 +195,16 @@ class InMemoryFlowRuntime:
         run.cancel_requested.set()
         run.inputs.put(FlowSignal(type="cancel"))
         return True
+
+    def cancel_by_chat(self, chat_id: str, *, user_id: str | None = None) -> bool:
+        with self._lock:
+            run_id = self._chat_index.get(chat_id)
+            run = self._runs.get(run_id or "")
+            if run is None or run.done.is_set():
+                return False
+            if user_id is not None and str(run.state.get("user_id") or "") != user_id:
+                return False
+        return self.cancel(run.run_id)
 
     def send_input(self, run_id: str, payload: dict[str, Any]) -> bool:
         run = self.get(run_id)
@@ -202,6 +239,7 @@ class InMemoryFlowRuntime:
         tool_result: dict[str, Any] | None = None,
         refusal: dict[str, Any] | None = None,
         checkpoint: dict[str, Any] | None = None,
+        source_subflow: dict[str, Any] | None = None,
     ) -> FlowEvent:
         with self._lock:
             run.sequence += 1
@@ -221,6 +259,7 @@ class InMemoryFlowRuntime:
                 tool_result=tool_result,
                 refusal=refusal,
                 checkpoint=checkpoint,
+                source_subflow=source_subflow,
             )
             if event_type in {"ask", "answer", "error", "done"}:
                 run.final_event = event
@@ -240,7 +279,6 @@ class InMemoryFlowRuntime:
             event_type="checkpoint",
             status="running",
             checkpoint={
-                "runId": checkpoint.run_id,
                 "sequence": checkpoint.sequence,
                 "nodeId": checkpoint.node_id,
                 "reason": checkpoint.reason,
@@ -259,6 +297,88 @@ class InMemoryFlowRuntime:
         if result.error:
             raise RuntimeError(result.error)
         return result.output
+
+    def call_subflow(
+        self,
+        context: FlowContext,
+        *,
+        name: str,
+        arguments: dict[str, Any],
+        alias: str | None = None,
+        event_policy: SubflowEventPolicy | None = None,
+    ) -> Any:
+        spec = self.subflow_registry.get(name)
+        policy = event_policy or spec.event_policy
+        subflow_alias = alias or name
+        call_id = f"subflow_{uuid.uuid4().hex[:12]}"
+        child_run = FlowRun(
+            run_id=f"run_{uuid.uuid4().hex[:16]}",
+            graph=spec.build_graph(dict(arguments)),
+            state={**copy.deepcopy(context.state), "subflow_alias": subflow_alias, "subflow_call_id": call_id},
+            cancel_requested=context.run.cancel_requested,
+        )
+        child_context = FlowContext(run=child_run, runtime=self, state=child_run.state)
+        original_events = child_run.events
+        child_run.events = queue.Queue()
+        try:
+            self._execute_graph(child_run.graph, child_context)
+        except Exception as exc:
+            if policy.error_policy == "capture":
+                context.state.setdefault("subflows", {})[subflow_alias] = {"error": str(exc)}
+                return {"error": str(exc)}
+            raise
+        finally:
+            child_events = list(child_run.events.queue)
+            child_run.events = original_events
+        last_answer = None
+        for event in child_events:
+            if event.event_type == "done":
+                continue
+            self._map_subflow_event(context.run, event, alias=subflow_alias, call_id=call_id, bubble_answer=policy.bubble_answer)
+            if event.answer is not None:
+                last_answer = event.answer
+        context.state.setdefault("subflows", {})[subflow_alias] = {"callId": call_id, "answer": last_answer}
+        return last_answer
+
+    def _map_subflow_event(self, parent_run: FlowRun, child_event: FlowEvent, *, alias: str, call_id: str, bubble_answer: bool) -> FlowEvent | None:
+        source = {"type": "subflow", "alias": alias, "callId": call_id}
+        event_type = child_event.event_type
+        answer = child_event.answer
+        delta = [self._with_subflow_source(item, source) for item in child_event.delta]
+        if event_type == "answer" and not bubble_answer:
+            event_type = "delta"
+            delta = [{"action": "subflow_result", "source": source, "answer": answer}]
+            answer = None
+        step = child_event.step
+        if step is not None:
+            step = FlowStep(
+                code=f"{alias}.{step.code}",
+                title=step.title,
+                status=step.status,
+                detail=step.detail,
+                parent_step_id=f"{alias}.{step.parent_step_id}" if step.parent_step_id else None,
+                step_path=[alias, *step.step_path],
+            )
+        return self.emit(
+            parent_run,
+            event_type=event_type,
+            status=child_event.status,
+            step=step,
+            delta=delta,
+            answer=answer,
+            ask=child_event.ask,
+            error=child_event.error,
+            tool_call=child_event.tool_call,
+            tool_result=child_event.tool_result,
+            refusal=child_event.refusal,
+            checkpoint=child_event.checkpoint,
+            source_subflow=source,
+        )
+
+    def _with_subflow_source(self, payload: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
+        copied = dict(payload)
+        copied["source"] = source
+        return copied
 
     def add_node(self, run: FlowRun, node: FlowNode) -> None:
         with self._lock:

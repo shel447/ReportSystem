@@ -92,6 +92,10 @@ class ChatStep:
 
     code: str
     status: str
+    title: str | None = None
+    detail: str | None = None
+    parent_step_id: str | None = None
+    step_path: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -101,7 +105,6 @@ class ChatResponse:
     conversation_id: str
     chat_id: str
     status: str
-    run_id: str | None = None
     steps: list[ChatStep] = field(default_factory=list)
     ask: ChatAsk | None = None
     answer: ChatAnswerEnvelope | None = None
@@ -193,9 +196,19 @@ def chat_response_to_dict(response: ChatResponse) -> dict[str, object]:
     return {
         "conversationId": response.conversation_id,
         "chatId": response.chat_id,
-        "runId": response.run_id,
         "status": response.status,
-        "steps": [{"code": item.code, "status": item.status} for item in response.steps],
+        "steps": [
+            {
+                "code": item.code,
+                "stepId": item.code,
+                "status": item.status,
+                "title": item.title,
+                "detail": item.detail,
+                "parentStepId": item.parent_step_id,
+                "stepPath": list(item.step_path),
+            }
+            for item in response.steps
+        ],
         "ask": chat_ask_to_dict(response.ask) if response.ask is not None else None,
         "answer": chat_answer_to_dict(response.answer) if response.answer is not None else None,
         "errors": list(response.errors),
