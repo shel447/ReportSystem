@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..contexts.conversation.application.services import ConversationService
 from ..contexts.conversation.application.scenarios import ScenarioDispatchService, ScenarioRegistry
+from ..shared.agentflow import InMemoryFlowRuntime
 from ..contexts.conversation.infrastructure.agentcore import ExternalConversationHistoryGateway
 from ..contexts.conversation.infrastructure.guardrail import ExternalGuardrailGateway
 from ..contexts.data_analysis.application.services import DataAnalysisService, DataQueryService
@@ -44,6 +45,8 @@ from .platform.runtime import audit_dispatcher, build_platform_client
 from .settings.system_settings import build_completion_provider_config, build_embedding_provider_config
 from .scenarios.report_conversation import report_scenario_registration
 from .scenarios.data_analysis_conversation import data_analysis_scenario_registration
+
+_FLOW_RUNTIME = InMemoryFlowRuntime()
 def _build_platform_client(*, service_key: str | None = None) -> PlatformHttpClient:
     return build_platform_client(service_key=service_key)
 
@@ -143,5 +146,6 @@ def build_conversation_service(db: Session) -> ConversationService:
         history_gateway=ExternalConversationHistoryGateway(client=_build_platform_client(service_key="agentcore")),
         guardrail_gateway=_build_guardrail_gateway(),
         scenario_dispatcher=ScenarioDispatchService(registry=registry),
+        flow_runtime=_FLOW_RUNTIME,
         audit_dispatcher=audit_dispatcher,
     )

@@ -37,6 +37,7 @@ from src.contexts.report.domain.template_models import OutlineDefinition
 from src.infrastructure.persistence.database import get_db
 from src.routers.chat import router as chat_router
 from src.shared.kernel.errors import ValidationError
+from src.shared.agentflow import FlowEvent
 
 
 def _sample_template_instance(status: str = "ready_for_confirmation", capture_stage: str = "confirm_params"):
@@ -501,6 +502,73 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertIn('"answerType": "REPORT_SEGMENT"', body)
         self.assertIn('"action": "add_section"', body)
         self.assertIn('"sectionId": "section_1"', body)
+
+    def test_post_chat_stream_can_forward_runtime_events_with_run_id(self):
+        class FakeConversationService:
+            def chat_stream(self, data, user_id):
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=1,
+                    event_type="status",
+                    status="running",
+                )
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=2,
+                    event_type="answer",
+                    status="finished",
+                    answer={"answerType": "TEXT", "answer": {"text": "ok"}},
+                )
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=3,
+                    event_type="done",
+                    status="finished",
+                )
+
+        with patch("src.routers.chat.build_conversation_service", return_value=FakeConversationService()):
+            with self.client.stream(
+                "POST",
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default", "Accept": "text/event-stream"},
+                json={"conversationId": "conv_001", "chatId": "chat_001", "question": "你好"},
+            ) as response:
+                body = "".join(response.iter_text())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"runId": "run_001"', body)
+        self.assertIn('"conversationId": "conv_001"', body)
+        self.assertIn('"answerType": "TEXT"', body)
+
+    def test_run_cancel_and_input_endpoints(self):
+        class FakeConversationService:
+            def cancel_run(self, run_id):
+                return run_id == "run_001"
+
+            def send_run_input(self, run_id, payload):
+                self.payload = payload
+                return run_id == "run_001"
+
+        fake_service = FakeConversationService()
+        with patch("src.routers.chat.build_conversation_service", return_value=fake_service):
+            cancel_response = self.client.post("/rest/chatbi/v1/chat/runs/run_001/cancel", headers={"X-User-Id": "default"})
+            input_response = self.client.post(
+                "/rest/chatbi/v1/chat/runs/run_001/input",
+                headers={"X-User-Id": "default"},
+                json={"text": "继续", "payload": {"foo": "bar"}},
+            )
+
+        self.assertEqual(cancel_response.status_code, 200)
+        self.assertEqual(cancel_response.json()["status"], "cancel_requested")
+        self.assertEqual(input_response.status_code, 200)
+        self.assertEqual(fake_service.payload["text"], "继续")
+        self.assertEqual(fake_service.payload["foo"], "bar")
 
 
 if __name__ == "__main__":

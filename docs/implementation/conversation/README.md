@@ -4,6 +4,8 @@
 
 `contexts/conversation` 负责通用会话、追问/答复生命周期、场景注册、场景识别、场景分发、安全检查和 SSE 事件输出。会话事实源由 AgentCore 托管。它允许业务场景使用严格类型扩展载荷，但不定义报告模板、参数模型或 Report DSL。
 
+运行中流程由 `shared/agentflow` 承载。conversation 只负责启动流程、订阅事件，并把 `step_delta/delta/answer/error` 投影成 `/chat` 响应。
+
 ## 2. 应用服务
 
 `ConversationService` 负责：
@@ -12,7 +14,9 @@
 - 使用 `chat/import` 的 upsert 语义更新已消费追问。
 - 创建 `ChatContext`，承载当前会话、消息、用户、instruction、问题、答复和请求元信息。
 - 按 `reply.sourceChatId` 精确消费一条 `pending` 追问，并将其状态更新为 `replied`。
-- 按顺序输出 `status / step_delta / delta / answer / done`。
+- 对同步场景直接返回 `ChatResponse`。
+- 对 Flow 场景启动 `InMemoryFlowRuntime`，按顺序输出 `status / step_delta / delta / ask / answer / error / done`。
+- 接收运行中的取消和补充输入信号，并转发给 `shared/agentflow`。
 - 将显式 instruction 或识别出的业务场景分发到对应场景 handler。
 
 ## 3. 场景注册、识别和分发
@@ -38,7 +42,18 @@
 
 第一版识别器不调用外部模型；后续可通过语义匹配接口接入 embedding 或 LLM。报告场景通过系统装配层的 codec 和 handler 注册，参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report-generation/README.md)。
 
-## 4. 上下文与严格模型
+场景 handler 可以返回一次性 `ScenarioResult`，也可以返回 Flow。返回 Flow 时，conversation 不理解业务节点，只消费公共事件。
+
+## 4. Agent Flow 边界
+
+`shared/agentflow` 分为两层：
+
+- low level：`FlowGraph / FlowNode / FlowEdge / FlowContext`，表达顺序、条件边、循环、并行分支、汇合和 human-in-loop 节点。
+- high level：`SequentialFlow` 和 `ReactFlow`，用于快速组织常见 agent 流程。
+
+首版运行态只保存在内存中，不做数据库 checkpoint。取消采用协作式信号，节点和外部调用边界主动检查后停止，不强制杀死底层线程或 HTTP 请求。
+
+## 5. 上下文与严格模型
 
 `ChatContext` 只包含所有场景都能理解的公共信息：
 
@@ -54,7 +69,7 @@
 
 `ChatContext` 不持有 `Parameter`、`TemplateInstance` 或 `ReportDsl`。未来智能问数等场景应定义自己的严格 ask/reply 扩展，并复用相同的追问生命周期。
 
-## 5. 持久化边界
+## 6. 持久化边界
 
 - AgentCore 是会话和轮次的唯一事实源。
 - `chat/import` 保存完整 `ChatResp` 与 `meta.scenario`，用于恢复场景轨迹。
@@ -63,7 +78,7 @@
 - 正式业务请求必须携带由上游网关注入的非空 `X-User-Id`；conversation 不维护用户资料。
 - 报告实例只记录来源会话和来源消息，不由会话表反向维护单一报告宿主字段。
 
-## 6. 明确不做
+## 7. 明确不做
 
 - 不直接读写模板仓储。
 - 不提取或判断报告参数。

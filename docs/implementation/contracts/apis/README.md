@@ -60,6 +60,8 @@ X-User-Id: <external-user-id>
 | 参数候选项 | `POST /parameter-options/resolve` | 根据当前参数上下文解析动态候选项 |
 | 通用对话 | `GET /chat` | 查询会话列表 |
 | 通用对话 | `POST /chat` | 发送消息，支持 SSE 流式响应 |
+| 通用对话 | `POST /chat/runs/{runId}/cancel` | 取消仍在运行中的对话流程 |
+| 通用对话 | `POST /chat/runs/{runId}/input` | 向等待输入的运行中流程补充内容 |
 | 通用对话 | `GET /chat/{conversationId}` | 获取会话详情 |
 | 通用对话 | `DELETE /chat/{conversationId}` | 暂未开放，返回 `501 capability_not_available` |
 | 通用对话 | `POST /chat/forks` | 暂未开放，返回 `501 capability_not_available` |
@@ -405,16 +407,21 @@ X-User-Id: <external-user-id>
 
 ##### ChatResponse（事件包络）
 
-`POST /chat` 是流式接口，每个 SSE 事件都是一个 `ChatResponse`。
+`POST /chat` 支持 SSE 流式响应。每个 SSE 事件都是一个事件包络；非 SSE 调用会把流程事件聚合为最终 `ChatResponse`。
 
 ```json
 {
   "conversationId": "conv_001",
   "chatId": "chat_003",
+  "runId": "run_001",
   "eventType": "answer",
   "timestamp": 1713427200300,
   "status": "running",
-  "steps": [],
+  "step": {
+    "stepId": "report.dsl.compile",
+    "title": "编译报告内容",
+    "status": "running"
+  },
   "delta": [],
   "ask": {},
   "answer": null,
@@ -426,10 +433,11 @@ X-User-Id: <external-user-id>
 
 - `conversationId`：会话 id
 - `chatId`：当前轮 id
+- `runId`：运行中流程 id；仅由 Agent Flow 承载的长流程返回，普通同步响应可为空
 - `eventType`：事件类型，枚举为 `status | step_delta | ask | answer | error | done`
 - `timestamp`：事件时间戳
 - `status`：当前链路状态
-- `steps`：执行进度（详见 ChatResponse.steps 子结构）
+- `step`：单个流式进度事件（详见 ChatResponse.step / steps 子结构）
 - `delta`：报告内容增量变更（详见 ChatResponse.delta 子结构）
 - `ask`：追问载荷（详见 ChatResponse.ask 子结构）
 - `answer`：最终结果（详见 ChatResponse.answer 子结构）
@@ -464,9 +472,58 @@ X-User-Id: <external-user-id>
   - 先发 `error`
   - 最后仍应发 `done`
 
-##### ChatResponse.steps 子结构
+##### 运行中协作接口
 
-`steps` 是 `ChatResponse` 的子字段，表达当前执行进度。
+取消运行中流程：
+
+```http
+POST /chat/runs/{runId}/cancel
+```
+
+成功响应：
+
+```json
+{
+  "runId": "run_001",
+  "status": "cancel_requested"
+}
+```
+
+向等待输入的流程补充内容：
+
+```http
+POST /chat/runs/{runId}/input
+```
+
+请求体：
+
+```json
+{
+  "text": "继续分析总部网络",
+  "payload": {
+    "scope": "hq-network"
+  }
+}
+```
+
+成功响应：
+
+```json
+{
+  "runId": "run_001",
+  "status": "input_accepted"
+}
+```
+
+约束：
+
+- `runId` 只在当前服务进程内有效，重启后不可恢复。
+- 取消采用协作式信号，已发出的外部调用不保证被强制中断。
+- 已经持久化为 `ask` 的下一轮答复仍使用 `/chat reply.sourceChatId`；运行中等待输入优先使用 `runId/input`。
+
+##### ChatResponse.step / steps 子结构
+
+流式 SSE 事件使用 `step` 表达单个执行进度；非 SSE 最终响应使用 `steps` 聚合本轮流程中已发出的进度。
 
 ##### ChatResponse.ask 子结构
 

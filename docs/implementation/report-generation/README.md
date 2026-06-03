@@ -52,6 +52,8 @@
 - 接收外部系统首次交接的 `report.templateName + report.parameters`，精确定位模板并初始化根级参数快照。
 - 推进同一个 `TemplateInstance`，并在确认后调用报告冻结服务。
 
+`generate_report` 和 `generate_report_segment` 通过 `shared/agentflow` 包装为 Flow。报告流程通过 `FlowContext.emit_step()` 发送阶段进展，通过 `emit_delta()` 发送报告增量，通过 `emit_answer()` 返回最终 `REPORT` 或 `REPORT_SEGMENT`。`extract_report_template` 仍保持无会话预览的同步能力。
+
 `ReportContext` 是报告场景运行上下文，当前包含完整 `TemplateInstance`。其中来源归因统一使用 `conversationId/chatId`；它不管理聊天消息状态。
 
 ### 3.3 `ReportParameterService`

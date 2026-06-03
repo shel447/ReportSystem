@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from ....shared.agentflow import FlowGraph
 
 from ..domain.template_models import ParameterValue, ReportTemplate, TemplateSummary
 from .document_service import ReportDocumentService
@@ -35,6 +36,9 @@ class ReportService:
 
     def chat(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
         return self.scenario_service.handle(command=command)
+
+    def chat_flow(self, *, command: ReportScenarioCommand) -> FlowGraph:
+        return self.scenario_service.create_flow(command=command)
 
     def create_template(self, payload: ReportTemplate) -> ReportTemplate:
         return self.template_service.create_template(payload)

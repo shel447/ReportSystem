@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from typing import Any, Protocol
 
 from ....shared.kernel.errors import ValidationError
+from ....shared.agentflow import FlowGraph
 from ..domain.models import ChatContext, ScenarioTrace
 
 
@@ -37,6 +38,7 @@ class ScenarioResult:
     ask: ScenarioAskProjection | None = None
     answer: ScenarioAnswerProjection | None = None
     conversation_title: str | None = None
+    flow: FlowGraph | None = None
 
 
 class ScenarioHandler(Protocol):

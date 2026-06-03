@@ -18,6 +18,7 @@ from ..contexts.conversation.application.models import (
     session_detail_to_dict,
     session_summary_to_dict,
 )
+from ..shared.agentflow import FlowEvent
 from ..infrastructure.dependencies import build_conversation_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ConflictError, NotFoundError, UnsupportedCapabilityError, ValidationError
@@ -53,6 +54,11 @@ class ChatForkRequest(BaseModel):
     source_chat_id: Optional[str] = None
 
 
+class RunInputRequest(BaseModel):
+    text: Optional[str] = None
+    payload: dict[str, Any] = {}
+
+
 @router.get("")
 def list_sessions(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)):
     return [session_summary_to_dict(item) for item in build_conversation_service(db).list_sessions(user_id=user_id)]
@@ -66,10 +72,14 @@ def chat(
     user_id: str = Depends(get_current_user_id),
 ):
     try:
-        payload = build_conversation_service(db).chat(
-            data=chat_command_from_payload(data.model_dump(exclude_none=True)),
-            user_id=user_id,
-        )
+        command = chat_command_from_payload(data.model_dump(exclude_none=True))
+        service = build_conversation_service(db)
+        if _wants_sse(request):
+            if hasattr(service, "chat_stream"):
+                return StreamingResponse(_flow_event_stream(service.chat_stream(data=command, user_id=user_id)), media_type="text/event-stream")
+            payload = service.chat(data=command, user_id=user_id)
+            return StreamingResponse(_legacy_event_stream(chat_response_to_dict(payload)), media_type="text/event-stream")
+        payload = service.chat(data=command, user_id=user_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ConflictError as exc:
@@ -77,9 +87,37 @@ def chat(
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if _wants_sse(request):
-        return StreamingResponse(_single_event_stream(chat_response_to_dict(payload)), media_type="text/event-stream")
     return chat_response_to_dict(payload)
+
+
+@router.post("/runs/{run_id}/cancel")
+def cancel_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    _ = user_id
+    ok = build_conversation_service(db).cancel_run(run_id=run_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Flow run not found")
+    return {"runId": run_id, "status": "cancel_requested"}
+
+
+@router.post("/runs/{run_id}/input")
+def send_run_input(
+    run_id: str,
+    data: RunInputRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    _ = user_id
+    payload = dict(data.payload or {})
+    if data.text is not None:
+        payload["text"] = data.text
+    ok = build_conversation_service(db).send_run_input(run_id=run_id, payload=payload)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Flow run not found")
+    return {"runId": run_id, "status": "input_accepted"}
 
 
 @router.get("/{conversation_id}")
@@ -139,10 +177,44 @@ def _wants_sse(request: Request | None) -> bool:
     return "text/event-stream" in str(request.headers.get("accept") or "").lower()
 
 
-def _single_event_stream(payload: dict[str, Any]):
+def _flow_event_stream(events):
+    for event in events:
+        chunk = json.dumps(_flow_event_to_chat_stream_event(event), ensure_ascii=False)
+        yield f"event: message\ndata: {chunk}\n\n"
+
+
+def _legacy_event_stream(payload: dict[str, Any]):
     for event in _build_stream_events(payload):
         chunk = json.dumps(event, ensure_ascii=False)
         yield f"event: message\ndata: {chunk}\n\n"
+
+
+def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "conversationId": event.conversation_id or "",
+        "chatId": event.chat_id or "",
+        "runId": event.run_id,
+        "eventType": event.event_type,
+        "sequence": event.sequence,
+        "timestamp": int(time.time() * 1000),
+        "status": event.status,
+    }
+    if event.step is not None:
+        payload["step"] = {
+            "code": event.step.code,
+            "title": event.step.title,
+            "status": event.step.status,
+            "detail": event.step.detail,
+        }
+    if event.delta:
+        payload["delta"] = list(event.delta)
+    if event.answer is not None:
+        payload["answer"] = event.answer
+    if event.ask is not None:
+        payload["ask"] = event.ask
+    if event.error is not None:
+        payload["error"] = event.error
+    return payload
 
 
 def _build_stream_events(payload: dict[str, Any]) -> list[dict[str, Any]]:

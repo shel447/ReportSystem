@@ -101,6 +101,7 @@ class ChatResponse:
     conversation_id: str
     chat_id: str
     status: str
+    run_id: str | None = None
     steps: list[ChatStep] = field(default_factory=list)
     ask: ChatAsk | None = None
     answer: ChatAnswerEnvelope | None = None
@@ -192,6 +193,7 @@ def chat_response_to_dict(response: ChatResponse) -> dict[str, object]:
     return {
         "conversationId": response.conversation_id,
         "chatId": response.chat_id,
+        "runId": response.run_id,
         "status": response.status,
         "steps": [{"code": item.code, "status": item.status} for item in response.steps],
         "ask": chat_ask_to_dict(response.ask) if response.ask is not None else None,

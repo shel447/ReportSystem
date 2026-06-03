@@ -155,6 +155,7 @@ export type ChatAsk = {
 export type ChatResponse = {
   conversationId: string;
   chatId: string;
+  runId?: string | null;
   status: "waiting_user" | "running" | "finished" | "failed";
   steps: unknown[];
   ask: ChatAsk | null;
@@ -244,10 +245,12 @@ export type ChatStreamDelta =
 export type ChatStreamEvent = {
   conversationId: string;
   chatId: string;
+  runId?: string | null;
   eventType: "status" | "step_delta" | "ask" | "answer" | "error" | "done";
   sequence: number;
   timestamp: number;
   status: "waiting_user" | "running" | "finished" | "failed";
+  step?: unknown;
   steps?: unknown[];
   ask?: ChatAsk | null;
   answer?: ChatResponse["answer"];

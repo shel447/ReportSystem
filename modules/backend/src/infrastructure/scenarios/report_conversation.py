@@ -31,6 +31,8 @@ class ReportConversationScenarioHandler:
     def handle(self, *, command: object) -> ScenarioResult:
         if not isinstance(command, ReportScenarioCommand):
             raise TypeError("Report scenario handler requires ReportScenarioCommand")
+        if command.instruction in {"generate_report", "generate_report_segment"} and hasattr(self.report_service, "chat_flow"):
+            return ScenarioResult(status="running", flow=self.report_service.chat_flow(command=command))
         result = self.report_service.chat(command=command)
         ask = None
         if result.ask is not None:

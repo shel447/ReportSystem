@@ -7,6 +7,7 @@ from typing import Any
 
 from ....shared.kernel.errors import NotFoundError, UnsupportedCapabilityError, ValidationError
 from ....shared.kernel.audit import AuditEvent
+from ....shared.agentflow import FlowEvent, FlowStep, InMemoryFlowRuntime
 from ..domain.models import (
     ChatContext,
     ConversationMessageAction,
@@ -27,6 +28,8 @@ from .models import (
     SessionDetail,
     SessionMessage,
     SessionSummary,
+    chat_answer_to_dict,
+    chat_ask_to_dict,
     chat_response_to_dict,
 )
 from .ports import ConversationHistoryGateway, GuardrailGateway, HostedChat
@@ -42,11 +45,13 @@ class ConversationService:
         history_gateway: ConversationHistoryGateway,
         guardrail_gateway: GuardrailGateway,
         scenario_dispatcher: ScenarioDispatchService,
+        flow_runtime: InMemoryFlowRuntime | None = None,
         audit_dispatcher=None,
     ) -> None:
         self.history_gateway = history_gateway
         self.guardrail_gateway = guardrail_gateway
         self.scenario_dispatcher = scenario_dispatcher
+        self.flow_runtime = flow_runtime or InMemoryFlowRuntime()
         self.audit_dispatcher = audit_dispatcher
 
     def list_sessions(self, *, user_id: str) -> list[SessionSummary]:
@@ -149,7 +154,15 @@ class ConversationService:
             conversation_id=conversation_id,
         )
         result = self.scenario_dispatcher.dispatch(resolution=resolution, context=context, payload=_dispatch_payload(data))
-        response = _response_from_scenario_result(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, result=result)
+        if result.flow is not None:
+            response = self._run_flow_to_response(
+                data=data,
+                conversation_id=conversation_id,
+                chat_id=hosted_chat.chat_id,
+                result=result,
+            )
+        else:
+            response = _response_from_scenario_result(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, result=result)
         self._ensure_answer_allowed(response=response, user_id=user_id)
         self.history_gateway.import_chat(
             chat=HostedChat(
@@ -171,6 +184,101 @@ class ConversationService:
             )
         )
         return response
+
+    def chat_stream(self, *, data: ChatCommand, user_id: str):
+        """推进一次聊天，并以统一 FlowEvent 流输出。"""
+        self._ensure_question_allowed(data=data, user_id=user_id)
+        initial_resolution = self.scenario_dispatcher.resolve(
+            instruction=data.instruction,
+            question=data.question,
+            reply_source_trace=None,
+            previous_trace=None,
+        )
+        if self.scenario_dispatcher.is_stateless(initial_resolution):
+            response = self.chat(data=data, user_id=user_id)
+            yield from _events_from_response(response)
+            return
+
+        conversation_id = self._ensure_conversation(data=data, user_id=user_id)
+        rounds = self.history_gateway.query_chat_history(conversation_id=conversation_id, page_num=1, page_size=200, user_id=user_id)
+        reply_source = self._reply_source(data=data, rounds=rounds, user_id=user_id)
+        previous = rounds[-1] if rounds else None
+        resolution = self.scenario_dispatcher.resolve(
+            instruction=data.instruction,
+            question=data.question,
+            reply_source_trace=_trace_from_hosted(reply_source),
+            previous_trace=_trace_from_hosted(previous),
+        )
+        self._consume_reply(data=data, source=reply_source, user_id=user_id)
+        hosted_chat = self._ensure_chat(data=data, conversation_id=conversation_id, user_id=user_id)
+        context = _build_context(
+            data=data,
+            user_id=user_id,
+            chat_id=hosted_chat.chat_id,
+            resolution=resolution,
+            previous_trace=_trace_from_hosted(previous),
+            conversation_id=conversation_id,
+        )
+        result = self.scenario_dispatcher.dispatch(resolution=resolution, context=context, payload=_dispatch_payload(data))
+        if result.flow is None:
+            response = _response_from_scenario_result(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, result=result)
+            self._ensure_answer_allowed(response=response, user_id=user_id)
+            self.history_gateway.import_chat(
+                chat=HostedChat(
+                    chat_id=hosted_chat.chat_id,
+                    conversation_id=conversation_id,
+                    question=str(data.question or ""),
+                    request_payload=dict(data.raw_payload),
+                    response_payload=chat_response_to_dict(response),
+                    meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=result.status)) or {}},
+                ),
+                user_id=user_id,
+            )
+            yield from _events_from_response(response)
+            return
+
+        run = self.flow_runtime.start(result.flow, state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id})
+        events: list[FlowEvent] = []
+        for event in self.flow_runtime.iter_events(run.run_id):
+            events.append(event)
+            yield event
+        response = _response_from_flow_events(
+            data=data,
+            conversation_id=conversation_id,
+            chat_id=hosted_chat.chat_id,
+            events=events,
+        )
+        self._ensure_answer_allowed(response=response, user_id=user_id)
+        self.history_gateway.import_chat(
+            chat=HostedChat(
+                chat_id=hosted_chat.chat_id,
+                conversation_id=conversation_id,
+                question=str(data.question or ""),
+                request_payload=dict(data.raw_payload),
+                response_payload=chat_response_to_dict(response),
+                meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=response.status)) or {}},
+            ),
+            user_id=user_id,
+        )
+        self._audit(
+            AuditEvent(
+                operation="conversation.chat",
+                detail=f"stream completed scenario={resolution.key or 'unmatched'} status={response.status}",
+                user_id=user_id,
+                target_obj=f"{conversation_id}/{hosted_chat.chat_id}",
+            )
+        )
+
+    def cancel_run(self, *, run_id: str) -> bool:
+        return self.flow_runtime.cancel(run_id)
+
+    def send_run_input(self, *, run_id: str, payload: dict[str, object]) -> bool:
+        return self.flow_runtime.send_input(run_id, payload)
+
+    def _run_flow_to_response(self, *, data: ChatCommand, conversation_id: str, chat_id: str, result: ScenarioResult) -> ChatResponse:
+        run = self.flow_runtime.start(result.flow, state={"conversation_id": conversation_id, "chat_id": chat_id})
+        events = list(self.flow_runtime.iter_events(run.run_id))
+        return _response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=chat_id, events=events)
 
     def _ensure_question_allowed(self, *, data: ChatCommand, user_id: str) -> None:
         question = str(data.question or "").strip()
@@ -289,6 +397,7 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
         conversation_id=conversation_id,
         chat_id=chat_id,
         status=result.status,
+        run_id=None,
         ask=ask,
         answer=answer,
         errors=[],
@@ -296,6 +405,78 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
         timestamp=_epoch_ms(),
         api_version=data.api_version or "v1",
     )
+
+
+def _response_from_flow_events(*, data: ChatCommand, conversation_id: str, chat_id: str, events: list[FlowEvent]) -> ChatResponse:
+    last_answer = next((item.answer for item in reversed(events) if item.answer), None)
+    last_ask = next((item.ask for item in reversed(events) if item.ask), None)
+    last_error = next((item.error for item in reversed(events) if item.error), None)
+    last_status = next((item.status for item in reversed(events) if item.event_type in {"answer", "ask", "error", "done"}), "finished")
+    run_id = next((item.run_id for item in events if item.run_id), None)
+    ask = None
+    if isinstance(last_ask, dict):
+        ask = ChatAsk(
+            status=str(last_ask.get("status") or "pending"),
+            mode=str(last_ask.get("mode") or "natural_language"),
+            type=str(last_ask.get("type") or ""),
+            title=str(last_ask.get("title") or ""),
+            text=str(last_ask.get("text") or ""),
+            fields={key: value for key, value in last_ask.items() if key not in {"status", "mode", "type", "title", "text"}},
+        )
+    answer = None
+    if isinstance(last_answer, dict):
+        answer = ChatAnswerEnvelope(
+            answer_type=str(last_answer.get("answerType") or ""),
+            payload=dict(last_answer.get("answer") or {}),
+        )
+    return ChatResponse(
+        conversation_id=conversation_id,
+        chat_id=chat_id,
+        run_id=run_id,
+        status=str(last_status or "finished"),
+        steps=[
+            ChatStep(code=item.step.code, status=item.step.status)
+            for item in events
+            if item.step is not None and item.event_type == "step_delta"
+        ],
+        ask=ask,
+        answer=answer,
+        errors=[str(last_error)] if last_error else [],
+        request_id=data.request_id,
+        timestamp=_epoch_ms(),
+        api_version=data.api_version or "v1",
+    )
+
+
+def _events_from_response(response: ChatResponse) -> list[FlowEvent]:
+    sequence = 1
+    run_id = response.run_id or ""
+    events: list[FlowEvent] = [
+        FlowEvent(run_id=run_id, sequence=sequence, event_type="status", status=response.status),
+    ]
+    sequence += 1
+    for step in response.steps:
+        events.append(
+            FlowEvent(
+                run_id=run_id,
+                sequence=sequence,
+                event_type="step_delta",
+                status=step.status,
+                step=FlowStep(code=step.code, status=step.status),
+            )
+        )
+        sequence += 1
+    if response.ask is not None:
+        events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="ask", status=response.status, ask=chat_ask_to_dict(response.ask)))
+        sequence += 1
+    if response.answer is not None:
+        events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="answer", status=response.status, answer=chat_answer_to_dict(response.answer)))
+        sequence += 1
+    for error in response.errors:
+        events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="error", status="failed", error=str(error)))
+        sequence += 1
+    events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="done", status=response.status))
+    return events
 
 
 def _trace_from_hosted(chat: HostedChat | None) -> ScenarioTrace | None:

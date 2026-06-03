@@ -22,6 +22,7 @@
 - `contexts/conversation`
 - `contexts/report`
 - `contexts/data_analysis`
+- `shared/agentflow`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
 用户管理属于平台外部模块。ReportSystem 不实现用户 context，不保存用户档案，只消费网关注入的可信 `X-User-Id` 作为不透明数据归属键。
@@ -29,6 +30,7 @@
 依赖方向：
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
+- `shared/agentflow` 提供公共流程运行、事件发布、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
 - `report` 通过系统装配层的 codec 和强类型 handler 注册到 `conversation`
 - `data_analysis` 通过系统装配层注册 `query_data` 场景，并向 `report` 提供可复用查询能力
 - 系统装配层负责跨 context 的严格 DTO 转换；`conversation` 不读取 `report.application` 或 `report.domain`
@@ -53,7 +55,7 @@
 ## 落地约束
 
 - 后端核心对象使用递归 `dataclass`，对外字段通过 alias 映射为 lowerCamelCase。
-- `/chat` 流式协议使用 `steps / delta / answer` 三条通道；`delta` 不进入持久化聚合。
+- `/chat` 流式协议使用 `step_delta / delta / answer / error` 通道；运行中事件由 `shared/agentflow` 产生，`delta` 不进入持久化聚合。
 - `TemplateInstance` 是报告生成内部聚合，不作为独立公开资源。
 - 文档导出只消费正式 Report DSL。
 - 运行时校验直接读取 [正式 Schema](contracts/schemas/README.md)。
