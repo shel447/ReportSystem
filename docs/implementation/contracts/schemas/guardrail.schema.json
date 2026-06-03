@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./guardrail.schema.json",
   "title": "Guardrail Consumer Contract",
+  "description": "ReportSystem 对用户问题、最终回答和 SQL/Python 内容执行安全检查时使用的请求与响应协议。",
   "$defs": {
     "QuestionCheckRequest": {
       "type": "object",

@@ -19,7 +19,7 @@ flowchart LR
     knowledge["Knowledge / RAG"]
     nodeAgent["NodeAgent 配置"]
     audit["Audit 审计"]
-    metadata["元数据同步"]
+    metadata["DataCatalog 元数据同步"]
 
     client -->|"登录与业务请求"| identity
     identity -->|"REST / SSE<br/>X-User-Id"| reportSystem
@@ -101,7 +101,7 @@ X-User-Id: <external-user-id>
 | Knowledge/RAG | `GET /rest/naie/knwl/v1/knowledge`、`POST /rest/naie/rag/v1/retriever-klg`、`POST /rest/naie/rag/v1/retriever` | 检索知识和 NL2SQL 样例 | 已实现 |
 | NodeAgent | `GET /rest/nodeagent/v2/csi/appconf?watch=false` | 加载平台运行配置 | 已实现 |
 | Audit | `POST /rest/plat/audit/v1/logs`、`POST /rest/plat/audit/v1/seculogs` | 异步审计 | 已实现 |
-| Metadata Sync | `GET /rest/entassistantservice/v1/chatbi/package/register/process` | 检查元数据更新并触发缓存失效 | 已实现 |
+| DataCatalog Metadata Sync | `GET /rest/entassistantservice/v1/chatbi/package/register/process` | 检查元数据更新并触发缓存失效 | 已实现 |
 
 ### 1.3 路由实现映射
 
@@ -1010,9 +1010,56 @@ v6 正式请求体由 `parameters/templateNode/context` 组成：
 
 失败响应使用 `status = "error"` 与 `error.code/error.message`。
 
-### 3.3 平台外部依赖
+### 3.3 API Dataset 外部数据源
 
-OpenAI Compatible、OneQuery、API Dataset、AgentCore、Guardrail、DataCatalog、Knowledge/RAG、NodeAgent、Audit 与 Metadata Sync 都属于 ReportSystem 主动适配的平台外部依赖。完整请求、响应、身份头和失败语义见 [外部依赖接口技术契约](external-dependencies.md)。
+当模板声明 `dataset.sourceType = api` 时，ReportSystem 向模板 `dataset.source` 定义的外部 URL 发起 `POST` 请求。前端不直接调用该 URL。
+
+#### 请求体
+
+```json
+{
+  "parameters": {
+    "scope": [
+      {
+        "label": "总部网络",
+        "value": "hq-network",
+        "query": "scope_id = 'hq-network'"
+      }
+    ]
+  },
+  "context": {
+    "lineage.tracing.enable": true,
+    "templateInstanceId": "ti_001",
+    "sectionId": "section_health",
+    "datasetId": "dataset_health"
+  }
+}
+```
+
+#### 响应体
+
+```json
+{
+  "retCode": 0,
+  "retInfo": "",
+  "data": {
+    "columns": {},
+    "results": []
+  }
+}
+```
+
+规则：
+
+- `dataset.source` 可以是 `/rest/...` 风格相对地址，也可以是历史兼容绝对 URL。
+- `retCode = 0` 时必须返回 `data.columns/data.results`。
+- `retCode != 0` 时报告生成降级为空数据组件并记录告警。
+- HTTP 错误、超时和非法报文仍明确失败。
+- 正式结构见 [api-dataset.schema.json](../schemas/api-dataset.schema.json)。
+
+### 3.4 平台外部依赖
+
+OpenAI Compatible、OneQuery、AgentCore、Guardrail、DataCatalog、Knowledge/RAG、NodeAgent 与 Audit 都属于 ReportSystem 主动适配的平台外部依赖。DataCatalog 还包含 Metadata Sync 辅助刷新特性。完整请求、响应、身份头和失败语义见 [外部依赖接口技术契约](external-dependencies.md)。
 
 ## 4. 开发辅助接口
 

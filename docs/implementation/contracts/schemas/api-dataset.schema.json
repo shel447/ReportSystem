@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./api-dataset.schema.json",
+  "title": "API Dataset Extension Contract",
+  "description": "模板通过 dataset.source 声明的 API 数据集扩展点请求与响应协议。",
+  "$defs": {
+    "ApiDatasetRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parameters", "context"],
+      "properties": {
+        "parameters": {
+          "type": "object",
+          "patternProperties": {
+            "^[a-z][A-Za-z0-9]*$": {
+              "type": "array",
+              "items": {"$ref": "./report-template.schema.json#/$defs/ParameterValue"}
+            }
+          },
+          "additionalProperties": false
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["templateInstanceId", "sectionId", "datasetId"],
+          "properties": {
+            "lineage.tracing.enable": {"type": "boolean"},
+            "templateInstanceId": {"type": "string"},
+            "sectionId": {"type": "string"},
+            "datasetId": {"type": "string"}
+          }
+        }
+      }
+    },
+    "ApiDatasetResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retCode", "retInfo"],
+      "properties": {
+        "retCode": {"type": "integer"},
+        "retInfo": {"type": "string"},
+        "data": {"anyOf": [{"type": "null"}, {"type": "object"}]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"retCode": {"const": 0}}, "required": ["retCode"]},
+          "then": {"required": ["data"], "properties": {"data": {"$ref": "#/$defs/Dataset"}}}
+        }
+      ]
+    },
+    "Dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "results"],
+      "properties": {
+        "columns": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ColumnMetadata"}},
+        "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+      }
+    },
+    "ColumnMetadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "lineageTracing": {"$ref": "#/$defs/ColumnLineageTracing"}
+      }
+    },
+    "ColumnLineageTracing": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["sources"],
+      "properties": {
+        "type": {"type": "string"},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/ColumnLineageSource"}}
+      }
+    },
+    "ColumnLineageSource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["dataSourceName", "dataSourceType", "field", "businessName", "businessName_cn"],
+      "properties": {
+        "dataSourceName": {"type": "string"},
+        "dataSourceType": {"type": "string"},
+        "field": {"type": "string"},
+        "businessName": {"type": "string"},
+        "businessName_cn": {"type": "string"},
+        "enumValues": {"type": "string"},
+        "ui": {"type": "string"}
+      }
+    }
+  }
+}

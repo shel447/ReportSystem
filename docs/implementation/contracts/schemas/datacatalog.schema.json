@@ -4,7 +4,7 @@
   "title": "DataCatalog Consumer Contract",
   "description": "ReportSystem 使用的 DataCatalog 请求与响应 fragment。实体、数据集和关系对象保持开放。",
   "$defs": {
-    "PagedFilterRequest": {
+    "ListLogicalEntitiesRequest": {
       "type": "object",
       "additionalProperties": false,
       "required": ["pageSize", "pageNo", "filter"],
@@ -14,7 +14,7 @@
         "filter": {"type": "object", "additionalProperties": true}
       }
     },
-    "SuccessListResponse": {
+    "ListLogicalEntitiesResponse": {
       "type": "object",
       "additionalProperties": true,
       "required": ["retCode", "data"],
@@ -32,7 +32,13 @@
         }
       }
     },
-    "OpenDataResponse": {
+    "GetLogicalEntityRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logicalEntityName"],
+      "properties": {"logicalEntityName": {"type": "string", "minLength": 1}}
+    },
+    "GetLogicalEntityResponse": {
       "type": "object",
       "additionalProperties": true,
       "required": ["data"],
@@ -40,7 +46,31 @@
         "data": {"type": "object", "additionalProperties": true}
       }
     },
-    "SuccessDataResponse": {
+    "GetDatasetRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {"name": {"type": "string", "minLength": 1}}
+    },
+    "GetDatasetResponse": {"$ref": "#/$defs/GetLogicalEntityResponse"},
+    "ListLogicalRelationsRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pageSize", "pageNo", "filter"],
+      "properties": {
+        "pageSize": {"type": "integer", "minimum": 1},
+        "pageNo": {"type": "integer", "minimum": 1},
+        "filter": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "ListLogicalRelationsResponse": {"$ref": "#/$defs/ListLogicalEntitiesResponse"},
+    "GetLogicalRelationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {"name": {"type": "string", "minLength": 1}}
+    },
+    "GetLogicalRelationResponse": {
       "type": "object",
       "additionalProperties": true,
       "required": ["retCode", "data"],

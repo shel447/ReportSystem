@@ -2,8 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./knowledge-rag.schema.json",
   "title": "Knowledge and RAG Consumer Contract",
+  "description": "ReportSystem 查询知识片段、单索引知识和多索引 NL2SQL 样例时使用的请求与响应协议。",
   "$defs": {
-    "KnowledgeQueryResponse": {
+    "QueryKnowledgeRequest": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "QueryKnowledgeResponse": {
       "type": "object",
       "additionalProperties": true,
       "required": ["knowledgeList"],
@@ -56,13 +61,14 @@
         "enableHybridResults": {"type": "boolean"}
       }
     },
-    "RetrieveResponse": {
+    "RetrieveKnowledgeResponse": {
       "type": "object",
       "additionalProperties": true,
       "required": ["recommends"],
       "properties": {
         "recommends": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
       }
-    }
+    },
+    "RetrieveMultiIndexResponse": {"$ref": "#/$defs/RetrieveKnowledgeResponse"}
   }
 }

@@ -17,7 +17,8 @@ TEMPLATE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-template.schema.json
 TEMPLATE_INSTANCE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "template-instance.schema.json"
 PARAMETER_OPTION_REQUEST_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-request.schema.json"
 PARAMETER_OPTION_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "parameter-option-source-response.schema.json"
-DATASET_SOURCE_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "dataset-source-response.schema.json"
+ONEQUERY_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "onequery.schema.json"
+API_DATASET_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "api-dataset.schema.json"
 DYNAMIC_CUSTOM_RESPONSE_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "dynamic-custom-source-response.schema.json"
 REPORT_DSL_SCHEMA_PATH = CONTRACTS_ROOT / "schemas" / "report-dsl.schema.json"
 
@@ -29,7 +30,8 @@ def _read_schema(path: Path) -> dict[str, Any]:
 _TEMPLATE_SCHEMA = _read_schema(TEMPLATE_SCHEMA_PATH)
 _TEMPLATE_INSTANCE_SCHEMA = _read_schema(TEMPLATE_INSTANCE_SCHEMA_PATH)
 _PARAMETER_OPTION_RESPONSE_SCHEMA = _read_schema(PARAMETER_OPTION_RESPONSE_SCHEMA_PATH)
-_DATASET_SOURCE_RESPONSE_SCHEMA = _read_schema(DATASET_SOURCE_RESPONSE_SCHEMA_PATH)
+_ONEQUERY_SCHEMA = _read_schema(ONEQUERY_SCHEMA_PATH)
+_API_DATASET_SCHEMA = _read_schema(API_DATASET_SCHEMA_PATH)
 _DYNAMIC_CUSTOM_RESPONSE_SCHEMA = _read_schema(DYNAMIC_CUSTOM_RESPONSE_SCHEMA_PATH)
 _REPORT_DSL_SCHEMA = _read_schema(REPORT_DSL_SCHEMA_PATH)
 
@@ -63,7 +65,12 @@ _REPORT_SLIDE_VALIDATOR = Draft202012Validator(
 _REPORT_COMPONENT_VALIDATOR = Draft202012Validator(
     {"$schema": _REPORT_DSL_SCHEMA.get("$schema"), "$defs": _REPORT_DSL_SCHEMA.get("$defs", {}), "$ref": "#/$defs/BIEngineComponent"}
 )
-_DATASET_SOURCE_RESPONSE_VALIDATOR = Draft202012Validator(_DATASET_SOURCE_RESPONSE_SCHEMA)
+_ONEQUERY_RESPONSE_VALIDATOR = Draft202012Validator(
+    {"$schema": _ONEQUERY_SCHEMA.get("$schema"), "$defs": _ONEQUERY_SCHEMA.get("$defs", {}), "$ref": "#/$defs/OneQueryResponse"}
+)
+_API_DATASET_RESPONSE_VALIDATOR = Draft202012Validator(
+    {"$schema": _API_DATASET_SCHEMA.get("$schema"), "$defs": _API_DATASET_SCHEMA.get("$defs", {}), "$ref": "#/$defs/ApiDatasetResponse"}
+)
 _DYNAMIC_CUSTOM_RESPONSE_VALIDATOR = Draft202012Validator(_DYNAMIC_CUSTOM_RESPONSE_SCHEMA)
 
 
@@ -125,8 +132,11 @@ class ReportDslSchemaGateway:
             self._validate(_REPORT_COMPONENT_VALIDATOR, item, "custom component DSL 校验失败")
         return copy.deepcopy(payload)
 
-    def validate_dataset_response(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._validate(_DATASET_SOURCE_RESPONSE_VALIDATOR, payload, "数据集响应校验失败")
+    def validate_onequery_response(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_ONEQUERY_RESPONSE_VALIDATOR, payload, "OneQuery 响应校验失败")
+
+    def validate_api_dataset_response(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._validate(_API_DATASET_RESPONSE_VALIDATOR, payload, "API 数据集响应校验失败")
 
     def validate_dynamic_custom_response(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._validate(_DYNAMIC_CUSTOM_RESPONSE_VALIDATOR, payload, "custom dynamic 响应校验失败")

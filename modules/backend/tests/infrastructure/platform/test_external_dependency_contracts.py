@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import re
 
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
@@ -51,35 +52,45 @@ def _validate(schema_name: str, definition: str, payload: dict) -> None:
         ("agentcore.schema.json", "ImportChatResponse", EXAMPLES["agentcore"]["importChat"]["response"]),
         ("agentcore.schema.json", "HistoryRequest", EXAMPLES["agentcore"]["history"]["request"]),
         ("agentcore.schema.json", "HistoryResponse", EXAMPLES["agentcore"]["history"]["response"]),
+        ("agentcore.schema.json", "GetChatDetailRequest", EXAMPLES["agentcore"]["chatDetail"]["request"]),
         ("agentcore.schema.json", "ChatDetailResponse", EXAMPLES["agentcore"]["chatDetail"]["response"]),
+        ("agentcore.schema.json", "ConversationListRequest", EXAMPLES["agentcore"]["conversations"]["request"]),
         ("agentcore.schema.json", "ConversationListResponse", EXAMPLES["agentcore"]["conversations"]["response"]),
         ("guardrail.schema.json", "QuestionCheckRequest", EXAMPLES["guardrail"]["questionCheck"]["request"]),
         ("guardrail.schema.json", "AnswerCheckRequest", EXAMPLES["guardrail"]["answerCheck"]["request"]),
         ("guardrail.schema.json", "LegalCheckResponse", EXAMPLES["guardrail"]["questionCheck"]["response"]),
         ("guardrail.schema.json", "ApplicationSecurityRequest", EXAMPLES["guardrail"]["applicationSecurity"]["request"]),
         ("guardrail.schema.json", "ApplicationSecurityResponse", EXAMPLES["guardrail"]["applicationSecurity"]["response"]),
-        ("datacatalog.schema.json", "PagedFilterRequest", EXAMPLES["datacatalog"]["listLogicalEntities"]["request"]),
-        ("datacatalog.schema.json", "SuccessListResponse", EXAMPLES["datacatalog"]["listLogicalEntities"]["response"]),
-        ("datacatalog.schema.json", "OpenDataResponse", EXAMPLES["datacatalog"]["logicalEntity"]["response"]),
-        ("datacatalog.schema.json", "SuccessDataResponse", EXAMPLES["datacatalog"]["logicalRelation"]["response"]),
-        ("knowledge-rag.schema.json", "KnowledgeQueryResponse", EXAMPLES["knowledgeRag"]["knowledge"]["response"]),
+        ("datacatalog.schema.json", "ListLogicalEntitiesRequest", EXAMPLES["datacatalog"]["listLogicalEntities"]["request"]),
+        ("datacatalog.schema.json", "ListLogicalEntitiesResponse", EXAMPLES["datacatalog"]["listLogicalEntities"]["response"]),
+        ("datacatalog.schema.json", "GetLogicalEntityRequest", EXAMPLES["datacatalog"]["logicalEntity"]["request"]),
+        ("datacatalog.schema.json", "GetLogicalEntityResponse", EXAMPLES["datacatalog"]["logicalEntity"]["response"]),
+        ("datacatalog.schema.json", "GetDatasetRequest", EXAMPLES["datacatalog"]["dataset"]["request"]),
+        ("datacatalog.schema.json", "GetDatasetResponse", EXAMPLES["datacatalog"]["dataset"]["response"]),
+        ("datacatalog.schema.json", "ListLogicalRelationsRequest", EXAMPLES["datacatalog"]["listLogicalRelations"]["request"]),
+        ("datacatalog.schema.json", "ListLogicalRelationsResponse", EXAMPLES["datacatalog"]["listLogicalRelations"]["response"]),
+        ("datacatalog.schema.json", "GetLogicalRelationRequest", EXAMPLES["datacatalog"]["logicalRelation"]["request"]),
+        ("datacatalog.schema.json", "GetLogicalRelationResponse", EXAMPLES["datacatalog"]["logicalRelation"]["response"]),
+        ("knowledge-rag.schema.json", "QueryKnowledgeRequest", EXAMPLES["knowledgeRag"]["knowledge"]["request"]),
+        ("knowledge-rag.schema.json", "QueryKnowledgeResponse", EXAMPLES["knowledgeRag"]["knowledge"]["response"]),
         ("knowledge-rag.schema.json", "RetrieveKnowledgeRequest", EXAMPLES["knowledgeRag"]["retrieveKnowledge"]["request"]),
-        ("knowledge-rag.schema.json", "RetrieveResponse", EXAMPLES["knowledgeRag"]["retrieveKnowledge"]["response"]),
+        ("knowledge-rag.schema.json", "RetrieveKnowledgeResponse", EXAMPLES["knowledgeRag"]["retrieveKnowledge"]["response"]),
         ("knowledge-rag.schema.json", "RetrieveMultiIndexRequest", EXAMPLES["knowledgeRag"]["retrieveMultiIndex"]["request"]),
-        ("platform-runtime.schema.json", "NodeAgentAppConfigResponse", EXAMPLES["platformRuntime"]["nodeAgent"]["response"]),
-        ("platform-runtime.schema.json", "MetadataSyncResponse", EXAMPLES["platformRuntime"]["metadataSync"]["response"]),
+        ("knowledge-rag.schema.json", "RetrieveMultiIndexResponse", EXAMPLES["knowledgeRag"]["retrieveMultiIndex"]["response"]),
+        ("nodeagent.schema.json", "AppConfigRequest", EXAMPLES["nodeAgent"]["appConfig"]["request"]),
+        ("nodeagent.schema.json", "AppConfigResponse", EXAMPLES["nodeAgent"]["appConfig"]["response"]),
+        ("metadata-sync.schema.json", "PackageRegisterProcessRequest", EXAMPLES["metadataSync"]["packageRegisterProcess"]["request"]),
+        ("metadata-sync.schema.json", "PackageRegisterProcessResponse", EXAMPLES["metadataSync"]["packageRegisterProcess"]["response"]),
         ("audit.schema.json", "AuditEventRequest", EXAMPLES["audit"]["operation"]["request"]),
         ("audit.schema.json", "AuditResponse", EXAMPLES["audit"]["operation"]["response"]),
-        ("onequery-request.schema.json", None, EXAMPLES["dataQuery"]["oneQuery"]["request"]),
-        ("api-dataset-request.schema.json", None, EXAMPLES["dataQuery"]["apiDataset"]["request"]),
-        ("dataset-source-response.schema.json", None, EXAMPLES["dataQuery"]["response"]),
+        ("onequery.schema.json", "OneQueryRequest", EXAMPLES["dataQuery"]["oneQuery"]["request"]),
+        ("onequery.schema.json", "OneQueryResponse", EXAMPLES["dataQuery"]["response"]),
+        ("api-dataset.schema.json", "ApiDatasetRequest", EXAMPLES["dataQuery"]["apiDataset"]["request"]),
+        ("api-dataset.schema.json", "ApiDatasetResponse", EXAMPLES["dataQuery"]["response"]),
     ],
 )
 def test_external_dependency_examples_match_consumer_contracts(schema_name, definition, payload):
-    if definition is None:
-        _validator({"$ref": (SCHEMA_ROOT / schema_name).as_uri()}).validate(payload)
-    else:
-        _validate(schema_name, definition, payload)
+    _validate(schema_name, definition, payload)
 
 
 def test_agentcore_import_contract_is_an_upsert_payload():
@@ -100,3 +111,50 @@ def test_platform_response_contracts_allow_additional_fields():
 def test_platform_response_contracts_reject_missing_consumed_fields():
     with pytest.raises(ValidationError):
         _validate("agentcore.schema.json", "CreateConversationResponse", {"platformExtension": True})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        EXAMPLES["dataQuery"]["response"],
+        {"retCode": 1001, "retInfo": "query failed"},
+    ],
+)
+def test_onequery_and_api_dataset_responses_accept_the_same_envelopes(payload):
+    _validate("onequery.schema.json", "OneQueryResponse", payload)
+    _validate("api-dataset.schema.json", "ApiDatasetResponse", payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"retInfo": ""},
+        {"retCode": 0, "retInfo": ""},
+    ],
+)
+def test_onequery_and_api_dataset_responses_reject_the_same_invalid_envelopes(payload):
+    with pytest.raises(ValidationError):
+        _validate("onequery.schema.json", "OneQueryResponse", payload)
+    with pytest.raises(ValidationError):
+        _validate("api-dataset.schema.json", "ApiDatasetResponse", payload)
+
+
+def test_schema_readme_indexes_every_top_level_schema_and_drops_retired_names():
+    readme = (SCHEMA_ROOT / "README.md").read_text(encoding="utf-8")
+    schema_names = {path.name for path in SCHEMA_ROOT.glob("*.schema.json")}
+
+    assert schema_names <= set(re.findall(r"([a-z0-9-]+\.schema\.json)", readme))
+    for retired in (
+        "onequery-request.schema.json",
+        "api-dataset-request.schema.json",
+        "dataset-source-response.schema.json",
+        "platform-runtime.schema.json",
+    ):
+        assert retired not in readme
+
+
+def test_schema_readme_fragment_links_resolve():
+    readme = (SCHEMA_ROOT / "README.md").read_text(encoding="utf-8")
+
+    for schema_name, definition in re.findall(r"\(([-a-z0-9]+\.schema\.json)#/\$defs/([A-Za-z0-9]+)\)", readme):
+        assert definition in _schema(schema_name)["$defs"], f"{schema_name}#/$defs/{definition}"

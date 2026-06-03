@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./onequery.schema.json",
+  "title": "OneQuery Consumer Contract",
+  "description": "ReportSystem 调用平台 OneQuery 执行 SQL/UQL 时使用的请求与响应协议。",
+  "$defs": {
+    "OneQueryRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["query", "context"],
+      "properties": {
+        "query": {"type": "string", "minLength": 1},
+        "context": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "lineage.tracing.enable": {"type": "boolean"},
+            "templateInstanceId": {"type": "string"},
+            "sectionId": {"type": "string"},
+            "datasetId": {"type": "string"}
+          }
+        }
+      }
+    },
+    "OneQueryResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retCode", "retInfo"],
+      "properties": {
+        "retCode": {"type": "integer"},
+        "retInfo": {"type": "string"},
+        "data": {"anyOf": [{"type": "null"}, {"type": "object"}]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"retCode": {"const": 0}}, "required": ["retCode"]},
+          "then": {"required": ["data"], "properties": {"data": {"$ref": "#/$defs/Dataset"}}}
+        }
+      ]
+    },
+    "Dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "results"],
+      "properties": {
+        "columns": {"type": "object", "additionalProperties": {"$ref": "#/$defs/ColumnMetadata"}},
+        "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+      }
+    },
+    "ColumnMetadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "string", "minLength": 1},
+        "lineageTracing": {"$ref": "#/$defs/ColumnLineageTracing"}
+      }
+    },
+    "ColumnLineageTracing": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["sources"],
+      "properties": {
+        "type": {"type": "string"},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/ColumnLineageSource"}}
+      }
+    },
+    "ColumnLineageSource": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["dataSourceName", "dataSourceType", "field", "businessName", "businessName_cn"],
+      "properties": {
+        "dataSourceName": {"type": "string"},
+        "dataSourceType": {"type": "string"},
+        "field": {"type": "string"},
+        "businessName": {"type": "string"},
+        "businessName_cn": {"type": "string"},
+        "enumValues": {"type": "string"},
+        "ui": {"type": "string"}
+      }
+    }
+  }
+}

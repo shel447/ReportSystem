@@ -25,8 +25,10 @@ def test_shared_flow_and_paged_template_fixtures_match_formal_schema():
         assert gateway.validate(load_json_fixture("report-templates", name))
 
 
-def test_dataset_response_schema_accepts_new_success_and_business_error_envelopes():
+@pytest.mark.parametrize("validate_response", ["validate_onequery_response", "validate_api_dataset_response"])
+def test_query_response_schemas_accept_new_success_and_business_error_envelopes(validate_response):
     gateway = ReportDslSchemaGateway()
+    validate = getattr(gateway, validate_response)
     success = {
         "retCode": 0,
         "retInfo": "",
@@ -54,26 +56,28 @@ def test_dataset_response_schema_accepts_new_success_and_business_error_envelope
         },
     }
 
-    assert gateway.validate_dataset_response(success) == success
+    assert validate(success) == success
     no_lineage = {
         "retCode": 0,
         "retInfo": "",
         "data": {"columns": {"health_score": {"type": "number"}}, "results": []},
     }
-    assert gateway.validate_dataset_response(no_lineage) == no_lineage
-    assert gateway.validate_dataset_response({"retCode": 1001, "retInfo": "query failed"}) == {
+    assert validate(no_lineage) == no_lineage
+    assert validate({"retCode": 1001, "retInfo": "query failed"}) == {
         "retCode": 1001,
         "retInfo": "query failed",
     }
 
 
-def test_dataset_response_schema_rejects_legacy_result_set_envelope():
-    with pytest.raises(ValueError, match="数据集响应校验失败"):
-        ReportDslSchemaGateway().validate_dataset_response(
+@pytest.mark.parametrize("validate_response", ["validate_onequery_response", "validate_api_dataset_response"])
+def test_query_response_schemas_reject_legacy_result_set_envelope(validate_response):
+    with pytest.raises(ValueError, match="响应校验失败"):
+        getattr(ReportDslSchemaGateway(), validate_response)(
             {"data": {"results": [{"columns": [], "results": []}]}}
         )
 
 
-def test_dataset_response_schema_rejects_success_without_data():
-    with pytest.raises(ValueError, match="数据集响应校验失败"):
-        ReportDslSchemaGateway().validate_dataset_response({"retCode": 0, "retInfo": ""})
+@pytest.mark.parametrize("validate_response", ["validate_onequery_response", "validate_api_dataset_response"])
+def test_query_response_schemas_reject_success_without_data(validate_response):
+    with pytest.raises(ValueError, match="响应校验失败"):
+        getattr(ReportDslSchemaGateway(), validate_response)({"retCode": 0, "retInfo": ""})

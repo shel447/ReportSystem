@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./metadata-sync.schema.json",
+  "title": "DataCatalog Metadata Sync Consumer Contract",
+  "description": "DataCatalog 元数据刷新辅助接口。ReportSystem 周期比较版本并在变化时清理元数据与检索缓存。",
+  "$defs": {
+    "PackageRegisterProcessRequest": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "PackageRegisterProcessResponse": {
+      "type": "object",
+      "additionalProperties": true,
+      "anyOf": [{"required": ["version"]}, {"required": ["process"]}],
+      "properties": {"version": {}, "process": {}}
+    }
+  }
+}

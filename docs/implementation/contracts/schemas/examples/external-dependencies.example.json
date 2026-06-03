@@ -113,6 +113,9 @@
       }
     },
     "chatDetail": {
+      "request": {
+        "chatId": "chat_001"
+      },
       "response": {
         "chatId": "chat_001",
         "conversationId": "conv_001",
@@ -122,6 +125,10 @@
       }
     },
     "conversations": {
+      "request": {
+        "pageNum": 1,
+        "pageSize": 20
+      },
       "response": {
         "records": [
           {
@@ -254,6 +261,9 @@
       }
     },
     "logicalEntity": {
+      "request": {
+        "logicalEntityName": "network_health"
+      },
       "response": {
         "data": {
           "name": "network_health"
@@ -261,6 +271,9 @@
       }
     },
     "dataset": {
+      "request": {
+        "name": "network_health"
+      },
       "response": {
         "data": {
           "name": "network_health"
@@ -283,6 +296,9 @@
       }
     },
     "logicalRelation": {
+      "request": {
+        "name": "network_link"
+      },
       "response": {
         "retCode": 0,
         "retInfo": "",
@@ -294,6 +310,9 @@
   },
   "knowledgeRag": {
     "knowledge": {
+      "request": {
+        "ragIndex": "network_knowledge"
+      },
       "response": {
         "knowledgeList": []
       }
@@ -340,8 +359,11 @@
       }
     }
   },
-  "platformRuntime": {
-    "nodeAgent": {
+  "nodeAgent": {
+    "appConfig": {
+      "request": {
+        "watch": "false"
+      },
       "response": {
         "externalServices": {
           "agentcore": {
@@ -349,8 +371,11 @@
           }
         }
       }
-    },
-    "metadataSync": {
+    }
+  },
+  "metadataSync": {
+    "packageRegisterProcess": {
+      "request": {},
       "response": {
         "status": "complete",
         "version": "2026-06-02T00:00:00Z"

@@ -100,7 +100,22 @@
         "pageSize": {"type": "integer"}
       }
     },
+    "GetChatDetailRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chatId"],
+      "properties": {"chatId": {"type": "string", "minLength": 1}}
+    },
     "ChatDetailResponse": {"$ref": "#/$defs/ChatRecord"},
+    "ConversationListRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pageNum", "pageSize"],
+      "properties": {
+        "pageNum": {"type": "integer", "minimum": 1},
+        "pageSize": {"type": "integer", "minimum": 1}
+      }
+    },
     "ConversationRecord": {
       "type": "object",
       "additionalProperties": true,
