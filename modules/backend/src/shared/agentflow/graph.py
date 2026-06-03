@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Any, Callable, Protocol
 
 if False:  # pragma: no cover
     from .runtime import FlowContext
@@ -26,6 +26,10 @@ class FlowNode:
     handler: FlowNodeHandler
     kind: str = "task"
     title: str | None = None
+    hooks: list[Any] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    retry_policy: dict[str, Any] = field(default_factory=dict)
+    checkpoint_policy: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -54,6 +58,10 @@ class FlowGraph:
         return self
 
     def add_edge(self, edge: FlowEdge) -> "FlowGraph":
+        if edge.source not in self.nodes:
+            raise ValueError(f"Flow edge source does not exist: {edge.source}")
+        if edge.target not in self.nodes:
+            raise ValueError(f"Flow edge target does not exist: {edge.target}")
         self.edges.append(edge)
         return self
 

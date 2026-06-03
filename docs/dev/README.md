@@ -6,4 +6,4 @@
 
 1. [测试体系](testing/README.md)
 2. [代码评审](reviews/README.md)
-
+3. [Agent Flow 流程拼装 Skill](skills/agentflow/SKILL.md)

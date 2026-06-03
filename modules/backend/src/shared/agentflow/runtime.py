@@ -5,15 +5,16 @@ from __future__ import annotations
 import queue
 import threading
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Iterable
 
+from .checkpoints import CheckpointSaver, FlowCheckpoint, InMemoryCheckpointSaver
 from .events import FlowEvent, FlowSignal, FlowStep
-from .graph import FlowGraph
-
-
-class FlowCancelled(Exception):
-    """流程被协作式取消。"""
+from .graph import FlowEdge, FlowGraph, FlowNode
+from .hooks import FlowHook, HookContext, HookDecision
+from .prompts import PromptAssembler, PromptMessage, PromptTemplate
+from .termination import FlowCancelled, FlowRefused, FlowTerminated
+from .tools import ToolCall, ToolRegistry
 
 
 @dataclass(slots=True)
@@ -30,6 +31,8 @@ class FlowRun:
     final_event: FlowEvent | None = None
     thread: threading.Thread | None = None
     state: dict[str, Any] = field(default_factory=dict)
+    active_node_id: str | None = None
+    completed_nodes: set[str] = field(default_factory=set)
 
 
 class FlowContext:
@@ -76,6 +79,36 @@ class FlowContext:
     def emit_error(self, error: str, *, status: str = "failed") -> FlowEvent:
         return self.runtime.emit(self.run, event_type="error", status=status, error=error)
 
+    def emit_tool_call(self, call: ToolCall) -> FlowEvent:
+        return self.runtime.emit(self.run, event_type="tool_call", status="running", tool_call=asdict(call))
+
+    def emit_tool_result(self, result) -> FlowEvent:
+        return self.runtime.emit(self.run, event_type="tool_result", status="running", tool_result=asdict(result))
+
+    def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+        return self.runtime.call_tool(self, name=name, arguments=dict(arguments or {}))
+
+    def render_prompt(self, template: PromptTemplate, variables: dict[str, Any]) -> list[PromptMessage]:
+        return self.runtime.prompt_assembler.render(template, variables)
+
+    def save_checkpoint(self, *, reason: str = "manual") -> FlowCheckpoint:
+        return self.runtime.save_checkpoint(self.run, reason=reason)
+
+    def request_terminate(self, reason: str) -> None:
+        self.runtime.emit(self.run, event_type="error", status="terminated", error=reason)
+        raise FlowTerminated(reason)
+
+    def refuse(self, reason: str, answer: dict[str, Any] | None = None) -> None:
+        payload = answer or {"answerType": "REFUSAL", "answer": {"reason": reason}}
+        self.runtime.emit(self.run, event_type="answer", status="refused", answer=payload, refusal={"reason": reason})
+        raise FlowRefused(reason)
+
+    def add_node(self, node: FlowNode) -> None:
+        self.runtime.add_node(self.run, node)
+
+    def add_edge(self, edge: FlowEdge) -> None:
+        self.runtime.add_edge(self.run, edge)
+
     def wait_for_input(self, ask: dict[str, Any] | None = None) -> FlowSignal:
         if ask is not None:
             self.emit_ask(ask)
@@ -95,9 +128,20 @@ class FlowContext:
 class InMemoryFlowRuntime:
     """单进程内存流程运行器。"""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        checkpoint_saver: CheckpointSaver | None = None,
+        tool_registry: ToolRegistry | None = None,
+        prompt_assembler: PromptAssembler | None = None,
+        hooks: list[FlowHook] | None = None,
+    ) -> None:
         self._runs: dict[str, FlowRun] = {}
         self._lock = threading.RLock()
+        self.checkpoint_saver = checkpoint_saver or InMemoryCheckpointSaver()
+        self.tool_registry = tool_registry or ToolRegistry()
+        self.prompt_assembler = prompt_assembler or PromptAssembler()
+        self.hooks = list(hooks or [])
 
     def start(self, graph: FlowGraph, *, state: dict[str, Any] | None = None) -> FlowRun:
         run = FlowRun(run_id=f"run_{uuid.uuid4().hex[:16]}", graph=graph, state=dict(state or {}))
@@ -154,6 +198,10 @@ class InMemoryFlowRuntime:
         answer: dict[str, Any] | None = None,
         ask: dict[str, Any] | None = None,
         error: str | None = None,
+        tool_call: dict[str, Any] | None = None,
+        tool_result: dict[str, Any] | None = None,
+        refusal: dict[str, Any] | None = None,
+        checkpoint: dict[str, Any] | None = None,
     ) -> FlowEvent:
         with self._lock:
             run.sequence += 1
@@ -169,11 +217,64 @@ class InMemoryFlowRuntime:
                 answer=answer,
                 ask=ask,
                 error=error,
+                tool_call=tool_call,
+                tool_result=tool_result,
+                refusal=refusal,
+                checkpoint=checkpoint,
             )
             if event_type in {"ask", "answer", "error", "done"}:
                 run.final_event = event
             run.events.put(event)
             return event
+
+    def save_checkpoint(self, run: FlowRun, *, reason: str) -> FlowCheckpoint:
+        with self._lock:
+            sequence = run.sequence
+            node_id = run.active_node_id
+            state = dict(run.state)
+        checkpoint = self.checkpoint_saver.save(
+            FlowCheckpoint(run_id=run.run_id, sequence=sequence, node_id=node_id, state=state, reason=reason)
+        )
+        self.emit(
+            run,
+            event_type="checkpoint",
+            status="running",
+            checkpoint={
+                "runId": checkpoint.run_id,
+                "sequence": checkpoint.sequence,
+                "nodeId": checkpoint.node_id,
+                "reason": checkpoint.reason,
+                "createdAt": checkpoint.created_at,
+            },
+        )
+        return checkpoint
+
+    def call_tool(self, context: FlowContext, *, name: str, arguments: dict[str, Any]) -> Any:
+        call = ToolCall(id=f"tool_{uuid.uuid4().hex[:12]}", name=name, arguments=dict(arguments))
+        self._apply_hook_decision(context, self._run_hooks("before_tool", context, tool_name=name))
+        context.emit_tool_call(call)
+        result = self.tool_registry.execute(call)
+        context.emit_tool_result(result)
+        self._apply_hook_decision(context, self._run_hooks("after_tool", context, tool_name=name))
+        if result.error:
+            raise RuntimeError(result.error)
+        return result.output
+
+    def add_node(self, run: FlowRun, node: FlowNode) -> None:
+        with self._lock:
+            if node.id in run.graph.nodes:
+                raise ValueError(f"Duplicate flow node id: {node.id}")
+            if node.id in run.completed_nodes:
+                raise ValueError(f"Cannot add completed flow node: {node.id}")
+            run.graph.add_node(node)
+
+    def add_edge(self, run: FlowRun, edge: FlowEdge) -> None:
+        with self._lock:
+            if edge.source in run.completed_nodes and edge.source != run.active_node_id:
+                raise ValueError(f"Cannot add edge from completed node: {edge.source}")
+            if edge.target in run.completed_nodes:
+                raise ValueError(f"Cannot add edge to completed node: {edge.target}")
+            run.graph.add_edge(edge)
 
     def _execute(self, run: FlowRun, context: FlowContext) -> None:
         try:
@@ -184,6 +285,10 @@ class InMemoryFlowRuntime:
         except FlowCancelled as exc:
             self.emit(run, event_type="error", status="cancelled", error=str(exc))
             self.emit(run, event_type="done", status="cancelled")
+        except FlowTerminated:
+            self.emit(run, event_type="done", status="terminated")
+        except FlowRefused:
+            self.emit(run, event_type="done", status="refused")
         except Exception as exc:  # pragma: no cover - defensive boundary
             self.emit(run, event_type="error", status="failed", error=str(exc))
             self.emit(run, event_type="done", status="failed")
@@ -193,6 +298,7 @@ class InMemoryFlowRuntime:
     def _execute_graph(self, graph: FlowGraph, context: FlowContext) -> None:
         if graph.start not in graph.nodes:
             raise ValueError(f"Flow start node does not exist: {graph.start}")
+        run = context.run
         ready = [graph.start]
         completed: set[str] = set()
         executed_count: dict[str, int] = {}
@@ -205,10 +311,25 @@ class InMemoryFlowRuntime:
             executed_count[node_id] = executed_count.get(node_id, 0) + 1
             if executed_count[node_id] > max_node_executions:
                 raise RuntimeError(f"Flow node exceeded execution limit: {node_id}")
+            run.active_node_id = node_id
             context.emit_step(code=node.id, title=node.title or node.id, status="running")
-            node.handler(context)
+            skip_node = False
+            try:
+                decision = self._run_hooks("before_node", context, node=node)
+                skip_node = self._apply_hook_decision(context, decision)
+                if not skip_node:
+                    node.handler(context)
+                if node.checkpoint_policy.get("after"):
+                    context.save_checkpoint(reason=f"after_node:{node.id}")
+                self._apply_hook_decision(context, self._run_hooks("after_node", context, node=node))
+            except Exception as exc:
+                decision = self._run_hooks("on_error", context, node=node, error=exc)
+                self._apply_hook_decision(context, decision)
+                raise
             completed.add(node_id)
+            run.completed_nodes.add(node_id)
             context.emit_step(code=node.id, title=node.title or node.id, status="finished")
+            run.active_node_id = None
 
             for edge in graph.outgoing(node_id):
                 if edge.condition is not None and not edge.condition(context):
@@ -219,6 +340,42 @@ class InMemoryFlowRuntime:
                         ready.append(edge.target)
                 elif edge.target not in ready:
                     ready.append(edge.target)
+
+    def _run_hooks(
+        self,
+        method_name: str,
+        context: FlowContext,
+        *,
+        node: FlowNode | None = None,
+        tool_name: str | None = None,
+        error: Exception | None = None,
+    ) -> HookDecision | None:
+        hook_context = HookContext(
+            run_id=context.run_id,
+            node_id=node.id if node else context.run.active_node_id,
+            tool_name=tool_name,
+            state=context.state,
+            metadata=dict(node.metadata if node else {}),
+        )
+        for hook in [*self.hooks, *(node.hooks if node else [])]:
+            method = getattr(hook, method_name, None)
+            if method is None:
+                continue
+            decision = method(hook_context, error) if method_name == "on_error" else method(hook_context)
+            if decision is not None and decision.action != "continue":
+                return decision
+        return None
+
+    def _apply_hook_decision(self, context: FlowContext, decision: HookDecision | None) -> bool:
+        if decision is None or decision.action == "continue":
+            return False
+        if decision.action == "skip":
+            return True
+        if decision.action == "terminate":
+            context.request_terminate(decision.reason or "flow terminated by hook")
+        if decision.action == "refuse":
+            context.refuse(decision.reason or "flow refused by hook", answer=decision.answer)
+        raise ValueError(f"Unsupported hook decision: {decision.action}")
 
 
 def context_value(run: FlowRun, key: str) -> Any:

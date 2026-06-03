@@ -519,6 +519,24 @@ class ChatContractApiTests(unittest.TestCase):
                     conversation_id="conv_001",
                     chat_id="chat_001",
                     sequence=2,
+                    event_type="tool_call",
+                    status="running",
+                    tool_call={"id": "tool_001", "name": "onequery", "arguments": {"sql": "select 1"}},
+                )
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=3,
+                    event_type="checkpoint",
+                    status="running",
+                    checkpoint={"runId": "run_001", "sequence": 3, "reason": "after_tool"},
+                )
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=4,
                     event_type="answer",
                     status="finished",
                     answer={"answerType": "TEXT", "answer": {"text": "ok"}},
@@ -527,7 +545,7 @@ class ChatContractApiTests(unittest.TestCase):
                     run_id="run_001",
                     conversation_id="conv_001",
                     chat_id="chat_001",
-                    sequence=3,
+                    sequence=5,
                     event_type="done",
                     status="finished",
                 )
@@ -544,6 +562,9 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('"runId": "run_001"', body)
         self.assertIn('"conversationId": "conv_001"', body)
+        self.assertIn('"eventType": "step_delta"', body)
+        self.assertIn('"toolCall": {"id": "tool_001"', body)
+        self.assertIn('"checkpoint": {"runId": "run_001"', body)
         self.assertIn('"answerType": "TEXT"', body)
 
     def test_run_cancel_and_input_endpoints(self):

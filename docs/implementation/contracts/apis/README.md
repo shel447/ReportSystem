@@ -442,6 +442,9 @@ X-User-Id: <external-user-id>
 - `ask`：追问载荷（详见 ChatResponse.ask 子结构）
 - `answer`：最终结果（详见 ChatResponse.answer 子结构）
 - `errors`：错误列表
+- `toolCall` / `toolResult`：工具调用进展；仅出现在 `step_delta` 事件上
+- `checkpoint`：流程 checkpoint 记录；仅表示运行态保存点，不承诺服务重启恢复
+- `refusal`：拒答原因；通常与 `answer` 同时出现，状态为 `refused`
 
 最小字段集约束：
 
@@ -453,6 +456,8 @@ X-User-Id: <external-user-id>
 | `answer` | `answer` |
 | `error` | `error` |
 | `done` | 无额外业务字段 |
+
+内部 `tool_call/tool_result/checkpoint` 事件对外统一投影为 `step_delta`，并通过 `toolCall/toolResult/checkpoint` 字段区分。内部业务增量事件对外继续通过 `answer` 事件携带 `delta`。
 
 链路约束：
 
@@ -471,6 +476,9 @@ X-User-Id: <external-user-id>
 - 若中途失败：
   - 先发 `error`
   - 最后仍应发 `done`
+- 若系统主动终止或拒答：
+  - 主动终止返回 `error -> done`，状态为 `terminated`
+  - 拒答返回带 `refusal` 的 `answer -> done`，状态为 `refused`
 
 ##### 运行中协作接口
 

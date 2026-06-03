@@ -51,7 +51,9 @@
 - low level：`FlowGraph / FlowNode / FlowEdge / FlowContext`，表达顺序、条件边、循环、并行分支、汇合和 human-in-loop 节点。
 - high level：`SequentialFlow` 和 `ReactFlow`，用于快速组织常见 agent 流程。
 
-首版运行态只保存在内存中，不做数据库 checkpoint。取消采用协作式信号，节点和外部调用边界主动检查后停止，不强制杀死底层线程或 HTTP 请求。
+Agent Flow 还提供工具调用、提示词组装、节点 hook、checkpoint、拒答和系统主动终止接口。conversation 不直接调用这些接口，只订阅事件并投影为 `/chat` 响应。
+
+首版运行态只保存在内存中，checkpoint 也使用内存 saver，不做服务重启恢复。取消采用协作式信号，节点和外部调用边界主动检查后停止，不强制杀死底层线程或 HTTP 请求。
 
 ## 5. 上下文与严格模型
 

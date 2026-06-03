@@ -22,7 +22,7 @@
 | `tests/architecture/test_dataclass_alias_contract.py` | 4 | lowerCamelCase 序列化契约 |
 | `tests/architecture/test_service_type_contracts.py` | 4 | 应用服务正式类型 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
-| `tests/conversation/api/test_chat_contract_api.py` | 10 | `/chat` ask/reply、外部报告交接、SSE、运行中协作接口、报告与章节 delta |
+| `tests/conversation/api/test_chat_contract_api.py` | 10 | `/chat` ask/reply、外部报告交接、SSE、工具和 checkpoint 投影、运行中协作接口、报告与章节 delta |
 | `tests/conversation/unit/test_conversation_service.py` | 7 | AgentCore 托管对话、通用追问生命周期、upsert 消费、暂未开放 fork 和异步审计提交 |
 | `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
 | `tests/data_analysis/unit/test_data_analysis_service.py` | 2 | 智能问数编排、SQL 安全拒绝和 BI 可视化建议 |
@@ -52,3 +52,4 @@
 | `tests/report/unit/test_report_scenario_bootstrap.py` | 6 | 外部报告交接、根级参数快照、名称精确定位和非法输入拒绝 |
 | `tests/report/unit/test_report_scenario_flow.py` | 3 | 报告场景 Flow 接入、同步预览保留和严格 codec |
 | `tests/shared/test_agentflow_runtime.py` | 5 | Agent Flow 顺序、条件/汇合、React、human-in-loop 和协作取消 |
+| `tests/shared/test_agentflow_capabilities.py` | 7 | Tool、Prompt、Hook、Checkpoint、拒答、动态追加分支和非法改图拒绝 |

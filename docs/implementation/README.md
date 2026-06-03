@@ -5,15 +5,16 @@
 ## 实现导航
 
 1. [技术契约](contracts/README.md)
-2. [模板管理](template-management/README.md)
-3. [通用对话](conversation/README.md)
-4. [报告生成](report-generation/README.md)
-5. [报告管理](report-management/README.md)
-6. [前端](frontend/README.md)
-7. [文档导出](document-export/README.md)
-8. [外部集成](integrations/外部集成实现.md)
-9. [智能问数](data-analysis/README.md)
-10. [实现变更日志](changelog/README.md)
+2. [Agent Flow 公共流程框架](agentflow/README.md)
+3. [模板管理](template-management/README.md)
+4. [通用对话](conversation/README.md)
+5. [报告生成](report-generation/README.md)
+6. [报告管理](report-management/README.md)
+7. [前端](frontend/README.md)
+8. [文档导出](document-export/README.md)
+9. [外部集成](integrations/外部集成实现.md)
+10. [智能问数](data-analysis/README.md)
+11. [实现变更日志](changelog/README.md)
 
 ## 模块映射
 
@@ -30,7 +31,7 @@
 依赖方向：
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
-- `shared/agentflow` 提供公共流程运行、事件发布、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
+- `shared/agentflow` 提供公共流程运行、事件发布、工具调用、提示词组装、hook、checkpoint、拒答、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
 - `report` 通过系统装配层的 codec 和强类型 handler 注册到 `conversation`
 - `data_analysis` 通过系统装配层注册 `query_data` 场景，并向 `report` 提供可复用查询能力
 - 系统装配层负责跨 context 的严格 DTO 转换；`conversation` 不读取 `report.application` 或 `report.domain`

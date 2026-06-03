@@ -190,11 +190,16 @@ def _legacy_event_stream(payload: dict[str, Any]):
 
 
 def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
+    public_event_type = event.event_type
+    if event.event_type == "delta":
+        public_event_type = "answer"
+    if event.event_type in {"tool_call", "tool_result", "checkpoint"}:
+        public_event_type = "step_delta"
     payload: dict[str, Any] = {
         "conversationId": event.conversation_id or "",
         "chatId": event.chat_id or "",
         "runId": event.run_id,
-        "eventType": event.event_type,
+        "eventType": public_event_type,
         "sequence": event.sequence,
         "timestamp": int(time.time() * 1000),
         "status": event.status,
@@ -214,6 +219,14 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
         payload["ask"] = event.ask
     if event.error is not None:
         payload["error"] = event.error
+    if event.tool_call is not None:
+        payload["toolCall"] = event.tool_call
+    if event.tool_result is not None:
+        payload["toolResult"] = event.tool_result
+    if event.refusal is not None:
+        payload["refusal"] = event.refusal
+    if event.checkpoint is not None:
+        payload["checkpoint"] = event.checkpoint
     return payload
 
 

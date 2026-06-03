@@ -156,7 +156,7 @@ export type ChatResponse = {
   conversationId: string;
   chatId: string;
   runId?: string | null;
-  status: "waiting_user" | "running" | "finished" | "failed";
+  status: "waiting_user" | "running" | "finished" | "failed" | "cancelled" | "terminated" | "refused";
   steps: unknown[];
   ask: ChatAsk | null;
   answer:
@@ -249,13 +249,17 @@ export type ChatStreamEvent = {
   eventType: "status" | "step_delta" | "ask" | "answer" | "error" | "done";
   sequence: number;
   timestamp: number;
-  status: "waiting_user" | "running" | "finished" | "failed";
+  status: "waiting_user" | "running" | "finished" | "failed" | "cancelled" | "terminated" | "refused";
   step?: unknown;
   steps?: unknown[];
   ask?: ChatAsk | null;
   answer?: ChatResponse["answer"];
   error?: unknown;
   delta?: ChatStreamDelta[];
+  toolCall?: Record<string, unknown>;
+  toolResult?: Record<string, unknown>;
+  refusal?: Record<string, unknown>;
+  checkpoint?: Record<string, unknown>;
 };
 
 export type ConversationSummary = {
