@@ -127,6 +127,25 @@ class SessionSummary:
 
 
 @dataclass(slots=True)
+class ConversationAnswer:
+    """一轮对话中的一条系统回答。"""
+
+    type: str
+    content: str
+    answer_time: int | str | None = None
+
+
+@dataclass(slots=True)
+class ConversationRecord:
+    """会话历史中的一轮问答。"""
+
+    chat_id: str
+    question: str
+    ask_time: int | str | None = None
+    answers: list[ConversationAnswer] = field(default_factory=list)
+
+
+@dataclass(slots=True)
 class SessionMessage:
     """会话消息视图。"""
 
@@ -145,6 +164,7 @@ class SessionDetail:
     conversation_id: str
     title: str
     status: str
+    records: list[ConversationRecord] = field(default_factory=list)
     messages: list[SessionMessage] = field(default_factory=list)
 
 
@@ -240,12 +260,29 @@ def session_message_to_dict(message: SessionMessage) -> dict[str, object]:
     }
 
 
+def conversation_answer_to_dict(answer: ConversationAnswer) -> dict[str, object]:
+    return {
+        "type": answer.type,
+        "content": answer.content,
+        "answerTime": answer.answer_time,
+    }
+
+
+def conversation_record_to_dict(record: ConversationRecord) -> dict[str, object]:
+    return {
+        "chatId": record.chat_id,
+        "question": record.question,
+        "askTime": record.ask_time,
+        "answers": [conversation_answer_to_dict(item) for item in record.answers],
+    }
+
+
 def session_detail_to_dict(detail: SessionDetail) -> dict[str, object]:
     return {
         "conversationId": detail.conversation_id,
         "title": detail.title,
         "status": detail.status,
-        "messages": [session_message_to_dict(item) for item in detail.messages],
+        "records": [conversation_record_to_dict(item) for item in detail.records],
     }
 
 

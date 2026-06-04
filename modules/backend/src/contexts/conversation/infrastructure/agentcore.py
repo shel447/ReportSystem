@@ -6,11 +6,11 @@ import json
 from typing import Any
 
 from ....shared.kernel.errors import ErrorCode, UpstreamError
-from ..application.ports import HostedChat, HostedConversation
+from ..application.ports import HostedAnswer, HostedChat, HostedConversation
 
 
 class ExternalConversationHistoryGateway:
-    def __init__(self, *, client, piu_name: str = "dtecommon-uis-uiboard", piu_version: str = "1.0.0") -> None:
+    def __init__(self, *, client, piu_name: str = "ReportGenerationPIU", piu_version: str = "1.0.0") -> None:
         self.client = client
         self.piu_name = piu_name
         self.piu_version = piu_version
@@ -44,16 +44,9 @@ class ExternalConversationHistoryGateway:
                 payload={
                     "conversationId": chat.conversation_id,
                     "chatId": chat.chat_id,
-                    "type": "PIU",
-                    "content": {
-                        "piuName": self.piu_name,
-                        "piuVersion": self.piu_version,
-                        "answers": {
-                            "request": dict(chat.request_payload),
-                            "response": dict(chat.response_payload),
-                            "meta": dict(chat.meta),
-                        },
-                    },
+                    "question": chat.question,
+                    "askTime": chat.created_at,
+                    "answers": [_answer_to_payload(item) for item in _answers_for_import(chat=chat, piu_name=self.piu_name)],
                 },
                 user_id=user_id,
             )
@@ -95,13 +88,14 @@ class ExternalConversationHistoryGateway:
 
 
 def _history_record(payload: dict[str, Any], *, conversation_id: str) -> HostedChat:
-    answers = payload.get("answers")
-    imported = _decode_imported_answers(answers)
+    answers = _decode_answers(payload.get("answers"))
+    imported = _decode_imported_answers(payload.get("answers"))
     question = _decode_question(payload.get("question"))
     return HostedChat(
         chat_id=str(payload.get("chatId") or payload.get("id") or ""),
         conversation_id=str(payload.get("conversationId") or conversation_id),
         question=question or str(imported.get("request", {}).get("question") or ""),
+        answers=answers,
         request_payload=dict(imported.get("request") or {}),
         response_payload=dict(imported.get("response") or {}),
         meta=dict(imported.get("meta") or {}),
@@ -109,8 +103,90 @@ def _history_record(payload: dict[str, Any], *, conversation_id: str) -> HostedC
     )
 
 
+def _answers_for_import(*, chat: HostedChat, piu_name: str) -> list[HostedAnswer]:
+    if chat.answers:
+        return list(chat.answers)
+    answers: list[HostedAnswer] = []
+    if chat.response_payload:
+        answers.append(
+            HostedAnswer(
+                type="PIU",
+                content=json.dumps(
+                    {
+                        "piuName": piu_name,
+                        "answers": _piu_answers_from_response(dict(chat.response_payload)),
+                    },
+                    ensure_ascii=False,
+                ),
+                answer_time=None,
+            )
+        )
+    return answers
+
+
+def _piu_answers_from_response(response: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "steps": list(response.get("steps") or []),
+        "ask": response.get("ask"),
+        "delta": list(response.get("delta") or []),
+        "answer": response.get("answer"),
+        "errors": list(response.get("errors") or []),
+    }
+
+
+def _answer_to_payload(answer: HostedAnswer) -> dict[str, Any]:
+    return {
+        "type": answer.type,
+        "content": answer.content,
+        "answerTime": answer.answer_time,
+    }
+
+
+def _decode_answers(raw: object) -> list[HostedAnswer]:
+    if not isinstance(raw, list):
+        imported = _decode_imported_answers(raw)
+        response = imported.get("response")
+        if isinstance(response, dict):
+            return [
+                HostedAnswer(
+                    type="PIU",
+                    content=json.dumps({"piuName": "ReportGenerationPIU", "answers": _piu_answers_from_response(response)}, ensure_ascii=False),
+                    answer_time=None,
+                )
+            ]
+        return []
+    answers: list[HostedAnswer] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        answer_type = str(item.get("type") or "").strip()
+        content = item.get("content")
+        if answer_type == "TEXT":
+            answers.append(HostedAnswer(type="TEXT", content=str(content or ""), answer_time=item.get("answerTime")))
+            continue
+        if answer_type == "PIU":
+            content_text = content if isinstance(content, str) else json.dumps(content or {}, ensure_ascii=False)
+            answers.append(HostedAnswer(type="PIU", content=content_text, answer_time=item.get("answerTime")))
+    if answers:
+        return answers
+    imported = _decode_imported_answers(raw)
+    response = imported.get("response")
+    if isinstance(response, dict):
+        return [
+            HostedAnswer(
+                type="PIU",
+                content=json.dumps({"piuName": "ReportGenerationPIU", "answers": _piu_answers_from_response(response)}, ensure_ascii=False),
+                answer_time=None,
+            )
+        ]
+    return []
+
+
 def _decode_imported_answers(raw: object) -> dict[str, Any]:
     if isinstance(raw, list):
+        response = _response_from_standard_answers(raw)
+        if response:
+            return {"response": response}
         raw = raw[-1].get("content") if raw and isinstance(raw[-1], dict) else {}
     if isinstance(raw, str):
         try:
@@ -122,6 +198,42 @@ def _decode_imported_answers(raw: object) -> dict[str, Any]:
     if isinstance(raw, dict) and ("conversationId" in raw or "status" in raw) and "response" not in raw:
         raw = {"response": raw}
     return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _response_from_standard_answers(raw: list[object]) -> dict[str, Any]:
+    response: dict[str, Any] = {"steps": [], "ask": None, "answer": None, "errors": []}
+    has_standard_piu = False
+    for item in raw:
+        if not isinstance(item, dict) or item.get("type") != "PIU":
+            continue
+        content = item.get("content")
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except ValueError:
+                continue
+        if not isinstance(content, dict):
+            continue
+        answers = content.get("answers")
+        if not isinstance(answers, dict):
+            continue
+        has_standard_piu = True
+        response["steps"].extend(list(answers.get("steps") or []))
+        if answers.get("ask") is not None:
+            response["ask"] = answers.get("ask")
+        if answers.get("answer") is not None:
+            response["answer"] = answers.get("answer")
+        response["errors"].extend(list(answers.get("errors") or []))
+    if not has_standard_piu:
+        return {}
+    status = "finished"
+    if response.get("errors"):
+        status = "failed"
+    ask = response.get("ask")
+    if isinstance(ask, dict) and ask.get("status") == "pending":
+        status = "waiting_user"
+    response["status"] = status
+    return response
 
 
 def _decode_question(raw: object) -> str:

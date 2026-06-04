@@ -18,10 +18,18 @@ class HostedConversation:
 
 
 @dataclass(slots=True)
+class HostedAnswer:
+    type: str
+    content: str
+    answer_time: int | str | None = None
+
+
+@dataclass(slots=True)
 class HostedChat:
     chat_id: str
     conversation_id: str
     question: str = ""
+    answers: list[HostedAnswer] = field(default_factory=list)
     request_payload: dict[str, Any] = field(default_factory=dict)
     response_payload: dict[str, Any] = field(default_factory=dict)
     meta: dict[str, Any] = field(default_factory=dict)

@@ -22,8 +22,8 @@
 | `tests/architecture/test_dataclass_alias_contract.py` | 4 | lowerCamelCase 序列化契约 |
 | `tests/architecture/test_service_type_contracts.py` | 4 | 应用服务正式类型 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
-| `tests/conversation/api/test_chat_contract_api.py` | 10 | `/chat` ask/reply、外部报告交接、SSE、工具和 checkpoint 投影、运行中协作接口、报告与章节 delta |
-| `tests/conversation/infrastructure/test_agentcore_gateway.py` | 1 | AgentCore 上游错误码到 ChatBI 错误码的转换 |
+| `tests/conversation/api/test_chat_contract_api.py` | 11 | `/chat` ask/reply、会话详情 records、外部报告交接、SSE、工具和 checkpoint 投影、运行中协作接口、报告与章节 delta |
+| `tests/conversation/infrastructure/test_agentcore_gateway.py` | 3 | AgentCore 上游错误码到 ChatBI 错误码的转换、标准 records/answers 写入和历史读取 |
 | `tests/conversation/unit/test_conversation_service.py` | 8 | AgentCore 托管对话、通用追问生命周期、运行中会话并发保护、upsert 消费、暂未开放 fork 和异步审计提交 |
 | `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
 | `tests/data_analysis/unit/test_data_analysis_service.py` | 2 | 智能问数编排、SQL 安全拒绝和 BI 可视化建议 |
@@ -35,6 +35,7 @@
 | `tests/features/test_complex_mock_template_export_flow.py` | 1 | 四份复杂开发模板真实 Word/PPT Office 包闭环 |
 | `tests/features/test_template_management_flow.py` | 2 | 模板 CRUD、导入预览、导出 API 闭环和跨用户共享可见性 |
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 7 | 业务库、开发库、升级规则和 V004 用户镜像无损移除 |
+| `tests/infrastructure/platform/test_guardrail_gateway.py` | 1 | Guardrail 正式 `/rest/naie/...` 路径和用户身份透传 |
 | `tests/infrastructure/platform/test_platform_runtime.py` | 3 | NodeAgent 分层配置、环境应急覆盖和审计尽力投递 |
 | `tests/infrastructure/platform/test_external_dependency_contracts.py` | 56 | 平台外部依赖消费者 Schema、集中示例、AgentCore upsert、查询响应同构与 Schema 索引完整性 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
@@ -52,5 +53,6 @@
 | `tests/report/unit/test_parameter_resolver.py` | 2 | 参数标量解释和缺参判断纯规则 |
 | `tests/report/unit/test_report_scenario_bootstrap.py` | 6 | 外部报告交接、根级参数快照、名称精确定位和非法输入拒绝 |
 | `tests/report/unit/test_report_scenario_flow.py` | 3 | 报告场景 Flow 接入、同步预览保留和严格 codec |
+| `tests/shared/test_http_identity.py` | 2 | 正式用户身份必填和本地开发用户覆盖 |
 | `tests/shared/test_agentflow_runtime.py` | 5 | Agent Flow 顺序、条件/汇合、React、human-in-loop 和协作取消 |
 | `tests/shared/test_agentflow_capabilities.py` | 7 | Tool、Prompt、Hook、Checkpoint、拒答、动态追加分支和非法改图拒绝 |

@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
 import { fetchConversation, fetchConversations } from "../entities/chat/api";
-import type { ChatResponse, ConversationDetail } from "../entities/chat/types";
+import type { ChatResponse, ConversationAnswer, ConversationDetail, ConversationRecord } from "../entities/chat/types";
 import { EmptyState } from "../shared/ui/EmptyState";
 import { ListPageLayout } from "../shared/layouts/ListPageLayout";
 import { PageIntroBar } from "../shared/layouts/PageIntroBar";
@@ -107,8 +107,8 @@ function extractReportsFromConversation(conversation: ConversationDetail) {
     createdAt?: string;
   }> = [];
 
-  for (const message of [...conversation.messages].reverse()) {
-    const response = readChatResponse(message.content);
+  for (const record of [...conversation.records].reverse()) {
+    const response = readReportResponse(record);
     if (!response || response.answer?.answerType !== "REPORT") {
       continue;
     }
@@ -120,19 +120,57 @@ function extractReportsFromConversation(conversation: ConversationDetail) {
       status: payload.status,
       conversationId: conversation.conversationId,
       conversationTitle: conversation.title ?? conversation.conversationId,
-      createdAt: message.createdAt ?? undefined,
+      createdAt: normalizeRecordTime(record.askTime),
     });
   }
 
   return items;
 }
 
-function readChatResponse(content: Record<string, unknown>): ChatResponse | null {
-  const value = content.response;
-  if (!value || typeof value !== "object") {
+function readReportResponse(record: ConversationRecord): ChatResponse | null {
+  for (const answer of [...record.answers].reverse()) {
+    const response = readPiuResponse(record, answer);
+    if (response?.answer?.answerType === "REPORT") {
+      return response;
+    }
+  }
+  return null;
+}
+
+function readPiuResponse(record: ConversationRecord, answer: ConversationAnswer): ChatResponse | null {
+  if (answer.type !== "PIU") {
     return null;
   }
-  return value as ChatResponse;
+  try {
+    const parsed = JSON.parse(answer.content);
+    const answers = parsed?.answers;
+    if (!answers || typeof answers !== "object") {
+      return null;
+    }
+    return {
+      conversationId: "",
+      chatId: record.chatId,
+      status: answers.answer ? "finished" : "running",
+      steps: Array.isArray(answers.steps) ? answers.steps : [],
+      ask: answers.ask ?? null,
+      answer: answers.answer ?? null,
+      errors: Array.isArray(answers.errors) ? answers.errors : [],
+      timestamp: typeof answer.answerTime === "number" ? answer.answerTime : Date.now(),
+      apiVersion: "v1",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRecordTime(value: string | number | null | undefined): string | undefined {
+  if (value === null || value === undefined || value === "") {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return new Date(value).toISOString();
+  }
+  return value;
 }
 
 function formatDateTime(value: string) {

@@ -10,9 +10,6 @@ from ....shared.kernel.audit import AuditEvent
 from ....shared.agentflow import FlowEvent, FlowStep, InMemoryFlowRuntime
 from ..domain.models import (
     ChatContext,
-    ConversationMessageAction,
-    ConversationMessageContent,
-    ConversationMessageMeta,
     ScenarioTrace,
     scenario_trace_from_dict,
     scenario_trace_to_dict,
@@ -23,17 +20,18 @@ from .models import (
     ChatCommand,
     ChatResponse,
     ChatStep,
+    ConversationAnswer,
+    ConversationRecord,
     DeleteResult,
     ForkSessionCommand,
     ForkSessionResult,
     SessionDetail,
-    SessionMessage,
     SessionSummary,
     chat_answer_to_dict,
     chat_ask_to_dict,
     chat_response_to_dict,
 )
-from .ports import ConversationHistoryGateway, GuardrailGateway, HostedChat
+from .ports import ConversationHistoryGateway, GuardrailGateway, HostedAnswer, HostedChat
 from .scenarios import ScenarioDispatchService, ScenarioResult
 
 
@@ -73,38 +71,23 @@ class ConversationService:
         if conversation is None:
             raise NotFoundError("Conversation not found")
         rounds = self.history_gateway.query_chat_history(conversation_id=conversation_id, page_num=1, page_size=200, user_id=user_id)
-        messages: list[SessionMessage] = []
-        for item in rounds:
-            if item.question:
-                messages.append(
-                    SessionMessage(
-                        chat_id=item.chat_id,
-                        role="user",
-                        content=ConversationMessageContent(question=item.question),
-                        action=None,
-                        meta=ConversationMessageMeta(scenario=_trace_from_hosted(item)),
-                        created_at=item.created_at,
-                    )
-                )
-            if item.response_payload:
-                messages.append(
-                    SessionMessage(
-                        chat_id=item.chat_id,
-                        role="assistant",
-                        content=ConversationMessageContent(response=dict(item.response_payload)),
-                        action=ConversationMessageAction(type="chat_response"),
-                        meta=ConversationMessageMeta(
-                            status=str(item.response_payload.get("status") or "") or None,
-                            scenario=_trace_from_hosted(item),
-                        ),
-                        created_at=item.created_at,
-                    )
-                )
+        records = [
+            ConversationRecord(
+                chat_id=item.chat_id,
+                question=item.question,
+                ask_time=item.created_at,
+                answers=[
+                    ConversationAnswer(type=answer.type, content=answer.content, answer_time=answer.answer_time)
+                    for answer in item.answers
+                ],
+            )
+            for item in rounds
+        ]
         return SessionDetail(
             conversation_id=conversation.conversation_id,
             title=conversation.title,
             status=conversation.status,
-            messages=messages,
+            records=records,
         )
 
     def delete_session(self, *, conversation_id: str, user_id: str) -> DeleteResult:
@@ -186,6 +169,7 @@ class ConversationService:
                 question=str(data.question or ""),
                 request_payload=dict(data.raw_payload),
                 response_payload=chat_response_to_dict(response),
+                answers=_answers_from_response(response, piu_name="ReportGenerationPIU"),
                 meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=result.status)) or {}},
             ),
             user_id=user_id,
@@ -279,6 +263,7 @@ class ConversationService:
                     question=str(data.question or ""),
                     request_payload=dict(data.raw_payload),
                     response_payload=chat_response_to_dict(response),
+                    answers=_answers_from_response(response, piu_name="ReportGenerationPIU"),
                     meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=result.status)) or {}},
                 ),
                 user_id=user_id,
@@ -313,6 +298,7 @@ class ConversationService:
                 question=str(data.question or ""),
                 request_payload=dict(data.raw_payload),
                 response_payload=chat_response_to_dict(response),
+                answers=_answers_from_flow_events(events=events, response=response, piu_name="ReportGenerationPIU"),
                 meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=response.status)) or {}},
             ),
             user_id=user_id,
@@ -432,6 +418,26 @@ class ConversationService:
         updated_ask["status"] = "replied"
         updated["ask"] = updated_ask
         source.response_payload = updated
+        source.answers = _answers_from_response(
+            ChatResponse(
+                conversation_id=source.conversation_id,
+                chat_id=source.chat_id,
+                status=str(updated.get("status") or "waiting_user"),
+                steps=[],
+                ask=ChatAsk(
+                    status=str(updated_ask.get("status") or "replied"),
+                    mode=str(updated_ask.get("mode") or "form"),
+                    type=str(updated_ask.get("type") or ""),
+                    title=str(updated_ask.get("title") or ""),
+                    text=str(updated_ask.get("text") or ""),
+                    fields={key: value for key, value in updated_ask.items() if key not in {"status", "mode", "type", "title", "text"}},
+                ),
+                answer=None,
+                errors=[],
+                timestamp=_epoch_ms(),
+            ),
+            piu_name="ReportGenerationPIU",
+        )
         self.history_gateway.import_chat(chat=source, user_id=user_id)
 
     def _audit(self, event: AuditEvent) -> None:
@@ -565,6 +571,66 @@ def _events_from_response(response: ChatResponse) -> list[FlowEvent]:
         sequence += 1
     events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="done", status=response.status))
     return events
+
+
+def _answers_from_response(response: ChatResponse, *, piu_name: str) -> list[HostedAnswer]:
+    return _answers_from_flow_events(events=_events_from_response(response), response=response, piu_name=piu_name)
+
+
+def _answers_from_flow_events(*, events: list[FlowEvent], response: ChatResponse, piu_name: str) -> list[HostedAnswer]:
+    answers: list[HostedAnswer] = [
+        HostedAnswer(
+            type="TEXT",
+            content="已收到请求，正在分析报告诉求。",
+            answer_time=response.timestamp,
+        )
+    ]
+    for event in events:
+        payload = _piu_payload_from_event(event)
+        if payload is None:
+            continue
+        answers.append(
+            HostedAnswer(
+                type="PIU",
+                content=json.dumps({"piuName": piu_name, "answers": payload}, ensure_ascii=False),
+                answer_time=_event_answer_time(event=event, fallback=response.timestamp),
+            )
+        )
+    return answers
+
+
+def _piu_payload_from_event(event: FlowEvent) -> dict[str, object] | None:
+    if event.step is not None and event.event_type == "step_delta":
+        return {
+            "steps": [{
+                "code": event.step.code,
+                "stepId": event.step.code,
+                "status": event.step.status,
+                "title": event.step.title,
+                "detail": event.step.detail,
+                "parentStepId": event.step.parent_step_id,
+                "stepPath": list(event.step.step_path),
+            }],
+            "ask": None,
+            "delta": [],
+            "answer": None,
+            "errors": [],
+        }
+    if event.delta:
+        return {"steps": [], "ask": None, "delta": list(event.delta), "answer": None, "errors": []}
+    if event.ask is not None:
+        return {"steps": [], "ask": dict(event.ask), "delta": [], "answer": None, "errors": []}
+    if event.answer is not None:
+        return {"steps": [], "ask": None, "delta": [], "answer": dict(event.answer), "errors": []}
+    if event.error is not None:
+        return {"steps": [], "ask": None, "delta": [], "answer": None, "errors": [dict(event.error)]}
+    return None
+
+
+def _event_answer_time(*, event: FlowEvent, fallback: int | None) -> int | None:
+    if fallback is None:
+        return None
+    return fallback + max(int(event.sequence or 0), 0)
 
 
 def _trace_from_hosted(chat: HostedChat | None) -> ScenarioTrace | None:

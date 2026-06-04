@@ -5,7 +5,7 @@ import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen,
 import { Link } from "react-router-dom";
 
 import { buildChatId, fetchConversation, fetchConversations, sendChatMessageStream, stopChat } from "../entities/chat/api";
-import type { ChatAsk, ChatRequest, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
+import type { ChatAsk, ChatRequest, ChatResponse, ChatStreamDelta, ConversationAnswer, ConversationDetail, ConversationRecord, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
 import type { ParameterScalar } from "../entities/templates/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
@@ -696,15 +696,44 @@ function normalizeConversationMessages(conversation: ConversationDetail | undefi
   if (!conversation) {
     return [];
   }
-  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
-  return messages.map((item, index) => ({
-    key: `${item.chatId}-${item.role}-${index}`,
-    chatId: item.chatId,
-    role: item.role,
-    createdAt: item.createdAt ?? undefined,
-    text: extractMessageText(item.content),
-    response: extractMessageResponse(item.content),
-  }));
+  const records = Array.isArray(conversation.records) ? conversation.records : [];
+  return records.flatMap((record, recordIndex) => {
+    const messages: ChatDisplayMessage[] = [];
+    if (record.question) {
+      messages.push({
+        key: `${record.chatId}-user-${recordIndex}`,
+        chatId: record.chatId,
+        role: "user",
+        createdAt: normalizeRecordTime(record.askTime),
+        text: record.question,
+      });
+    }
+    record.answers.forEach((answer, answerIndex) => {
+      if (answer.type === "TEXT") {
+        messages.push({
+          key: `${record.chatId}-answer-${answerIndex}`,
+          chatId: record.chatId,
+          role: "assistant",
+          createdAt: normalizeRecordTime(answer.answerTime),
+          text: answer.content,
+        });
+        return;
+      }
+      const response = chatResponseFromPiuAnswer(conversation.conversationId, record, answer);
+      if (!response) {
+        return;
+      }
+      messages.push({
+        key: `${record.chatId}-answer-${answerIndex}`,
+        chatId: record.chatId,
+        role: "assistant",
+        createdAt: normalizeRecordTime(answer.answerTime),
+        text: extractMessageText({ response }),
+        response,
+      });
+    });
+    return messages;
+  });
 }
 
 function mergeConversationAndOptimisticMessages(historyMessages: ChatDisplayMessage[], optimisticTurns: OptimisticTurn[]): ChatDisplayMessage[] {
@@ -799,13 +828,87 @@ function findLatestResponse(conversation: ConversationDetail | undefined): ChatR
   if (!conversation) {
     return null;
   }
-  for (const message of [...conversation.messages].reverse()) {
-    const value = message.content.response;
-    if (value && typeof value === "object") {
-      return value as ChatResponse;
+  for (const record of [...(conversation.records ?? [])].reverse()) {
+    for (const answer of [...record.answers].reverse()) {
+      if (answer.type !== "PIU") {
+        continue;
+      }
+      const response = chatResponseFromPiuAnswer(conversation.conversationId, record, answer);
+      if (response) {
+        return response;
+      }
     }
   }
   return null;
+}
+
+function chatResponseFromPiuAnswer(conversationId: string, record: ConversationRecord, answer: ConversationAnswer): ChatResponse | null {
+  const payload = parsePiuContent(answer.content);
+  const answers = payload?.answers;
+  if (!answers || typeof answers !== "object") {
+    return null;
+  }
+  const answerRecord = answers as Record<string, unknown>;
+  return {
+    conversationId,
+    chatId: record.chatId,
+    status: inferResponseStatus(answerRecord),
+    steps: Array.isArray(answerRecord.steps) ? answerRecord.steps as ChatResponse["steps"] : [],
+    ask: isRecord(answerRecord.ask) ? answerRecord.ask as ChatResponse["ask"] : null,
+    answer: isRecord(answerRecord.answer) ? answerRecord.answer as ChatResponse["answer"] : null,
+    errors: Array.isArray(answerRecord.errors) ? answerRecord.errors : [],
+    timestamp: normalizeRecordTimestamp(answer.answerTime),
+    apiVersion: "v1",
+  };
+}
+
+function parsePiuContent(content: string): { piuName?: string; answers?: unknown } | null {
+  try {
+    const parsed = JSON.parse(content);
+    return isRecord(parsed) ? parsed as { piuName?: string; answers?: unknown } : null;
+  } catch {
+    return null;
+  }
+}
+
+function inferResponseStatus(answers: Record<string, unknown>): ChatResponse["status"] {
+  const ask = answers.ask;
+  if (isRecord(ask) && ask.status === "pending") {
+    return "waiting_user";
+  }
+  const errors = answers.errors;
+  if (Array.isArray(errors) && errors.length) {
+    return "failed";
+  }
+  if (answers.answer) {
+    return "finished";
+  }
+  return "running";
+}
+
+function normalizeRecordTime(value: string | number | null | undefined): string | undefined {
+  if (value === null || value === undefined || value === "") {
+    return undefined;
+  }
+  if (typeof value === "number") {
+    return new Date(value).toISOString();
+  }
+  return value;
+}
+
+function normalizeRecordTimestamp(value: string | number | null | undefined): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? Date.now() : parsed;
+  }
+  return Date.now();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function extractMessageText(content: Record<string, unknown>) {

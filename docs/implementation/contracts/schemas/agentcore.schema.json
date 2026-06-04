@@ -37,30 +37,13 @@
     "ImportChatRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["conversationId", "chatId", "type", "content"],
+      "required": ["conversationId", "chatId", "question", "answers"],
       "properties": {
         "conversationId": {"type": "string", "minLength": 1},
         "chatId": {"type": "string", "minLength": 1},
-        "type": {"const": "PIU"},
-        "content": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["piuName", "piuVersion", "answers"],
-          "properties": {
-            "piuName": {"type": "string", "minLength": 1},
-            "piuVersion": {"type": "string", "minLength": 1},
-            "answers": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["request", "response", "meta"],
-              "properties": {
-                "request": {"type": "object"},
-                "response": {"type": "object"},
-                "meta": {"type": "object"}
-              }
-            }
-          }
-        }
+        "question": {"type": "string"},
+        "askTime": {},
+        "answers": {"type": "array", "items": {"$ref": "#/$defs/ChatAnswer"}}
       }
     },
     "ImportChatResponse": {
@@ -80,13 +63,23 @@
     "ChatRecord": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["chatId"],
+      "required": ["chatId", "question", "answers", "askTime"],
       "properties": {
         "chatId": {"type": "string", "minLength": 1},
         "conversationId": {"type": "string"},
-        "question": {},
-        "answers": {},
+        "question": {"type": "string"},
+        "answers": {"type": "array", "items": {"$ref": "#/$defs/ChatAnswer"}},
         "askTime": {}
+      }
+    },
+    "ChatAnswer": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "content", "answerTime"],
+      "properties": {
+        "type": {"enum": ["TEXT", "PIU"]},
+        "content": {"type": "string"},
+        "answerTime": {}
       }
     },
     "HistoryResponse": {

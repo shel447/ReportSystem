@@ -121,24 +121,63 @@ POST /rest/naie/aiagentcore/v1/chat/create
 POST /rest/naie/aiagent/v1/chat/import
 ```
 
-该接口具有 **upsert** 语义：同一 `conversationId + chatId` 再次提交时覆盖该轮已归档内容。
+该接口具有 **upsert** 语义：同一 `conversationId + chatId` 再次提交时覆盖该轮已归档内容。写入结构与 AgentCore 历史查询的单条 `records[]` 保持核心一致：一条记录表示一轮对话，`question` 是用户主动提问，`answers[]` 按时间顺序保存系统回答片段。
 
 ```json
 {
   "conversationId": "conv_001",
   "chatId": "chat_001",
-  "type": "PIU",
-  "content": {
-    "piuName": "dtecommon-uis-uiboard",
-    "piuVersion": "1.0.0",
-    "answers": {
-      "request": {},
-      "response": {},
-      "meta": {}
+  "question": "生成总部网络运行日报",
+  "askTime": 1780368000000,
+  "answers": [
+    {
+      "type": "TEXT",
+      "content": "已收到请求，正在分析报告诉求。",
+      "answerTime": 1780368000100
+    },
+    {
+      "type": "PIU",
+      "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[{\"stepId\":\"step_root\",\"title\":\"生成总部网络运行日报\",\"type\":\"directory\",\"status\":\"running\"}],\"ask\":null,\"delta\":[],\"answer\":null,\"errors\":[]}}",
+      "answerTime": 1780368000300
     }
+  ]
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `conversationId` | `string` | 是 | 会话 ID |
+| `chatId` | `string` | 是 | 本轮对话 ID |
+| `question` | `string` | 是 | 用户主动发起的提问或确认动作说明 |
+| `askTime` | `number/string` | 是 | 用户提问时间；生产推荐毫秒时间戳 |
+| `answers` | `object[]` | 是 | 系统回答片段，按时间顺序排列 |
+
+`Answer` 字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `type` | `TEXT \| PIU` | 是 | `TEXT` 为可直接展示文本；`PIU` 为前端组件渲染内容 |
+| `content` | `string` | 是 | TEXT 时为文本；PIU 时为 JSON 字符串 |
+| `answerTime` | `number/string` | 是 | 回答片段产生时间；生产推荐毫秒时间戳 |
+
+`type=PIU` 时，`content` 反序列化后固定包含：
+
+```json
+{
+  "piuName": "ReportGenerationPIU",
+  "answers": {
+    "steps": [],
+    "ask": null,
+    "delta": [],
+    "answer": null,
+    "errors": []
   }
 }
 ```
+
+其中每条外层 `answers[]` 记录只承载一种有效内容：某条记录可以是进度 `steps`，也可以是追问 `ask`、增量 `delta`、最终 `answer` 或错误 `errors`；不会把一轮流程的所有有效内容塞进同一个 PIU `content`。
 
 ### 3.4 查询会话历史
 
@@ -146,7 +185,7 @@ POST /rest/naie/aiagent/v1/chat/import
 POST /rest/naie/aiagentcore/v2/chat/history
 ```
 
-请求包含 `conversationId/pageNum/pageSize`。响应使用 `records[]` 返回轮次；每项至少包含可识别的 `chatId`，并可携带 `conversationId/question/answers/askTime`。
+请求包含 `conversationId/pageNum/pageSize`。响应使用 `records[]` 返回轮次；每项使用与 `chat/import` 相同的核心结构：`chatId/question/askTime/answers[]`。
 
 ### 3.5 查询单轮详情
 
@@ -170,7 +209,7 @@ GET /rest/naie/aiagentcore/v1/conversations?pageNum=1&pageSize=20
 
 - 会话列表记录容器兼容 `records/results/data`，`data.results` 也可读取。
 - 会话或轮次主键兼容历史字段 `id`。
-- `answers` 兼容数组、JSON 字符串和带 `content.answers` 的包装结构。
+- `answers` 正式结构为数组；历史读取兼容 JSON 字符串和带 `content.answers` 的旧包装结构。
 - `question` 兼容字符串、JSON 字符串和内容块数组。
 
 这些变体只用于历史兼容，不作为新接入方的推荐协议。

@@ -70,22 +70,25 @@
       "request": {
         "conversationId": "conv_001",
         "chatId": "chat_001",
-        "type": "PIU",
-        "content": {
-          "piuName": "dtecommon-uis-uiboard",
-          "piuVersion": "1.0.0",
-          "answers": {
-            "request": {
-              "question": "生成总部网络运行日报"
-            },
-            "response": {
-              "status": "available"
-            },
-            "meta": {
-              "scenario": "report"
-            }
+        "question": "生成总部网络运行日报",
+        "askTime": 1780368000000,
+        "answers": [
+          {
+            "type": "TEXT",
+            "content": "已收到请求，正在分析报告诉求。",
+            "answerTime": 1780368000100
+          },
+          {
+            "type": "PIU",
+            "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[{\"stepId\":\"step_root\",\"title\":\"生成总部网络运行日报\",\"type\":\"directory\",\"status\":\"running\"}],\"ask\":null,\"delta\":[],\"answer\":null,\"errors\":[]}}",
+            "answerTime": 1780368000300
+          },
+          {
+            "type": "PIU",
+            "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[],\"ask\":null,\"delta\":[],\"answer\":{\"answerType\":\"REPORT\",\"answer\":{\"reportId\":\"rpt_001\",\"status\":\"available\"}},\"errors\":[]}}",
+            "answerTime": 1780368000500
           }
-        }
+        ]
       },
       "response": {
         "status": "ok"
@@ -103,8 +106,24 @@
             "chatId": "chat_001",
             "conversationId": "conv_001",
             "question": "生成总部网络运行日报",
-            "answers": {},
-            "askTime": 1780368000000
+            "askTime": 1780368000000,
+            "answers": [
+              {
+                "type": "TEXT",
+                "content": "已收到请求，正在分析报告诉求。",
+                "answerTime": 1780368000100
+              },
+              {
+                "type": "PIU",
+                "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[{\"stepId\":\"step_root\",\"title\":\"生成总部网络运行日报\",\"type\":\"directory\",\"status\":\"running\"}],\"ask\":null,\"delta\":[],\"answer\":null,\"errors\":[]}}",
+                "answerTime": 1780368000300
+              },
+              {
+                "type": "PIU",
+                "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[],\"ask\":null,\"delta\":[],\"answer\":{\"answerType\":\"REPORT\",\"answer\":{\"reportId\":\"rpt_001\",\"status\":\"available\"}},\"errors\":[]}}",
+                "answerTime": 1780368000500
+              }
+            ]
           }
         ],
         "total": 1,
@@ -120,8 +139,19 @@
         "chatId": "chat_001",
         "conversationId": "conv_001",
         "question": "生成总部网络运行日报",
-        "answers": {},
-        "askTime": 1780368000000
+        "askTime": 1780368000000,
+        "answers": [
+          {
+            "type": "TEXT",
+            "content": "已收到请求，正在分析报告诉求。",
+            "answerTime": 1780368000100
+          },
+          {
+            "type": "PIU",
+            "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[],\"ask\":null,\"delta\":[],\"answer\":{\"answerType\":\"REPORT\",\"answer\":{\"reportId\":\"rpt_001\",\"status\":\"available\"}},\"errors\":[]}}",
+            "answerTime": 1780368000500
+          }
+        ]
       }
     },
     "conversations": {

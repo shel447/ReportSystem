@@ -9,6 +9,9 @@ from src.contexts.conversation.application.models import (
     ChatAsk,
     ChatCommand,
     ChatResponse,
+    ConversationAnswer,
+    ConversationRecord,
+    SessionDetail,
 )
 from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView, report_answer_view_to_dict
 from src.contexts.report.application.scenario_models import (
@@ -193,6 +196,50 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertEqual(payload["ask"]["type"], "confirm_params")
         self.assertEqual(payload["ask"]["parameters"][0]["id"], "scope")
         self.assertEqual(payload["ask"]["reportContext"]["templateInstance"]["id"], "ti_001")
+
+    def test_get_chat_detail_returns_records_without_legacy_messages(self):
+        fake_service = type(
+            "FakeConversationService",
+            (),
+            {
+                "get_session": lambda self, conversation_id, user_id: SessionDetail(
+                    conversation_id=conversation_id,
+                    title="网络运行日报",
+                    status="active",
+                    records=[
+                        ConversationRecord(
+                            chat_id="chat_001",
+                            question="帮我生成总部网络运行日报",
+                            ask_time=1713427200000,
+                            answers=[
+                                ConversationAnswer(
+                                    type="TEXT",
+                                    content="已收到请求，正在分析报告诉求。",
+                                    answer_time=1713427200100,
+                                ),
+                                ConversationAnswer(
+                                    type="PIU",
+                                    content='{"piuName":"ReportGenerationPIU","answers":{"steps":[],"ask":null,"delta":[],"answer":{"answerType":"REPORT","answer":{"reportId":"rpt_001"}},"errors":[]}}',
+                                    answer_time=1713427200300,
+                                ),
+                            ],
+                        )
+                    ],
+                )
+            },
+        )()
+
+        with patch("src.routers.chat.build_conversation_service", return_value=fake_service):
+            response = self.client.get("/rest/chatbi/v1/chat/conv_001", headers={"X-User-Id": "default"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertNotIn("messages", payload)
+        self.assertEqual(payload["conversationId"], "conv_001")
+        self.assertEqual(payload["records"][0]["chatId"], "chat_001")
+        self.assertEqual(payload["records"][0]["question"], "帮我生成总部网络运行日报")
+        self.assertEqual(payload["records"][0]["answers"][0]["type"], "TEXT")
+        self.assertEqual(payload["records"][0]["answers"][1]["type"], "PIU")
 
     def test_post_chat_confirm_params_returns_report_answer(self):
         fake_service = type(

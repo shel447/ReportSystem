@@ -295,14 +295,20 @@ export type ConversationDetail = {
   conversationId: string;
   title?: string;
   status?: string;
-  messages: Array<{
-    chatId: string;
-    role: "user" | "assistant";
-    content: Record<string, unknown>;
-    action?: Record<string, unknown> | null;
-    meta?: Record<string, unknown> | null;
-    createdAt?: string | null;
-  }>;
+  records: ConversationRecord[];
+};
+
+export type ConversationRecord = {
+  chatId: string;
+  question: string;
+  askTime?: string | number | null;
+  answers: ConversationAnswer[];
+};
+
+export type ConversationAnswer = {
+  type: "TEXT" | "PIU";
+  content: string;
+  answerTime?: string | number | null;
 };
 
 export type ChatRequest = {

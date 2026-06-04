@@ -49,6 +49,10 @@ function systemSettingsResponse() {
   };
 }
 
+function piuContent(answers: Record<string, unknown>) {
+  return JSON.stringify({ piuName: "ReportGenerationPIU", answers });
+}
+
 describe("ChatPage", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -141,7 +145,7 @@ describe("ChatPage", () => {
             conversationId: "conv_1",
             title: "网络运行日报",
             status: "active",
-            messages: [{ chatId: "chat_1", role: "user", content: { question: "生成网络运行日报" }, createdAt: "2026-04-18T09:00:00Z" }],
+            records: [{ chatId: "chat_1", question: "生成网络运行日报", askTime: "2026-04-18T09:00:00Z", answers: [] }],
           }),
         });
       }
@@ -185,7 +189,7 @@ describe("ChatPage", () => {
         ]));
       }
       if (url === "/rest/chatbi/v1/chat/conv_queue") {
-        return Promise.resolve({ ok: true, json: async () => ({ conversationId: "conv_queue", title: "队列测试", status: "active", messages: [] }) });
+        return Promise.resolve({ ok: true, json: async () => ({ conversationId: "conv_queue", title: "队列测试", status: "active", records: [] }) });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
     });
@@ -317,7 +321,7 @@ describe("ChatPage", () => {
             conversationId: "conv_delta",
             title: "网络运行日报",
             status: "active",
-            messages: [],
+            records: [],
           }),
         });
       }
@@ -346,11 +350,12 @@ describe("ChatPage", () => {
       }
       if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
         const payload = JSON.parse(String(init.body));
+        const requestChatId = String(payload.chatId);
         if (!payload.reply) {
           return Promise.resolve(createSseResponse([
             {
               conversationId: "conv_multi",
-              chatId: "chat_multi_1",
+              chatId: requestChatId,
               eventType: "status",
               sequence: 1,
               timestamp: 1713427200000,
@@ -358,7 +363,7 @@ describe("ChatPage", () => {
             },
             {
               conversationId: "conv_multi",
-              chatId: "chat_multi_1",
+              chatId: requestChatId,
               eventType: "ask",
               sequence: 2,
               timestamp: 1713427200001,
@@ -438,7 +443,7 @@ describe("ChatPage", () => {
             },
             {
               conversationId: "conv_multi",
-              chatId: "chat_multi_1",
+              chatId: requestChatId,
               eventType: "done",
               sequence: 3,
               timestamp: 1713427200002,
@@ -474,18 +479,18 @@ describe("ChatPage", () => {
             conversationId: "conv_multi",
             title: "作用域参数模板",
             status: "active",
-            messages: [
-              { chatId: "chat_multi_1", role: "user", content: { question: "生成作用域参数报告" }, createdAt: "2026-04-18T09:00:00Z" },
+            records: [
               {
-                chatId: "chat_multi_1a",
-                role: "assistant",
-                content: {
-                  response: {
-                    conversationId: "conv_multi",
-                    chatId: "chat_multi_1",
-                    status: "waiting_user",
-                    steps: [],
-                    ask: {
+                chatId: "chat_multi_1",
+                question: "生成作用域参数报告",
+                askTime: "2026-04-18T09:00:00Z",
+                answers: [
+                  {
+                    type: "PIU",
+                    answerTime: "2026-04-18T09:00:01Z",
+                    content: piuContent({
+                      steps: [],
+                      ask: {
                       status: "pending",
                       mode: "form",
                       type: "fill_params",
@@ -557,14 +562,12 @@ describe("ChatPage", () => {
                         },
                       },
                     },
-                    answer: null,
-                    errors: [],
-                    requestId: "req_multi_1",
-                    timestamp: 1713427200000,
-                    apiVersion: "v1",
+                      delta: [],
+                      answer: null,
+                      errors: [],
+                    }),
                   },
-                },
-                createdAt: "2026-04-18T09:00:01Z",
+                ],
               },
             ],
           }),
@@ -672,18 +675,18 @@ describe("ChatPage", () => {
             conversationId: "conv_replied",
             title: "已回复追问",
             status: "active",
-            messages: [
+            records: [
               {
                 chatId: "chat_replied_1",
-                role: "assistant",
-                createdAt: "2026-04-18T09:00:00Z",
-                content: {
-                  response: {
-                    conversationId: "conv_replied",
-                    chatId: "chat_replied_1",
-                    status: "waiting_user",
-                    steps: [],
-                    ask: {
+                question: "请确认报告诉求",
+                askTime: "2026-04-18T09:00:00Z",
+                answers: [
+                  {
+                    type: "PIU",
+                    answerTime: "2026-04-18T09:00:00Z",
+                    content: piuContent({
+                      steps: [],
+                      ask: {
                       status: "replied",
                       mode: "form",
                       type: "confirm_params",
@@ -716,13 +719,12 @@ describe("ChatPage", () => {
                         },
                       },
                     },
-                    answer: null,
-                    errors: [],
-                    requestId: "req_replied",
-                    timestamp: 1713427200000,
-                    apiVersion: "v1",
+                      delta: [],
+                      answer: null,
+                      errors: [],
+                    }),
                   },
-                },
+                ],
               },
             ],
           }),
@@ -831,7 +833,7 @@ describe("ChatPage", () => {
       if (url === "/rest/chatbi/v1/chat/conv_confirm") {
         return Promise.resolve({
           ok: true,
-          json: async () => ({ conversationId: "conv_confirm", title: "网络运行状态报告", status: "active", messages: [] }),
+          json: async () => ({ conversationId: "conv_confirm", title: "网络运行状态报告", status: "active", records: [] }),
         });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });

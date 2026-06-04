@@ -549,6 +549,71 @@ POST /chat/{chatId}/stop
 - 运行中不提供“补充输入”接口。普通追加说明由前端排队，当前轮结束后通过 `POST /chat` 创建下一轮 `chat`。
 - 已经持久化为 `ask` 的结构化答复仍使用 `/chat reply.sourceChatId` 创建新一轮消息。
 
+##### 会话详情响应
+
+`GET /chat/{conversationId}` 返回结构与 AgentCore `/chat/history?conversationId=...` 的核心定义保持一致。外层使用 `records[]`，每条 `Record` 表示一轮对话：
+
+```json
+{
+  "conversationId": "conv_001",
+  "title": "网络运行日报",
+  "status": "active",
+  "records": [
+    {
+      "chatId": "chat_001",
+      "question": "帮我生成总部网络运行日报",
+      "askTime": 1713427200000,
+      "answers": [
+        {
+          "type": "TEXT",
+          "content": "已收到请求，正在分析报告诉求。",
+          "answerTime": 1713427200100
+        },
+        {
+          "type": "PIU",
+          "content": "{\"piuName\":\"ReportGenerationPIU\",\"answers\":{\"steps\":[{\"stepId\":\"step_root\",\"title\":\"生成总部网络运行日报\",\"type\":\"directory\",\"status\":\"running\"}],\"ask\":null,\"delta\":[],\"answer\":null,\"errors\":[]}}",
+          "answerTime": 1713427200300
+        }
+      ]
+    }
+  ]
+}
+```
+
+`Record` 字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `chatId` | `string` | 是 | 本轮对话 ID |
+| `question` | `string` | 是 | 用户主动发起的提问，确认生成等动作也按新一轮提问记录 |
+| `askTime` | `number/string/null` | 是 | 用户提问时间；生产推荐毫秒时间戳 |
+| `answers` | `Answer[]` | 是 | 系统回答片段，按时间顺序排列 |
+
+`Answer` 字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `type` | `TEXT \| PIU` | 是 | `TEXT` 直接作为文本展示；`PIU` 交给指定前端组件渲染 |
+| `content` | `string` | 是 | TEXT 时为文本；PIU 时为 JSON 字符串 |
+| `answerTime` | `number/string/null` | 是 | 回答片段产生时间 |
+
+`type = PIU` 时，`content` 反序列化后固定包含：
+
+```json
+{
+  "piuName": "ReportGenerationPIU",
+  "answers": {
+    "steps": [],
+    "ask": null,
+    "delta": [],
+    "answer": null,
+    "errors": []
+  }
+}
+```
+
+其中每条外层 `answers[]` 记录只承载一种有效内容。比如某条记录只携带 `steps`，另一条记录只携带 `delta`，最终结果记录只携带 `answer`；空数组和 `null` 只用于保持 PIU 内容结构稳定。
+
 ##### ChatResponse.step / steps 子结构
 
 流式 SSE 事件使用 `step` 表达单个执行进度；非 SSE 最终响应使用 `steps` 聚合本轮流程中已发出的进度。
@@ -633,7 +698,7 @@ POST /chat/{chatId}/stop
 
 对话历史回显约束：
 
-- `GET /chat/{conversationId}` 中，若某条 assistant 消息是追问消息，则其 `ask` 载荷与当前 `ChatResponse.ask` 使用同一结构
+- `GET /chat/{conversationId}` 中，若某条 `Answer.type = PIU` 的回答片段是追问，则其 `content.answers.ask` 载荷与当前 `ChatResponse.ask` 使用同一结构
 - 历史回显中的 `ask.status` 必须反映该追问是否已经被后续回复消费
 
 `ask.status` 交互规则：

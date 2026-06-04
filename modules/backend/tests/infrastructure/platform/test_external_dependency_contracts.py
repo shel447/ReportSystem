@@ -98,7 +98,13 @@ def test_agentcore_import_contract_is_an_upsert_payload():
 
     assert payload["conversationId"] == "conv_001"
     assert payload["chatId"] == "chat_001"
-    assert payload["content"]["answers"]["response"]["status"] == "available"
+    assert payload["question"] == "生成总部网络运行日报"
+    assert isinstance(payload["answers"], list)
+    assert "content" not in payload
+    piu_payloads = [json.loads(item["content"]) for item in payload["answers"] if item["type"] == "PIU"]
+    assert piu_payloads[0]["piuName"] == "ReportGenerationPIU"
+    assert piu_payloads[0]["answers"]["steps"][0]["stepId"] == "step_root"
+    assert piu_payloads[-1]["answers"]["answer"]["answerType"] == "REPORT"
     _validate("agentcore.schema.json", "ImportChatRequest", payload)
 
 
