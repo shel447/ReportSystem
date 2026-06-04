@@ -13,7 +13,7 @@ class ExternalGuardrailGateway:
         if not str(question or "").strip():
             return GuardrailResult(passed=True)
         payload = self.client.post_json(
-            path_or_url="/rest/guardrail/v1/question/check",
+            path_or_url="/rest/naie/guardrail/v1/question/check",
             payload={"question": question},
             user_id=user_id,
         )
@@ -23,7 +23,7 @@ class ExternalGuardrailGateway:
         if not str(answer or "").strip():
             return GuardrailResult(passed=True)
         payload = self.client.post_json(
-            path_or_url="/rest/guardrail/v1/answer/check",
+            path_or_url="/rest/naie/guardrail/v1/answer/check",
             payload={"answer": answer},
             user_id=user_id,
         )
@@ -33,7 +33,7 @@ class ExternalGuardrailGateway:
         if not str(content or "").strip():
             return GuardrailResult(passed=True)
         payload = self.client.post_json(
-            path_or_url="/rest/guardrail/v1/application/check",
+            path_or_url="/rest/naie/guardrail/v1/application-sec/check",
             payload={"kind": kind, "content": content},
             user_id=user_id,
         )

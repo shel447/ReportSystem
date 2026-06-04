@@ -46,6 +46,7 @@ from src.contexts.report.domain.generation_models import (
     chart_component_to_dict,
     report_dsl_from_dict,
     report_dsl_to_dict,
+    report_column_from_dict,
     table_component_from_dict,
     table_component_to_dict,
     template_instance_from_dict,
@@ -549,6 +550,28 @@ class ReportGenerationServiceTests(unittest.TestCase):
             table_component_from_dict(table_payload).data_properties.merge_rows[0].merged_text,
             "总部网络",
         )
+
+    def test_report_column_from_dict_preserves_lineage_tracing(self):
+        column = report_column_from_dict(
+            {
+                "key": "health_score",
+                "title": "健康评分",
+                "type": "double",
+                "lineageTracing": {
+                    "sources": [
+                        {
+                            "field": "score",
+                            "businessName_cn": "健康评分",
+                            "enumValues": "[]",
+                            "ui": "{\"component\":\"progress\"}",
+                        }
+                    ]
+                },
+            }
+        )
+
+        self.assertEqual(column.key, "health_score")
+        self.assertEqual(column.lineage_tracing["sources"][0]["field"], "score")
 
     def test_text_chart_and_presentation_blocks_round_trip_domain_serializers(self):
         template_block = presentation_block_from_dict(

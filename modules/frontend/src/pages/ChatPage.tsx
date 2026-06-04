@@ -5,7 +5,7 @@ import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen,
 import { Link } from "react-router-dom";
 
 import { buildChatId, fetchConversation, fetchConversations, sendChatMessageStream, stopChat } from "../entities/chat/api";
-import type { ChatAsk, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
+import type { ChatAsk, ChatRequest, ChatResponse, ChatStreamDelta, ConversationDetail, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
 import type { ParameterScalar } from "../entities/templates/types";
 import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
@@ -17,6 +17,23 @@ import { EmptyState } from "../shared/ui/EmptyState";
 
 type ParameterDrafts = Record<string, ParameterValue[]>;
 type DynamicOptionMap = Record<string, ParameterValue[]>;
+type ChatDisplayMessage = {
+  key: string;
+  chatId: string;
+  role: "user" | "assistant";
+  text: string;
+  response?: ChatResponse;
+  createdAt?: string;
+};
+type OptimisticTurn = {
+  chatId: string;
+  conversationId?: string;
+  userText: string;
+  createdAt: string;
+  sourceChatId?: string;
+  response?: ChatResponse;
+  error?: string;
+};
 
 export function ChatPage() {
   const queryClient = useQueryClient();
@@ -38,6 +55,7 @@ export function ChatPage() {
   const [demoReport, setDemoReport] = useState<Record<string, unknown> | null>(null);
   const [activeStreamingChatId, setActiveStreamingChatId] = useState<string | null>(null);
   const [queuedChats, setQueuedChats] = useState<Array<{ chatId: string; question: string }>>([]);
+  const [optimisticTurns, setOptimisticTurns] = useState<OptimisticTurn[]>([]);
   const demoTimers = useRef<number[]>([]);
 
   const settingsQuery = useQuery({ queryKey: ["system-settings"], queryFn: fetchSystemSettings });
@@ -61,9 +79,23 @@ export function ChatPage() {
       setDemoReport(null);
       setStreamDeltas([]);
       setStreamStatus("running");
-      setActiveStreamingChatId(payload.chatId ?? null);
+      const chatId = payload.chatId ?? buildChatId();
+      setActiveStreamingChatId(chatId);
+      setOptimisticTurns((current) => upsertOptimisticTurn(current, {
+        chatId,
+        conversationId: payload.conversationId,
+        userText: describeChatRequest(payload),
+        createdAt: new Date().toISOString(),
+        sourceChatId: payload.reply?.sourceChatId,
+      }));
+      return { chatId };
     },
     onSuccess: async (response) => {
+      setOptimisticTurns((current) => updateOptimisticTurn(current, response.chatId, {
+        chatId: response.chatId,
+        conversationId: response.conversationId,
+        response,
+      }));
       setLatestResponse(response);
       setActiveConversationId(response.conversationId);
       setQuestion("");
@@ -72,8 +104,10 @@ export function ChatPage() {
       await queryClient.invalidateQueries({ queryKey: ["conversations"] });
       await queryClient.invalidateQueries({ queryKey: ["conversation", response.conversationId] });
     },
-    onError: (error) => {
-      setErrorMessage(error instanceof Error ? error.message : "对话请求失败。");
+    onError: (error, _payload, context) => {
+      const message = error instanceof Error ? error.message : "对话请求失败。";
+      setErrorMessage(message);
+      setOptimisticTurns((current) => updateOptimisticTurn(current, context?.chatId ?? "", { error: message }));
     },
     onSettled: () => {
       setActiveStreamingChatId(null);
@@ -142,9 +176,9 @@ export function ChatPage() {
   }, [currentAsk]);
 
   const conversationMessages = useMemo(() => normalizeConversationMessages(conversationQuery.data), [conversationQuery.data]);
+  const consumedAskChatIds = useMemo(() => new Set(optimisticTurns.map((turn) => turn.sourceChatId).filter((id): id is string => Boolean(id))), [optimisticTurns]);
   const streamReport = useMemo(() => reduceStreamReport(streamDeltas), [streamDeltas]);
   const reportAnswer = latestResponse?.answer?.answerType === "REPORT" ? latestResponse.answer.answer : null;
-  const dataAnalysisAnswer = latestResponse?.answer?.answerType === "DATA_ANALYSIS" ? latestResponse.answer.answer : null;
   const artifactReport = demoReport ?? reportAnswer?.report ?? streamReport;
   const artifactReportId = activeDemoTemplate?.id ?? reportAnswer?.reportId;
   const artifactEditable = Boolean(demoReport || reportAnswer);
@@ -169,9 +203,9 @@ export function ChatPage() {
 
   const canSubmitQuestion = question.trim().length > 0;
   const visibleMessages = activeDemoTemplate ? [
-    { key: `${activeDemoTemplate.id}-user`, role: "user", text: `生成演示报告：${activeDemoTemplate.name}` },
-    { key: `${activeDemoTemplate.id}-assistant`, role: "assistant", text: streamStatus === "running" ? "正在使用 mock delta 构造报告，右侧预览会逐步更新。" : "演示报告已生成，可以在右侧预览或切换到本地编辑。" },
-  ] : conversationMessages;
+    { key: `${activeDemoTemplate.id}-user`, chatId: `${activeDemoTemplate.id}-user`, role: "user" as const, text: `生成演示报告：${activeDemoTemplate.name}` },
+    { key: `${activeDemoTemplate.id}-assistant`, chatId: `${activeDemoTemplate.id}-assistant`, role: "assistant" as const, text: streamStatus === "running" ? "正在使用 mock delta 构造报告，右侧预览会逐步更新。" : "演示报告已生成，可以在右侧预览或切换到本地编辑。" },
+  ] : mergeConversationAndOptimisticMessages(conversationMessages, optimisticTurns);
 
   const confirmDiscardLocalEdit = useCallback(() => {
     if (!editorDirty) return true;
@@ -185,6 +219,7 @@ export function ChatPage() {
     setActiveDemoTemplate(null);
     setDemoReport(null);
     setLatestResponse(null);
+    setOptimisticTurns([]);
     setStreamDeltas([]);
     setStreamStatus("idle");
     setErrorMessage("");
@@ -200,6 +235,7 @@ export function ChatPage() {
     setDemoReport(null);
     setStreamDeltas([]);
     setLatestResponse(null);
+    setOptimisticTurns([]);
     setReportOpen(false);
     setActiveConversationId(conversationId);
     setWorkspaceMode("chat");
@@ -212,6 +248,7 @@ export function ChatPage() {
     const deltas = createDemoStreamDeltas(template);
     setActiveConversationId("");
     setLatestResponse(null);
+    setOptimisticTurns([]);
     setActiveDemoTemplate(template);
     setDemoReport(null);
     setStreamDeltas([]);
@@ -340,61 +377,25 @@ export function ChatPage() {
             <div className="message-list">
               {visibleMessages.length ? visibleMessages.map((message) => (
                 <div key={message.key} className={`message-entry message-entry--${message.role}`}>
-                  <div className="message-entry__body">
-                    <article className={`message-bubble message-bubble--${message.role}`}><p>{message.text}</p></article>
+                  <div className={`message-entry__body${message.response ? " message-entry__body--has-action" : ""}`}>
+                    {message.response ? (
+                      <AssistantResponseCard
+                        response={message.response}
+                        consumed={consumedAskChatIds.has(message.response.chatId)}
+                        parameterDrafts={parameterDrafts}
+                        dynamicOptions={dynamicOptions}
+                        onChange={setParameterDrafts}
+                        onSubmitFill={() => submitAskReply(message.response!, "fill_params", parameterDrafts, dynamicOptions, sendMutation.mutate)}
+                        onSubmitConfirm={() => submitAskReply(message.response!, "confirm_params", parameterDrafts, dynamicOptions, sendMutation.mutate)}
+                        submitting={sendMutation.isPending}
+                      />
+                    ) : (
+                      <article className={`message-bubble message-bubble--${message.role}`}><p>{message.text}</p></article>
+                    )}
                     {"createdAt" in message && message.createdAt ? <div className="message-entry__time">{formatDateTime(message.createdAt)}</div> : null}
                   </div>
                 </div>
               )) : <EmptyState title="开始一段报告对话" description="输入报告诉求，或从左侧选择一份 BI Engine 演示模板。" />}
-
-              {latestResponse?.ask ? (
-                <div className="message-entry message-entry--assistant">
-                  <div className="message-entry__body message-entry__body--has-action">
-                    <article className="message-bubble message-bubble--assistant message-bubble--has-action">
-                      <strong>{latestResponse.ask.title}</strong>
-                      <p>{latestResponse.ask.text}</p>
-                      {latestResponse.ask.status === "pending" && latestResponse.ask.reportContext ? (
-                        <AskPanel
-                          ask={latestResponse.ask}
-                          parameterDrafts={parameterDrafts}
-                          dynamicOptions={dynamicOptions}
-                          onChange={setParameterDrafts}
-                          onSubmitFill={() => submitAskReply(latestResponse, "fill_params", parameterDrafts, dynamicOptions, sendMutation.mutate)}
-                          onSubmitConfirm={() => submitAskReply(latestResponse, "confirm_params", parameterDrafts, dynamicOptions, sendMutation.mutate)}
-                          submitting={sendMutation.isPending}
-                        />
-                      ) : <p>该追问已被后续回复消费。</p>}
-                    </article>
-                  </div>
-                </div>
-              ) : null}
-
-              {reportAnswer ? (
-                <div className="message-entry message-entry--assistant">
-                  <div className="message-entry__body">
-                    <article className="message-bubble message-bubble--assistant">
-                      <strong>报告已生成</strong>
-                      <p>章节完成度：{reportAnswer.generationProgress.completedSections}/{reportAnswer.generationProgress.totalSections}</p>
-                      <div className="action-row action-row--compact"><Link className="secondary-button button-link" to={`/reports/${reportAnswer.reportId}`}>打开报告详情</Link></div>
-                    </article>
-                  </div>
-                </div>
-              ) : null}
-              {dataAnalysisAnswer ? (
-                <div className="message-entry message-entry--assistant">
-                  <div className="message-entry__body">
-                    <article className="message-bubble message-bubble--assistant">
-                      <strong>智能问数结果</strong>
-                      <p>{dataAnalysisAnswer.summary}</p>
-                      <details>
-                        <summary>查看查询语句与结果</summary>
-                        <pre>{dataAnalysisAnswer.sql}</pre>
-                        <pre>{JSON.stringify(dataAnalysisAnswer.data.results, null, 2)}</pre>
-                      </details>
-                    </article>
-                  </div>
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
@@ -522,6 +523,130 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
   );
 }
 
+type AssistantResponseCardProps = {
+  response: ChatResponse;
+  consumed: boolean;
+  parameterDrafts: ParameterDrafts;
+  dynamicOptions: DynamicOptionMap;
+  onChange: Dispatch<SetStateAction<ParameterDrafts>>;
+  onSubmitFill: () => void;
+  onSubmitConfirm: () => void;
+  submitting: boolean;
+};
+
+function AssistantResponseCard({
+  response,
+  consumed,
+  parameterDrafts,
+  dynamicOptions,
+  onChange,
+  onSubmitFill,
+  onSubmitConfirm,
+  submitting,
+}: AssistantResponseCardProps) {
+  if (response.ask) {
+    const ask = consumed ? { ...response.ask, status: "replied" as const } : response.ask;
+    const canReply = ask.status === "pending" && Boolean(ask.reportContext);
+    return (
+      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+        <div className="card-heading">
+          <div>
+            <strong>{ask.title}</strong>
+            <p className="template-hint">{ask.text}</p>
+          </div>
+          {ask.status === "replied" ? <span className="status-pill">已回复</span> : null}
+        </div>
+        {canReply ? (
+          <AskPanel
+            ask={ask}
+            parameterDrafts={parameterDrafts}
+            dynamicOptions={dynamicOptions}
+            onChange={onChange}
+            onSubmitFill={onSubmitFill}
+            onSubmitConfirm={onSubmitConfirm}
+            submitting={submitting}
+          />
+        ) : ask.status === "replied" ? (
+          <p className="template-hint">该追问已被后续回复消费。</p>
+        ) : null}
+      </article>
+    );
+  }
+
+  if (response.answer?.answerType === "REPORT") {
+    const report = response.answer.answer;
+    return (
+      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+        <div className="card-heading">
+          <div>
+            <strong>报告已生成</strong>
+            <p className="template-hint">已冻结报告内容，可以在右侧预览或进入报告详情。</p>
+          </div>
+          <span className="status-pill">{report.status === "available" ? "可用" : report.status}</span>
+        </div>
+        <div className="action-row">
+          <Link className="primary-button" to={`/reports/${encodeURIComponent(report.reportId)}`}>打开报告详情</Link>
+        </div>
+      </article>
+    );
+  }
+
+  if (response.answer?.answerType === "DATA_ANALYSIS") {
+    return (
+      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+        <div className="card-heading">
+          <div>
+            <strong>智能问数已完成</strong>
+            <p className="template-hint">{response.answer.answer.summary}</p>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (response.answer?.answerType === "REPORT_TEMPLATE") {
+    const warnings = response.answer.answer.warnings ?? [];
+    return (
+      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+        <div className="card-heading">
+          <div>
+            <strong>模板草案已提取</strong>
+            <p className="template-hint">{warnings.length ? `存在 ${warnings.length} 条提示，请检查后保存。` : "模板结构已完成规范化。"}</p>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (response.errors.length) {
+    return (
+      <article className="message-bubble message-bubble--assistant message-bubble--has-action">
+        <div className="card-heading">
+          <div>
+            <strong>请求失败</strong>
+            <p className="template-hint">{response.errors.map(renderErrorMessage).join("；")}</p>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  if (response.status === "running" || response.status === "waiting_user") {
+    const latestStep = response.steps[response.steps.length - 1];
+    return (
+      <article className="message-bubble message-bubble--assistant message-bubble--pending">
+        <p>{latestStep?.title ?? "正在处理..."}</p>
+      </article>
+    );
+  }
+
+  return (
+    <article className="message-bubble message-bubble--assistant">
+      <p>{extractMessageText({ response }) || "已完成"}</p>
+    </article>
+  );
+}
+
 export function mergeAskParameters(parameters: TemplateParameter[], parameterDrafts: ParameterDrafts, dynamicOptions: DynamicOptionMap): TemplateParameter[] {
   return parameters.map((parameter) => ({
     ...parameter,
@@ -567,28 +692,107 @@ function mergeParameterList(parameters: TemplateParameter[], parameterMap: Map<s
   return parameters.map((parameter) => parameterMap.get(parameter.id) ?? parameter);
 }
 
-function normalizeConversationMessages(conversation: ConversationDetail | undefined) {
+function normalizeConversationMessages(conversation: ConversationDetail | undefined): ChatDisplayMessage[] {
   if (!conversation) {
     return [];
   }
   const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
-  return messages.map((item, index) => ({ key: `${item.chatId}-${index}`, role: item.role, createdAt: item.createdAt ?? undefined, text: extractMessageText(item.content) }));
+  return messages.map((item, index) => ({
+    key: `${item.chatId}-${item.role}-${index}`,
+    chatId: item.chatId,
+    role: item.role,
+    createdAt: item.createdAt ?? undefined,
+    text: extractMessageText(item.content),
+    response: extractMessageResponse(item.content),
+  }));
 }
 
-function describeDelta(delta: ChatStreamDelta) {
-  if (delta.action === "init_report") {
-    return `初始化报告：${delta.report.title}`;
+function mergeConversationAndOptimisticMessages(historyMessages: ChatDisplayMessage[], optimisticTurns: OptimisticTurn[]): ChatDisplayMessage[] {
+  const known = new Set(historyMessages.map((message) => messageKey(message.chatId, message.role)));
+  const projected: ChatDisplayMessage[] = [];
+  for (const turn of optimisticTurns) {
+    if (!known.has(messageKey(turn.chatId, "user"))) {
+      projected.push({
+        key: `${turn.chatId}-optimistic-user`,
+        chatId: turn.chatId,
+        role: "user",
+        text: turn.userText,
+        createdAt: turn.createdAt,
+      });
+    }
+    if ((turn.response || turn.error) && !known.has(messageKey(turn.chatId, "assistant"))) {
+      const response = turn.response ?? createLocalErrorResponse(turn);
+      projected.push({
+        key: `${turn.chatId}-optimistic-assistant`,
+        chatId: turn.chatId,
+        role: "assistant",
+        text: extractMessageText({ response }),
+        response,
+        createdAt: turn.createdAt,
+      });
+    }
   }
-  if (delta.action === "add_catalog") {
-    return `新增目录：${delta.catalogs.map((item) => item.title).join("、")}`;
+  return historyMessages.concat(projected);
+}
+
+function messageKey(chatId: string, role: "user" | "assistant") {
+  return `${chatId}:${role}`;
+}
+
+function upsertOptimisticTurn(current: OptimisticTurn[], turn: OptimisticTurn): OptimisticTurn[] {
+  const index = current.findIndex((item) => item.chatId === turn.chatId);
+  if (index < 0) {
+    return current.concat(turn);
   }
-  if (delta.action === "add_chapter") {
-    return `新增 PPT 章节：${delta.chapters.map((item) => item.title).join("、")}`;
+  return current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...turn } : item));
+}
+
+function updateOptimisticTurn(current: OptimisticTurn[], chatId: string, patch: Partial<OptimisticTurn>): OptimisticTurn[] {
+  if (!chatId) {
+    return current;
   }
-  if (delta.action === "add_slide") {
-    return `新增幻灯片：${delta.slides.map((item) => item.title ?? item.id).join("、")}`;
+  const index = current.findIndex((item) => item.chatId === chatId);
+  if (index < 0) {
+    return current.concat({
+      chatId,
+      userText: "继续对话",
+      createdAt: new Date().toISOString(),
+      ...patch,
+    });
   }
-  return `新增章节：${delta.sections.map((item) => item.requirement).join("、")}`;
+  return current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item));
+}
+
+function describeChatRequest(payload: ChatRequest) {
+  if (payload.reply?.type === "confirm_params") {
+    return "确认并生成报告";
+  }
+  if (payload.reply?.type === "fill_params") {
+    return "已补充报告参数";
+  }
+  return payload.question?.trim() || "继续对话";
+}
+
+function extractMessageResponse(content: Record<string, unknown>): ChatResponse | undefined {
+  const response = content.response;
+  if (response && typeof response === "object") {
+    return response as ChatResponse;
+  }
+  return undefined;
+}
+
+function createLocalErrorResponse(turn: OptimisticTurn): ChatResponse {
+  return {
+    conversationId: turn.conversationId ?? "",
+    chatId: turn.chatId,
+    status: "failed",
+    steps: [],
+    ask: null,
+    answer: null,
+    errors: [turn.error ?? "请求失败"],
+    timestamp: Date.now(),
+    apiVersion: "v1",
+  };
 }
 
 function findLatestResponse(conversation: ConversationDetail | undefined): ChatResponse | null {
@@ -640,6 +844,25 @@ function extractMessageText(content: Record<string, unknown>) {
     }
   }
   return "";
+}
+
+function renderErrorMessage(error: unknown) {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    if (typeof record.errorMsg === "string") {
+      return record.errorMsg;
+    }
+    if (typeof record.message === "string") {
+      return record.message;
+    }
+    if (typeof record.detail === "string") {
+      return record.detail;
+    }
+  }
+  return "系统处理失败，请稍后重试。";
 }
 
 function formatDateTime(value: string) {

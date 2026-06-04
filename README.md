@@ -173,6 +173,8 @@ Set-Location modules/backend
 uv run python -m uvicorn src.main:app --host 0.0.0.0 --port 8300
 ```
 
+本地直接由后端托管前端 `dist/` 时，如果没有上游网关注入 `X-User-Id`，可显式设置 `REPORT_DEV_USER_ID` 作为开发用户，例如 `REPORT_DEV_USER_ID=pycharm-check`。未设置该变量时，正式业务接口仍会要求请求携带可信用户身份。
+
 默认访问地址：
 
 - 应用首页：[http://127.0.0.1:8300](http://127.0.0.1:8300)

@@ -111,6 +111,9 @@ function applyStreamEvent(target: ChatResponse, event: ChatStreamEvent) {
   if (event.answer !== undefined) {
     target.answer = event.answer;
   }
+  if (event.error !== undefined) {
+    target.errors = target.errors.concat(event.error);
+  }
   if (event.steps !== undefined) {
     target.steps = event.steps;
   }

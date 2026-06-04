@@ -102,19 +102,31 @@ def create_app() -> FastAPI:
     def question_guardrail(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         _apply_scenario(x_mock_scenario, empty=None)
         blocked = x_mock_scenario == "blocked" or any("危险" in str(item) for item in list(payload.get("questions") or []))
-        return {"checkResults": [{"isLegal": not blocked, "response": "请求未通过安全检查" if blocked else ""}]}
+        return {
+            "status": blocked,
+            "error_msg": "请求未通过安全检查" if blocked else None,
+            "checkResults": [{"isLegal": not blocked, "response": "请求未通过安全检查" if blocked else ""}],
+        }
 
     @app.post("/rest/naie/guardrail/v1/answer/check")
     def answer_guardrail(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         _apply_scenario(x_mock_scenario, empty=None)
         blocked = x_mock_scenario == "blocked"
-        return {"checkResults": [{"isLegal": not blocked, "response": "回答未通过安全检查" if blocked else ""}]}
+        return {
+            "status": blocked,
+            "error_msg": "回答未通过安全检查" if blocked else None,
+            "checkResults": [{"isLegal": not blocked, "response": "回答未通过安全检查" if blocked else ""}],
+        }
 
     @app.post("/rest/naie/guardrail/v1/application-sec/check")
     def application_guardrail(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         _apply_scenario(x_mock_scenario, empty=None)
         blocked = x_mock_scenario == "blocked" or "drop table" in str(payload.get("content") or "").lower()
-        return {"status": blocked, "error_msg": "生成内容存在风险" if blocked else None}
+        return {
+            "status": blocked,
+            "error_msg": "生成内容存在风险" if blocked else None,
+            "results": [{"isLegal": not blocked, "response": "生成内容存在风险" if blocked else ""}],
+        }
 
     @app.post("/rest/naie/aiagentcore/v1/conversation")
     def create_conversation(payload: dict[str, Any]):

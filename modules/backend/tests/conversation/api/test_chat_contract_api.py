@@ -660,6 +660,37 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertIn('"checkpoint": {"sequence": 3', body)
         self.assertIn('"answerType": "TEXT"', body)
 
+    def test_post_chat_stream_converts_runtime_error_to_sse_error_event(self):
+        class FakeConversationService:
+            def chat_stream(self, data, user_id):
+                yield FlowEvent(
+                    run_id="run_001",
+                    conversation_id="conv_001",
+                    chat_id="chat_001",
+                    sequence=1,
+                    event_type="status",
+                    status="running",
+                )
+                raise ValidationError("输入参数校验失败")
+
+        with patch("src.routers.chat.build_conversation_service", return_value=FakeConversationService()):
+            with self.client.stream(
+                "POST",
+                "/rest/chatbi/v1/chat",
+                headers={"X-User-Id": "default", "Accept": "text/event-stream"},
+                json={"conversationId": "conv_001", "chatId": "chat_001", "question": "你好", "requestId": "req_001"},
+            ) as response:
+                body = "".join(response.iter_text())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"eventType": "status"', body)
+        self.assertIn('"eventType": "error"', body)
+        self.assertIn('"eventType": "done"', body)
+        self.assertIn('"status": "failed"', body)
+        self.assertIn(ErrorCode.BASE_PARAM_INVALID, body)
+        self.assertIn('"requestId": "req_001"', body)
+        self.assertNotIn('"runId"', body)
+
     def test_stop_chat_endpoint_uses_chat_id_and_old_run_endpoints_are_removed(self):
         class FakeConversationService:
             def stop_chat(self, chat_id, user_id):

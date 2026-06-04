@@ -741,6 +741,116 @@ describe("ChatPage", () => {
     expect(screen.queryByRole("button", { name: "确认并生成" })).not.toBeInTheDocument();
   });
 
+  it("renders confirm generation as a new user and assistant turn", async () => {
+    const templateInstance = {
+      id: "ti_confirm",
+      schemaVersion: "template-instance.vNext-draft",
+      templateId: "tpl_network_status",
+      template: {
+        id: "tpl_network_status",
+        category: "network_operations",
+        name: "网络运行状态报告",
+        description: "网络运行状态报告模板。",
+        schemaVersion: "template.v3",
+        parameters: [],
+        catalogs: [],
+      },
+      conversationId: "conv_confirm",
+      status: "ready_for_confirmation",
+      captureStage: "confirm_params",
+      revision: 1,
+      parameters: [],
+      parameterConfirmation: { missingParameterIds: [], confirmed: false },
+      catalogs: [],
+      createdAt: "2026-04-18T09:00:00Z",
+      updatedAt: "2026-04-18T09:00:00Z",
+    };
+    const fetchMock = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/rest/dev/system-settings") {
+        return Promise.resolve(systemSettingsResponse());
+      }
+      if (url === "/rest/chatbi/v1/chat" && !init?.method) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      if (url === "/rest/chatbi/v1/chat" && init?.method === "POST") {
+        const payload = JSON.parse(String(init.body));
+        if (!payload.reply) {
+          return Promise.resolve(createSseResponse([
+            { conversationId: "conv_confirm", chatId: payload.chatId, eventType: "status", sequence: 1, timestamp: 1, status: "waiting_user" },
+            {
+              conversationId: "conv_confirm",
+              chatId: payload.chatId,
+              eventType: "ask",
+              sequence: 2,
+              timestamp: 2,
+              status: "waiting_user",
+              ask: {
+                status: "pending",
+                mode: "form",
+                type: "confirm_params",
+                title: "请确认报告诉求",
+                text: "请确认报告诉求后开始生成。",
+                parameters: [],
+                reportContext: { templateInstance },
+              },
+            },
+            { conversationId: "conv_confirm", chatId: payload.chatId, eventType: "done", sequence: 3, timestamp: 3, status: "waiting_user" },
+          ]));
+        }
+        expect(payload.reply.sourceChatId).toBeTruthy();
+        expect(payload.reply.reportContext.templateInstance.id).toBe("ti_confirm");
+        return Promise.resolve(createSseResponse([
+          { conversationId: "conv_confirm", chatId: payload.chatId, eventType: "status", sequence: 1, timestamp: 4, status: "running" },
+          {
+            conversationId: "conv_confirm",
+            chatId: payload.chatId,
+            eventType: "answer",
+            sequence: 2,
+            timestamp: 5,
+            status: "finished",
+            answer: {
+              answerType: "REPORT",
+              answer: {
+                reportId: "rpt_confirm",
+                status: "available",
+                report: {
+                  structureType: "flow",
+                  basicInfo: { id: "rpt_confirm", schemaVersion: "1.0.0", mode: "published", status: "Success", name: "网络运行状态报告" },
+                  catalogs: [],
+                  layout: { type: "grid", grid: { cols: 12, rowHeight: 24 } },
+                },
+                templateInstance: { ...templateInstance, status: "completed", captureStage: "report_ready" },
+                documents: [],
+                generationProgress: { totalSections: 0, completedSections: 0 },
+              },
+            },
+          },
+          { conversationId: "conv_confirm", chatId: payload.chatId, eventType: "done", sequence: 3, timestamp: 6, status: "finished" },
+        ]));
+      }
+      if (url === "/rest/chatbi/v1/chat/conv_confirm") {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ conversationId: "conv_confirm", title: "网络运行状态报告", status: "active", messages: [] }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("输入问题"), { target: { value: "做一份网络运行状态报告，用word" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(await screen.findByText("请确认报告诉求")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认并生成" }));
+
+    expect(await screen.findByText("确认并生成报告")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("报告已生成").length).toBeGreaterThanOrEqual(1));
+    expect(screen.getByRole("link", { name: "打开报告详情" })).toHaveAttribute("href", "/reports/rpt_confirm");
+  });
+
   it("streams a local flow demo into the BI Engine report workspace", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("fetch", vi.fn(async (url: string) => url === "/rest/dev/system-settings"

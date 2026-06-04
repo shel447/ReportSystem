@@ -21,7 +21,7 @@ from ..contexts.conversation.application.models import (
 from ..shared.agentflow import FlowEvent
 from ..infrastructure.dependencies import build_conversation_service
 from ..infrastructure.persistence.database import get_db
-from ..shared.kernel.errors import ErrorCode, NotFoundError
+from ..shared.kernel.errors import ApplicationError, ErrorCode, NotFoundError, error_response_payload
 from ..shared.kernel.http import get_current_user_id
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -69,7 +69,15 @@ def chat(
     command = chat_command_from_payload(data.model_dump(exclude_none=True))
     service = build_conversation_service(db)
     if _wants_sse(request):
-        return StreamingResponse(_flow_event_stream(service.chat_stream(data=command, user_id=user_id)), media_type="text/event-stream")
+        return StreamingResponse(
+            _flow_event_stream(
+                lambda: service.chat_stream(data=command, user_id=user_id),
+                conversation_id=command.conversation_id or "",
+                chat_id=command.chat_id or "",
+                request_id=command.request_id,
+            ),
+            media_type="text/event-stream",
+        )
     payload = service.chat(data=command, user_id=user_id)
 
     return chat_response_to_dict(payload)
@@ -130,10 +138,81 @@ def _wants_sse(request: Request | None) -> bool:
     return "text/event-stream" in str(request.headers.get("accept") or "").lower()
 
 
-def _flow_event_stream(events):
-    for event in events:
-        chunk = json.dumps(_flow_event_to_chat_stream_event(event), ensure_ascii=False)
-        yield f"event: message\ndata: {chunk}\n\n"
+def _flow_event_stream(events_factory, *, conversation_id: str = "", chat_id: str = "", request_id: str | None = None):
+    sequence = 1
+    current_conversation_id = conversation_id
+    current_chat_id = chat_id
+    try:
+        events = events_factory()
+        for event in events:
+            current_conversation_id = event.conversation_id or current_conversation_id
+            current_chat_id = event.chat_id or current_chat_id
+            sequence = max(sequence, int(event.sequence or sequence))
+            chunk = json.dumps(_flow_event_to_chat_stream_event(event), ensure_ascii=False)
+            yield f"event: message\ndata: {chunk}\n\n"
+            sequence += 1
+    except ApplicationError as exc:
+        yield _sse_chunk(
+            _stream_error_event(
+                conversation_id=current_conversation_id,
+                chat_id=current_chat_id,
+                sequence=sequence,
+                error=error_response_payload(exc, request_id=request_id),
+            )
+        )
+        yield _sse_chunk(
+            _stream_done_event(
+                conversation_id=current_conversation_id,
+                chat_id=current_chat_id,
+                sequence=sequence + 1,
+                status="failed",
+            )
+        )
+    except Exception as exc:
+        yield _sse_chunk(
+            _stream_error_event(
+                conversation_id=current_conversation_id,
+                chat_id=current_chat_id,
+                sequence=sequence,
+                error=error_response_payload(exc, request_id=request_id, fallback_message="系统处理失败，请稍后重试。"),
+            )
+        )
+        yield _sse_chunk(
+            _stream_done_event(
+                conversation_id=current_conversation_id,
+                chat_id=current_chat_id,
+                sequence=sequence + 1,
+                status="failed",
+            )
+        )
+
+
+def _sse_chunk(payload: dict[str, Any]) -> str:
+    chunk = json.dumps(payload, ensure_ascii=False)
+    return f"event: message\ndata: {chunk}\n\n"
+
+
+def _stream_error_event(*, conversation_id: str, chat_id: str, sequence: int, error: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "conversationId": conversation_id,
+        "chatId": chat_id,
+        "eventType": "error",
+        "sequence": sequence,
+        "timestamp": int(time.time() * 1000),
+        "status": "failed",
+        "error": error,
+    }
+
+
+def _stream_done_event(*, conversation_id: str, chat_id: str, sequence: int, status: str) -> dict[str, Any]:
+    return {
+        "conversationId": conversation_id,
+        "chatId": chat_id,
+        "eventType": "done",
+        "sequence": sequence,
+        "timestamp": int(time.time() * 1000),
+        "status": status,
+    }
 
 
 def _legacy_event_stream(payload: dict[str, Any]):

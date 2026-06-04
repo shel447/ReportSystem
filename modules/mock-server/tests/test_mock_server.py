@@ -20,6 +20,12 @@ def test_parameter_dataset_and_dynamic_protocols():
     assert client.post("/rest/dynamic-content/flow-section", json={}).json()["meta"]["dslType"] == "Section"
 
 
+def test_guardrail_protocols_use_formal_naie_paths_only():
+    assert client.post("/rest/naie/guardrail/v1/question/check", json={"question": "hello"}).json()["status"] is False
+    assert client.post("/rest/naie/guardrail/v1/answer/check", json={"answer": "ok"}).json()["status"] is False
+    assert client.post("/rest/naie/guardrail/v1/application-sec/check", json={"kind": "sql", "content": "select 1"}).json()["status"] is False
+
+
 def test_header_scenarios_are_request_scoped():
     assert client.post("/rest/datasets/availability-trend", headers={"X-Mock-Scenario": "empty"}, json={}).json()["data"]["results"] == []
     assert client.post("/rest/datasets/availability-trend", headers={"X-Mock-Scenario": "business-error"}, json={}).json() == {
