@@ -23,10 +23,10 @@ from ..domain.report_dsl_compiler import (
 )
 from ..domain.template_instance_builder import build_execution_bindings, serialize_template_instance
 from ..domain.template_models import OutlineDefinition, ReportTemplate
-from ..infrastructure.template_schema import ReportDslSchemaGateway, validate_template_instance
 from .custom_content_resolver import CustomContentResolver
 from .dataset_execution_service import DatasetExecutionService
 from .generation_models import GenerationProgressView, ReportAnswerView, ReportSegmentPreview, ReportView
+from .interfaces import ReportSchemaValidator
 
 
 class ReportGenerationService:
@@ -41,19 +41,19 @@ class ReportGenerationService:
         compiler: ReportDslCompiler | None = None,
         custom_content_resolver: CustomContentResolver | None = None,
         dataset_execution_service: DatasetExecutionService | None = None,
-        schema_gateway: ReportDslSchemaGateway | None = None,
+        schema_gateway: ReportSchemaValidator | None = None,
     ) -> None:
         self.template_repository = template_repository
         self.template_instance_repository = template_instance_repository
         self.report_instance_repository = report_instance_repository
         self.compiler = compiler or ReportDslCompiler()
-        self.schema_gateway = schema_gateway or ReportDslSchemaGateway()
+        self.schema_gateway = schema_gateway or _PassthroughReportSchemaValidator()
         self.custom_content_resolver = custom_content_resolver or CustomContentResolver(schema_gateway=self.schema_gateway)
         self.dataset_execution_service = dataset_execution_service
 
     def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> TemplateInstance:
         try:
-            validate_template_instance(serialize_template_instance(instance))
+            self.schema_gateway.validate_template_instance(serialize_template_instance(instance))
         except ValueError as exc:
             raise ValidationError(str(exc), error_code="chatbi.report.template_instance.schema_invalid") from exc
         existing = self.template_instance_repository.get(instance.id, user_id=user_id)
@@ -198,9 +198,10 @@ def build_report_dsl(
     template_instance: TemplateInstance,
     user_id: str,
     custom_content_gateway=None,
+    schema_gateway: ReportSchemaValidator | None = None,
 ) -> ReportDsl:
     """兼容旧内部调用；正式生成链路通过注入的 compiler 与 resolver。"""
-    schema_gateway = ReportDslSchemaGateway()
+    schema_gateway = schema_gateway or _PassthroughReportSchemaValidator()
     custom = CustomContentResolver(gateway=custom_content_gateway, schema_gateway=schema_gateway).resolve(
         template_instance=template_instance,
         user_id=user_id,
@@ -217,6 +218,44 @@ def build_report_dsl(
 def _validate_report_dsl(report: dict) -> None:
     """兼容旧内部测试入口。"""
     try:
-        ReportDslSchemaGateway().validate_report(report)
+        _PassthroughReportSchemaValidator().validate_report(report)
     except ValueError as exc:
         raise ValidationError(str(exc), error_code=ErrorCode.REPORT_GENERATION_DSL_INVALID) from exc
+
+
+class _PassthroughReportSchemaValidator:
+    """Application-level fallback for tests and pure compiler helpers.
+
+    Production composition injects the JSON-Schema-backed infrastructure validator.
+    """
+
+    def validate_template_instance(self, payload: dict) -> dict:
+        return dict(payload or {})
+
+    def validate_report(self, payload: dict) -> dict:
+        if not isinstance(payload, dict):
+            raise ValueError("报告 DSL 校验失败: payload must be object")
+        if not isinstance(payload.get("basicInfo"), dict):
+            raise ValueError("报告 DSL 校验失败: basicInfo is required")
+        return dict(payload)
+
+    def validate_catalog(self, payload: dict) -> dict:
+        return dict(payload or {})
+
+    def validate_section(self, payload: dict) -> dict:
+        return dict(payload or {})
+
+    def validate_slide(self, payload: dict) -> dict:
+        return dict(payload or {})
+
+    def validate_components(self, payload: list[dict]) -> list[dict]:
+        return list(payload or [])
+
+    def validate_onequery_response(self, payload: dict) -> dict:
+        return dict(payload or {})
+
+    def validate_api_dataset_response(self, payload: dict) -> dict:
+        return dict(payload or {})
+
+    def validate_dynamic_custom_response(self, payload: dict) -> dict:
+        return dict(payload or {})

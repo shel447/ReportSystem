@@ -1,21 +1,11 @@
-"""Application ports for platform-hosted conversation and safety services."""
+"""Application ports for platform-hosted conversation services."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-
-@dataclass(slots=True)
-class GuardrailResult:
-    passed: bool
-    reason: str = ""
-
-
-class GuardrailGateway(Protocol):
-    def check_question(self, question: str, *, user_id: str) -> GuardrailResult: ...
-    def check_answer(self, answer: str, *, user_id: str) -> GuardrailResult: ...
-    def check_application_security(self, *, kind: str, content: str, user_id: str) -> GuardrailResult: ...
+from ....shared.kernel.safety import GuardrailGateway, GuardrailResult
 
 
 @dataclass(slots=True)

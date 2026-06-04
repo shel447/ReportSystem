@@ -29,11 +29,11 @@
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
 - `shared/agentflow` 提供公共流程运行、事件发布、工具调用、提示词组装、hook、checkpoint、拒答、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
-- `report` 通过系统装配层的 codec 和强类型 handler 注册到 `conversation`
-- `data_analysis` 通过系统装配层注册 `query_data` 场景，并向 `report` 提供可复用查询能力
-- 系统装配层负责跨 context 的严格 DTO 转换；`conversation` 不读取 `report.application` 或 `report.domain`
+- `conversation` 拥有场景注册协议；`report` 和 `data_analysis` 在各自 context 内提供 registration provider、codec 和 handler 实现
+- `data_analysis` 拥有查询、数据目录和知识检索相关业务接口；`report` 如需查询能力，只依赖自己声明的数据查询接口，由装配层接入对应实现
+- 顶层装配只收集各 context 暴露的 composition builder 和 provider，不拼接业务 DTO，不解释业务场景语义
 - `report` 内部用 `application/domain/infrastructure` 三层组织；模板管理、报告生成和报告管理只在源文件命名上区分，不拆成子 context 目录。
-- application 层只能通过 port 访问基础设施
+- application/domain 声明并拥有它们需要的业务接口；infrastructure 只提供实现，不反向定义业务接口
 
 `report.application` 按职责分为：
 
@@ -43,6 +43,7 @@
 - `ReportParameterService`：参数提取、补参解释、缺参判断、追问构造和动态候选值解析
 - `ReportGenerationService`：模板实例持久化、报告冻结和报告视图
 - `ReportDocumentService`：文档生成和 report-scoped 下载
+- `ReportFlowProjection`：把报告场景结果投影为 step、delta 和 answer 事件
 
 `report.domain` 不使用泛化的 `*Service` 命名。当前由 `ParameterResolver`、`ReportDslCompiler`、`template_instance_builder` 和 `placeholder_renderer` 表达纯领域职责；递归动态结构展开保持在模板实例构建器内部，避免把同一棵实例树拆成互相回调的零散步骤。
 
@@ -56,4 +57,4 @@
 - `/chat` 流式协议使用 `step_delta / delta / answer / error` 通道；运行中事件由 `shared/agentflow` 产生，`delta` 不进入持久化聚合。
 - `TemplateInstance` 是报告生成内部聚合，不作为独立公开资源。
 - 文档导出只消费正式 Report DSL。
-- 运行时校验直接读取 [正式 Schema](contracts/schemas/README.md)。
+- 运行时校验通过 report context 拥有的 `ReportSchemaValidator` 接口接入 [正式 Schema](contracts/schemas/README.md)。

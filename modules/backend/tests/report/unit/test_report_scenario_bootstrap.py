@@ -10,7 +10,7 @@ from src.contexts.report.application.scenario_service import ReportScenarioServi
 from src.contexts.report.application.template_service import ReportTemplateService
 from src.contexts.conversation.domain.models import ChatContext
 from src.contexts.report.domain.template_models import report_template_from_dict
-from src.infrastructure.scenarios.report_conversation import ReportConversationScenarioCodec
+from src.contexts.report.infrastructure.conversation import ReportConversationScenarioCodec
 from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 

@@ -10,7 +10,7 @@ from .document_service import ReportDocumentService
 from .generation_models import DocumentGenerationResult, DownloadResolution, ReportView
 from .generation_service import ReportGenerationService
 from .parameter_service import ReportParameterService
-from .scenario_models import ReportScenarioCommand, ReportScenarioResult
+from .scenario_models import ReportScenarioCommand
 from .scenario_service import ReportScenarioService
 from .template_models import ParameterOptionsResult, TemplateImportPreview
 from .template_service import ReportTemplateService
@@ -34,10 +34,7 @@ class ReportService:
         self.generation_service = generation_service
         self.document_service = document_service
 
-    def chat(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
-        return self.scenario_service.handle(command=command)
-
-    def chat_flow(self, *, command: ReportScenarioCommand) -> FlowGraph:
+    def chat(self, *, command: ReportScenarioCommand) -> FlowGraph:
         return self.scenario_service.create_flow(command=command)
 
     def create_template(self, payload: ReportTemplate) -> ReportTemplate:

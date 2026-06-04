@@ -1,16 +1,13 @@
 from src.contexts.conversation.application.scenarios import ScenarioResult
 from src.contexts.conversation.domain.models import ChatContext
-from src.contexts.report.application.scenario_models import ReportScenarioCommand, ReportScenarioResult
-from src.infrastructure.scenarios.report_conversation import ReportConversationScenarioCodec, ReportConversationScenarioHandler
+from src.contexts.report.application.scenario_models import ReportScenarioCommand
+from src.contexts.report.infrastructure.conversation import ReportConversationScenarioCodec, ReportConversationScenarioHandler
 from src.shared.agentflow import FlowGraph, FlowNode, SequentialFlow
 
 
 class _ReportService:
-    def chat_flow(self, *, command: ReportScenarioCommand) -> FlowGraph:
+    def chat(self, *, command: ReportScenarioCommand) -> FlowGraph:
         return SequentialFlow(FlowNode(id="sample", handler=lambda context: context.emit_answer({"answerType": "TEXT", "answer": {}}))).to_graph()
-
-    def chat(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
-        return ReportScenarioResult(status="finished")
 
 
 def test_generate_report_uses_flow_dispatch():
@@ -30,7 +27,7 @@ def test_generate_report_uses_flow_dispatch():
     assert result.flow is not None
 
 
-def test_extract_template_remains_synchronous():
+def test_extract_template_uses_unified_flow_entry():
     handler = ReportConversationScenarioHandler(report_service=_ReportService())
     result = handler.handle(
         command=ReportScenarioCommand(
@@ -42,8 +39,8 @@ def test_extract_template_remains_synchronous():
         )
     )
 
-    assert result.status == "finished"
-    assert result.flow is None
+    assert result.status == "running"
+    assert result.flow is not None
 
 
 def test_report_codec_keeps_strict_command_for_flow():

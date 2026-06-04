@@ -17,6 +17,7 @@ from ..domain.template_instance_builder import (
 )
 from ..domain.template_models import Parameter, ReportTemplate
 from ..domain.parameter_resolver import ParameterResolver
+from .flow_projection import ReportFlowProjection
 from .scenario_models import (
     ReportAskPayload,
     ReportContext,
@@ -41,6 +42,7 @@ class ReportScenarioService:
         parameter_service,
         ai_gateway=None,
         embedding_config_builder=None,
+        flow_projection: ReportFlowProjection | None = None,
     ) -> None:
         self.template_service = template_service
         self.template_repository = template_repository
@@ -48,6 +50,7 @@ class ReportScenarioService:
         self.parameter_service = parameter_service
         self.ai_gateway = ai_gateway
         self.embedding_config_builder = embedding_config_builder
+        self.flow_projection = flow_projection or ReportFlowProjection()
 
     def handle(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
         """按报告 instruction 推进一次场景状态机。"""
@@ -92,14 +95,10 @@ class ReportScenarioService:
 
     def create_flow(self, *, command: ReportScenarioCommand) -> FlowGraph:
         """把报告场景推进封装为公共 Agent Flow。"""
-        if command.instruction == "extract_report_template":
-            raise ValidationError(
-                "extract_report_template is a stateless synchronous instruction",
-                error_code="chatbi.report.template.extract_not_streamable",
-            )
-
         def run_report(context) -> None:
-            if command.instruction == "generate_report_segment":
+            if command.instruction == "extract_report_template":
+                context.emit_step(code="report.template.preview", title="解析报告模板", status="running")
+            elif command.instruction == "generate_report_segment":
                 context.emit_step(code="report.segment.load", title="加载目标章节", status="running")
             else:
                 context.emit_step(code="report.template.match", title="识别报告模板", status="running")
@@ -124,7 +123,7 @@ class ReportScenarioService:
                     "answerType": result.answer.answer_type,
                     "answer": report_scenario_answer_to_dict(result.answer),
                 }
-                for delta in _report_delta_events(answer):
+                for delta in self.flow_projection.delta_events(answer):
                     context.emit_delta(delta)
                 context.emit_answer(answer, status=result.status)
 
@@ -345,101 +344,3 @@ def _iso_timestamp() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def _report_delta_events(answer: dict[str, object]) -> list[dict[str, object]]:
-    answer_type = str(answer.get("answerType") or "")
-    if answer_type == "REPORT_SEGMENT":
-        return [_report_segment_delta_event(answer)]
-    if answer_type != "REPORT":
-        return []
-    report_answer = answer.get("answer") if isinstance(answer.get("answer"), dict) else {}
-    report = report_answer.get("report") if isinstance(report_answer.get("report"), dict) else {}
-    report_id = str(report_answer.get("reportId") or "")
-    basic_info = report.get("basicInfo") if isinstance(report.get("basicInfo"), dict) else {}
-    report_title = str(basic_info.get("name") or report_id)
-    structure_type = str(report.get("structureType") or "flow")
-    deltas: list[dict[str, object]] = [
-        {"action": "init_report", "report": {"reportId": report_id, "title": report_title, "structureType": structure_type}},
-    ]
-    deltas.extend(_catalog_delta_events(list(report.get("catalogs") or []), parent_catalog_id=None, parent_catalog_path=None))
-    return deltas
-
-
-def _report_segment_delta_event(answer: dict[str, object]) -> dict[str, object]:
-    segment = answer.get("answer") if isinstance(answer.get("answer"), dict) else {}
-    section = segment.get("section") if isinstance(segment.get("section"), dict) else {}
-    outline = segment.get("outline") if isinstance(segment.get("outline"), dict) else {}
-    return {
-        "action": "add_section",
-        "structureType": "flow",
-        "parent": {"type": "section", "id": str(segment.get("sectionId") or section.get("id") or ""), "path": []},
-        "sections": [
-            {
-                "sectionId": str(segment.get("sectionId") or section.get("id") or ""),
-                "status": str(segment.get("status") or "available"),
-                "requirement": str(outline.get("renderedRequirement") or outline.get("requirement") or ""),
-                "components": list(section.get("components") or []),
-            }
-        ],
-    }
-
-
-def _catalog_delta_events(
-    catalogs: list[dict[str, object]],
-    *,
-    parent_catalog_id: str | None,
-    parent_catalog_path: list[int] | None,
-) -> list[dict[str, object]]:
-    deltas: list[dict[str, object]] = []
-    if catalogs:
-        deltas.append(
-            {
-                "action": "add_catalog",
-                "structureType": "flow",
-                "parentCatalogId": parent_catalog_id,
-                "parentCatalog": parent_catalog_path,
-                "parent": {
-                    "type": "report" if parent_catalog_id is None else "catalog",
-                    "id": parent_catalog_id,
-                    "path": parent_catalog_path,
-                },
-                "catalogs": [
-                    {
-                        "catalogId": str(catalog.get("id") or ""),
-                        "title": str(catalog.get("name") or catalog.get("title") or catalog.get("id") or ""),
-                    }
-                    for catalog in catalogs
-                ],
-            }
-        )
-    for index, catalog in enumerate(catalogs):
-        catalog_path = [*parent_catalog_path, index] if parent_catalog_path is not None else [index]
-        sections = list(catalog.get("sections") or [])
-        if sections:
-            deltas.append(
-                {
-                    "action": "add_section",
-                    "structureType": "flow",
-                    "parentCatalogId": str(catalog.get("id") or ""),
-                    "parentCatalog": catalog_path,
-                    "parent": {"type": "catalog", "id": str(catalog.get("id") or ""), "path": catalog_path},
-                    "sections": [
-                        {
-                            "sectionId": str(section.get("id") or ""),
-                            "status": "finished",
-                            "requirement": str(section.get("title") or section.get("requirement") or section.get("id") or ""),
-                            "components": list(section.get("components") or []),
-                        }
-                        for section in sections
-                    ],
-                }
-            )
-        deltas.extend(
-            _catalog_delta_events(
-                list(catalog.get("subCatalogs") or []),
-                parent_catalog_id=str(catalog.get("id") or ""),
-                parent_catalog_path=catalog_path,
-            )
-        )
-    return deltas

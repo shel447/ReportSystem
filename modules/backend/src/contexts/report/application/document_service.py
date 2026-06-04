@@ -12,8 +12,8 @@ from .generation_models import DocumentGenerationJobView, DocumentGenerationResu
 class ReportDocumentService:
     """拥有 report-scoped 文档生命周期。"""
 
-    def __init__(self, *, generation_service, document_repository, export_job_repository, document_gateway) -> None:
-        self.generation_service = generation_service
+    def __init__(self, *, report_reader, document_repository, export_job_repository, document_gateway) -> None:
+        self.report_reader = report_reader
         self.document_repository = document_repository
         self.export_job_repository = export_job_repository
         self.document_gateway = document_gateway
@@ -46,7 +46,7 @@ class ReportDocumentService:
                 error_code="chatbi.report.document.format_unsupported",
                 category="param",
             )
-        report = self.generation_service.get_report_instance(report_id, user_id=user_id).report
+        report = self.report_reader.get_report_instance(report_id, user_id=user_id).report
         existing = self.document_repository.list_by_report(report_id)
         reusable = [] if regenerate_if_exists else [self.document_gateway.serialize_document(item) for item in existing]
         jobs: list[DocumentGenerationJobView] = []
@@ -104,7 +104,7 @@ class ReportDocumentService:
         return DocumentGenerationResult(report_id=report_id, jobs=jobs, documents=reusable + documents)
 
     def resolve_download(self, *, report_id: str, document_id: str, user_id: str) -> DownloadResolution:
-        self.generation_service.get_report_instance(report_id, user_id=user_id)
+        self.report_reader.get_report_instance(report_id, user_id=user_id)
         document = self.document_repository.get_for_report(report_id, document_id)
         if document is None:
             raise NotFoundError("Document not found", error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING)

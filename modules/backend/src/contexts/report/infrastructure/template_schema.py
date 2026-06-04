@@ -115,6 +115,9 @@ def validate_parameter_option_source_response(payload: dict[str, Any]) -> dict[s
 class ReportDslSchemaGateway:
     """集中校验完整 Report DSL 与外部 custom 片段。"""
 
+    def validate_template_instance(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return validate_template_instance(payload)
+
     def validate_report(self, payload: dict[str, Any]) -> dict[str, Any]:
         return self._validate(_REPORT_DSL_VALIDATOR, payload, "报告 DSL 校验失败")
 

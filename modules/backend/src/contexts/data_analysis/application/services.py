@@ -7,7 +7,7 @@ from typing import Any
 
 from ....shared.kernel.errors import ErrorCode, ValidationError
 from ....shared.kernel.audit import AuditEvent
-from ...conversation.application.ports import GuardrailGateway
+from ....shared.kernel.safety import GuardrailGateway
 from ..domain.models import DataAnalysisAnswer, DatasetResult, QuerySpec
 
 

@@ -24,7 +24,7 @@ from src.contexts.conversation.application.services import ConversationService
 from src.contexts.report.application.scenario_models import ReportContext, ReportReplyPayload
 from src.contexts.report.application.scenario_service import ReportScenarioService, missing_required_parameters
 from src.contexts.conversation.application.scenarios import ScenarioDispatchService, ScenarioRegistry
-from src.infrastructure.scenarios.report_conversation import report_scenario_registration
+from src.contexts.report.infrastructure.conversation import ReportScenarioRegistrationProvider
 from src.contexts.report.domain.generation_models import (
     ParameterConfirmation,
     ReportBasicInfo,
@@ -317,7 +317,11 @@ def _conversation_service(*, template, history_gateway, runtime_service, audit_d
         parameter_service=ReportParameterService(),
     )
     registry = ScenarioRegistry()
-    registry.register(report_scenario_registration(report_service=SimpleNamespace(chat=report_scenario_service.handle)))
+    registry.register(
+        ReportScenarioRegistrationProvider(
+            report_service=SimpleNamespace(chat=report_scenario_service.create_flow)
+        ).registration()
+    )
     registry.seal()
     return ConversationService(
         history_gateway=history_gateway,

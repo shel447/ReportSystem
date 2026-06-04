@@ -125,11 +125,22 @@ class ConversationService:
         if self.scenario_dispatcher.is_stateless(initial_resolution):
             context = _build_context(data=data, user_id=user_id, chat_id=data.chat_id or "", resolution=initial_resolution)
             result = self.scenario_dispatcher.dispatch(resolution=initial_resolution, context=context, payload=_dispatch_payload(data))
-            response = _response_from_scenario_result(
-                data=data,
-                conversation_id=data.conversation_id or "",
-                chat_id=data.chat_id or "",
-                result=result,
+            response = (
+                self._run_flow_to_response(
+                    data=data,
+                    conversation_id=data.conversation_id or "",
+                    chat_id=data.chat_id or "",
+                    result=result,
+                    user_id=user_id,
+                    scenario_key=initial_resolution.key,
+                )
+                if result.flow is not None
+                else _response_from_scenario_result(
+                    data=data,
+                    conversation_id=data.conversation_id or "",
+                    chat_id=data.chat_id or "",
+                    result=result,
+                )
             )
             self._ensure_answer_allowed(response=response, user_id=user_id)
             return response
@@ -163,6 +174,7 @@ class ConversationService:
                 chat_id=hosted_chat.chat_id,
                 result=result,
                 user_id=user_id,
+                scenario_key=resolution.key,
             )
         else:
             response = _response_from_scenario_result(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, result=result)
@@ -198,8 +210,41 @@ class ConversationService:
             previous_trace=None,
         )
         if self.scenario_dispatcher.is_stateless(initial_resolution):
-            response = self.chat(data=data, user_id=user_id)
-            yield from _events_from_response(response)
+            context = _build_context(data=data, user_id=user_id, chat_id=data.chat_id or "", resolution=initial_resolution)
+            result = self.scenario_dispatcher.dispatch(resolution=initial_resolution, context=context, payload=_dispatch_payload(data))
+            if result.flow is None:
+                response = _response_from_scenario_result(
+                    data=data,
+                    conversation_id=data.conversation_id or "",
+                    chat_id=data.chat_id or "",
+                    result=result,
+                )
+                self._ensure_answer_allowed(response=response, user_id=user_id)
+                yield from _events_from_response(response)
+                return
+            run = self.flow_runtime.start(
+                result.flow,
+                state={
+                    "conversation_id": data.conversation_id or "",
+                    "chat_id": data.chat_id or "",
+                    "user_id": user_id,
+                    "scenario_key": initial_resolution.key,
+                },
+            )
+            events: list[FlowEvent] = []
+            for event in self.flow_runtime.iter_events(run.run_id):
+                if event.event_type == "answer":
+                    self._ensure_answer_allowed(
+                        response=_response_from_flow_events(
+                            data=data,
+                            conversation_id=data.conversation_id or "",
+                            chat_id=data.chat_id or "",
+                            events=[event],
+                        ),
+                        user_id=user_id,
+                    )
+                events.append(event)
+                yield event
             return
 
         conversation_id = self._ensure_conversation(data=data, user_id=user_id)
@@ -243,10 +288,15 @@ class ConversationService:
 
         run = self.flow_runtime.start(
             result.flow,
-            state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id, "user_id": user_id},
+            state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id, "user_id": user_id, "scenario_key": resolution.key},
         )
         events: list[FlowEvent] = []
         for event in self.flow_runtime.iter_events(run.run_id):
+            if event.event_type == "answer":
+                self._ensure_answer_allowed(
+                    response=_response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, events=[event]),
+                    user_id=user_id,
+                )
             events.append(event)
             yield event
         response = _response_from_flow_events(
@@ -287,8 +337,12 @@ class ConversationService:
         chat_id: str,
         result: ScenarioResult,
         user_id: str,
+        scenario_key: str | None,
     ) -> ChatResponse:
-        run = self.flow_runtime.start(result.flow, state={"conversation_id": conversation_id, "chat_id": chat_id, "user_id": user_id})
+        run = self.flow_runtime.start(
+            result.flow,
+            state={"conversation_id": conversation_id, "chat_id": chat_id, "user_id": user_id, "scenario_key": scenario_key},
+        )
         events = list(self.flow_runtime.iter_events(run.run_id))
         return _response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=chat_id, events=events)
 

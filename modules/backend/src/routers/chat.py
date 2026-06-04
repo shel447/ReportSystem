@@ -69,10 +69,7 @@ def chat(
     command = chat_command_from_payload(data.model_dump(exclude_none=True))
     service = build_conversation_service(db)
     if _wants_sse(request):
-        if hasattr(service, "chat_stream"):
-            return StreamingResponse(_flow_event_stream(service.chat_stream(data=command, user_id=user_id)), media_type="text/event-stream")
-        payload = service.chat(data=command, user_id=user_id)
-        return StreamingResponse(_legacy_event_stream(chat_response_to_dict(payload)), media_type="text/event-stream")
+        return StreamingResponse(_flow_event_stream(service.chat_stream(data=command, user_id=user_id)), media_type="text/event-stream")
     payload = service.chat(data=command, user_id=user_id)
 
     return chat_response_to_dict(payload)
@@ -219,21 +216,6 @@ def _build_stream_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
     answer = payload.get("answer") if isinstance(payload.get("answer"), dict) else None
     ask = payload.get("ask") if isinstance(payload.get("ask"), dict) else None
 
-    if answer and answer.get("answerType") == "REPORT":
-        append_event(event_type="status", status="running")
-        for delta in _report_delta_events(answer):
-            append_event(event_type="answer", status="running", delta=[delta])
-        append_event(event_type="answer", status=response_status, answer=answer)
-        append_event(event_type="done", status=response_status)
-        return events
-
-    if answer and answer.get("answerType") == "REPORT_SEGMENT":
-        append_event(event_type="status", status="running")
-        append_event(event_type="answer", status="running", delta=[_report_segment_delta_event(answer)])
-        append_event(event_type="answer", status=response_status, answer=answer)
-        append_event(event_type="done", status=response_status)
-        return events
-
     append_event(event_type="status", status=response_status)
     if ask is not None:
         append_event(event_type="ask", status=response_status, ask=ask)
@@ -243,94 +225,3 @@ def _build_stream_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
         append_event(event_type="error", status="failed")
     append_event(event_type="done", status=response_status)
     return events
-
-
-def _report_delta_events(answer: dict[str, Any]) -> list[dict[str, Any]]:
-    report_answer = answer.get("answer") if isinstance(answer.get("answer"), dict) else {}
-    report = report_answer.get("report") if isinstance(report_answer.get("report"), dict) else {}
-    deltas: list[dict[str, Any]] = []
-    report_id = str(report_answer.get("reportId") or "")
-    report_title = str(((report.get("basicInfo") or {}).get("name")) or report_id)
-    structure_type = str(report.get("structureType") or "flow")
-    deltas.append({"action": "init_report", "report": {"reportId": report_id, "title": report_title, "structureType": structure_type}})
-    deltas.extend(_catalog_delta_events(list(report.get("catalogs") or []), parent_catalog_id=None, parent_catalog_path=None))
-    return deltas
-
-
-def _report_segment_delta_event(answer: dict[str, Any]) -> dict[str, Any]:
-    segment = answer.get("answer") if isinstance(answer.get("answer"), dict) else {}
-    section = segment.get("section") if isinstance(segment.get("section"), dict) else {}
-    return {
-        "action": "add_section",
-        "structureType": "flow",
-        "parent": {"type": "section", "id": str(segment.get("sectionId") or section.get("id") or ""), "path": []},
-        "sections": [
-            {
-                "sectionId": str(segment.get("sectionId") or section.get("id") or ""),
-                "status": str(segment.get("status") or "available"),
-                "requirement": str(((segment.get("outline") or {}).get("renderedRequirement")) or ((segment.get("outline") or {}).get("requirement")) or ""),
-                "components": list(section.get("components") or []),
-            }
-        ],
-    }
-
-
-def _catalog_delta_events(
-    catalogs: list[dict[str, Any]],
-    *,
-    parent_catalog_id: str | None,
-    parent_catalog_path: list[int] | None,
-) -> list[dict[str, Any]]:
-    deltas: list[dict[str, Any]] = []
-    if catalogs:
-        deltas.append(
-            {
-                "action": "add_catalog",
-                "structureType": "flow",
-                "parentCatalogId": parent_catalog_id,
-                "parentCatalog": parent_catalog_path,
-                "parent": {
-                    "type": "report" if parent_catalog_id is None else "catalog",
-                    "id": parent_catalog_id,
-                    "path": parent_catalog_path,
-                },
-                "catalogs": [
-                    {
-                        "catalogId": str(catalog.get("id") or ""),
-                        "title": str(catalog.get("name") or catalog.get("title") or catalog.get("id") or ""),
-                    }
-                    for catalog in catalogs
-                ],
-            }
-        )
-
-    for index, catalog in enumerate(catalogs):
-        catalog_path = [*parent_catalog_path, index] if parent_catalog_path is not None else [index]
-        sections = list(catalog.get("sections") or [])
-        if sections:
-            deltas.append(
-                {
-                    "action": "add_section",
-                    "structureType": "flow",
-                    "parentCatalogId": str(catalog.get("id") or ""),
-                    "parentCatalog": catalog_path,
-                    "parent": {"type": "catalog", "id": str(catalog.get("id") or ""), "path": catalog_path},
-                    "sections": [
-                        {
-                            "sectionId": str(section.get("id") or ""),
-                            "status": "finished",
-                            "requirement": str(section.get("title") or section.get("requirement") or section.get("id") or ""),
-                            "components": list(section.get("components") or []),
-                        }
-                        for section in sections
-                    ],
-                }
-            )
-        deltas.extend(
-            _catalog_delta_events(
-                list(catalog.get("subCatalogs") or []),
-                parent_catalog_id=str(catalog.get("id") or ""),
-                parent_catalog_path=catalog_path,
-            )
-        )
-    return deltas

@@ -20,6 +20,7 @@ FORBIDDEN_ROUTER_MODULES = {
 }
 FORBIDDEN_LAYER_IMPORT_SEGMENTS = {"fastapi", "sqlalchemy", "pydantic", "openai"}
 CHECK_LAYERS = [ROOT / "contexts"]
+BUSINESS_CONTEXTS = {"conversation", "report", "data_analysis"}
 ALLOWED_BACKEND_ROOT_FILES = {
     "__init__.py",
     "main.py",
@@ -102,6 +103,95 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 module = _resolve_import_from(path, node.module, node.level)
                 if module.startswith("backend.contexts.report."):
                     violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_context_applications_do_not_depend_on_infrastructure(self):
+        violations: list[str] = []
+        for path in (ROOT / "contexts").glob("*/application/*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if ".infrastructure" in alias.name or alias.name.endswith("infrastructure"):
+                            violations.append(f"{path.relative_to(ROOT)}: import {alias.name}")
+                elif isinstance(node, ast.ImportFrom):
+                    module = _resolve_import_from(path, node.module, node.level)
+                    if ".infrastructure" in module or module.endswith("infrastructure"):
+                        violations.append(f"{path.relative_to(ROOT)}: from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_business_context_applications_do_not_import_other_contexts(self):
+        violations: list[str] = []
+        for context in BUSINESS_CONTEXTS:
+            root = ROOT / "contexts" / context / "application"
+            for path in root.rglob("*.py"):
+                tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+                for node in ast.walk(tree):
+                    modules: list[str] = []
+                    if isinstance(node, ast.Import):
+                        modules.extend(alias.name for alias in node.names)
+                    elif isinstance(node, ast.ImportFrom):
+                        modules.append(_resolve_import_from(path, node.module, node.level))
+                    for module in modules:
+                        for other in BUSINESS_CONTEXTS - {context}:
+                            if module.startswith(f"backend.contexts.{other}.") or module.startswith(f"src.contexts.{other}."):
+                                violations.append(f"{path.relative_to(ROOT)}: {module}")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_global_infrastructure_scenario_adapters_do_not_exist(self):
+        path = ROOT / "infrastructure" / "scenarios"
+        violations = [str(item.relative_to(ROOT)) for item in path.rglob("*.py")] if path.exists() else []
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_global_dependency_builder_only_collects_context_composition_builders(self):
+        path = ROOT / "infrastructure" / "dependencies.py"
+        violations: list[str] = []
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            module = _resolve_import_from(path, node.module, node.level)
+            if ".application" in module or ".domain" in module:
+                violations.append(f"from {module} import ...")
+            if ".contexts." in module and ".infrastructure.composition" not in module:
+                violations.append(f"from {module} import ...")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_context_infrastructure_does_not_import_other_context_application_or_domain(self):
+        allowed = {
+            "contexts/report/infrastructure/conversation.py": (
+                "backend.contexts.conversation.application.scenarios",
+                "backend.contexts.conversation.domain.models",
+            ),
+            "contexts/data_analysis/infrastructure/conversation.py": (
+                "backend.contexts.conversation.application.scenarios",
+                "backend.contexts.conversation.domain.models",
+            ),
+        }
+        violations: list[str] = []
+        for context in BUSINESS_CONTEXTS:
+            root = ROOT / "contexts" / context / "infrastructure"
+            for path in root.rglob("*.py"):
+                relative = str(path.relative_to(ROOT))
+                tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+                for node in ast.walk(tree):
+                    modules: list[str] = []
+                    if isinstance(node, ast.Import):
+                        modules.extend(alias.name for alias in node.names)
+                    elif isinstance(node, ast.ImportFrom):
+                        modules.append(_resolve_import_from(path, node.module, node.level))
+                    for module in modules:
+                        for other in BUSINESS_CONTEXTS - {context}:
+                            if not (
+                                module.startswith(f"backend.contexts.{other}.application")
+                                or module.startswith(f"backend.contexts.{other}.domain")
+                                or module.startswith(f"src.contexts.{other}.application")
+                                or module.startswith(f"src.contexts.{other}.domain")
+                            ):
+                                continue
+                            if any(module.startswith(prefix) for prefix in allowed.get(relative, ())):
+                                continue
+                            violations.append(f"{relative}: {module}")
         self.assertEqual([], violations, "\n".join(violations))
 
     def test_report_dsl_compiler_has_no_infrastructure_dependencies(self):

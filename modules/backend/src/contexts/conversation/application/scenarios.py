@@ -53,6 +53,12 @@ class ScenarioCodec(Protocol):
     def decode(self, *, context: ChatContext, payload: dict[str, Any]) -> object: ...
 
 
+class ScenarioRegistrationProvider(Protocol):
+    """Business-owned provider that contributes one conversation scenario registration."""
+
+    def registration(self) -> ScenarioRegistration: ...
+
+
 class SemanticScenarioMatcher(Protocol):
     """为未来 embedding 或 LLM 分类器预留的语义匹配接口。"""
 

@@ -102,12 +102,17 @@ class FlowMetricsCollector:
         with self._lock:
             self._failed_nodes.add(node_id)
 
-    def record_datacatalog_logical_entity(self, entity: str | None) -> None:
-        value = str(entity or "").strip()
+    def record_logical_resource(self, *, kind: str, name: str | None) -> None:
+        value = str(name or "").strip()
         if not value:
             return
         with self._lock:
-            self._logical_entities.add(value)
+            if kind == "logical_entity":
+                self._logical_entities.add(value)
+            self._custom.append(FlowMetricRecord(name="resource.usage", value=1, tags={"kind": kind, "name": value}))
+
+    def record_datacatalog_logical_entity(self, entity: str | None) -> None:
+        self.record_logical_resource(kind="logical_entity", name=entity)
 
     def record_llm_output_tokens(self, tokens: int | None) -> None:
         if tokens is None or tokens <= 0:
@@ -166,9 +171,13 @@ def current_metrics_collector() -> FlowMetricsCollector | None:
 
 
 def record_datacatalog_logical_entity(entity: str | None) -> None:
+    record_logical_resource(kind="logical_entity", name=entity)
+
+
+def record_logical_resource(*, kind: str, name: str | None) -> None:
     collector = current_metrics_collector()
     if collector is not None:
-        collector.record_datacatalog_logical_entity(entity)
+        collector.record_logical_resource(kind=kind, name=name)
 
 
 def record_llm_usage(raw_response: dict[str, Any] | None) -> None:

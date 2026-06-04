@@ -3,7 +3,7 @@ import unittest
 from dataclasses import is_dataclass
 from types import SimpleNamespace
 
-from src.contexts.report.application.generation_service import ReportGenerationService, _validate_report_dsl, build_report_dsl
+from src.contexts.report.application.generation_service import ReportGenerationService, build_report_dsl
 from src.contexts.report.domain.generation_models import (
     BackCoverConfig,
     ChartComponent,
@@ -80,7 +80,11 @@ from src.contexts.report.domain.template_models import (
     dynamic_definition_from_dict,
     dynamic_definition_to_dict,
 )
-from src.contexts.report.infrastructure.template_schema import validate_report_template, validate_template_instance
+from src.contexts.report.infrastructure.template_schema import (
+    ReportDslSchemaGateway,
+    validate_report_template,
+    validate_template_instance,
+)
 from src.shared.kernel.errors import ValidationError
 
 
@@ -93,7 +97,15 @@ def _build_runtime_service():
             update=lambda instance, user_id: instance,
         ),
         report_instance_repository=SimpleNamespace(),
+        schema_gateway=ReportDslSchemaGateway(),
     )
+
+
+def _validate_report_dsl(report: dict) -> None:
+    try:
+        ReportDslSchemaGateway().validate_report(report)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
 
 
 def _valid_template_instance():

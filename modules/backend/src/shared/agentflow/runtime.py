@@ -154,6 +154,9 @@ class FlowContext:
     def record_datacatalog_logical_entity(self, entity: str | None) -> None:
         self.run.metrics.record_datacatalog_logical_entity(entity)
 
+    def record_logical_resource(self, *, kind: str, name: str | None) -> None:
+        self.run.metrics.record_logical_resource(kind=kind, name=name)
+
     def record_llm_output_tokens(self, tokens: int | None) -> None:
         self.run.metrics.record_llm_output_tokens(tokens)
 
@@ -535,6 +538,8 @@ class InMemoryFlowRuntime:
         if failures:
             for _node_id, exc in failures:
                 if isinstance(exc, (FlowCancelled, FlowTerminated, FlowRefused)):
+                    raise exc
+                if isinstance(exc, ApplicationError):
                     raise exc
             detail = "; ".join(f"{node_id}: {exc}" for node_id, exc in failures)
             raise RuntimeError(f"Flow parallel nodes failed: {detail}")

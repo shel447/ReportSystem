@@ -32,6 +32,7 @@
 - 用于本地识别的关键词和示例
 - 场景 codec：把入口 JSON 短暂字段解码为本场景的严格 command
 - 强类型场景 handler：只接收本场景 command，不直接解释裸 JSON
+- 场景 registration provider：由各业务 context 自己实现，向 conversation 提供注册信息
 
 场景分发顺序固定为：
 
@@ -41,7 +42,7 @@
 4. 无法延续时，由统一识别器根据所有注册场景的声明做本地可解释评分。
 5. 仍无法可靠识别时，返回通用 `clarify_scenario` 追问。
 
-第一版识别器不调用外部模型；后续可通过语义匹配接口接入 embedding 或 LLM。报告场景通过系统装配层的 codec 和 handler 注册，参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report/generation.md)。
+第一版识别器不调用外部模型；后续可通过语义匹配接口接入 embedding 或 LLM。conversation 只拥有场景注册协议，不拥有报告或智能问数的业务语义；报告场景由 `contexts/report/infrastructure/conversation.py` 提供 registration provider，智能问数场景由 `contexts/data_analysis/infrastructure/conversation.py` 提供 registration provider。参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report/generation.md)。
 
 场景 handler 可以返回一次性 `ScenarioResult`，也可以返回 Flow。返回 Flow 时，conversation 不理解业务节点，只消费公共事件。
 

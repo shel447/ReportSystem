@@ -88,6 +88,48 @@ def _sample_report_dsl() -> ReportDsl:
     )
 
 
+def _stream_events_from_response(response: ChatResponse, *, delta: list[dict] | None = None):
+    yield FlowEvent(
+        run_id="run_internal",
+        sequence=1,
+        event_type="status",
+        status=response.status,
+        conversation_id=response.conversation_id,
+        chat_id=response.chat_id,
+    )
+    sequence = 2
+    if delta:
+        yield FlowEvent(
+            run_id="run_internal",
+            sequence=sequence,
+            event_type="delta",
+            status=response.status,
+            conversation_id=response.conversation_id,
+            chat_id=response.chat_id,
+            delta=delta,
+        )
+        sequence += 1
+    if response.answer is not None:
+        yield FlowEvent(
+            run_id="run_internal",
+            sequence=sequence,
+            event_type="answer",
+            status=response.status,
+            conversation_id=response.conversation_id,
+            chat_id=response.chat_id,
+            answer={"answerType": response.answer.answer_type, "answer": response.answer.payload},
+        )
+        sequence += 1
+    yield FlowEvent(
+        run_id="run_internal",
+        sequence=sequence,
+        event_type="done",
+        status=response.status,
+        conversation_id=response.conversation_id,
+        chat_id=response.chat_id,
+    )
+
+
 class ChatContractApiTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
@@ -305,7 +347,21 @@ class ChatContractApiTests(unittest.TestCase):
                     request_id="req_stream",
                     timestamp=1713427200200,
                     api_version="v1",
-                )
+                ),
+                "chat_stream": lambda self, data, user_id: _stream_events_from_response(
+                    self.chat(data, user_id),
+                    delta=[
+                        {"action": "init_report", "report": {"reportId": "rpt_001", "structureType": "flow"}},
+                        {"action": "add_catalog", "catalog": {"id": "catalog_1", "title": "总览"}},
+                        {
+                            "action": "add_section",
+                            "sectionId": "section_1",
+                            "parent": {"type": "catalog", "id": "catalog_1"},
+                            "parentCatalogId": "catalog_1",
+                            "section": {"id": "section_1", "title": "总体运行态势"},
+                        },
+                    ],
+                ),
             },
         )()
 
@@ -422,6 +478,9 @@ class ChatContractApiTests(unittest.TestCase):
                     api_version="v1",
                 )
 
+            def chat_stream(self, data, user_id):
+                return _stream_events_from_response(self.chat(data, user_id))
+
         request_payload = {
             "conversationId": "conv_001",
             "chatId": "chat_003",
@@ -482,7 +541,18 @@ class ChatContractApiTests(unittest.TestCase):
                     chat_id="chat_020",
                     status="finished",
                     answer=ChatAnswerEnvelope(answer_type="REPORT_SEGMENT", payload=report_segment_answer_to_dict(segment)),
-                )
+                ),
+                "chat_stream": lambda self, data, user_id: _stream_events_from_response(
+                    self.chat(data, user_id),
+                    delta=[
+                        {
+                            "action": "add_section",
+                            "sectionId": "section_1",
+                            "parent": {"type": "section", "id": "section_1"},
+                            "section": {"id": "section_1", "title": "异常根因"},
+                        }
+                    ],
+                ),
             },
         )()
 

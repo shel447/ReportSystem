@@ -10,17 +10,17 @@ from ....shared.kernel.errors import ValidationError
 from ..domain.generation_models import TemplateInstance
 from ..domain.parameter_resolver import ParameterResolver
 from ..domain.template_models import Parameter, ParameterValue, ReportTemplate, parameter_value_from_dict
+from .interfaces import ParameterOptionsResolver
 from .scenario_models import ReportAskPayload, ReportBootstrapRequest, ReportContext, ReportScenarioAsk
 from .template_models import ParameterOptionsResult
-from ..infrastructure.parameter_options import ParameterOptionsGateway
 DATE_PATTERN = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 
 
 class ReportParameterService:
     """解释报告参数，并通过正式数据源解析动态候选值。"""
 
-    def __init__(self, *, options_gateway: ParameterOptionsGateway | None = None) -> None:
-        self.options_gateway = options_gateway or ParameterOptionsGateway()
+    def __init__(self, *, options_gateway: ParameterOptionsResolver | None = None) -> None:
+        self.options_gateway = options_gateway
 
     def resolve_options(
         self,
@@ -35,6 +35,8 @@ class ReportParameterService:
             parameter_id: [{"label": item.label, "value": item.value, "query": item.query} for item in values]
             for parameter_id, values in dict(context_values or {}).items()
         }
+        if self.options_gateway is None:
+            raise ValidationError("dynamic parameter options resolver is not configured")
         return _to_parameter_options_result(self.options_gateway.resolve(source=source, request_payload=request_payload, user_id=user_id))
 
     def resolve(

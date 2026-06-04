@@ -49,7 +49,7 @@ def _service():
     jobs = []
     return (
         ReportDocumentService(
-            generation_service=SimpleNamespace(
+            report_reader=SimpleNamespace(
                 get_report_instance=lambda report_id, user_id: SimpleNamespace(report=build_flow_report())
             ),
             document_repository=repository,
