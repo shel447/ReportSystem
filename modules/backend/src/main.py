@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import os
 
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .infrastructure.persistence.database import init_db
 from .routers import chat, docs, feedback, parameter_options, reports, system_settings, templates
+from .shared.kernel.errors import ApplicationError, ErrorCode, error_response_payload, http_status_for
 from .shared.kernel.http import get_current_user_id
 from .shared.kernel.paths import project_root
 from .infrastructure.platform.runtime import start_platform_runtime, stop_platform_runtime
@@ -20,6 +22,7 @@ FRONTEND_DIST_DIR = str(project_root() / "modules" / "frontend" / "dist")
 
 def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="Smart Report System", version="1.6.0")
+    register_error_handlers(app)
 
     business_dependencies = [Depends(get_current_user_id)]
     app.include_router(templates.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
@@ -58,6 +61,71 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
         stop_platform_runtime()
 
     return app
+
+
+def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ApplicationError)
+    async def application_error_handler(request: Request, exc: ApplicationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=http_status_for(exc),
+            content=error_response_payload(exc, request_id=request.headers.get("X-Request-Id")),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        if not _is_chatbi_business_path(request):
+            return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        payload = error_response_payload(
+            ApplicationError(
+                "输入参数校验失败，请检查请求内容。",
+                details={"errors": exc.errors()},
+                error_code=ErrorCode.BASE_PARAM_INVALID,
+                category="param",
+                http_status=400,
+            ),
+            request_id=request.headers.get("X-Request-Id"),
+        )
+        return JSONResponse(status_code=400, content=payload)
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        if not _is_chatbi_business_path(request):
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        payload = error_response_payload(
+            ApplicationError(
+                str(exc.detail or "请求处理失败。"),
+                error_code=_http_error_code(exc.status_code),
+                category="http",
+                http_status=exc.status_code,
+            ),
+            request_id=request.headers.get("X-Request-Id"),
+        )
+        return JSONResponse(status_code=exc.status_code, content=payload)
+
+    @app.exception_handler(Exception)
+    async def unknown_error_handler(request: Request, exc: Exception) -> JSONResponse:
+        if not _is_chatbi_business_path(request):
+            raise exc
+        payload = error_response_payload(
+            exc,
+            request_id=request.headers.get("X-Request-Id"),
+            fallback_message="系统处理失败，请稍后重试。",
+        )
+        return JSONResponse(status_code=500, content=payload)
+
+
+def _is_chatbi_business_path(request: Request) -> bool:
+    return request.url.path.startswith(CHATBI_PREFIX)
+
+
+def _http_error_code(status_code: int) -> str:
+    if status_code == 404:
+        return ErrorCode.BASE_RESOURCE_NOT_FOUND
+    if status_code == 409:
+        return ErrorCode.BASE_RESOURCE_CONFLICT
+    if status_code == 501:
+        return ErrorCode.BASE_CAPABILITY_UNSUPPORTED
+    return ErrorCode.BASE_UNKNOWN
 
 
 def _serve_frontend_file(frontend_dir: str, requested_path: str) -> FileResponse:

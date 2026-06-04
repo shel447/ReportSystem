@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import uuid
 
-from ....shared.kernel.errors import NotFoundError, ValidationError
+from ....shared.kernel.errors import ErrorCode, NotFoundError, ValidationError
 from ..domain.generation_models import (
     ReportInstance,
     ReportDsl,
@@ -55,7 +55,7 @@ class ReportGenerationService:
         try:
             validate_template_instance(serialize_template_instance(instance))
         except ValueError as exc:
-            raise ValidationError(str(exc)) from exc
+            raise ValidationError(str(exc), error_code="chatbi.report.template_instance.schema_invalid") from exc
         existing = self.template_instance_repository.get(instance.id, user_id=user_id)
         return (
             self.template_instance_repository.update(instance, user_id=user_id)
@@ -76,7 +76,7 @@ class ReportGenerationService:
     ) -> ReportAnswerView:
         template_instance = self.template_instance_repository.get(template_instance_id, user_id=user_id)
         if template_instance is None:
-            raise NotFoundError("Template instance not found")
+            raise NotFoundError("Template instance not found", error_code="chatbi.report.template_instance.not_found")
         template = self._resolve_template(template_instance)
         report_id = f"rpt_{uuid.uuid4().hex[:12]}"
         custom = self.custom_content_resolver.resolve(template_instance=template_instance, user_id=user_id)
@@ -118,7 +118,7 @@ class ReportGenerationService:
         instance = self.get_report_instance(report_id, user_id=user_id)
         template_instance = self.template_instance_repository.get(instance.template_instance_id, user_id=user_id)
         if template_instance is None:
-            raise NotFoundError("Template instance not found")
+            raise NotFoundError("Template instance not found", error_code="chatbi.report.template_instance.not_found")
         return ReportView(
             report_id=instance.id,
             status=instance.status,
@@ -129,7 +129,7 @@ class ReportGenerationService:
     def get_report_instance(self, report_id: str, *, user_id: str) -> ReportInstance:
         instance = self.report_instance_repository.get(report_id, user_id=user_id)
         if instance is None:
-            raise NotFoundError("Report not found")
+            raise NotFoundError("Report not found", error_code="chatbi.report.not_found")
         return instance
 
     def serialize_report_answer(self, *, instance: ReportInstance, template_instance: TemplateInstance) -> ReportAnswerView:
@@ -159,10 +159,10 @@ class ReportGenerationService:
         report_instance = self.get_report_instance(report_id, user_id=user_id)
         template_instance = self.template_instance_repository.get(report_instance.template_instance_id, user_id=user_id)
         if template_instance is None:
-            raise NotFoundError("Template instance not found")
+            raise NotFoundError("Template instance not found", error_code="chatbi.report.template_instance.not_found")
         section = find_template_instance_section(template_instance.catalogs, section_id, chapters=template_instance.chapters)
         if section is None:
-            raise NotFoundError("Section not found")
+            raise NotFoundError("Section not found", error_code=ErrorCode.REPORT_SECTION_NOT_FOUND)
         preview = copy.deepcopy(section)
         preview.outline = copy.deepcopy(outline)
         preview.user_edited = True
@@ -172,7 +172,7 @@ class ReportGenerationService:
         try:
             self.schema_gateway.validate_section(report_section_to_dict(compiled))
         except ValueError as exc:
-            raise ValidationError(str(exc)) from exc
+            raise ValidationError(str(exc), error_code=ErrorCode.REPORT_GENERATION_DSL_INVALID) from exc
         return ReportSegmentPreview(section=compiled, report_meta=meta)
 
     def _resolve_template(self, template_instance: TemplateInstance) -> ReportTemplate:
@@ -181,14 +181,14 @@ class ReportGenerationService:
             return template
         stored = self.template_repository.get_by_id(template_instance.template_id)
         if stored is None:
-            raise NotFoundError("Template not found")
+            raise NotFoundError("Template not found", error_code=ErrorCode.REPORT_TEMPLATE_NOT_FOUND)
         return copy.deepcopy(stored)
 
     def _validate_report(self, report: ReportDsl) -> None:
         try:
             self.schema_gateway.validate_report(report_dsl_to_dict(report))
         except ValueError as exc:
-            raise ValidationError(str(exc)) from exc
+            raise ValidationError(str(exc), error_code=ErrorCode.REPORT_GENERATION_DSL_INVALID) from exc
 
 
 def build_report_dsl(
@@ -219,4 +219,4 @@ def _validate_report_dsl(report: dict) -> None:
     try:
         ReportDslSchemaGateway().validate_report(report)
     except ValueError as exc:
-        raise ValidationError(str(exc)) from exc
+        raise ValidationError(str(exc), error_code=ErrorCode.REPORT_GENERATION_DSL_INVALID) from exc

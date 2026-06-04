@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 
-from ....shared.kernel.errors import NotFoundError, ValidationError
+from ....shared.kernel.errors import ErrorCode, NotFoundError, ValidationError
 from .generation_models import DocumentGenerationJobView, DocumentGenerationResult, DocumentView, DownloadResolution
 
 
@@ -34,10 +34,18 @@ class ReportDocumentService:
     ) -> DocumentGenerationResult:
         normalized_formats = [str(item or "").strip().lower() for item in formats]
         if "pdf" in normalized_formats:
-            raise ValidationError("PDF export is not available yet")
+            raise ValidationError(
+                "PDF export is not available yet",
+                error_code=ErrorCode.REPORT_DOCUMENT_PDF_NOT_AVAILABLE,
+                category="capability",
+            )
         unsupported_formats = sorted(set(normalized_formats) - {"word", "ppt", "markdown"})
         if unsupported_formats:
-            raise ValidationError(f"Unsupported document format: {unsupported_formats[0]}")
+            raise ValidationError(
+                f"Unsupported document format: {unsupported_formats[0]}",
+                error_code="chatbi.report.document.format_unsupported",
+                category="param",
+            )
         report = self.generation_service.get_report_instance(report_id, user_id=user_id).report
         existing = self.document_repository.list_by_report(report_id)
         reusable = [] if regenerate_if_exists else [self.document_gateway.serialize_document(item) for item in existing]
@@ -99,5 +107,5 @@ class ReportDocumentService:
         self.generation_service.get_report_instance(report_id, user_id=user_id)
         document = self.document_repository.get_for_report(report_id, document_id)
         if document is None:
-            raise NotFoundError("Document not found")
+            raise NotFoundError("Document not found", error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING)
         return self.document_gateway.resolve_download(document)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -11,7 +11,7 @@ from ..contexts.report.application.generation_models import (
 )
 from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
-from ..shared.kernel.errors import NotFoundError, ValidationError
+from ..shared.kernel.errors import ErrorCode, NotFoundError, ValidationError
 from ..shared.kernel.http import get_current_user_id
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -31,10 +31,7 @@ def get_report_view(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return report_view_to_dict(build_report_service(db).get_report_view(report_id, user_id=user_id))
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return report_view_to_dict(build_report_service(db).get_report_view(report_id, user_id=user_id))
 
 
 @router.post("/{report_id}/document-generations")
@@ -44,20 +41,15 @@ def generate_report_documents(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return document_generation_result_to_dict(build_report_service(db).generate_documents(
-            report_id=report_id,
-            user_id=user_id,
-            formats=data.formats,
-            pdf_source=data.pdfSource,
-            theme=data.theme,
-            strict_validation=data.strictValidation,
-            regenerate_if_exists=data.regenerateIfExists,
-        ))
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return document_generation_result_to_dict(build_report_service(db).generate_documents(
+        report_id=report_id,
+        user_id=user_id,
+        formats=data.formats,
+        pdf_source=data.pdfSource,
+        theme=data.theme,
+        strict_validation=data.strictValidation,
+        regenerate_if_exists=data.regenerateIfExists,
+    ))
 
 
 @router.get("/{report_id}/documents/{document_id}/download")
@@ -67,14 +59,11 @@ def download_report_document(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        report = build_report_service(db).get_report_view(report_id, user_id=user_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    report = build_report_service(db).get_report_view(report_id, user_id=user_id)
 
     documents = report.answer.documents
     if not any(item.id == document_id for item in documents):
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise NotFoundError("Document not found")
 
     try:
         resolved = build_report_service(db).resolve_download(
@@ -82,12 +71,18 @@ def download_report_document(
             document_id=document_id,
             user_id=user_id,
         )
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise NotFoundError(
+            "Document file not found",
+            error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING,
+        ) from exc
     except ValidationError as exc:
-        detail = str(exc)
-        status_code = 404 if detail == "Document file not found" else 400
-        raise HTTPException(status_code=status_code, detail=detail) from exc
+        if str(exc) == "Document file not found":
+            raise NotFoundError(
+                "Document file not found",
+                error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING,
+            ) from exc
+        raise
 
     return FileResponse(
         path=resolved.absolute_path,

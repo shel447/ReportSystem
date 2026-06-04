@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from src.main import create_app
+from src.shared.kernel.errors import ErrorCode
 
 
 class FrontendServingTests(unittest.TestCase):
@@ -84,10 +85,11 @@ class FrontendServingTests(unittest.TestCase):
             for send in requests:
                 response = send()
                 self.assertEqual(response.status_code, 401)
-                self.assertEqual(response.json()["detail"], "X-User-Id header is required")
+                self.assertEqual(response.json()["errorCode"], ErrorCode.BASE_AUTH_REQUIRED)
 
             blank = client.get("/rest/chatbi/v1/templates", headers={"X-User-Id": "   "})
             self.assertEqual(blank.status_code, 401)
+            self.assertEqual(blank.json()["errorCode"], ErrorCode.BASE_AUTH_REQUIRED)
 
     def test_dev_routes_do_not_require_user_header(self):
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -32,7 +32,7 @@ class FlowEvent:
     delta: list[dict[str, Any]] = field(default_factory=list)
     answer: dict[str, Any] | None = None
     ask: dict[str, Any] | None = None
-    error: str | None = None
+    error: dict[str, Any] | None = None
     tool_call: dict[str, Any] | None = None
     tool_result: dict[str, Any] | None = None
     refusal: dict[str, Any] | None = None

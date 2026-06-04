@@ -7,7 +7,7 @@ import logging
 import re
 from typing import Any
 
-from ....shared.kernel.errors import UpstreamError, ValidationError
+from ....shared.kernel.errors import ErrorCode, UpstreamError, ValidationError
 from ..domain.generation_models import DatasetExecutionResult, TemplateInstance, WarningItem
 from ..domain.template_models import DatasetDefinition, Parameter, ParameterValue, parameter_value_to_dict
 
@@ -71,7 +71,11 @@ class DatasetExecutionService:
                 user_id=user_id,
             )
         else:
-            raise ValidationError(f"dataset sourceType is not executable yet: {dataset.source_type}")
+            raise ValidationError(
+                f"dataset sourceType is not executable yet: {dataset.source_type}",
+                error_code="chatbi.report.dataset.source_type_unsupported",
+                category="capability",
+            )
         try:
             result = execute()
         except UpstreamError as exc:
@@ -80,7 +84,7 @@ class DatasetExecutionService:
                 raise
             ret_info = str(exc)
             warning = WarningItem(
-                code="external_dataset_query_failed",
+                code=ErrorCode.REPORT_DATASET_BUSINESS_FAILED_DEGRADED,
                 message=f"dataset {dataset.id} query failed: retCode={ret_code}, retInfo={ret_info}",
                 target_id=dataset.id,
             )
@@ -110,7 +114,10 @@ def _validate_lineage(*, columns: dict[str, Any], enabled: bool) -> None:
         lineage = metadata.get("lineageTracing") if isinstance(metadata, dict) else None
         sources = lineage.get("sources") if isinstance(lineage, dict) else None
         if not isinstance(sources, list) or not sources:
-            raise ValidationError(f"dataset column lineage is required when tracing is enabled: {key}")
+            raise ValidationError(
+                f"dataset column lineage is required when tracing is enabled: {key}",
+                error_code=ErrorCode.REPORT_DATASET_INVALID_RESPONSE,
+            )
 
 
 def _merge_parameter_values(parameters: list[Parameter]) -> dict[str, list[ParameterValue]]:

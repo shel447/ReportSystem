@@ -24,8 +24,9 @@ from src.contexts.report.domain.generation_models import (
 )
 from src.contexts.report.domain.template_models import ReportTemplate
 from src.infrastructure.persistence.database import get_db
+from src.main import register_error_handlers
 from src.routers.reports import router as reports_router
-from src.shared.kernel.errors import ValidationError
+from src.shared.kernel.errors import ErrorCode, ValidationError
 
 
 def _sample_template_instance():
@@ -67,6 +68,7 @@ def _sample_report():
 class ReportsRouterTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
+        register_error_handlers(app)
         app.include_router(reports_router, prefix="/rest/chatbi/v1")
 
         def override_get_db():
@@ -163,7 +165,8 @@ class ReportsRouterTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["detail"], "PDF export is not available yet")
+        self.assertEqual(response.json()["errorCode"], ErrorCode.BASE_PARAM_INVALID)
+        self.assertEqual(response.json()["errorMsg"], "PDF export is not available yet")
 
 
 if __name__ == "__main__":

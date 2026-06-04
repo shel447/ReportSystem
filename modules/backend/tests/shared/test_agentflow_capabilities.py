@@ -138,7 +138,7 @@ def test_dynamic_edge_cannot_target_completed_node():
         ).to_graph()
     )
 
-    assert any(event.event_type == "error" and "completed node" in event.error for event in events)
+    assert any(event.event_type == "error" and "completed node" in event.error.get("errorMsg", "") for event in events)
 
 
 def test_subflow_events_are_namespaced_and_do_not_override_parent_answer():

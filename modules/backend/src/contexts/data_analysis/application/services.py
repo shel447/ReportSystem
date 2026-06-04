@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ....shared.kernel.errors import ValidationError
+from ....shared.kernel.errors import ErrorCode, ValidationError
 from ....shared.kernel.audit import AuditEvent
 from ...conversation.application.ports import GuardrailGateway
 from ..domain.models import DataAnalysisAnswer, DatasetResult, QuerySpec
@@ -23,7 +23,11 @@ class DataQueryService:
 
     def execute_api(self, *, source: str, payload: dict[str, Any], user_id: str) -> DatasetResult:
         if self.api_gateway is None:
-            raise ValidationError("API dataset gateway is not configured")
+            raise ValidationError(
+                "API dataset gateway is not configured",
+                error_code=ErrorCode.DATA_ANALYSIS_DATASOURCE_UNAVAILABLE,
+                category="capability",
+            )
         return self.api_gateway.execute(source=source, payload=payload, user_id=user_id)
 
 
@@ -66,7 +70,11 @@ class DataAnalysisService:
                     kind="security",
                 )
             )
-            raise ValidationError(security.reason or "生成查询未通过安全检查")
+            raise ValidationError(
+                security.reason or "生成查询未通过安全检查",
+                error_code=ErrorCode.DATA_ANALYSIS_QUERY_BLOCKED,
+                category="safety",
+            )
         data = self.query_service.execute_sql(
             query=spec.sql,
             context={"lineage.tracing.enable": True, "scenario": "query_data"},
@@ -111,7 +119,10 @@ class DataAnalysisService:
         payload = _json_object(response.get("content"))
         sql = str(payload.get("sql") or "").strip()
         if not sql:
-            raise ValidationError("模型没有生成可执行查询")
+            raise ValidationError(
+                "模型没有生成可执行查询",
+                error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
+            )
         return QuerySpec(
             intent=str(payload.get("intent") or question),
             sql=sql,
@@ -142,9 +153,15 @@ def _json_object(raw: object) -> dict[str, Any]:
     try:
         payload = json.loads(text)
     except ValueError as exc:
-        raise ValidationError("模型没有返回合法 QuerySpec JSON") from exc
+        raise ValidationError(
+            "模型没有返回合法 QuerySpec JSON",
+            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
+        ) from exc
     if not isinstance(payload, dict):
-        raise ValidationError("模型 QuerySpec 必须是 JSON object")
+        raise ValidationError(
+            "模型 QuerySpec 必须是 JSON object",
+            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
+        )
     return payload
 
 

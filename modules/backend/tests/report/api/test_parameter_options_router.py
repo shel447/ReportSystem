@@ -1,11 +1,10 @@
 import unittest
 from unittest.mock import patch
 
-from fastapi import HTTPException
-
 from src.contexts.report.application.template_models import ParameterOptionsResult
 from src.contexts.report.domain.template_models import ParameterValue
 from src.routers.parameter_options import ParameterOptionsResolveRequest, resolve_parameter_options
+from src.shared.kernel.errors import ErrorCode, ValidationError, http_status_for
 
 
 class ParameterOptionsRouterTests(unittest.TestCase):
@@ -47,7 +46,7 @@ class ParameterOptionsRouterTests(unittest.TestCase):
         )()
 
         with patch("src.routers.parameter_options.build_report_service", return_value=fake_service):
-            with self.assertRaises(HTTPException) as ctx:
+            with self.assertRaises(ValidationError) as ctx:
                 resolve_parameter_options(
                     ParameterOptionsResolveRequest(
                         parameterId="scope",
@@ -58,7 +57,8 @@ class ParameterOptionsRouterTests(unittest.TestCase):
                     user_id="default",
                 )
 
-        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(http_status_for(ctx.exception), 400)
+        self.assertEqual(ctx.exception.error_code, ErrorCode.BASE_PARAM_INVALID)
 
 
 if __name__ == "__main__":

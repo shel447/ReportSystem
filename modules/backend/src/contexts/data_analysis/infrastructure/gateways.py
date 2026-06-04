@@ -7,7 +7,7 @@ from typing import Any
 
 from ....infrastructure.platform.cache import MemoryTtlCache, platform_cache
 from ....shared.agentflow.metrics import record_datacatalog_logical_entity
-from ....shared.kernel.errors import UpstreamError
+from ....shared.kernel.errors import ErrorCode, UpstreamError
 from ..domain.models import DatasetColumn, DatasetResult
 
 
@@ -22,13 +22,29 @@ class ExternalOneQueryGateway:
             user_id=user_id,
         )
         if "retCode" not in payload:
-            raise UpstreamError("OneQuery response retCode is required")
+            raise UpstreamError(
+                "OneQuery response retCode is required",
+                error_code=ErrorCode.DATA_ANALYSIS_RESULT_INVALID,
+                source="onequery",
+                http_status=502,
+            )
         ret_code = int(payload["retCode"])
         if ret_code != 0:
-            raise UpstreamError(str(payload.get("retInfo") or f"OneQuery failed: {ret_code}"), details={"retCode": ret_code})
+            raise UpstreamError(
+                str(payload.get("retInfo") or f"OneQuery failed: {ret_code}"),
+                details={"retCode": ret_code},
+                error_code=ErrorCode.DATA_ANALYSIS_DATASOURCE_UNAVAILABLE,
+                source="onequery",
+                http_status=502,
+            )
         data = payload.get("data")
         if not isinstance(data, dict) or not isinstance(data.get("columns"), dict) or not isinstance(data.get("results"), list):
-            raise UpstreamError("OneQuery response data.columns/data.results is required")
+            raise UpstreamError(
+                "OneQuery response data.columns/data.results is required",
+                error_code=ErrorCode.DATA_ANALYSIS_RESULT_INVALID,
+                source="onequery",
+                http_status=502,
+            )
         return DatasetResult(
             columns=[DatasetColumn(key=str(key), metadata=deepcopy(metadata if isinstance(metadata, dict) else {})) for key, metadata in data["columns"].items()],
             rows=deepcopy(data["results"]),
@@ -42,13 +58,29 @@ class ExternalApiDatasetGateway:
     def execute(self, *, source: str, payload: dict[str, Any], user_id: str) -> DatasetResult:
         response = self.client.post_json(path_or_url=source, payload=payload, user_id=user_id)
         if "retCode" not in response:
-            raise UpstreamError("API dataset response retCode is required")
+            raise UpstreamError(
+                "API dataset response retCode is required",
+                error_code=ErrorCode.DATA_ANALYSIS_RESULT_INVALID,
+                source="api_dataset",
+                http_status=502,
+            )
         ret_code = int(response["retCode"])
         if ret_code != 0:
-            raise UpstreamError(str(response.get("retInfo") or f"API dataset failed: {ret_code}"), details={"retCode": ret_code})
+            raise UpstreamError(
+                str(response.get("retInfo") or f"API dataset failed: {ret_code}"),
+                details={"retCode": ret_code},
+                error_code=ErrorCode.DATA_ANALYSIS_DATASOURCE_UNAVAILABLE,
+                source="api_dataset",
+                http_status=502,
+            )
         data = response.get("data")
         if not isinstance(data, dict) or not isinstance(data.get("columns"), dict) or not isinstance(data.get("results"), list):
-            raise UpstreamError("API dataset response data.columns/data.results is required")
+            raise UpstreamError(
+                "API dataset response data.columns/data.results is required",
+                error_code=ErrorCode.DATA_ANALYSIS_RESULT_INVALID,
+                source="api_dataset",
+                http_status=502,
+            )
         return DatasetResult(
             columns=[DatasetColumn(key=str(key), metadata=deepcopy(metadata if isinstance(metadata, dict) else {})) for key, metadata in data["columns"].items()],
             rows=deepcopy(data["results"]),
@@ -169,4 +201,9 @@ class ExternalKnowledgeGateway:
 
 def _ensure_success(payload: dict[str, Any], *, service: str) -> None:
     if int(payload.get("retCode") or 0) != 0:
-        raise UpstreamError(f"{service} failed: {payload.get('retInfo') or ''}")
+        raise UpstreamError(
+            f"{service} failed: {payload.get('retInfo') or ''}",
+            error_code=ErrorCode.DATA_ANALYSIS_DATASOURCE_UNAVAILABLE,
+            source=service.lower(),
+            http_status=502,
+        )

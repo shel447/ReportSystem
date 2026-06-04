@@ -4,7 +4,6 @@ from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src.contexts.report.application.template_models import TemplateImportPreview
@@ -19,7 +18,7 @@ from src.routers.templates import (
     preview_import_template,
     update_template,
 )
-from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+from src.shared.kernel.errors import ConflictError, ErrorCode, NotFoundError, ValidationError, http_status_for
 from tests.support.builders import load_json_fixture
 from tests.support.paths import testdata_path as fixture_path
 
@@ -104,11 +103,12 @@ class TemplatesRouterTests(unittest.TestCase):
         )
 
         with patch("src.routers.templates.build_report_service", return_value=fake_service):
-            with self.assertRaises(HTTPException) as ctx:
+            with self.assertRaises(ValidationError) as ctx:
                 update_template("tpl_a", TemplateUpsertRequest(**{**_sample_template(), "id": "tpl_b"}), db=object())
 
-        self.assertEqual(ctx.exception.status_code, 400)
-        self.assertEqual(ctx.exception.detail, "Template id mismatch")
+        self.assertEqual(http_status_for(ctx.exception), 400)
+        self.assertEqual(ctx.exception.error_code, ErrorCode.BASE_PARAM_INVALID)
+        self.assertEqual(str(ctx.exception), "Template id mismatch")
 
     def test_export_template_definition_returns_formal_template_json(self):
         template = report_template_from_dict(_sample_template())
@@ -163,27 +163,28 @@ class TemplatesRouterTests(unittest.TestCase):
         )
 
         with patch("src.routers.templates.build_report_service", return_value=fake_service):
-            with self.assertRaises(HTTPException) as ctx:
+            with self.assertRaises(ValidationError) as ctx:
                 preview_import_template(TemplateImportPreviewRequest(content={"foo": "bar"}), db=object())
 
-        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(http_status_for(ctx.exception), 400)
+        self.assertEqual(ctx.exception.error_code, ErrorCode.BASE_PARAM_INVALID)
 
     def test_router_maps_conflict_and_not_found(self):
         fake_create = SimpleNamespace(
             create_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(ConflictError("Template already exists"))
         )
         with patch("src.routers.templates.build_report_service", return_value=fake_create):
-            with self.assertRaises(HTTPException) as create_ctx:
+            with self.assertRaises(ConflictError) as create_ctx:
                 create_template(TemplateUpsertRequest(**_sample_template()), db=object())
-        self.assertEqual(create_ctx.exception.status_code, 409)
+        self.assertEqual(http_status_for(create_ctx.exception), 409)
 
         fake_update = SimpleNamespace(
             update_template=lambda *_args, **_kwargs: (_ for _ in ()).throw(NotFoundError("Template not found"))
         )
         with patch("src.routers.templates.build_report_service", return_value=fake_update):
-            with self.assertRaises(HTTPException) as update_ctx:
+            with self.assertRaises(NotFoundError) as update_ctx:
                 update_template("tpl_network_daily", TemplateUpsertRequest(**_sample_template()), db=object())
-        self.assertEqual(update_ctx.exception.status_code, 404)
+        self.assertEqual(http_status_for(update_ctx.exception), 404)
 
 
 if __name__ == "__main__":

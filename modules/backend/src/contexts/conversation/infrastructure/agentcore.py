@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ....shared.kernel.errors import ErrorCode, UpstreamError
 from ..application.ports import HostedChat, HostedConversation
 
 
@@ -15,40 +16,49 @@ class ExternalConversationHistoryGateway:
         self.piu_version = piu_version
 
     def create_conversation(self, *, title: str, description: str | None, user_id: str) -> HostedConversation:
-        payload = self.client.post_json(
-            path_or_url="/rest/naie/aiagentcore/v1/conversation",
-            payload={"title": title, "description": description},
-            user_id=user_id,
-        )
+        try:
+            payload = self.client.post_json(
+                path_or_url="/rest/naie/aiagentcore/v1/conversation",
+                payload={"title": title, "description": description},
+                user_id=user_id,
+            )
+        except UpstreamError as exc:
+            raise _map_agentcore_error(exc, fallback_code=ErrorCode.CONVERSATION_CREATE_FAILED) from exc
         return HostedConversation(conversation_id=str(payload.get("conversationId") or ""), title=title)
 
     def create_chat(self, *, conversation_id: str, question: str, user_id: str) -> HostedChat:
-        payload = self.client.post_json(
-            path_or_url="/rest/naie/aiagentcore/v1/chat/create",
-            payload={"conversationId": conversation_id, "question": question},
-            user_id=user_id,
-        )
+        try:
+            payload = self.client.post_json(
+                path_or_url="/rest/naie/aiagentcore/v1/chat/create",
+                payload={"conversationId": conversation_id, "question": question},
+                user_id=user_id,
+            )
+        except UpstreamError as exc:
+            raise _map_agentcore_error(exc, fallback_code=ErrorCode.CONVERSATION_CHAT_CREATE_FAILED) from exc
         return HostedChat(chat_id=str(payload.get("chatId") or ""), conversation_id=conversation_id, question=question)
 
     def import_chat(self, *, chat: HostedChat, user_id: str) -> None:
-        self.client.post_json(
-            path_or_url="/rest/naie/aiagent/v1/chat/import",
-            payload={
-                "conversationId": chat.conversation_id,
-                "chatId": chat.chat_id,
-                "type": "PIU",
-                "content": {
-                    "piuName": self.piu_name,
-                    "piuVersion": self.piu_version,
-                    "answers": {
-                        "request": dict(chat.request_payload),
-                        "response": dict(chat.response_payload),
-                        "meta": dict(chat.meta),
+        try:
+            self.client.post_json(
+                path_or_url="/rest/naie/aiagent/v1/chat/import",
+                payload={
+                    "conversationId": chat.conversation_id,
+                    "chatId": chat.chat_id,
+                    "type": "PIU",
+                    "content": {
+                        "piuName": self.piu_name,
+                        "piuVersion": self.piu_version,
+                        "answers": {
+                            "request": dict(chat.request_payload),
+                            "response": dict(chat.response_payload),
+                            "meta": dict(chat.meta),
+                        },
                     },
                 },
-            },
-            user_id=user_id,
-        )
+                user_id=user_id,
+            )
+        except UpstreamError as exc:
+            raise _map_agentcore_error(exc, fallback_code=ErrorCode.CONVERSATION_ARCHIVE_FAILED) from exc
 
     def query_chat_history(self, *, conversation_id: str, page_num: int, page_size: int, user_id: str) -> list[HostedChat]:
         payload = self.client.post_json(
@@ -130,3 +140,26 @@ def _decode_question(raw: object) -> str:
 
 def _optional_str(value: object) -> str | None:
     return str(value) if value is not None else None
+
+
+def _map_agentcore_error(exc: UpstreamError, *, fallback_code: str) -> UpstreamError:
+    upstream_code = str(exc.details.get("upstreamCode") or exc.details.get("code") or "").strip()
+    if upstream_code == "naie.aiagent.452":
+        return UpstreamError(
+            "您创建的会话已超系统上限1000个，请删除部分历史会话后再次尝试创建新会话",
+            details={**dict(exc.details), "upstreamCode": upstream_code},
+            error_code=ErrorCode.CONVERSATION_QUOTA_EXCEEDED,
+            category="quota",
+            retryable=False,
+            source="agentcore",
+            http_status=409,
+        )
+    return UpstreamError(
+        str(exc),
+        details={**dict(exc.details), **({"upstreamCode": upstream_code} if upstream_code else {})},
+        error_code=fallback_code,
+        category="upstream",
+        retryable=exc.retryable,
+        source="agentcore",
+        http_status=exc.http_status,
+    )

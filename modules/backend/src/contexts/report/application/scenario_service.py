@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import math
 
-from ....shared.kernel.errors import ConflictError, ValidationError
+from ....shared.kernel.errors import ConflictError, ErrorCode, ValidationError
 from ....shared.agentflow import FlowGraph, FlowNode, SequentialFlow
 from ..domain.generation_models import TemplateInstance
 from ..domain.template_instance_builder import (
@@ -52,7 +52,7 @@ class ReportScenarioService:
     def handle(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
         """按报告 instruction 推进一次场景状态机。"""
         if command.bootstrap is not None and command.instruction != "generate_report":
-            raise ValidationError("report is only supported for generate_report")
+            raise ValidationError("report is only supported for generate_report", error_code="chatbi.report.bootstrap.invalid_instruction")
         if command.instruction == "extract_report_template":
             return self._extract_report_template(command=command)
         if command.instruction == "generate_report_segment":
@@ -62,7 +62,10 @@ class ReportScenarioService:
                 or not command.segment.section_id.strip()
                 or not str(command.segment.outline.requirement or "").strip()
             ):
-                raise ValidationError("generate_report_segment requires template.reportId, template.sectionId and template.outline")
+                raise ValidationError(
+                    "generate_report_segment requires template.reportId, template.sectionId and template.outline",
+                    error_code=ErrorCode.BASE_PARAM_INVALID,
+                )
             answer = self.generation_service.preview_section_regeneration(
                 report_id=command.segment.report_id,
                 section_id=command.segment.section_id,
@@ -84,13 +87,16 @@ class ReportScenarioService:
                 ),
             )
         if command.instruction != "generate_report":
-            raise ValidationError(f"Unsupported instruction: {command.instruction}")
+            raise ValidationError(f"Unsupported instruction: {command.instruction}", error_code=ErrorCode.BASE_PARAM_INVALID)
         return self._generate_report(command=command)
 
     def create_flow(self, *, command: ReportScenarioCommand) -> FlowGraph:
         """把报告场景推进封装为公共 Agent Flow。"""
         if command.instruction == "extract_report_template":
-            raise ValidationError("extract_report_template is a stateless synchronous instruction")
+            raise ValidationError(
+                "extract_report_template is a stateless synchronous instruction",
+                error_code="chatbi.report.template.extract_not_streamable",
+            )
 
         def run_report(context) -> None:
             if command.instruction == "generate_report_segment":
@@ -143,17 +149,27 @@ class ReportScenarioService:
             user_id=command.user_id,
         )
         if command.bootstrap is not None and current_instance is not None:
-            raise ConflictError("report is only supported before a template instance exists")
+            raise ConflictError(
+                "report is only supported before a template instance exists",
+                error_code="chatbi.report.bootstrap.instance_exists",
+            )
 
         if command.reply_type == "confirm_params":
             template_instance = reply.report_context.template_instance if reply and reply.report_context else None
             if template_instance is None:
-                raise ValidationError("confirm_params requires reportContext.templateInstance")
+                raise ValidationError(
+                    "confirm_params requires reportContext.templateInstance",
+                    error_code=ErrorCode.BASE_PARAM_INVALID,
+                )
             template = self.template_service.get_template(str(template_instance.template_id or "").strip())
             missing = self.parameter_service.missing_required_parameters(template=template, template_instance=template_instance)
             if missing:
                 missing_ids = ", ".join(item.id for item in missing)
-                raise ValidationError(f"confirm_params requires all required parameters: {missing_ids}")
+                raise ValidationError(
+                    f"confirm_params requires all required parameters: {missing_ids}",
+                    details={"missingParameterIds": [item.id for item in missing]},
+                    error_code=ErrorCode.REPORT_PARAMETER_MISSING_REQUIRED,
+                )
             persisted = self.generation_service.persist_template_instance(
                 _template_instance_from_payload(
                     template_instance,
@@ -213,7 +229,7 @@ class ReportScenarioService:
         if command.bootstrap is not None:
             question = str(command.question or "").strip()
             if not question:
-                raise ValidationError("generate_report with report requires question")
+                raise ValidationError("generate_report with report requires question", error_code=ErrorCode.BASE_PARAM_INVALID)
             template = self.template_service.get_template_by_name(command.bootstrap.template_name)
             template, initial_values = self.parameter_service.merge_bootstrap_values(
                 template=template,
@@ -248,7 +264,7 @@ class ReportScenarioService:
     def _match_template(self, question: str) -> ReportTemplate:
         templates = list(self.template_repository.list_all())
         if not templates:
-            raise ValidationError("No report templates available")
+            raise ValidationError("No report templates available", error_code=ErrorCode.REPORT_TEMPLATE_NOT_FOUND)
         query_text = question.strip()
         if not query_text:
             return templates[0]

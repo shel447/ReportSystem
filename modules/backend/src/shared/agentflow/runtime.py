@@ -19,6 +19,7 @@ from .prompts import PromptAssembler, PromptMessage, PromptTemplate
 from .subflows import SubflowEventPolicy, SubflowRegistry
 from .termination import FlowCancelled, FlowRefused, FlowTerminated
 from .tools import ToolCall, ToolRegistry
+from ..kernel.errors import ApplicationError, ErrorCode, error_response_payload
 
 
 @dataclass(slots=True)
@@ -101,8 +102,8 @@ class FlowContext:
     def emit_ask(self, ask: dict[str, Any], *, status: str = "waiting_user") -> FlowEvent:
         return self.runtime.emit(self.run, event_type="ask", status=status, ask=ask)
 
-    def emit_error(self, error: str, *, status: str = "failed") -> FlowEvent:
-        return self.runtime.emit(self.run, event_type="error", status=status, error=error)
+    def emit_error(self, error: str | dict[str, Any] | Exception, *, status: str = "failed") -> FlowEvent:
+        return self.runtime.emit(self.run, event_type="error", status=status, error=_flow_error_payload(error))
 
     def emit_tool_call(self, call: ToolCall) -> FlowEvent:
         return self.runtime.emit(self.run, event_type="tool_call", status="running", tool_call=asdict(call))
@@ -157,7 +158,7 @@ class FlowContext:
         self.run.metrics.record_llm_output_tokens(tokens)
 
     def request_terminate(self, reason: str) -> None:
-        self.runtime.emit(self.run, event_type="error", status="terminated", error=reason)
+        self.runtime.emit(self.run, event_type="error", status="terminated", error=_flow_error_payload(FlowTerminated(reason)))
         raise FlowTerminated(reason)
 
     def refuse(self, reason: str, answer: dict[str, Any] | None = None) -> None:
@@ -203,6 +204,7 @@ class InMemoryFlowRuntime:
     ) -> None:
         self._runs: dict[str, FlowRun] = {}
         self._chat_index: dict[str, str] = {}
+        self._conversation_index: dict[str, str] = {}
         self._lock = threading.RLock()
         self.checkpoint_saver = checkpoint_saver or InMemoryCheckpointSaver()
         self.tool_registry = tool_registry or ToolRegistry()
@@ -222,6 +224,9 @@ class InMemoryFlowRuntime:
             chat_id = str(run.state.get("chat_id") or "")
             if chat_id:
                 self._chat_index[chat_id] = run.run_id
+            conversation_id = str(run.state.get("conversation_id") or "")
+            if conversation_id:
+                self._conversation_index[conversation_id] = run.run_id
         thread.start()
         return run
 
@@ -251,6 +256,16 @@ class InMemoryFlowRuntime:
                 return False
         return self.cancel(run.run_id)
 
+    def is_conversation_running(self, conversation_id: str, *, user_id: str | None = None) -> bool:
+        with self._lock:
+            run_id = self._conversation_index.get(str(conversation_id or "").strip())
+            run = self._runs.get(run_id or "")
+            if run is None or run.done.is_set():
+                return False
+            if user_id is not None and str(run.state.get("user_id") or "") != user_id:
+                return False
+            return True
+
     def send_input(self, run_id: str, payload: dict[str, Any]) -> bool:
         run = self.get(run_id)
         if run is None:
@@ -279,7 +294,7 @@ class InMemoryFlowRuntime:
         delta: list[dict[str, Any]] | None = None,
         answer: dict[str, Any] | None = None,
         ask: dict[str, Any] | None = None,
-        error: str | None = None,
+        error: dict[str, Any] | None = None,
         tool_call: dict[str, Any] | None = None,
         tool_result: dict[str, Any] | None = None,
         refusal: dict[str, Any] | None = None,
@@ -452,14 +467,14 @@ class InMemoryFlowRuntime:
             if not run.cancel_requested.is_set():
                 self.emit(run, event_type="done", status=(run.final_event.status if run.final_event else "finished"))
         except FlowCancelled as exc:
-            self.emit(run, event_type="error", status="cancelled", error=str(exc))
+            self.emit(run, event_type="error", status="cancelled", error=_flow_error_payload(exc))
             self.emit(run, event_type="done", status="cancelled")
         except FlowTerminated:
             self.emit(run, event_type="done", status="terminated")
         except FlowRefused:
             self.emit(run, event_type="done", status="refused")
         except Exception as exc:  # pragma: no cover - defensive boundary
-            self.emit(run, event_type="error", status="failed", error=str(exc))
+            self.emit(run, event_type="error", status="failed", error=_flow_error_payload(exc))
             self.emit(run, event_type="done", status="failed")
         finally:
             self._publish_metrics(run)
@@ -636,3 +651,51 @@ class InMemoryFlowRuntime:
 
 def context_value(run: FlowRun, key: str) -> Any:
     return run.state.get(key)
+
+
+def _flow_error_payload(error: str | dict[str, Any] | Exception) -> dict[str, Any]:
+    if isinstance(error, dict):
+        return dict(error)
+    if isinstance(error, FlowCancelled):
+        return error_response_payload(
+            ApplicationError(
+                "当前对话已取消。",
+                error_code=ErrorCode.CONVERSATION_CANCELLED,
+                category="state",
+            )
+        )
+    if isinstance(error, FlowTerminated):
+        return error_response_payload(
+            ApplicationError(
+                str(error) or "系统已主动终止当前任务。",
+                error_code=ErrorCode.CONVERSATION_TERMINATED,
+                category="state",
+            )
+        )
+    if isinstance(error, FlowRefused):
+        return error_response_payload(
+            ApplicationError(
+                str(error) or "系统拒绝继续处理当前请求。",
+                error_code=ErrorCode.CONVERSATION_REFUSED,
+                category="safety",
+            )
+        )
+    if isinstance(error, ApplicationError):
+        return error_response_payload(error)
+    if isinstance(error, TimeoutError):
+        return error_response_payload(
+            ApplicationError(
+                "系统处理超时，请稍后重试。",
+                error_code=ErrorCode.BASE_OVERTIME,
+                category="timeout",
+                retryable=True,
+                http_status=504,
+            )
+        )
+    return error_response_payload(
+        ApplicationError(
+            str(error) or "系统处理失败，请稍后重试。",
+            error_code=ErrorCode.BASE_UNKNOWN,
+            category="unknown",
+        )
+    )

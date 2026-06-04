@@ -23,7 +23,8 @@
 | `tests/architecture/test_service_type_contracts.py` | 4 | 应用服务正式类型 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
 | `tests/conversation/api/test_chat_contract_api.py` | 10 | `/chat` ask/reply、外部报告交接、SSE、工具和 checkpoint 投影、运行中协作接口、报告与章节 delta |
-| `tests/conversation/unit/test_conversation_service.py` | 7 | AgentCore 托管对话、通用追问生命周期、upsert 消费、暂未开放 fork 和异步审计提交 |
+| `tests/conversation/infrastructure/test_agentcore_gateway.py` | 1 | AgentCore 上游错误码到 ChatBI 错误码的转换 |
+| `tests/conversation/unit/test_conversation_service.py` | 8 | AgentCore 托管对话、通用追问生命周期、运行中会话并发保护、upsert 消费、暂未开放 fork 和异步审计提交 |
 | `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
 | `tests/data_analysis/unit/test_data_analysis_service.py` | 2 | 智能问数编排、SQL 安全拒绝和 BI 可视化建议 |
 | `tests/data_analysis/infrastructure/test_external_query_gateways.py` | 4 | OneQuery 正式路径、字段元数据、新版查询包络必填字段和用户级 DataCatalog/RAG 缓存 |

@@ -1,4 +1,6 @@
-from fastapi import Header, HTTPException
+from fastapi import Header
+
+from .errors import ErrorCode, ValidationError
 
 
 def resolve_user_id(x_user_id: object | None) -> str:
@@ -6,7 +8,12 @@ def resolve_user_id(x_user_id: object | None) -> str:
         value = x_user_id.strip()
         if value:
             return value
-    raise HTTPException(status_code=401, detail="X-User-Id header is required")
+    raise ValidationError(
+        "请先登录后再使用报告系统。",
+        error_code=ErrorCode.BASE_AUTH_REQUIRED,
+        category="auth",
+        http_status=401,
+    )
 
 
 def get_current_user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:

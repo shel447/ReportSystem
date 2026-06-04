@@ -115,6 +115,50 @@ X-User-Id: <external-user-id>
 | `chat` | `routers/chat.py` | `conversation` |
 | `reports` | `routers/reports.py` | `report` |
 
+### 1.4 统一错误响应
+
+`/rest/chatbi/v1/*` 公开业务接口失败时统一返回 ChatBI 错误对象：
+
+```json
+{
+  "errorCode": "chatbi.base.param.invalid",
+  "errorMsg": "输入参数校验失败，请检查请求内容。",
+  "category": "param",
+  "retryable": false,
+  "requestId": "req_001",
+  "details": {}
+}
+```
+
+字段约束：
+
+- `errorCode` 必须使用 `chatbi.` 前缀。
+- `chatbi.base.*` 表示系统通用错误；`chatbi.conversation.*` 表示通用对话模块错误；`chatbi.report.*` 表示报告模块错误；`chatbi.data_analysis.*` 表示智能问数模块错误。
+- `errorCode` 不允许出现内部技术模块名，例如流程框架名称；也不允许使用外部平台模块名前缀。
+- 外部平台返回的错误码必须转换为 ChatBI 错误码。原始上游错误码可以放入 `details.upstreamCode`，用于排查和审计。
+- `errorMsg` 面向最终用户或集成方，可直接展示或记录。
+- `retryable` 表示同一请求在不修改输入的情况下是否值得稍后重试。
+- 跨用户资源访问与资源不存在统一按 `404` 处理，避免泄漏资源归属。
+
+常用错误码：
+
+| 错误码 | HTTP 状态 | 含义 |
+|---|---:|---|
+| `chatbi.base.unknown` | 500 | 未预先识别的兜底错误 |
+| `chatbi.base.param.invalid` | 400 | 请求参数校验失败 |
+| `chatbi.base.auth.required` | 401 | 缺少可信用户身份 |
+| `chatbi.base.resource.not_found` | 404 | 资源不存在或无权访问 |
+| `chatbi.base.resource.conflict` | 409 | 资源状态冲突 |
+| `chatbi.base.overtime` | 504 | 系统处理或外部调用超时 |
+| `chatbi.base.upstream.unavailable` | 502 | 上游服务调用失败 |
+| `chatbi.conversation.in_progress` | 409 | 当前会话已有对话正在处理中 |
+| `chatbi.conversation.quota_exceeded` | 409 | 会话数量达到平台限制 |
+| `chatbi.report.template.not_found` | 404 | 报告模板不存在 |
+| `chatbi.report.parameter.missing_required` | 400 | 报告生成缺少必填参数 |
+| `chatbi.report.generation.dsl_invalid` | 400 | 报告内容结构校验失败 |
+| `chatbi.report.document.pdf_not_available` | 400 | PDF 导出暂未开放 |
+| `chatbi.data_analysis.query_blocked` | 400 | 智能问数查询被安全规则拦截 |
+
 ## 2. 客户端接口
 
 ### 2.1 模板接口
@@ -219,7 +263,7 @@ X-User-Id: <external-user-id>
 - `TEMPLATE_SUGGESTED_ID_GENERATED`
 - `TEMPLATE_ORDER_REMOVED`
 
-推荐统一错误码：
+模板校验问题类型示例（用于静态校验、导入告警或错误分类；公开接口仍使用 `chatbi.*` 错误码承载失败响应）：
 
 - `TEMPLATE_SCHEMA_INVALID`
 - `TEMPLATE_DUPLICATE_PARAMETER_ID`

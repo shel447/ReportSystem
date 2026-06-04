@@ -6,7 +6,7 @@ import os
 from typing import Any
 
 from ....infrastructure.platform.http_client import ExternalServiceConfig, PlatformHttpClient
-from ....shared.kernel.errors import UpstreamError, ValidationError
+from ....shared.kernel.errors import ErrorCode, UpstreamError, ValidationError
 
 DEFAULT_EXTERNAL_BUSINESS_BASE_URL = "http://127.0.0.1:8310"
 
@@ -34,4 +34,12 @@ class ExternalBusinessGateway:
         try:
             return self.client.post_json(path_or_url=path_or_url, payload=payload, user_id=user_id)
         except UpstreamError as exc:
-            raise ValidationError(str(exc), details=dict(exc.details)) from exc
+            raise UpstreamError(
+                str(exc),
+                details=dict(exc.details),
+                error_code=exc.error_code or ErrorCode.BASE_UPSTREAM_UNAVAILABLE,
+                category=exc.category,
+                retryable=exc.retryable,
+                source="external_business",
+                http_status=exc.http_status,
+            ) from exc

@@ -9,7 +9,7 @@ from urllib.parse import urljoin
 
 import httpx
 
-from ...shared.kernel.errors import UpstreamError, ValidationError
+from ...shared.kernel.errors import ErrorCode, UpstreamError, ValidationError
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,11 +68,66 @@ class PlatformHttpClient:
                 response.raise_for_status()
                 data = response.json()
         except httpx.TimeoutException as exc:
-            raise UpstreamError(f"外部服务超时: {url}") from exc
+            raise UpstreamError(
+                "系统处理超时，请稍后重试。",
+                details={"url": url},
+                error_code=ErrorCode.BASE_OVERTIME,
+                category="timeout",
+                retryable=True,
+                http_status=504,
+            ) from exc
         except UpstreamError:
             raise
+        except httpx.HTTPStatusError as exc:
+            upstream_details = _http_error_details(exc.response)
+            raise UpstreamError(
+                "外部服务调用失败，请稍后重试。",
+                details={"url": url, "statusCode": exc.response.status_code, **upstream_details},
+                error_code=ErrorCode.BASE_UPSTREAM_UNAVAILABLE,
+                source="platform",
+                retryable=exc.response.status_code >= 500,
+                http_status=502,
+            ) from exc
+        except ValueError as exc:
+            raise UpstreamError(
+                "外部服务响应格式无效。",
+                details={"url": url},
+                error_code=ErrorCode.BASE_UPSTREAM_INVALID_RESPONSE,
+                source="platform",
+                http_status=502,
+            ) from exc
         except Exception as exc:
-            raise UpstreamError(f"外部服务调用失败: {url}: {exc}") from exc
+            raise UpstreamError(
+                "外部服务调用失败，请稍后重试。",
+                details={"url": url, "reason": str(exc)},
+                error_code=ErrorCode.BASE_UPSTREAM_UNAVAILABLE,
+                source="platform",
+                http_status=502,
+            ) from exc
         if not isinstance(data, dict):
-            raise UpstreamError(f"外部服务响应必须为 JSON object: {url}")
+            raise UpstreamError(
+                "外部服务响应格式无效。",
+                details={"url": url},
+                error_code=ErrorCode.BASE_UPSTREAM_INVALID_RESPONSE,
+                source="platform",
+                http_status=502,
+            )
         return data
+
+
+def _http_error_details(response: httpx.Response) -> dict[str, Any]:
+    try:
+        payload = response.json()
+    except ValueError:
+        text = (response.text or "").strip()
+        return {"upstreamMessage": text[:240]} if text else {}
+    if not isinstance(payload, dict):
+        return {}
+    code = payload.get("errorCode") or payload.get("code") or payload.get("retCode")
+    message = payload.get("errorMsg") or payload.get("message") or payload.get("retInfo")
+    details: dict[str, Any] = {}
+    if code is not None:
+        details["upstreamCode"] = str(code)
+    if message is not None:
+        details["upstreamMessage"] = str(message)
+    return details

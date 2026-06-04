@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -29,18 +29,19 @@ def resolve_parameter_options(
     user_id: str = Depends(get_current_user_id),
 ):
     try:
-        return parameter_options_result_to_dict(
-            build_report_service(db).resolve_parameter_options(
-                user_id=user_id,
-                parameter_id=data.parameterId,
-                source=data.source,
-                context_values={
-                    parameter_id: [parameter_value_from_dict(item) for item in values]
-                    for parameter_id, values in data.contextValues.items()
-                },
-            )
-        )
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        context_values = {
+            parameter_id: [parameter_value_from_dict(item) for item in values]
+            for parameter_id, values in data.contextValues.items()
+        }
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise ValidationError(str(exc)) from exc
+    try:
+        result = build_report_service(db).resolve_parameter_options(
+            user_id=user_id,
+            parameter_id=data.parameterId,
+            source=data.source,
+            context_values=context_values,
+        )
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    return parameter_options_result_to_dict(result)

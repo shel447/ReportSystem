@@ -138,7 +138,7 @@ def test_dataset_business_error_becomes_empty_result_with_warning():
     assert result.columns == []
     assert result.rows == []
     assert len(result.warnings) == 1
-    assert result.warnings[0].code == "external_dataset_query_failed"
+    assert result.warnings[0].code == "chatbi.report.dataset.business_failed_degraded"
     assert result.warnings[0].target_id == "dataset_health"
     assert "retCode=1001" in result.warnings[0].message
 

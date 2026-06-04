@@ -4,7 +4,7 @@ import json
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ from ..contexts.conversation.application.models import (
 from ..shared.agentflow import FlowEvent
 from ..infrastructure.dependencies import build_conversation_service
 from ..infrastructure.persistence.database import get_db
-from ..shared.kernel.errors import ConflictError, NotFoundError, UnsupportedCapabilityError, ValidationError
+from ..shared.kernel.errors import ErrorCode, NotFoundError
 from ..shared.kernel.http import get_current_user_id
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -66,21 +66,14 @@ def chat(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        command = chat_command_from_payload(data.model_dump(exclude_none=True))
-        service = build_conversation_service(db)
-        if _wants_sse(request):
-            if hasattr(service, "chat_stream"):
-                return StreamingResponse(_flow_event_stream(service.chat_stream(data=command, user_id=user_id)), media_type="text/event-stream")
-            payload = service.chat(data=command, user_id=user_id)
-            return StreamingResponse(_legacy_event_stream(chat_response_to_dict(payload)), media_type="text/event-stream")
+    command = chat_command_from_payload(data.model_dump(exclude_none=True))
+    service = build_conversation_service(db)
+    if _wants_sse(request):
+        if hasattr(service, "chat_stream"):
+            return StreamingResponse(_flow_event_stream(service.chat_stream(data=command, user_id=user_id)), media_type="text/event-stream")
         payload = service.chat(data=command, user_id=user_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return StreamingResponse(_legacy_event_stream(chat_response_to_dict(payload)), media_type="text/event-stream")
+    payload = service.chat(data=command, user_id=user_id)
 
     return chat_response_to_dict(payload)
 
@@ -93,7 +86,10 @@ def stop_chat(
 ):
     ok = build_conversation_service(db).stop_chat(chat_id=chat_id, user_id=user_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Running chat not found")
+        raise NotFoundError(
+            "当前没有正在运行的对话。",
+            error_code=ErrorCode.CONVERSATION_CANCEL_NOT_RUNNING,
+        )
     return {"chatId": chat_id, "status": "stop_requested"}
 
 
@@ -103,10 +99,7 @@ def get_session(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return session_detail_to_dict(build_conversation_service(db).get_session(conversation_id=conversation_id, user_id=user_id))
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return session_detail_to_dict(build_conversation_service(db).get_session(conversation_id=conversation_id, user_id=user_id))
 
 
 @router.delete("/{conversation_id}")
@@ -115,14 +108,9 @@ def delete_session(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return delete_result_to_dict(
-            build_conversation_service(db).delete_session(conversation_id=conversation_id, user_id=user_id)
-        )
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except UnsupportedCapabilityError as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    return delete_result_to_dict(
+        build_conversation_service(db).delete_session(conversation_id=conversation_id, user_id=user_id)
+    )
 
 
 @router.post("/forks")
@@ -131,21 +119,12 @@ def fork_session(
     db: Session = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    try:
-        return fork_session_result_to_dict(
-            build_conversation_service(db).fork_session(
-                data=fork_session_command_from_payload(data.model_dump(exclude_none=True)),
-                user_id=user_id,
-            )
+    return fork_session_result_to_dict(
+        build_conversation_service(db).fork_session(
+            data=fork_session_command_from_payload(data.model_dump(exclude_none=True)),
+            user_id=user_id,
         )
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except UnsupportedCapabilityError as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    )
 
 
 def _wants_sse(request: Request | None) -> bool:

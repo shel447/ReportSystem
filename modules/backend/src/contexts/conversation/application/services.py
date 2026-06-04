@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ....shared.kernel.errors import NotFoundError, UnsupportedCapabilityError, ValidationError
+from ....shared.kernel.errors import ConflictError, ErrorCode, NotFoundError, UnsupportedCapabilityError, ValidationError
 from ....shared.kernel.audit import AuditEvent
 from ....shared.agentflow import FlowEvent, FlowStep, InMemoryFlowRuntime
 from ..domain.models import (
@@ -22,6 +22,7 @@ from .models import (
     ChatAsk,
     ChatCommand,
     ChatResponse,
+    ChatStep,
     DeleteResult,
     ForkSessionCommand,
     ForkSessionResult,
@@ -134,6 +135,7 @@ class ConversationService:
             return response
 
         conversation_id = self._ensure_conversation(data=data, user_id=user_id)
+        self._ensure_conversation_not_running(data=data, conversation_id=conversation_id, user_id=user_id)
         rounds = self.history_gateway.query_chat_history(conversation_id=conversation_id, page_num=1, page_size=200, user_id=user_id)
         reply_source = self._reply_source(data=data, rounds=rounds, user_id=user_id)
         previous = rounds[-1] if rounds else None
@@ -201,6 +203,7 @@ class ConversationService:
             return
 
         conversation_id = self._ensure_conversation(data=data, user_id=user_id)
+        self._ensure_conversation_not_running(data=data, conversation_id=conversation_id, user_id=user_id)
         rounds = self.history_gateway.query_chat_history(conversation_id=conversation_id, page_num=1, page_size=200, user_id=user_id)
         reply_source = self._reply_source(data=data, rounds=rounds, user_id=user_id)
         previous = rounds[-1] if rounds else None
@@ -342,6 +345,17 @@ class ConversationService:
             raise ValidationError("AgentCore did not return chatId")
         return created
 
+    def _ensure_conversation_not_running(self, *, data: ChatCommand, conversation_id: str, user_id: str) -> None:
+        if data.reply is not None:
+            return
+        if self.flow_runtime.is_conversation_running(conversation_id, user_id=user_id):
+            raise ConflictError(
+                "当前对话正在处理中，请等待完成后再发送新的消息。",
+                error_code=ErrorCode.CONVERSATION_IN_PROGRESS,
+                category="state",
+                retryable=True,
+            )
+
     def _reply_source(self, *, data: ChatCommand, rounds: list[HostedChat], user_id: str) -> HostedChat | None:
         if data.reply is None:
             return None
@@ -454,7 +468,7 @@ def _response_from_flow_events(*, data: ChatCommand, conversation_id: str, chat_
         ],
         ask=ask,
         answer=answer,
-        errors=[str(last_error)] if last_error else [],
+        errors=[dict(last_error)] if isinstance(last_error, dict) else [],
         request_id=data.request_id,
         timestamp=_epoch_ms(),
         api_version=data.api_version or "v1",
@@ -493,7 +507,7 @@ def _events_from_response(response: ChatResponse) -> list[FlowEvent]:
         events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="answer", status=response.status, answer=chat_answer_to_dict(response.answer)))
         sequence += 1
     for error in response.errors:
-        events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="error", status="failed", error=str(error)))
+        events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="error", status="failed", error=dict(error)))
         sequence += 1
     events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="done", status=response.status))
     return events

@@ -215,7 +215,7 @@ def test_parallel_failure_collects_started_nodes_and_skips_downstream():
     assert "ok" in finished
     assert "downstream" not in finished
     assert events[-1].status == "failed"
-    assert any(event.event_type == "error" and "failed" in event.error and "boom" in event.error for event in events)
+    assert any(event.event_type == "error" and "failed" in event.error.get("errorMsg", "") and "boom" in event.error.get("errorMsg", "") for event in events)
 
 
 def test_graph_renderer_outputs_mermaid_for_before_and_after_build():

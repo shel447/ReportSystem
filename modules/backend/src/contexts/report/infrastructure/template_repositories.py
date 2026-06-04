@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ....infrastructure.persistence.models import ReportTemplate as ReportTemplateRow
-from ....shared.kernel.errors import ConflictError, NotFoundError
+from ....shared.kernel.errors import ConflictError, ErrorCode, NotFoundError
 from ..domain.template_models import ReportTemplate, TemplateSummary, report_template_from_dict, report_template_to_dict
 from .template_schema import validate_report_template
 
@@ -19,7 +19,7 @@ class SqlAlchemyTemplateManagementRepository:
     def create(self, template: ReportTemplate) -> ReportTemplate:
         payload = report_template_to_dict(template)
         if self.exists(template.id):
-            raise ConflictError("Template already exists")
+            raise ConflictError("Template already exists", error_code=ErrorCode.REPORT_TEMPLATE_ID_CONFLICT)
         row = ReportTemplateRow(
             id=template.id,
             category=template.category,
@@ -37,7 +37,7 @@ class SqlAlchemyTemplateManagementRepository:
         payload = report_template_to_dict(template)
         row = self.db.get(ReportTemplateRow, template_id)
         if row is None:
-            raise NotFoundError("Template not found")
+            raise NotFoundError("Template not found", error_code=ErrorCode.REPORT_TEMPLATE_NOT_FOUND)
         row.category = template.category
         row.name = template.name
         row.description = template.description
@@ -50,7 +50,7 @@ class SqlAlchemyTemplateManagementRepository:
     def delete(self, template_id: str) -> None:
         row = self.db.get(ReportTemplateRow, template_id)
         if row is None:
-            raise NotFoundError("Template not found")
+            raise NotFoundError("Template not found", error_code=ErrorCode.REPORT_TEMPLATE_NOT_FOUND)
         self.db.delete(row)
         self.db.commit()
 

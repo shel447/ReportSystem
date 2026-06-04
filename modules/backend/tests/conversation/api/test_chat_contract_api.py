@@ -35,8 +35,9 @@ from src.contexts.report.domain.generation_models import (
 from src.contexts.report.domain.template_models import Parameter, ReportTemplate
 from src.contexts.report.domain.template_models import OutlineDefinition
 from src.infrastructure.persistence.database import get_db
+from src.main import register_error_handlers
 from src.routers.chat import router as chat_router
-from src.shared.kernel.errors import ValidationError
+from src.shared.kernel.errors import ErrorCode, ValidationError
 from src.shared.agentflow import FlowEvent, FlowStep
 
 
@@ -90,6 +91,7 @@ def _sample_report_dsl() -> ReportDsl:
 class ChatContractApiTests(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
+        register_error_handlers(app)
         app.include_router(chat_router, prefix="/rest/chatbi/v1")
 
         def override_get_db():
@@ -241,6 +243,8 @@ class ChatContractApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["errorCode"], ErrorCode.BASE_PARAM_INVALID)
+        self.assertEqual(response.json()["errorMsg"], "confirm_params requires all required parameters: scope")
 
     def test_post_chat_stream_returns_delta_events_and_final_answer(self):
         fake_service = type(
@@ -336,7 +340,7 @@ class ChatContractApiTests(unittest.TestCase):
 
     def test_post_chat_reply_requires_source_chat_id(self):
         fake_service = type("FakeConversationService", (), {"chat": lambda self, data, user_id: data})()
-        # 这里保持 422 路径，服务不会被真正执行。
+        # 业务接口统一使用 ChatBI 错误对象承载请求校验失败。
 
         with patch("src.routers.chat.build_conversation_service", return_value=fake_service):
             response = self.client.post(
@@ -354,7 +358,8 @@ class ChatContractApiTests(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["errorCode"], ErrorCode.BASE_PARAM_INVALID)
 
     def test_post_chat_reply_accepts_parameter_value_mapping(self):
         captured = {}

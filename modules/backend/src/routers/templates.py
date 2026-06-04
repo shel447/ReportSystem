@@ -5,7 +5,7 @@ import re
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -16,7 +16,6 @@ from ..contexts.report.application.template_models import (
 from ..contexts.report.domain.template_models import report_template_from_dict, report_template_to_dict
 from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
-from ..shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -40,12 +39,7 @@ class TemplateImportPreviewRequest(BaseModel):
 @router.post("")
 def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
     service = build_report_service(db)
-    try:
-        return report_template_to_dict(service.create_template(report_template_from_dict(data.model_dump())))
-    except ConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return report_template_to_dict(service.create_template(report_template_from_dict(data.model_dump())))
 
 
 @router.get("")
@@ -55,48 +49,29 @@ def list_templates(db: Session = Depends(get_db)):
 
 @router.get("/{template_id}")
 def get_template(template_id: str, db: Session = Depends(get_db)):
-    try:
-        return report_template_to_dict(build_report_service(db).get_template(template_id))
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return report_template_to_dict(build_report_service(db).get_template(template_id))
 
 
 @router.put("/{template_id}")
 def update_template(template_id: str, data: TemplateUpsertRequest, db: Session = Depends(get_db)):
     service = build_report_service(db)
-    try:
-        return report_template_to_dict(service.update_template(template_id, report_template_from_dict(data.model_dump())))
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ConflictError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return report_template_to_dict(service.update_template(template_id, report_template_from_dict(data.model_dump())))
 
 
 @router.delete("/{template_id}")
 def delete_template(template_id: str, db: Session = Depends(get_db)):
-    try:
-        build_report_service(db).delete_template(template_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    build_report_service(db).delete_template(template_id)
     return {"message": "deleted"}
 
 
 @router.post("/import/preview")
 def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
-    try:
-        return template_import_preview_to_dict(build_report_service(db).preview_import_template(data.content))
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return template_import_preview_to_dict(build_report_service(db).preview_import_template(data.content))
 
 
 @router.get("/{template_id}/export")
 def export_template_definition(template_id: str, db: Session = Depends(get_db)):
-    try:
-        payload, filename = build_report_service(db).export_template(template_id)
-    except NotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    payload, filename = build_report_service(db).export_template(template_id)
     return Response(
         content=json.dumps(report_template_to_dict(payload), ensure_ascii=False, indent=2),
         media_type="application/json",

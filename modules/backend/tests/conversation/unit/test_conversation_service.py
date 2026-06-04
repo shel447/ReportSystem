@@ -36,7 +36,7 @@ from src.contexts.report.domain.generation_models import (
 from src.contexts.report.domain.template_instance_builder import instantiate_template_instance
 from src.contexts.report.application.template_models import ParameterOptionsResult
 from src.contexts.report.domain.template_models import ParameterValue, report_template_from_dict
-from src.shared.kernel.errors import UnsupportedCapabilityError
+from src.shared.kernel.errors import ConflictError, ErrorCode, UnsupportedCapabilityError
 
 
 def _service():
@@ -506,6 +506,37 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
         self.assertEqual(messages[0].response_payload["ask"]["status"], "replied")
         self.assertEqual(messages[1].chat_id, second.chat_id)
         self.assertEqual(messages[1].response_payload["ask"]["status"], "pending")
+
+    def test_new_chat_is_rejected_when_conversation_is_still_running(self):
+        template = report_template_from_dict({
+            "id": "tpl_network_daily",
+            "category": "network_operations",
+            "name": "网络运行日报",
+            "description": "面向网络运维中心的统一日报模板。",
+            "schemaVersion": "template.v3",
+            "parameters": [],
+            "catalogs": [],
+        })
+        service = _conversation_service(
+            template=template,
+            history_gateway=_HistoryGateway(),
+            runtime_service=_RuntimeService(),
+        )
+        service.flow_runtime = SimpleNamespace(is_conversation_running=lambda conversation_id, user_id=None: True)
+
+        with self.assertRaises(ConflictError) as ctx:
+            service.chat(
+                data=ChatCommand(
+                    conversation_id="conv_001",
+                    chat_id="chat_002",
+                    instruction="generate_report",
+                    question="再生成一份报告",
+                ),
+                user_id="default",
+            )
+
+        self.assertEqual(ctx.exception.error_code, ErrorCode.CONVERSATION_IN_PROGRESS)
+        self.assertTrue(ctx.exception.retryable)
 
 
 if __name__ == "__main__":

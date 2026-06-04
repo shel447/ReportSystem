@@ -16,6 +16,7 @@ from ..domain.models import (
     conversation_message_content_to_dict,
     conversation_message_meta_to_dict,
 )
+from ....shared.kernel.errors import error_response_payload
 
 Scalar = str | int | float | bool
 
@@ -108,7 +109,7 @@ class ChatResponse:
     steps: list[ChatStep] = field(default_factory=list)
     ask: ChatAsk | None = None
     answer: ChatAnswerEnvelope | None = None
-    errors: list[str] = field(default_factory=list)
+    errors: list[dict[str, Any]] = field(default_factory=list)
     request_id: str | None = None
     timestamp: int | None = None
     api_version: str = "v1"
@@ -211,7 +212,7 @@ def chat_response_to_dict(response: ChatResponse) -> dict[str, object]:
         ],
         "ask": chat_ask_to_dict(response.ask) if response.ask is not None else None,
         "answer": chat_answer_to_dict(response.answer) if response.answer is not None else None,
-        "errors": list(response.errors),
+        "errors": [_normalize_error(item) for item in response.errors],
         "requestId": response.request_id,
         "timestamp": response.timestamp,
         "apiVersion": response.api_version,
@@ -254,3 +255,9 @@ def delete_result_to_dict(result: DeleteResult) -> dict[str, object]:
 
 def fork_session_result_to_dict(result: ForkSessionResult) -> dict[str, object]:
     return {"conversationId": result.conversation_id}
+
+
+def _normalize_error(error: object) -> dict[str, Any]:
+    if isinstance(error, dict):
+        return dict(error)
+    return error_response_payload(str(error or "系统处理失败，请稍后重试。"))
