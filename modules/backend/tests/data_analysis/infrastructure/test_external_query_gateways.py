@@ -73,7 +73,7 @@ def test_datacatalog_records_logical_entity_metrics_when_flow_collector_exists()
         gateway.list_logical_entities(user_id="user-a")
 
     metrics = collector.snapshot(run_id="run_1", status="finished")
-    assert metrics.logical_entity_count == 2
+    assert metrics.unique_counts["datacatalog.logical_entity.used"] == 2
 
 
 def test_rag_cache_is_isolated_by_user_id():

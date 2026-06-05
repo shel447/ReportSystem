@@ -20,7 +20,7 @@ from src.contexts.conversation.application.models import (
 from src.contexts.conversation.application.ports import GuardrailResult, HostedChat, HostedConversation
 from src.contexts.report.application.generation_models import GenerationProgressView, ReportAnswerView
 from src.contexts.report.application.parameter_service import ReportParameterService
-from src.contexts.conversation.application.services import ConversationService
+from src.contexts.conversation.application.services import ConversationFlowRegistry, ConversationService
 from src.contexts.report.application.scenario_models import ReportContext, ReportReplyPayload
 from src.contexts.report.application.scenario_service import ReportScenarioService, missing_required_parameters
 from src.contexts.conversation.application.scenarios import ScenarioDispatchService, ScenarioRegistry
@@ -526,7 +526,11 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             history_gateway=_HistoryGateway(),
             runtime_service=_RuntimeService(),
         )
-        service.flow_runtime = SimpleNamespace(is_conversation_running=lambda conversation_id, user_id=None: True)
+        service.flow_registry = SimpleNamespace(
+            run_id_for_conversation=lambda *, conversation_id, user_id: "run_1",
+            unregister=lambda run_id: None,
+        )
+        service.flow_runtime = SimpleNamespace(is_running=lambda run_id: True)
 
         with self.assertRaises(ConflictError) as ctx:
             service.chat(
@@ -541,6 +545,18 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.error_code, ErrorCode.CONVERSATION_IN_PROGRESS)
         self.assertTrue(ctx.exception.retryable)
+
+    def test_flow_registry_keeps_user_owned_business_index(self):
+        registry = ConversationFlowRegistry()
+        registry.register(run_id="run_1", chat_id="chat_001", conversation_id="conv_001", user_id="user_a")
+
+        self.assertEqual(registry.run_id_for_chat(chat_id="chat_001", user_id="user_a"), "run_1")
+        self.assertIsNone(registry.run_id_for_chat(chat_id="chat_001", user_id="user_b"))
+        self.assertEqual(registry.run_id_for_conversation(conversation_id="conv_001", user_id="user_a"), "run_1")
+
+        registry.unregister("run_1")
+
+        self.assertIsNone(registry.run_id_for_chat(chat_id="chat_001", user_id="user_a"))
 
 
 if __name__ == "__main__":

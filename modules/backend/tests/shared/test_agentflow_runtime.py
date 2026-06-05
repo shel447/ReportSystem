@@ -1,5 +1,6 @@
 import threading
 import time
+from pathlib import Path
 
 from src.shared.agentflow import (
     FlowEdge,
@@ -134,7 +135,7 @@ def test_cancel_signal_stops_cooperative_node():
     assert any(event.status == "cancelled" for event in events)
 
 
-def test_cancel_by_chat_requires_matching_user():
+def test_cancel_by_run_id_reports_running_state():
     runtime = InMemoryFlowRuntime()
 
     def slow_node(context):
@@ -142,17 +143,15 @@ def test_cancel_by_chat_requires_matching_user():
             context.check_cancelled()
             time.sleep(0.01)
 
-    run = runtime.start(
-        SequentialFlow(FlowNode(id="slow", handler=slow_node)).to_graph(),
-        state={"chat_id": "chat_001", "user_id": "user_a"},
-    )
+    run = runtime.start(SequentialFlow(FlowNode(id="slow", handler=slow_node)).to_graph())
     time.sleep(0.05)
 
-    assert not runtime.cancel_by_chat("chat_001", user_id="user_b")
-    assert runtime.cancel_by_chat("chat_001", user_id="user_a")
+    assert runtime.is_running(run.run_id)
+    assert runtime.cancel(run.run_id)
     events = list(runtime.iter_events(run.run_id))
 
     assert any(event.status == "cancelled" for event in events)
+    assert not runtime.is_running(run.run_id)
 
 
 def test_parallel_branches_run_concurrently_and_preserve_event_sequence():
@@ -248,20 +247,16 @@ def test_metrics_center_receives_terminal_metrics_on_success_and_failure():
     runtime = InMemoryFlowRuntime(metrics_center=MetricsCenter([sink]))
 
     def success(context):
-        context.record_datacatalog_logical_entity("device")
-        context.record_datacatalog_logical_entity("device")
+        context.record_unique_metric("business.resource.used", "device")
+        context.record_unique_metric("business.resource.used", "device")
         context.record_llm_output_tokens(42)
         context.emit_answer({"answerType": "TEXT", "answer": {"ok": True}})
 
-    runtime.run_sync(
-        SequentialFlow(FlowNode(id="success", handler=success)).to_graph(),
-        state={"conversation_id": "conv_1", "chat_id": "chat_1", "user_id": "user_a", "scenario_key": "report"},
-    )
+    runtime.run_sync(SequentialFlow(FlowNode(id="success", handler=success)).to_graph())
 
     assert sink.items[-1].status == "finished"
-    assert sink.items[-1].logical_entity_count == 1
+    assert sink.items[-1].unique_counts["business.resource.used"] == 1
     assert sink.items[-1].llm_output_tokens == 42
-    assert sink.items[-1].chat_id == "chat_1"
 
     def fail(context):
         raise RuntimeError("bad")
@@ -270,3 +265,18 @@ def test_metrics_center_receives_terminal_metrics_on_success_and_failure():
 
     assert sink.items[-1].status == "failed"
     assert sink.items[-1].failed_node_count == 1
+
+
+def test_agentflow_public_api_avoids_business_specific_helpers():
+    root = Path(__file__).parents[2] / "src" / "shared" / "agentflow"
+    source = "\n".join(path.read_text(encoding="utf-8") for path in root.glob("*.py"))
+
+    forbidden_terms = [
+        "cancel_by_chat",
+        "is_conversation_running",
+        "record_datacatalog_logical_entity",
+        "record_logical_resource",
+        "logical_entity_count",
+    ]
+    for term in forbidden_terms:
+        assert term not in source

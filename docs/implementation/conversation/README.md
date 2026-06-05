@@ -6,6 +6,8 @@
 
 运行中流程由 `shared/agentflow` 承载。conversation 只负责启动流程、订阅事件，并把 `step_delta/delta/answer/error` 投影成 `/chat` 响应。AgentFlow 内部 `runId` 不进入公开响应、SSE、前端类型或 API 契约。
 
+conversation 自己维护运行中业务索引：启动 Flow 后记录 `chatId/conversationId -> runId`，停止或运行中判断时再调用 AgentFlow 的通用 `cancel(runId)` / `is_running(runId)`。AgentFlow 不拥有 `chatId`、`conversationId` 的索引规则，也不理解“同一会话是否允许并发发起新消息”的业务限制。
+
 ## 2. 应用服务
 
 `ConversationService` 负责：

@@ -151,11 +151,8 @@ class FlowContext:
     def record_metric(self, name: str, value: int | float | str | bool, tags: dict[str, Any] | None = None) -> None:
         self.run.metrics.record(name, value, tags=tags)
 
-    def record_datacatalog_logical_entity(self, entity: str | None) -> None:
-        self.run.metrics.record_datacatalog_logical_entity(entity)
-
-    def record_logical_resource(self, *, kind: str, name: str | None) -> None:
-        self.run.metrics.record_logical_resource(kind=kind, name=name)
+    def record_unique_metric(self, name: str, key: str | int | float | bool | None, tags: dict[str, Any] | None = None) -> None:
+        self.run.metrics.record_unique_metric(name=name, key=key, tags=tags)
 
     def record_llm_output_tokens(self, tokens: int | None) -> None:
         self.run.metrics.record_llm_output_tokens(tokens)
@@ -206,8 +203,6 @@ class InMemoryFlowRuntime:
         max_workers: int = 4,
     ) -> None:
         self._runs: dict[str, FlowRun] = {}
-        self._chat_index: dict[str, str] = {}
-        self._conversation_index: dict[str, str] = {}
         self._lock = threading.RLock()
         self.checkpoint_saver = checkpoint_saver or InMemoryCheckpointSaver()
         self.tool_registry = tool_registry or ToolRegistry()
@@ -224,12 +219,6 @@ class InMemoryFlowRuntime:
         run.thread = thread
         with self._lock:
             self._runs[run.run_id] = run
-            chat_id = str(run.state.get("chat_id") or "")
-            if chat_id:
-                self._chat_index[chat_id] = run.run_id
-            conversation_id = str(run.state.get("conversation_id") or "")
-            if conversation_id:
-                self._conversation_index[conversation_id] = run.run_id
         thread.start()
         return run
 
@@ -249,25 +238,9 @@ class InMemoryFlowRuntime:
         run.inputs.put(FlowSignal(type="cancel"))
         return True
 
-    def cancel_by_chat(self, chat_id: str, *, user_id: str | None = None) -> bool:
-        with self._lock:
-            run_id = self._chat_index.get(chat_id)
-            run = self._runs.get(run_id or "")
-            if run is None or run.done.is_set():
-                return False
-            if user_id is not None and str(run.state.get("user_id") or "") != user_id:
-                return False
-        return self.cancel(run.run_id)
-
-    def is_conversation_running(self, conversation_id: str, *, user_id: str | None = None) -> bool:
-        with self._lock:
-            run_id = self._conversation_index.get(str(conversation_id or "").strip())
-            run = self._runs.get(run_id or "")
-            if run is None or run.done.is_set():
-                return False
-            if user_id is not None and str(run.state.get("user_id") or "") != user_id:
-                return False
-            return True
+    def is_running(self, run_id: str) -> bool:
+        run = self.get(run_id)
+        return run is not None and not run.done.is_set()
 
     def send_input(self, run_id: str, payload: dict[str, Any]) -> bool:
         run = self.get(run_id)
@@ -612,10 +585,6 @@ class InMemoryFlowRuntime:
         metrics = run.metrics.snapshot(
             run_id=run.run_id,
             status=run.terminal_status,
-            conversation_id=str(context_value(run, "conversation_id") or "") or None,
-            chat_id=str(context_value(run, "chat_id") or "") or None,
-            user_id=str(context_value(run, "user_id") or "") or None,
-            scenario_key=str(context_value(run, "scenario_key") or "") or None,
         )
         self.metrics_center.publish(metrics)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from typing import Any
 
 from ....shared.kernel.errors import ConflictError, ErrorCode, NotFoundError, UnsupportedCapabilityError, ValidationError
@@ -35,6 +36,57 @@ from .ports import ConversationHistoryGateway, GuardrailGateway, HostedAnswer, H
 from .scenarios import ScenarioDispatchService, ScenarioResult
 
 
+class ConversationFlowRegistry:
+    """Conversation-owned index from business ids to AgentFlow run ids."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._runs: dict[str, tuple[str, str, str]] = {}
+        self._by_chat: dict[str, str] = {}
+        self._by_conversation: dict[str, str] = {}
+
+    def register(self, *, run_id: str, chat_id: str, conversation_id: str, user_id: str) -> None:
+        with self._lock:
+            self._runs[run_id] = (chat_id, conversation_id, user_id)
+            if chat_id:
+                self._by_chat[chat_id] = run_id
+            if conversation_id:
+                self._by_conversation[conversation_id] = run_id
+
+    def unregister(self, run_id: str) -> None:
+        with self._lock:
+            item = self._runs.pop(run_id, None)
+            if item is None:
+                return
+            chat_id, conversation_id, _user_id = item
+            if self._by_chat.get(chat_id) == run_id:
+                self._by_chat.pop(chat_id, None)
+            if self._by_conversation.get(conversation_id) == run_id:
+                self._by_conversation.pop(conversation_id, None)
+
+    def run_id_for_chat(self, *, chat_id: str, user_id: str) -> str | None:
+        return self._run_id_for(index=self._by_chat, key=chat_id, user_id=user_id)
+
+    def run_id_for_conversation(self, *, conversation_id: str, user_id: str) -> str | None:
+        return self._run_id_for(index=self._by_conversation, key=conversation_id, user_id=user_id)
+
+    def _run_id_for(self, *, index: dict[str, str], key: str, user_id: str) -> str | None:
+        lookup_key = str(key or "").strip()
+        if not lookup_key:
+            return None
+        with self._lock:
+            run_id = index.get(lookup_key)
+            if not run_id:
+                return None
+            item = self._runs.get(run_id)
+            if item is None:
+                index.pop(lookup_key, None)
+                return None
+            if item[2] != user_id:
+                return None
+            return run_id
+
+
 class ConversationService:
     """拥有聊天协议和通用追问生命周期；会话事实源由 AgentCore 托管。"""
 
@@ -45,12 +97,14 @@ class ConversationService:
         guardrail_gateway: GuardrailGateway,
         scenario_dispatcher: ScenarioDispatchService,
         flow_runtime: InMemoryFlowRuntime | None = None,
+        flow_registry: ConversationFlowRegistry | None = None,
         audit_dispatcher=None,
     ) -> None:
         self.history_gateway = history_gateway
         self.guardrail_gateway = guardrail_gateway
         self.scenario_dispatcher = scenario_dispatcher
         self.flow_runtime = flow_runtime or InMemoryFlowRuntime()
+        self.flow_registry = flow_registry or ConversationFlowRegistry()
         self.audit_dispatcher = audit_dispatcher
 
     def list_sessions(self, *, user_id: str) -> list[SessionSummary]:
@@ -275,15 +329,25 @@ class ConversationService:
             result.flow,
             state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id, "user_id": user_id, "scenario_key": resolution.key},
         )
+        self.flow_registry.register(
+            run_id=run.run_id,
+            chat_id=hosted_chat.chat_id,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
         events: list[FlowEvent] = []
-        for event in self.flow_runtime.iter_events(run.run_id):
-            if event.event_type == "answer":
-                self._ensure_answer_allowed(
-                    response=_response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, events=[event]),
-                    user_id=user_id,
-                )
-            events.append(event)
-            yield event
+        try:
+            for event in self.flow_runtime.iter_events(run.run_id):
+                if event.event_type == "answer":
+                    self._ensure_answer_allowed(
+                        response=_response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, events=[event]),
+                        user_id=user_id,
+                    )
+                events.append(event)
+                yield event
+        finally:
+            if not self.flow_runtime.is_running(run.run_id):
+                self.flow_registry.unregister(run.run_id)
         response = _response_from_flow_events(
             data=data,
             conversation_id=conversation_id,
@@ -313,7 +377,13 @@ class ConversationService:
         )
 
     def stop_chat(self, *, chat_id: str, user_id: str) -> bool:
-        return self.flow_runtime.cancel_by_chat(chat_id, user_id=user_id)
+        run_id = self.flow_registry.run_id_for_chat(chat_id=chat_id, user_id=user_id)
+        if run_id is None:
+            return False
+        if not self.flow_runtime.is_running(run_id):
+            self.flow_registry.unregister(run_id)
+            return False
+        return self.flow_runtime.cancel(run_id)
 
     def _run_flow_to_response(
         self,
@@ -329,8 +399,17 @@ class ConversationService:
             result.flow,
             state={"conversation_id": conversation_id, "chat_id": chat_id, "user_id": user_id, "scenario_key": scenario_key},
         )
-        events = list(self.flow_runtime.iter_events(run.run_id))
-        return _response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=chat_id, events=events)
+        self.flow_registry.register(
+            run_id=run.run_id,
+            chat_id=chat_id,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+        try:
+            events = list(self.flow_runtime.iter_events(run.run_id))
+            return _response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=chat_id, events=events)
+        finally:
+            self.flow_registry.unregister(run.run_id)
 
     def _ensure_question_allowed(self, *, data: ChatCommand, user_id: str) -> None:
         question = str(data.question or "").strip()
@@ -388,13 +467,18 @@ class ConversationService:
     def _ensure_conversation_not_running(self, *, data: ChatCommand, conversation_id: str, user_id: str) -> None:
         if data.reply is not None:
             return
-        if self.flow_runtime.is_conversation_running(conversation_id, user_id=user_id):
-            raise ConflictError(
-                "当前对话正在处理中，请等待完成后再发送新的消息。",
-                error_code=ErrorCode.CONVERSATION_IN_PROGRESS,
-                category="state",
-                retryable=True,
-            )
+        run_id = self.flow_registry.run_id_for_conversation(conversation_id=conversation_id, user_id=user_id)
+        if run_id is None:
+            return
+        if not self.flow_runtime.is_running(run_id):
+            self.flow_registry.unregister(run_id)
+            return
+        raise ConflictError(
+            "当前对话正在处理中，请等待完成后再发送新的消息。",
+            error_code=ErrorCode.CONVERSATION_IN_PROGRESS,
+            category="state",
+            retryable=True,
+        )
 
     def _reply_source(self, *, data: ChatCommand, rounds: list[HostedChat], user_id: str) -> HostedChat | None:
         if data.reply is None:
