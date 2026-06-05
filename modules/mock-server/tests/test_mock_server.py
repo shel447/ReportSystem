@@ -1,3 +1,5 @@
+import json
+
 from fastapi.testclient import TestClient
 
 from mock_server.main import create_app
@@ -41,9 +43,99 @@ def test_agentcore_import_is_upsert():
     client.post("/__mock__/reset")
     conversation_id = client.post("/rest/naie/aiagentcore/v1/conversation", json={"title": "test"}).json()["conversationId"]
     chat_id = client.post("/rest/naie/aiagentcore/v1/chat/create", json={"conversationId": conversation_id, "question": "hello"}).json()["chatId"]
-    payload = {"conversationId": conversation_id, "chatId": chat_id, "type": "PIU", "content": {"answers": {"response": {"status": "first"}}}}
+    first_piu = json.dumps(
+        {
+            "piuName": "ReportGenerationPIU",
+            "answers": {
+                "steps": [],
+                "ask": {
+                    "status": "pending",
+                    "mode": "form",
+                    "type": "confirm_params",
+                    "title": "请确认报告诉求",
+                    "text": "请确认报告诉求后开始生成。",
+                },
+                "delta": [],
+                "answer": None,
+                "errors": [],
+            },
+        },
+        ensure_ascii=False,
+    )
+    payload = {
+        "conversationId": conversation_id,
+        "chatId": chat_id,
+        "question": "hello",
+        "askTime": 1780368000000,
+        "answers": [
+            {"type": "TEXT", "content": "已收到请求，正在分析报告诉求。", "answerTime": 1780368000100},
+            {"type": "PIU", "content": first_piu, "answerTime": 1780368000300},
+        ],
+    }
     assert client.post("/rest/naie/aiagent/v1/chat/import", json=payload).status_code == 200
-    payload["content"]["answers"]["response"]["status"] = "updated"
+    updated_piu = json.dumps(
+        {
+            "piuName": "ReportGenerationPIU",
+            "answers": {
+                "steps": [],
+                "ask": None,
+                "delta": [],
+                "answer": {"answerType": "REPORT", "answer": {"reportId": "rpt_001"}},
+                "errors": [],
+            },
+        },
+        ensure_ascii=False,
+    )
+    payload["answers"] = [{"type": "PIU", "content": updated_piu, "answerTime": 1780368000500}]
     assert client.post("/rest/naie/aiagent/v1/chat/import", json=payload).status_code == 200
     record = client.get(f"/rest/naie/aiagentcore/v1/chat/detail/{chat_id}").json()
-    assert record["answers"][0]["content"]["response"]["status"] == "updated"
+    assert record["question"] == '{"content": "hello"}'
+    assert record["askTime"] == 1780368000000
+    assert record["answers"][0]["type"] == "PIU"
+    assert json.loads(record["answers"][0]["content"])["answers"]["answer"]["answer"]["reportId"] == "rpt_001"
+
+
+def test_agentcore_history_roundtrip_preserves_pending_ask_piu_content():
+    client.post("/__mock__/reset")
+    conversation_id = client.post("/rest/naie/aiagentcore/v1/conversation", json={"title": "test"}).json()["conversationId"]
+    chat_id = client.post("/rest/naie/aiagentcore/v1/chat/create", json={"conversationId": conversation_id, "question": "hello"}).json()["chatId"]
+    piu_content = json.dumps(
+        {
+            "piuName": "ReportGenerationPIU",
+            "answers": {
+                "steps": [{"stepId": "report.parameters.resolve", "title": "提取和确认生成条件", "status": "running"}],
+                "ask": {
+                    "status": "pending",
+                    "mode": "form",
+                    "type": "confirm_params",
+                    "title": "请确认报告诉求",
+                    "text": "请确认报告诉求后开始生成。",
+                    "reportContext": {"templateInstance": {"id": "ti_001"}},
+                },
+                "delta": [],
+                "answer": None,
+                "errors": [],
+            },
+        },
+        ensure_ascii=False,
+    )
+    assert (
+        client.post(
+            "/rest/naie/aiagent/v1/chat/import",
+            json={
+                "conversationId": conversation_id,
+                "chatId": chat_id,
+                "question": "hello",
+                "askTime": 1780368000000,
+                "answers": [{"type": "PIU", "content": piu_content, "answerTime": 1780368000300}],
+            },
+        ).status_code
+        == 200
+    )
+
+    history = client.post("/rest/naie/aiagentcore/v2/chat/history", json={"conversationId": conversation_id}).json()
+    record = history["records"][0]
+    payload = json.loads(record["answers"][0]["content"])
+    assert payload["piuName"] == "ReportGenerationPIU"
+    assert payload["answers"]["ask"]["status"] == "pending"
+    assert payload["answers"]["ask"]["type"] == "confirm_params"

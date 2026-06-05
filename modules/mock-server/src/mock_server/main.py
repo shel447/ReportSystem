@@ -36,6 +36,64 @@ def _dataset_business_error() -> dict[str, Any]:
     return {"retCode": 1001, "retInfo": "mock dataset business error"}
 
 
+def _normalize_import_answers(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_answers = payload.get("answers")
+    if isinstance(raw_answers, list):
+        answers: list[dict[str, Any]] = []
+        for item in raw_answers:
+            if not isinstance(item, dict):
+                continue
+            answer = {
+                "type": str(item.get("type") or ""),
+                "content": item.get("content"),
+                "answerTime": item.get("answerTime"),
+            }
+            if isinstance(answer["content"], dict):
+                answer["content"] = json.dumps(answer["content"], ensure_ascii=False)
+            answers.append(answer)
+        return answers
+
+    # Historical mock payload shape used before AgentCore records were aligned.
+    legacy_answers = payload.get("content", {}).get("answers") if isinstance(payload.get("content"), dict) else None
+    if isinstance(legacy_answers, dict):
+        return [
+            {
+                "type": "PIU",
+                "content": json.dumps({"piuName": "ReportGenerationPIU", "answers": legacy_answers}, ensure_ascii=False),
+                "answerTime": payload.get("answerTime"),
+            }
+        ]
+    return []
+
+
+def _last_message_preview(answers: list[dict[str, Any]]) -> str:
+    for answer in reversed(answers):
+        if answer.get("type") == "TEXT":
+            return str(answer.get("content") or "")[:120]
+        if answer.get("type") != "PIU":
+            continue
+        content = answer.get("content")
+        if isinstance(content, str):
+            try:
+                content = json.loads(content)
+            except ValueError:
+                continue
+        if not isinstance(content, dict):
+            continue
+        piu_answers = content.get("answers")
+        if not isinstance(piu_answers, dict):
+            continue
+        if piu_answers.get("answer") is not None:
+            return "finished"
+        ask = piu_answers.get("ask")
+        if isinstance(ask, dict):
+            return str(ask.get("type") or "waiting_user")
+        errors = piu_answers.get("errors") or []
+        if errors:
+            return "failed"
+    return ""
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="ReportSystem Mock External Service")
     conversations: dict[str, dict[str, Any]] = {}
@@ -161,13 +219,18 @@ def create_app() -> FastAPI:
     def import_chat(payload: dict[str, Any]):
         chat_id = str(payload.get("chatId") or "")
         conversation_id = str(payload.get("conversationId") or "")
+        answers = _normalize_import_answers(payload)
         with lock:
             row = dict(chats.get(chat_id) or {"id": chat_id, "chatId": chat_id, "conversationId": conversation_id, "question": ""})
-            row["answers"] = [{"type": "PIU", "status": "SUCCESS", "content": payload.get("content", {}).get("answers", {})}]
+            if "question" in payload:
+                row["question"] = json.dumps({"content": str(payload.get("question") or "")}, ensure_ascii=False)
+            if payload.get("askTime") is not None:
+                row["askTime"] = payload.get("askTime")
+            row["answers"] = answers
             chats[chat_id] = row
             if conversation_id in conversations:
                 conversations[conversation_id]["updatedAt"] = int(time.time() * 1000)
-                conversations[conversation_id]["lastMessagePreview"] = str((payload.get("content", {}).get("answers", {}).get("response") or {}).get("status") or "")
+                conversations[conversation_id]["lastMessagePreview"] = _last_message_preview(answers)
         return {"status": "ok"}
 
     @app.post("/rest/naie/aiagentcore/v2/chat/history")
