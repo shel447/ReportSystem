@@ -79,7 +79,6 @@ class FrontendServingTests(unittest.TestCase):
             requests = (
                 lambda: client.get("/rest/chatbi/v1/templates"),
                 lambda: client.get("/rest/chatbi/v1/chat"),
-                lambda: client.post("/rest/chatbi/v1/parameter-options/resolve", json={}),
                 lambda: client.get("/rest/chatbi/v1/reports/rpt_missing"),
             )
             for send in requests:
@@ -90,6 +89,27 @@ class FrontendServingTests(unittest.TestCase):
             blank = client.get("/rest/chatbi/v1/templates", headers={"X-User-Id": "   "})
             self.assertEqual(blank.status_code, 401)
             self.assertEqual(blank.json()["errorCode"], ErrorCode.BASE_AUTH_REQUIRED)
+
+    def test_parameter_options_resolver_is_not_a_public_business_route(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            index_path = os.path.join(temp_dir, "index.html")
+            with open(index_path, "w", encoding="utf-8") as f:
+                f.write("<html><body>spa-entry</body></html>")
+
+            client = TestClient(create_app(frontend_dir=temp_dir))
+
+            get_response = client.get(
+                "/rest/chatbi/v1/parameter-options/resolve",
+                headers={"X-User-Id": "default"},
+            )
+            post_response = client.post(
+                "/rest/chatbi/v1/parameter-options/resolve",
+                headers={"X-User-Id": "default"},
+                json={},
+            )
+
+            self.assertEqual(get_response.status_code, 404)
+            self.assertIn(post_response.status_code, {404, 405})
 
     def test_dev_routes_do_not_require_user_header(self):
         with tempfile.TemporaryDirectory() as temp_dir:

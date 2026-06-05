@@ -95,12 +95,23 @@
 - `serialize_report_answer`
   - 统一 `/chat` 与 `/reports` 的报告答案载荷
 - `preview_section_regeneration`
+  - 作为 `section_regeneration` Flow 节点内部的纯执行能力，不作为 `/chat` 入口直接调用
   - 加载 `ReportInstance` 与关联 `TemplateInstance`
   - 在 `TemplateInstance.catalogs` 树中定位目标 `TemplateInstanceSection`
   - 应用请求中的新 `outline`，标记 `user_edited = true`，评估 `skeleton_status`
   - 基于新 `outline.items` 与 `section.content.datasets` 重新调用 `build_execution_bindings()`
   - 调用 `_build_section_components(section)` 生成新 components、summary、additional_infos
   - 返回 `ReportSection` DSL 片段与 `ReportGenerateMeta`，不持久化任何对象
+
+### 3.4.1 `section_regeneration` Flow
+
+`generate_report_segment` 不再由场景服务同步返回结果，而是构建可复用的 `report.section_regeneration` Flow：
+
+- 顶层 `/chat` 调用时，conversation 订阅该 Flow 并实时转发 `step/delta/answer/error`
+- 其他报告流程需要章节重生成时，通过 AgentFlow 子流程机制调用同一 Flow
+- Flow 节点顺序为：加载报告与章节上下文、定位章节模板、应用章节大纲、生成章节内容、校验章节片段
+- 章节内容生成完成后输出 `add_section` delta，最终输出 `REPORT_SEGMENT` answer
+- 异常由 AgentFlow 统一转换为 `error` 事件，不再表现为同步 service 调用静默失败
 
 ### 3.5 `ReportDocumentService`
 

@@ -5,7 +5,7 @@ from pathlib import Path
 MODULE_ROOT = Path(__file__).resolve().parents[2]
 ROOT = MODULE_ROOT / "src"
 ROUTERS_DIR = ROOT / "routers"
-TARGET_ROUTERS = {"chat.py", "templates.py", "reports.py", "parameter_options.py"}
+TARGET_ROUTERS = {"chat.py", "templates.py", "reports.py"}
 FORBIDDEN_ROUTER_MODULES = {
     "src.models",
     "src.chat_flow_service",
@@ -221,7 +221,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_report_routers_use_single_report_service_builder(self):
         violations: list[str] = []
-        for name in ("templates.py", "reports.py", "parameter_options.py"):
+        for name in ("templates.py", "reports.py"):
             path = ROUTERS_DIR / name
             source = path.read_text(encoding="utf-8-sig")
             if "build_report_service" not in source:

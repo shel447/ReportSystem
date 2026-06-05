@@ -6,7 +6,7 @@ import copy
 import math
 
 from ....shared.kernel.errors import ConflictError, ErrorCode, ValidationError
-from ....shared.agentflow import FlowGraph, FlowNode, SequentialFlow
+from ....shared.agentflow import FlowGraph, FlowNode, SequentialFlow, SubflowSpec
 from ..domain.generation_models import TemplateInstance
 from ..domain.template_instance_builder import (
     collect_instance_parameters,
@@ -18,6 +18,7 @@ from ..domain.template_instance_builder import (
 from ..domain.template_models import Parameter, ReportTemplate
 from ..domain.parameter_resolver import ParameterResolver
 from .flow_projection import ReportFlowProjection
+from .section_regeneration_flow import SECTION_REGENERATION_SUBFLOW_NAME, SectionRegenerationFlowFactory
 from .scenario_models import (
     ReportAskPayload,
     ReportContext,
@@ -25,7 +26,6 @@ from .scenario_models import (
     ReportScenarioAsk,
     ReportScenarioCommand,
     ReportScenarioResult,
-    ReportSegmentAnswer,
     report_ask_payload_to_dict,
     report_scenario_answer_to_dict,
 )
@@ -51,6 +51,10 @@ class ReportScenarioService:
         self.ai_gateway = ai_gateway
         self.embedding_config_builder = embedding_config_builder
         self.flow_projection = flow_projection or ReportFlowProjection()
+        self.section_regeneration_flow = SectionRegenerationFlowFactory(
+            generation_service=generation_service,
+            flow_projection=self.flow_projection,
+        )
 
     def handle(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
         """按报告 instruction 推进一次场景状态机。"""
@@ -59,35 +63,9 @@ class ReportScenarioService:
         if command.instruction == "extract_report_template":
             return self._extract_report_template(command=command)
         if command.instruction == "generate_report_segment":
-            if (
-                command.segment is None
-                or not command.segment.report_id.strip()
-                or not command.segment.section_id.strip()
-                or not str(command.segment.outline.requirement or "").strip()
-            ):
-                raise ValidationError(
-                    "generate_report_segment requires template.reportId, template.sectionId and template.outline",
-                    error_code=ErrorCode.BASE_PARAM_INVALID,
-                )
-            answer = self.generation_service.preview_section_regeneration(
-                report_id=command.segment.report_id,
-                section_id=command.segment.section_id,
-                outline=command.segment.outline,
-                user_id=command.user_id,
-            )
-            return ReportScenarioResult(
-                status="finished",
-                answer=ReportScenarioAnswer(
-                    answer_type="REPORT_SEGMENT",
-                    report_segment=ReportSegmentAnswer(
-                        report_id=command.segment.report_id,
-                        section_id=command.segment.section_id,
-                        status="available",
-                        section=answer.section,
-                        report_meta=answer.report_meta,
-                        outline=command.segment.outline,
-                    ),
-                ),
+            raise ValidationError(
+                "generate_report_segment must be executed through report.section_regeneration flow",
+                error_code=ErrorCode.BASE_PARAM_INVALID,
             )
         if command.instruction != "generate_report":
             raise ValidationError(f"Unsupported instruction: {command.instruction}", error_code=ErrorCode.BASE_PARAM_INVALID)
@@ -95,6 +73,9 @@ class ReportScenarioService:
 
     def create_flow(self, *, command: ReportScenarioCommand) -> FlowGraph:
         """把报告场景推进封装为公共 Agent Flow。"""
+        if command.instruction == "generate_report_segment":
+            return self.section_regeneration_flow.build(command=command)
+
         def run_report(context) -> None:
             if command.instruction == "extract_report_template":
                 context.emit_step(code="report.template.preview", title="解析报告模板", status="finished")
@@ -140,6 +121,13 @@ class ReportScenarioService:
         return SequentialFlow(
             FlowNode(id="report.generate", title="报告生成", handler=run_report, kind="task", emit_lifecycle_step=False),
         ).to_graph()
+
+    def section_regeneration_subflow_spec(self) -> SubflowSpec:
+        """Expose section regeneration as a reusable AgentFlow subflow."""
+        return SubflowSpec(
+            name=SECTION_REGENERATION_SUBFLOW_NAME,
+            build_graph=lambda arguments: self.section_regeneration_flow.build(command=arguments["command"]),
+        )
 
     def _extract_report_template(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
         normalized = self.template_service.preview_import_template(command.question or {})

@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .infrastructure.persistence.database import init_db
-from .routers import chat, docs, feedback, parameter_options, reports, system_settings, templates
+from .routers import chat, docs, feedback, reports, system_settings, templates
 from .shared.kernel.errors import ApplicationError, ErrorCode, error_response_payload, http_status_for
 from .shared.kernel.http import get_current_user_id
 from .shared.kernel.paths import project_root
@@ -27,7 +27,6 @@ def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     business_dependencies = [Depends(get_current_user_id)]
     app.include_router(templates.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
     app.include_router(chat.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
-    app.include_router(parameter_options.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
     app.include_router(reports.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
 
     app.include_router(docs.router, prefix=DEV_PREFIX)

@@ -5,6 +5,8 @@ from src.contexts.report.application.parameter_service import ReportParameterSer
 from src.contexts.report.application.generation_models import (
     GenerationProgressView,
     ReportAnswerView,
+    ReportSegmentPreview,
+    SectionRegenerationContext,
 )
 from src.contexts.report.application.scenario_models import (
     ReportContext,
@@ -20,10 +22,16 @@ from src.contexts.report.domain.generation_models import (
     ReportBasicInfo,
     ReportDsl,
     ReportLayout,
+    ReportGenerateMeta,
+    ReportSection,
+    TemplateInstanceSection,
+    TemplateInstanceSectionContent,
+    TemplateInstancePresentationDefinition,
+    SectionRuntimeContext,
 )
-from src.contexts.report.domain.template_models import report_template_from_dict
+from src.contexts.report.domain.template_models import OutlineDefinition, report_template_from_dict
 from src.contexts.report.infrastructure.scenario_registration import ReportScenarioCodec
-from src.shared.agentflow import InMemoryFlowRuntime
+from src.shared.agentflow import FlowNode, InMemoryFlowRuntime, SequentialFlow, SubflowRegistry
 from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 
@@ -154,6 +162,38 @@ class _GenerationService:
             ),
         )
 
+    def load_section_regeneration_context(self, **kwargs):
+        return SectionRegenerationContext(
+            template_instance=SimpleNamespace(id="ti_001"),
+            source_section=TemplateInstanceSection(
+                id=kwargs["section_id"],
+                outline=OutlineDefinition(requirement="原始章节"),
+                content=TemplateInstanceSectionContent(
+                    presentation=TemplateInstancePresentationDefinition(kind="mixed"),
+                ),
+                runtime_context=SectionRuntimeContext(),
+                skeleton_status="reusable",
+                user_edited=False,
+            ),
+        )
+
+    def apply_section_regeneration_outline(self, *, context, outline):
+        context.preview_section = TemplateInstanceSection(
+            id=context.source_section.id,
+            outline=outline,
+            content=context.source_section.content,
+            runtime_context=SectionRuntimeContext(),
+            skeleton_status="reusable",
+            user_edited=True,
+        )
+        return context
+
+    def compile_section_regeneration(self, *, context):
+        return ReportSegmentPreview(
+            section=ReportSection(id=context.preview_section.id, title="异常根因", components=[]),
+            report_meta=ReportGenerateMeta(status="Success", question="分析异常根因"),
+        )
+
 
 class _OptionsGateway:
     def __init__(self):
@@ -242,6 +282,75 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
         self.assertEqual([step.status for step in generation_steps], ["running", "finished"])
         compile_step = next(step for step in steps if step.code == "report.dsl.compile")
         self.assertEqual(compile_step.parent_step_id, "report.generate")
+
+    def test_section_regeneration_flow_emits_steps_delta_and_report_segment_answer(self):
+        service = ReportScenarioService(
+            template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
+            template_repository=_TemplateRepository([_template()]),
+            generation_service=_GenerationService(),
+            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+        )
+
+        events = InMemoryFlowRuntime().run_sync(service.create_flow(
+            command=ReportScenarioCommand(
+                conversation_id="conv_001",
+                chat_id="chat_003",
+                user_id="user_001",
+                instruction="generate_report_segment",
+                segment=SimpleNamespace(
+                    report_id="rpt_001",
+                    section_id="section_detail",
+                    outline=OutlineDefinition(requirement="分析异常根因"),
+                ),
+            )
+        ))
+
+        steps = [event.step for event in events if event.step is not None]
+        self.assertIn("report.section_regeneration.load_context", [step.code for step in steps])
+        self.assertIn("report.section_regeneration.compile_section", [step.code for step in steps])
+        self.assertTrue(any(event.event_type == "delta" and event.delta[0]["action"] == "add_section" for event in events if event.delta))
+        answer = next(event.answer for event in events if event.event_type == "answer")
+        self.assertEqual(answer["answerType"], "REPORT_SEGMENT")
+        self.assertEqual(answer["answer"]["sectionId"], "section_detail")
+
+    def test_section_regeneration_can_run_as_subflow_without_overriding_parent_answer(self):
+        service = ReportScenarioService(
+            template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
+            template_repository=_TemplateRepository([_template()]),
+            generation_service=_GenerationService(),
+            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+        )
+        command = ReportScenarioCommand(
+            conversation_id="conv_001",
+            chat_id="chat_004",
+            user_id="user_001",
+            instruction="generate_report_segment",
+            segment=SimpleNamespace(
+                report_id="rpt_001",
+                section_id="section_detail",
+                outline=OutlineDefinition(requirement="分析异常根因"),
+            ),
+        )
+        runtime = InMemoryFlowRuntime(
+            subflow_registry=SubflowRegistry([service.section_regeneration_subflow_spec()])
+        )
+
+        def parent_node(context):
+            context.call_subflow("report.section_regeneration", {"command": command}, alias="section_regen")
+            context.emit_answer({"answerType": "PARENT", "answer": {"ok": True}})
+
+        events = runtime.run_sync(
+            SequentialFlow(
+                FlowNode(id="parent", handler=parent_node, emit_lifecycle_step=False)
+            ).to_graph()
+        )
+
+        self.assertTrue(any(event.source_subflow and event.source_subflow["alias"] == "section_regen" for event in events))
+        self.assertTrue(
+            any(event.event_type == "delta" and event.delta and event.delta[0].get("source", {}).get("alias") == "section_regen" for event in events)
+        )
+        self.assertTrue(any(event.event_type == "answer" and event.answer["answerType"] == "PARENT" for event in events))
+        self.assertFalse(any(event.event_type == "answer" and event.answer["answerType"] == "REPORT_SEGMENT" for event in events))
 
     def test_dynamic_parameter_options_are_resolved_before_ask_reaches_frontend(self):
         gateway = _ScopeOptionsGateway()

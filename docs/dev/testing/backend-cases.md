@@ -41,7 +41,6 @@
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
 | `tests/infrastructure/web/test_frontend_serving.py` | 6 | SPA 托管、正式接口身份校验和开发辅助接口独立性 |
 | `tests/infrastructure/web/test_report_document_gateway.py` | 5 | Markdown、下载、PDF 拒绝和 CLI 参数 |
-| `tests/report/api/test_parameter_options_router.py` | 2 | 动态参数候选值 API |
 | `tests/report/api/test_reports_router.py` | 3 | 报告详情、下载和 PDF `400` |
 | `tests/report/api/test_templates_router.py` | 8 | 模板管理 API 契约 |
 | `tests/report/contract/test_shared_fixtures.py` | 5 | `testdata/` 模板、Report DSL Schema 与新版数据集响应契约 |

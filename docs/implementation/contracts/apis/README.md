@@ -110,7 +110,6 @@ X-User-Id: <external-user-id>
 | 路由分组 | 实现入口 | 应用服务 |
 |---|---|---|
 | `templates` | `routers/templates.py` | `report` |
-| `parameter-options` | `routers/parameter_options.py` | `report` |
 | `chat` | `routers/chat.py` | `conversation` |
 | `reports` | `routers/reports.py` | `report` |
 
@@ -1097,9 +1096,7 @@ paged Report DSL 示例：
 
 ### 3.1 Parameter Options 外部数据源
 
-服务端在参数候选值解析时，向模板 `parameter.source` 定义的外部 URL 发起 `POST` 请求，获取动态参数候选值后，将 `options/defaultValue/values` 组装回普通参数对象并随 `ask.parameters[]` 返回前端。前端不直接调用外部数据源 URL，也不直接调用 ReportSystem 内部的参数候选解析入口。
-
-当前实现仍保留 `POST /rest/chatbi/v1/parameter-options/resolve` 作为服务端内部复用和开发调试入口；它不属于对外业务接口清单，业务前端应消费 `/chat` 返回的完整参数模型。
+服务端在参数候选值解析时，向模板 `parameter.source` 定义的外部 URL 发起 `POST` 请求，获取动态参数候选值后，将 `options/defaultValue/values` 组装回普通参数对象并随 `ask.parameters[]` 返回前端。前端不直接调用外部数据源 URL，ReportSystem 也不再对外提供参数候选解析 resolver 接口。
 
 #### 请求体
 
@@ -1130,7 +1127,7 @@ paged Report DSL 示例：
 
 规则：
 
-- 服务端用 `contextValues` 组装对外部 `source` 的统一请求体
+- 服务端用当前已知参数值组装对外部 `source` 的统一请求体
 - 外部接口的正式请求、响应结构由本设计包的 JSON Schema 统一定义
 
 ### 3.2 Dynamic Custom 外部内容生成

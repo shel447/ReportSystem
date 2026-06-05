@@ -118,7 +118,6 @@ ReportSystem/
 - `templates`
 - `chat`
 - `reports`
-- `parameter-options`（前端动态参数辅助接口）
 
 `TemplateInstance` 是内部核心聚合，不作为独立公开资源。
 

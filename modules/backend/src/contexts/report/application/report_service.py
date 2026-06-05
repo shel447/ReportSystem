@@ -5,14 +5,14 @@ from __future__ import annotations
 from typing import Any
 from ....shared.agentflow import FlowGraph
 
-from ..domain.template_models import ParameterValue, ReportTemplate, TemplateSummary
+from ..domain.template_models import ReportTemplate, TemplateSummary
 from .document_service import ReportDocumentService
 from .generation_models import DocumentGenerationResult, DownloadResolution, ReportView
 from .generation_service import ReportGenerationService
 from .parameter_service import ReportParameterService
 from .scenario_models import ReportScenarioCommand
 from .scenario_service import ReportScenarioService
-from .template_models import ParameterOptionsResult, TemplateImportPreview
+from .template_models import TemplateImportPreview
 from .template_service import ReportTemplateService
 
 
@@ -57,21 +57,6 @@ class ReportService:
 
     def preview_import_template(self, raw_content: Any) -> TemplateImportPreview:
         return self.template_service.preview_import_template(raw_content)
-
-    def resolve_parameter_options(
-        self,
-        *,
-        user_id: str,
-        parameter_id: str,
-        source: str,
-        context_values: dict[str, list[ParameterValue]],
-    ) -> ParameterOptionsResult:
-        return self.parameter_service.resolve_options(
-            user_id=user_id,
-            parameter_id=parameter_id,
-            source=source,
-            context_values=context_values,
-        )
 
     def get_report_view(self, report_id: str, *, user_id: str) -> ReportView:
         view = self.generation_service.get_report_view(report_id, user_id=user_id)

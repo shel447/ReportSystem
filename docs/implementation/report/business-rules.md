@@ -382,6 +382,9 @@ Report DSL 是冻结后的正式报告内容。其字段级说明见 [Report DSL
 ```
 POST /chat (instruction = generate_report_segment)
   │
+  ├─ 0. 启动 report.section_regeneration Flow
+  │     └─ 顶层调用直接作为 Flow；被其他流程复用时作为 Subflow
+  │
   ├─ 1. 加载 ReportInstance (reportId, user_id)
   │     └─ 校验归属、状态必须为 available
   │
@@ -410,9 +413,12 @@ POST /chat (instruction = generate_report_segment)
   ├─ 7. 构建预览响应（不持久化）
   │     ├─ section: Report DSL Section 片段
   │     └─ generateMeta: ReportGenerateMeta
+  │     └─ 输出 add_section delta
   │
-  └─ 8. 持久化对话消息，返回 ChatResponse
+  └─ 8. 输出 REPORT_SEGMENT answer，由 conversation 持久化对话消息
 ```
+
+执行过程中每个关键阶段都通过 AgentFlow 输出 step；失败时输出标准 error 事件。外层报告流程调用本能力时，子流程事件按 AgentFlow 的 subflow 来源信息汇入父流程。
 
 #### 3.8.2 章节定位规则
 

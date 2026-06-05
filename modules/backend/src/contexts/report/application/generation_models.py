@@ -10,6 +10,7 @@ from ..domain.generation_models import (
     ReportGenerateMeta,
     ReportSection,
     TemplateInstance,
+    TemplateInstanceSection,
     report_dsl_to_dict,
     template_instance_to_dict,
 )
@@ -101,6 +102,15 @@ class ReportSegmentPreview:
 
     section: ReportSection
     report_meta: ReportGenerateMeta
+
+
+@dataclass(slots=True)
+class SectionRegenerationContext:
+    """Loaded context for non-persistent section regeneration."""
+
+    template_instance: TemplateInstance
+    source_section: TemplateInstanceSection
+    preview_section: TemplateInstanceSection | None = None
 
 
 def document_view_from_artifact(document: DocumentArtifact) -> DocumentView:

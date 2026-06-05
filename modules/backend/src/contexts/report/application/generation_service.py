@@ -25,7 +25,7 @@ from ..domain.template_instance_builder import build_execution_bindings, seriali
 from ..domain.template_models import OutlineDefinition, ReportTemplate
 from .custom_content_resolver import CustomContentResolver
 from .dataset_execution_service import DatasetExecutionService
-from .generation_models import GenerationProgressView, ReportAnswerView, ReportSegmentPreview, ReportView
+from .generation_models import GenerationProgressView, ReportAnswerView, ReportSegmentPreview, ReportView, SectionRegenerationContext
 from .interfaces import ReportSchemaValidator
 
 
@@ -156,6 +156,17 @@ class ReportGenerationService:
         outline: OutlineDefinition,
         user_id: str,
     ) -> ReportSegmentPreview:
+        context = self.load_section_regeneration_context(report_id=report_id, section_id=section_id, user_id=user_id)
+        self.apply_section_regeneration_outline(context=context, outline=outline)
+        return self.compile_section_regeneration(context=context)
+
+    def load_section_regeneration_context(
+        self,
+        *,
+        report_id: str,
+        section_id: str,
+        user_id: str,
+    ) -> SectionRegenerationContext:
         report_instance = self.get_report_instance(report_id, user_id=user_id)
         template_instance = self.template_instance_repository.get(report_instance.template_instance_id, user_id=user_id)
         if template_instance is None:
@@ -163,11 +174,30 @@ class ReportGenerationService:
         section = find_template_instance_section(template_instance.catalogs, section_id, chapters=template_instance.chapters)
         if section is None:
             raise NotFoundError("Section not found", error_code=ErrorCode.REPORT_SECTION_NOT_FOUND)
-        preview = copy.deepcopy(section)
+        return SectionRegenerationContext(template_instance=template_instance, source_section=section)
+
+    def apply_section_regeneration_outline(
+        self,
+        *,
+        context: SectionRegenerationContext,
+        outline: OutlineDefinition,
+    ) -> SectionRegenerationContext:
+        preview = copy.deepcopy(context.source_section)
         preview.outline = copy.deepcopy(outline)
         preview.user_edited = True
         preview.skeleton_status = "reusable"
         preview.runtime_context.bindings = build_execution_bindings(section=preview, item_instances=list(preview.outline.items or []))
+        context.preview_section = preview
+        return context
+
+    def compile_section_regeneration(
+        self,
+        *,
+        context: SectionRegenerationContext,
+    ) -> ReportSegmentPreview:
+        if context.preview_section is None:
+            raise ValidationError("Section regeneration outline was not applied", error_code=ErrorCode.BASE_PARAM_INVALID)
+        preview = context.preview_section
         compiled, meta = self.compiler.compile_section(preview)
         try:
             self.schema_gateway.validate_section(report_section_to_dict(compiled))
