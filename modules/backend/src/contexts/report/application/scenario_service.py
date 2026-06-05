@@ -97,12 +97,14 @@ class ReportScenarioService:
         """把报告场景推进封装为公共 Agent Flow。"""
         def run_report(context) -> None:
             if command.instruction == "extract_report_template":
-                context.emit_step(code="report.template.preview", title="解析报告模板", status="running")
+                context.emit_step(code="report.template.preview", title="解析报告模板", status="finished")
             elif command.instruction == "generate_report_segment":
                 context.emit_step(code="report.segment.load", title="加载目标章节", status="running")
+            elif command.reply_type == "confirm_params":
+                context.emit_step(code="report.generate", title="报告生成", status="running")
             else:
-                context.emit_step(code="report.template.match", title="识别报告模板", status="running")
-                context.emit_step(code="report.parameters.resolve", title="提取和确认生成条件", status="running")
+                context.emit_step(code="report.template.match", title="识别报告模板", status="finished")
+                context.emit_step(code="report.parameters.resolve", title="提取和确认生成条件", status="finished")
             context.check_cancelled()
             result = self.handle(command=command)
             context.check_cancelled()
@@ -118,7 +120,13 @@ class ReportScenarioService:
                 context.emit_ask(ask, status=result.status)
                 return
             if result.answer is not None:
-                context.emit_step(code="report.dsl.compile", title="编译报告结构", status="finished")
+                context.emit_step(
+                    code="report.dsl.compile",
+                    title="编译报告结构",
+                    status="finished",
+                    parent_step_id="report.generate" if command.reply_type == "confirm_params" else None,
+                    step_path=["report.generate", "report.dsl.compile"] if command.reply_type == "confirm_params" else [],
+                )
                 answer = {
                     "answerType": result.answer.answer_type,
                     "answer": report_scenario_answer_to_dict(result.answer),
@@ -126,9 +134,11 @@ class ReportScenarioService:
                 for delta in self.flow_projection.delta_events(answer):
                     context.emit_delta(delta)
                 context.emit_answer(answer, status=result.status)
+                if command.reply_type == "confirm_params":
+                    context.emit_step(code="report.generate", title="报告生成", status="finished")
 
         return SequentialFlow(
-            FlowNode(id="report.generate", title="报告生成", handler=run_report, kind="task"),
+            FlowNode(id="report.generate", title="报告生成", handler=run_report, kind="task", emit_lifecycle_step=False),
         ).to_graph()
 
     def _extract_report_template(self, *, command: ReportScenarioCommand) -> ReportScenarioResult:
@@ -223,7 +233,10 @@ class ReportScenarioService:
                 created_at=current.created_at,
             )
             persisted = self.generation_service.persist_template_instance(instance, user_id=command.user_id)
-            return ReportScenarioResult(status="waiting_user", ask=self.parameter_service.build_ask(template=template, template_instance=persisted))
+            return ReportScenarioResult(
+                status="waiting_user",
+                ask=self.parameter_service.build_ask(template=template, template_instance=persisted, user_id=command.user_id),
+            )
 
         if command.bootstrap is not None:
             question = str(command.question or "").strip()
@@ -256,7 +269,7 @@ class ReportScenarioService:
         persisted = self.generation_service.persist_template_instance(instance, user_id=command.user_id)
         return ReportScenarioResult(
             status="waiting_user",
-            ask=self.parameter_service.build_ask(template=template, template_instance=persisted),
+            ask=self.parameter_service.build_ask(template=template, template_instance=persisted, user_id=command.user_id),
             conversation_title=template.name,
         )
 

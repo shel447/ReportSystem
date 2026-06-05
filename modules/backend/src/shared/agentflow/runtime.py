@@ -550,7 +550,8 @@ class InMemoryFlowRuntime:
         with self._lock:
             run.active_node_id = node.id
         run.metrics.record_node_started(node.id)
-        context.emit_step(code=node.id, title=node.title or node.id, status="running")
+        if node.emit_lifecycle_step:
+            context.emit_step(code=node.id, title=node.title or node.id, status="running")
         final_status = "finished"
         try:
             with use_metrics_collector(run.metrics):
@@ -574,7 +575,8 @@ class InMemoryFlowRuntime:
             self._apply_hook_decision(context, decision)
             raise
         finally:
-            context.emit_step(code=node.id, title=node.title or node.id, status=final_status)
+            if node.emit_lifecycle_step:
+                context.emit_step(code=node.id, title=node.title or node.id, status=final_status)
             with self._lock:
                 if run.active_node_id == node.id:
                     run.active_node_id = None

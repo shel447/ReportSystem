@@ -57,7 +57,6 @@ X-User-Id: <external-user-id>
 | 模板管理 | `DELETE /templates/{id}` | 删除模板 |
 | 模板管理 | `POST /templates/import/preview` | 解析并预览待导入模板，不落库 |
 | 模板管理 | `GET /templates/{id}/export` | 导出规范化后的模板定义 |
-| 参数候选项 | `POST /parameter-options/resolve` | 根据当前参数上下文解析动态候选项 |
 | 通用对话 | `GET /chat` | 查询会话列表 |
 | 通用对话 | `POST /chat` | 发送消息，支持 SSE 流式响应 |
 | 通用对话 | `POST /chat/{chatId}/stop` | 请求停止仍在运行中的当前轮对话 |
@@ -1099,7 +1098,9 @@ paged Report DSL 示例：
 
 ### 3.1 Parameter Options 外部数据源
 
-服务端在参数候选值解析时，向模板 `parameter.source` 定义的外部 URL 发起 `POST` 请求，获取动态参数候选值后再返回前端。前端不直接调用外部数据源 URL。
+服务端在参数候选值解析时，向模板 `parameter.source` 定义的外部 URL 发起 `POST` 请求，获取动态参数候选值后，将 `options/defaultValue/values` 组装回普通参数对象并随 `ask.parameters[]` 返回前端。前端不直接调用外部数据源 URL，也不直接调用 ReportSystem 内部的参数候选解析入口。
+
+当前实现仍保留 `POST /rest/chatbi/v1/parameter-options/resolve` 作为服务端内部复用和开发调试入口；它不属于对外业务接口清单，业务前端应消费 `/chat` 返回的完整参数模型。
 
 #### 请求体
 

@@ -2,15 +2,28 @@ import unittest
 from types import SimpleNamespace
 
 from src.contexts.report.application.parameter_service import ReportParameterService
+from src.contexts.report.application.generation_models import (
+    GenerationProgressView,
+    ReportAnswerView,
+)
 from src.contexts.report.application.scenario_models import (
+    ReportContext,
+    ReportReplyPayload,
     ReportScenarioCommand,
     report_bootstrap_request_from_dict,
 )
 from src.contexts.report.application.scenario_service import ReportScenarioService
 from src.contexts.report.application.template_service import ReportTemplateService
 from src.contexts.conversation.domain.models import ChatContext
+from src.contexts.report.domain.generation_models import (
+    GridDefinition,
+    ReportBasicInfo,
+    ReportDsl,
+    ReportLayout,
+)
 from src.contexts.report.domain.template_models import report_template_from_dict
 from src.contexts.report.infrastructure.conversation import ReportConversationScenarioCodec
+from src.shared.agentflow import InMemoryFlowRuntime
 from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
 
@@ -97,6 +110,12 @@ class _TemplateRepository:
     def list_all(self):
         return list(self.templates)
 
+    def get(self, template_id):
+        for template in self.templates:
+            if template.id == template_id:
+                return template
+        return None
+
 
 class _GenerationService:
     def __init__(self, latest=None):
@@ -110,6 +129,31 @@ class _GenerationService:
         self.persisted = instance
         return instance
 
+    def generate_report_from_template_instance(self, **kwargs):
+        return ReportAnswerView(
+            report_id="rpt_001",
+            status="available",
+            report=ReportDsl(
+                basic_info=ReportBasicInfo(
+                    id="rpt_001",
+                    schema_version="1.0.0",
+                    mode="published",
+                    status="Success",
+                    name="网络运行日报",
+                ),
+                catalogs=[],
+                layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
+            ),
+            template_instance=self.persisted,
+            documents=[],
+            generation_progress=GenerationProgressView(
+                total_sections=0,
+                completed_sections=0,
+                total_catalogs=0,
+                completed_catalogs=0,
+            ),
+        )
+
 
 class _OptionsGateway:
     def __init__(self):
@@ -120,7 +164,115 @@ class _OptionsGateway:
         return {"options": []}
 
 
+class _ScopeOptionsGateway:
+    def __init__(self):
+        self.calls = []
+
+    def resolve(self, **kwargs):
+        self.calls.append(kwargs)
+        return {
+            "options": [
+                {"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"},
+                {"label": "分支网络", "value": "branch-network", "query": "scope_id = 'branch-network'"},
+            ],
+            "defaultValue": [{"label": "总部网络", "value": "hq-network", "query": "scope_id = 'hq-network'"}],
+        }
+
+
 class ReportScenarioBootstrapTests(unittest.TestCase):
+    def test_initial_report_flow_finishes_preparation_steps_without_generation_step(self):
+        service = ReportScenarioService(
+            template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
+            template_repository=_TemplateRepository([_template()]),
+            generation_service=_GenerationService(),
+            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+        )
+
+        events = InMemoryFlowRuntime().run_sync(service.create_flow(
+            command=ReportScenarioCommand(
+                conversation_id="conv_001",
+                chat_id="chat_001",
+                user_id="user_001",
+                instruction="generate_report",
+                question="请生成 2026-06-02 的网络运行日报",
+            )
+        ))
+
+        steps = [event.step for event in events if event.step is not None]
+        step_by_code = {step.code: step for step in steps}
+        self.assertNotIn("report.generate", step_by_code)
+        self.assertEqual(step_by_code["report.template.match"].status, "finished")
+        self.assertEqual(step_by_code["report.parameters.resolve"].status, "finished")
+
+    def test_confirm_report_flow_starts_generation_step_after_confirmation(self):
+        generation = _GenerationService()
+        service = ReportScenarioService(
+            template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
+            template_repository=_TemplateRepository([_template()]),
+            generation_service=generation,
+            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+        )
+        initial = service.handle(
+            command=ReportScenarioCommand(
+                conversation_id="conv_001",
+                chat_id="chat_001",
+                user_id="user_001",
+                instruction="generate_report",
+                question="请生成 2026-06-02 的网络运行日报",
+            )
+        )
+
+        events = InMemoryFlowRuntime().run_sync(service.create_flow(
+            command=ReportScenarioCommand(
+                conversation_id="conv_001",
+                chat_id="chat_002",
+                user_id="user_001",
+                instruction="generate_report",
+                reply_type="confirm_params",
+                reply=ReportReplyPayload(
+                    report_context=ReportContext(
+                        template_instance=initial.ask.payload.report_context.template_instance,
+                    )
+                ),
+            )
+        ))
+
+        steps = [event.step for event in events if event.step is not None]
+        generation_steps = [step for step in steps if step.code == "report.generate"]
+        self.assertEqual([step.status for step in generation_steps], ["running", "finished"])
+        compile_step = next(step for step in steps if step.code == "report.dsl.compile")
+        self.assertEqual(compile_step.parent_step_id, "report.generate")
+
+    def test_dynamic_parameter_options_are_resolved_before_ask_reaches_frontend(self):
+        gateway = _ScopeOptionsGateway()
+        generation = _GenerationService()
+        template_repository = _TemplateRepository([_template()])
+        service = ReportScenarioService(
+            template_service=ReportTemplateService(repository=template_repository, schema_gateway=SimpleNamespace()),
+            template_repository=template_repository,
+            generation_service=generation,
+            parameter_service=ReportParameterService(options_gateway=gateway),
+        )
+
+        result = service.handle(
+            command=ReportScenarioCommand(
+                conversation_id="conv_001",
+                chat_id="chat_001",
+                user_id="user_001",
+                instruction="generate_report",
+                question="请生成 2026-06-02 的网络运行日报",
+            )
+        )
+
+        self.assertEqual(result.ask.type, "confirm_params")
+        ask_scope = next(item for item in result.ask.payload.parameters if item.id == "scope")
+        context_scope = next(item for item in result.ask.payload.report_context.template_instance.parameters if item.id == "scope")
+        self.assertEqual([item.label for item in ask_scope.options], ["总部网络", "分支网络"])
+        self.assertEqual(context_scope.options[0].value, "hq-network")
+        self.assertEqual(context_scope.default_value[0].value, "hq-network")
+        self.assertEqual(context_scope.values[0].value, "hq-network")
+        self.assertEqual(gateway.calls[0]["source"], "/rest/parameter-options/network/scopes")
+
     def test_bootstrap_merges_external_snapshot_and_extracts_missing_root_parameter(self):
         gateway = _OptionsGateway()
         generation = _GenerationService()

@@ -7,7 +7,13 @@ import re
 from typing import Any
 
 from ....shared.kernel.errors import ValidationError
-from ..domain.generation_models import TemplateInstance
+from ..domain.generation_models import (
+    TemplateInstance,
+    TemplateInstanceCatalog,
+    TemplateInstanceChapter,
+    TemplateInstanceSection,
+    TemplateInstanceSlide,
+)
 from ..domain.parameter_resolver import ParameterResolver
 from ..domain.template_models import Parameter, ParameterValue, ReportTemplate, parameter_value_from_dict
 from .interfaces import ParameterOptionsResolver
@@ -178,18 +184,21 @@ class ReportParameterService:
     ) -> list[Parameter]:
         return ParameterResolver.missing_required(template=template, template_instance=template_instance)
 
-    def build_ask(self, *, template: ReportTemplate, template_instance: TemplateInstance) -> ReportScenarioAsk:
+    def build_ask(self, *, template: ReportTemplate, template_instance: TemplateInstance, user_id: str | None = None) -> ReportScenarioAsk:
         """构造报告场景的参数补充或确认追问。"""
-        missing = self.missing_required_parameters(template=template, template_instance=template_instance)
+        ask_instance = copy.deepcopy(template_instance)
+        if user_id:
+            self._resolve_dynamic_options_for_instance(template_instance=ask_instance, user_id=user_id)
+        missing = self.missing_required_parameters(template=template, template_instance=ask_instance)
         if missing:
             next_parameter = missing[0]
             next_state = next(
                 (
                     copy.deepcopy(parameter)
                     for parameter in ParameterResolver.collect_instance_parameters(
-                        parameters=template_instance.parameters,
-                        catalogs=template_instance.catalogs,
-                        chapters=template_instance.chapters,
+                        parameters=ask_instance.parameters,
+                        catalogs=ask_instance.catalogs,
+                        chapters=ask_instance.chapters,
                     )
                     if parameter.id == next_parameter.id
                 ),
@@ -202,7 +211,7 @@ class ReportParameterService:
                 text=f"请补充参数：{next_parameter.label}",
                 payload=ReportAskPayload(
                     parameters=[next_state],
-                    report_context=ReportContext(template_instance=template_instance),
+                    report_context=ReportContext(template_instance=ask_instance),
                 ),
             )
         return ReportScenarioAsk(
@@ -212,13 +221,43 @@ class ReportParameterService:
             text="请确认报告诉求后开始生成。",
             payload=ReportAskPayload(
                 parameters=ParameterResolver.collect_instance_parameters(
-                    parameters=template_instance.parameters,
-                    catalogs=template_instance.catalogs,
-                    chapters=template_instance.chapters,
+                    parameters=ask_instance.parameters,
+                    catalogs=ask_instance.catalogs,
+                    chapters=ask_instance.chapters,
                 ),
-                report_context=ReportContext(template_instance=template_instance),
+                report_context=ReportContext(template_instance=ask_instance),
             ),
         )
+
+    def _resolve_dynamic_options_for_instance(self, *, template_instance: TemplateInstance, user_id: str) -> None:
+        if self.options_gateway is None:
+            return
+        all_values = ParameterResolver.parameters_to_value_map(
+            ParameterResolver.collect_instance_parameters(
+                parameters=template_instance.parameters,
+                catalogs=template_instance.catalogs,
+                chapters=template_instance.chapters,
+            )
+        )
+        for parameter in _iter_instance_parameters(template_instance):
+            if parameter.input_type != "dynamic" or not str(parameter.source or "").strip():
+                continue
+            if parameter.options:
+                continue
+            try:
+                resolved = self.resolve_options(
+                    user_id=user_id,
+                    parameter_id=parameter.id,
+                    source=str(parameter.source or "").strip(),
+                    context_values=all_values,
+                )
+            except Exception:
+                continue
+            parameter.options = copy.deepcopy(resolved.options)
+            if not parameter.default_value:
+                parameter.default_value = copy.deepcopy(resolved.default_value)
+            if not parameter.values and parameter.default_value:
+                parameter.values = copy.deepcopy(parameter.default_value)
 
     @staticmethod
     def _match_options(question: str, options: list[ParameterValue], *, multi: bool) -> list[ParameterValue] | None:
@@ -237,3 +276,35 @@ def _to_parameter_options_result(payload: dict[str, Any]) -> ParameterOptionsRes
         options=[parameter_value_from_dict(item) for item in list(payload.get("options") or [])],
         default_value=[parameter_value_from_dict(item) for item in list(payload.get("defaultValue") or [])],
     )
+
+
+def _iter_instance_parameters(template_instance: TemplateInstance):
+    yield from template_instance.parameters
+    for catalog in template_instance.catalogs:
+        yield from _iter_catalog_parameters(catalog)
+    for chapter in template_instance.chapters:
+        yield from _iter_chapter_parameters(chapter)
+
+
+def _iter_catalog_parameters(catalog: TemplateInstanceCatalog):
+    yield from catalog.parameters
+    for section in catalog.sections:
+        yield from _iter_section_parameters(section)
+    for sub_catalog in catalog.sub_catalogs:
+        yield from _iter_catalog_parameters(sub_catalog)
+
+
+def _iter_chapter_parameters(chapter: TemplateInstanceChapter):
+    yield from chapter.parameters
+    for slide in chapter.slides:
+        yield from _iter_slide_parameters(slide)
+
+
+def _iter_slide_parameters(slide: TemplateInstanceSlide):
+    yield from slide.parameters
+    for section in slide.sections:
+        yield from _iter_section_parameters(section)
+
+
+def _iter_section_parameters(section: TemplateInstanceSection):
+    yield from section.parameters

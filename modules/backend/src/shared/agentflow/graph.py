@@ -31,6 +31,7 @@ class FlowNode:
     metadata: dict[str, Any] = field(default_factory=dict)
     retry_policy: dict[str, Any] = field(default_factory=dict)
     checkpoint_policy: dict[str, Any] = field(default_factory=dict)
+    emit_lifecycle_step: bool = True
 
 
 @dataclass(slots=True)

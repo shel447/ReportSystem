@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, MouseEvent as ReactMouseEvent, SetStateAction } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Send, WandSparkles, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, LoaderCircle, Menu, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Send, WandSparkles, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { buildChatId, fetchConversation, fetchConversations, sendChatMessageStream, stopChat } from "../entities/chat/api";
 import type { ChatAsk, ChatRequest, ChatResponse, ChatStreamDelta, ConversationAnswer, ConversationDetail, ConversationRecord, ParameterValue, TemplateInstance, TemplateParameter } from "../entities/chat/types";
 import type { ParameterScalar } from "../entities/templates/types";
-import { resolveParameterOptions } from "../entities/parameter-options/api";
 import { fetchSystemSettings } from "../entities/system-settings/api";
 import { ChatReportWorkspace } from "../features/report-preview/ChatReportWorkspace";
 import { createDemoStreamDeltas, DEMO_REPORT_TEMPLATES } from "../features/report-preview/demo-report-templates";
@@ -140,42 +139,18 @@ export function ChatPage() {
     }
     const nextDrafts: ParameterDrafts = {};
     for (const parameter of currentAsk.parameters ?? []) {
-      nextDrafts[parameter.id] = parameter.values ?? [];
+      nextDrafts[parameter.id] = parameter.values ?? parameter.defaultValue ?? [];
     }
     setParameterDrafts(nextDrafts);
   }, [currentAsk]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadDynamicOptions(ask: ChatAsk) {
-      const entries = (ask.parameters ?? []).filter((parameter) => parameter.inputType === "dynamic" && parameter.source);
-      if (!entries.length) {
-        setDynamicOptions({});
-        return;
-      }
-      const resolved: DynamicOptionMap = {};
-      const contextValues = parametersToValueMap(ask.reportContext?.templateInstance.parameters ?? []);
-      for (const parameter of entries) {
-        try {
-          const response = await resolveParameterOptions({ parameterId: parameter.id, source: parameter.source ?? "", contextValues });
-          resolved[parameter.id] = response.options;
-        } catch {
-          resolved[parameter.id] = [];
-        }
-      }
-      if (!cancelled) {
-        setDynamicOptions(resolved);
-      }
-    }
     if (currentAsk) {
-      void loadDynamicOptions(currentAsk);
+      setDynamicOptions(optionsFromAsk(currentAsk));
     }
-    return () => {
-      cancelled = true;
-    };
   }, [currentAsk]);
 
-  const conversationMessages = useMemo(() => normalizeConversationMessages(conversationQuery.data), [conversationQuery.data]);
+  const conversationMessages = useMemo(() => normalizeConversationMessages(conversationQuery.data, optimisticTurns), [conversationQuery.data, optimisticTurns]);
   const consumedAskChatIds = useMemo(() => new Set(optimisticTurns.map((turn) => turn.sourceChatId).filter((id): id is string => Boolean(id))), [optimisticTurns]);
   const streamReport = useMemo(() => reduceStreamReport(streamDeltas), [streamDeltas]);
   const reportAnswer = latestResponse?.answer?.answerType === "REPORT" ? latestResponse.answer.answer : null;
@@ -381,6 +356,7 @@ export function ChatPage() {
                     {message.response ? (
                       <AssistantResponseCard
                         response={message.response}
+                        introText={message.text}
                         consumed={consumedAskChatIds.has(message.response.chatId)}
                         parameterDrafts={parameterDrafts}
                         dynamicOptions={dynamicOptions}
@@ -458,13 +434,14 @@ type AskPanelProps = {
   onSubmitFill: () => void;
   onSubmitConfirm: () => void;
   submitting: boolean;
+  readonly?: boolean;
 };
 
-function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill, onSubmitConfirm, submitting }: AskPanelProps) {
+function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill, onSubmitConfirm, submitting, readonly = false }: AskPanelProps) {
   return (
     <div className="stack-list">
       {(ask.parameters ?? []).map((parameter) => {
-        const value = parameterDrafts[parameter.id] ?? parameter.values ?? [];
+        const value = readonly ? parameter.values ?? parameter.defaultValue ?? [] : parameterDrafts[parameter.id] ?? parameter.values ?? parameter.defaultValue ?? [];
         const options = parameter.inputType === "dynamic" ? dynamicOptions[parameter.id] ?? parameter.options ?? [] : parameter.options ?? [];
         const currentText = value.map((item) => String(item.label ?? "")).filter(Boolean).join("\n");
         const selectedValues = value.map((item) => String(item.label));
@@ -476,6 +453,7 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
               {parameter.inputType === "enum" || parameter.inputType === "dynamic" ? (
                 <select
                   multiple={parameter.multi}
+                  disabled={readonly || submitting}
                   value={parameter.multi ? selectedValues : (selectedValues[0] ?? "")}
                   onChange={(event) => {
                     const selected = Array.from(event.currentTarget.selectedOptions)
@@ -490,6 +468,7 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
               ) : parameter.multi ? (
                 <textarea
                   rows={4}
+                  disabled={readonly || submitting}
                   value={currentText}
                   onChange={(event) => {
                     const values = event.target.value
@@ -503,6 +482,7 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
                 />
               ) : (
                 <input
+                  disabled={readonly || submitting}
                   value={value[0]?.label ? String(value[0].label) : ""}
                   onChange={(event) => {
                     const text = event.target.value;
@@ -515,16 +495,19 @@ function AskPanel({ ask, parameterDrafts, dynamicOptions, onChange, onSubmitFill
           </div>
         );
       })}
-      <div className="action-row">
-        {ask.type === "fill_params" ? <button className="primary-button" type="button" disabled={submitting} onClick={onSubmitFill}>{submitting ? "提交中..." : "提交参数"}</button> : null}
-        {ask.type === "confirm_params" ? <button className="primary-button" type="button" disabled={submitting} onClick={onSubmitConfirm}>{submitting ? "生成中..." : "确认并生成"}</button> : null}
-      </div>
+      {!readonly ? (
+        <div className="action-row">
+          {ask.type === "fill_params" ? <button className="primary-button" type="button" disabled={submitting} onClick={onSubmitFill}>{submitting ? "提交中..." : "提交参数"}</button> : null}
+          {ask.type === "confirm_params" ? <button className="primary-button" type="button" disabled={submitting} onClick={onSubmitConfirm}>{submitting ? "生成中..." : "确认并生成"}</button> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
 
 type AssistantResponseCardProps = {
   response: ChatResponse;
+  introText?: string;
   consumed: boolean;
   parameterDrafts: ParameterDrafts;
   dynamicOptions: DynamicOptionMap;
@@ -536,6 +519,7 @@ type AssistantResponseCardProps = {
 
 function AssistantResponseCard({
   response,
+  introText,
   consumed,
   parameterDrafts,
   dynamicOptions,
@@ -544,19 +528,24 @@ function AssistantResponseCard({
   onSubmitConfirm,
   submitting,
 }: AssistantResponseCardProps) {
+  const stepTree = buildStepTree(response.steps);
+  const intro = introText && introText !== extractMessageText({ response }) ? introText : "";
   if (response.ask) {
     const ask = consumed ? { ...response.ask, status: "replied" as const } : response.ask;
     const canReply = ask.status === "pending" && Boolean(ask.reportContext);
+    const canShowAskPanel = Boolean(ask.reportContext);
     return (
       <article className="message-bubble message-bubble--assistant message-bubble--has-action">
         <div className="card-heading">
           <div>
             <strong>{ask.title}</strong>
+            {intro ? <p className="template-hint">{intro}</p> : null}
             <p className="template-hint">{ask.text}</p>
           </div>
           {ask.status === "replied" ? <span className="status-pill">已回复</span> : null}
         </div>
-        {canReply ? (
+        <StepTree steps={stepTree} />
+        {canShowAskPanel ? (
           <AskPanel
             ask={ask}
             parameterDrafts={parameterDrafts}
@@ -565,9 +554,8 @@ function AssistantResponseCard({
             onSubmitFill={onSubmitFill}
             onSubmitConfirm={onSubmitConfirm}
             submitting={submitting}
+            readonly={!canReply}
           />
-        ) : ask.status === "replied" ? (
-          <p className="template-hint">该追问已被后续回复消费。</p>
         ) : null}
       </article>
     );
@@ -580,10 +568,12 @@ function AssistantResponseCard({
         <div className="card-heading">
           <div>
             <strong>报告已生成</strong>
+            {intro ? <p className="template-hint">{intro}</p> : null}
             <p className="template-hint">已冻结报告内容，可以在右侧预览或进入报告详情。</p>
           </div>
           <span className="status-pill">{report.status === "available" ? "可用" : report.status}</span>
         </div>
+        <StepTree steps={stepTree} />
         <div className="action-row">
           <Link className="primary-button" to={`/reports/${encodeURIComponent(report.reportId)}`}>打开报告详情</Link>
         </div>
@@ -597,9 +587,11 @@ function AssistantResponseCard({
         <div className="card-heading">
           <div>
             <strong>智能问数已完成</strong>
+            {intro ? <p className="template-hint">{intro}</p> : null}
             <p className="template-hint">{response.answer.answer.summary}</p>
           </div>
         </div>
+        <StepTree steps={stepTree} />
       </article>
     );
   }
@@ -611,9 +603,11 @@ function AssistantResponseCard({
         <div className="card-heading">
           <div>
             <strong>模板草案已提取</strong>
+            {intro ? <p className="template-hint">{intro}</p> : null}
             <p className="template-hint">{warnings.length ? `存在 ${warnings.length} 条提示，请检查后保存。` : "模板结构已完成规范化。"}</p>
           </div>
         </div>
+        <StepTree steps={stepTree} />
       </article>
     );
   }
@@ -624,9 +618,11 @@ function AssistantResponseCard({
         <div className="card-heading">
           <div>
             <strong>请求失败</strong>
+            {intro ? <p className="template-hint">{intro}</p> : null}
             <p className="template-hint">{response.errors.map(renderErrorMessage).join("；")}</p>
           </div>
         </div>
+        <StepTree steps={stepTree} />
       </article>
     );
   }
@@ -635,22 +631,80 @@ function AssistantResponseCard({
     const latestStep = response.steps[response.steps.length - 1];
     return (
       <article className="message-bubble message-bubble--assistant message-bubble--pending">
+        {intro ? <p>{intro}</p> : null}
         <p>{latestStep?.title ?? "正在处理..."}</p>
+        <StepTree steps={stepTree} />
       </article>
     );
   }
 
   return (
     <article className="message-bubble message-bubble--assistant">
+      {intro ? <p>{intro}</p> : null}
       <p>{extractMessageText({ response }) || "已完成"}</p>
+      <StepTree steps={stepTree} />
     </article>
+  );
+}
+
+type StepTreeNode = ChatResponse["steps"][number] & {
+  key: string;
+  children: StepTreeNode[];
+};
+
+function StepTree({ steps }: { steps: StepTreeNode[] }) {
+  if (!steps.length) {
+    return null;
+  }
+  return (
+    <ul className="step-tree" aria-label="生成进度">
+      <style>{`@keyframes chat-step-spin { to { transform: rotate(360deg); } }`}</style>
+      {steps.map((step) => <StepTreeItem key={step.key} step={step} />)}
+    </ul>
+  );
+}
+
+function StepTreeItem({ step }: { step: StepTreeNode }) {
+  const [expanded, setExpanded] = useState(true);
+  const finished = isFinishedStep(step.status);
+  const running = step.status === "running";
+  const hasChildren = step.children.length > 0;
+  const title = step.title || step.code || step.stepId || "处理步骤";
+  return (
+    <li>
+      <div className="step-tree__row">
+        {hasChildren ? (
+          <button
+            type="button"
+            className="step-tree__toggle"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "收起" : "展开"}${title}子步骤`}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+          </button>
+        ) : (
+          <span className="step-tree__toggle-spacer" aria-hidden="true" />
+        )}
+        {running ? (
+          <LoaderCircle aria-label="进行中" className="step-status-icon step-status-icon--running" size={15} style={{ animation: "chat-step-spin 1s linear infinite" }} />
+        ) : finished ? (
+          <Check aria-label="已完成" className="step-status-icon step-status-icon--finished" size={15} />
+        ) : (
+          <span className="step-status-icon" aria-hidden="true">•</span>
+        )}
+        <span>{title}</span>
+        {step.detail ? <span className="template-hint">{step.detail}</span> : null}
+      </div>
+      {hasChildren && expanded ? <ul className="step-tree step-tree--children" aria-label={`${title}子步骤`}>{step.children.map((child) => <StepTreeItem key={child.key} step={child} />)}</ul> : null}
+    </li>
   );
 }
 
 export function mergeAskParameters(parameters: TemplateParameter[], parameterDrafts: ParameterDrafts, dynamicOptions: DynamicOptionMap): TemplateParameter[] {
   return parameters.map((parameter) => ({
     ...parameter,
-    values: parameterDrafts[parameter.id] ?? parameter.values ?? [],
+    values: parameterDrafts[parameter.id] ?? parameter.values ?? parameter.defaultValue ?? [],
     options: parameter.inputType === "dynamic" ? dynamicOptions[parameter.id] ?? parameter.options : parameter.options,
   }));
 }
@@ -664,16 +718,31 @@ export function mergeTemplateInstanceParameters(templateInstance: TemplateInstan
   };
 }
 
-function parametersToValueMap(parameters: TemplateParameter[]): Record<string, ParameterValue[]> {
-  return Object.fromEntries(parameters.filter((parameter) => parameter.values?.length).map((parameter) => [parameter.id, parameter.values ?? []]));
-}
-
 function parameterValuesToReplyMap(parameters: TemplateParameter[]): Record<string, ParameterScalar[]> {
   return Object.fromEntries(
     parameters
       .filter((parameter) => parameter.values?.length)
       .map((parameter) => [parameter.id, (parameter.values ?? []).map((value) => value.value)]),
   );
+}
+
+function summarizeParameterValues(parameters: TemplateParameter[]): string {
+  const parts = parameters
+    .map((parameter) => {
+      const labels = (parameter.values ?? [])
+        .map((value) => String(value.label ?? value.value ?? "").trim())
+        .filter(Boolean);
+      if (!labels.length) {
+        return "";
+      }
+      return `${parameter.label || parameter.id}=${labels.join("、")}`;
+    })
+    .filter(Boolean);
+  if (!parts.length) {
+    return "补充参数";
+  }
+  const summary = `补充参数：${parts.join("，")}`;
+  return summary.length > 80 ? `${summary.slice(0, 79)}...` : summary;
 }
 
 function mergeCatalogParameters(catalog: TemplateInstance["catalogs"][number], parameterMap: Map<string, TemplateParameter>): TemplateInstance["catalogs"][number] {
@@ -692,76 +761,90 @@ function mergeParameterList(parameters: TemplateParameter[], parameterMap: Map<s
   return parameters.map((parameter) => parameterMap.get(parameter.id) ?? parameter);
 }
 
-function normalizeConversationMessages(conversation: ConversationDetail | undefined): ChatDisplayMessage[] {
+function normalizeConversationMessages(conversation: ConversationDetail | undefined, optimisticTurns: OptimisticTurn[] = []): ChatDisplayMessage[] {
   if (!conversation) {
     return [];
   }
+  const optimisticTextByChatId = new Map(optimisticTurns.map((turn) => [turn.chatId, turn.userText]));
   const records = Array.isArray(conversation.records) ? conversation.records : [];
   return records.flatMap((record, recordIndex) => {
     const messages: ChatDisplayMessage[] = [];
-    if (record.question) {
+    const textAnswers = record.answers.filter((answer) => answer.type === "TEXT").map((answer) => answer.content).filter(Boolean).join("\n");
+    const questionText = record.question?.trim() || optimisticTextByChatId.get(record.chatId) || "";
+    if (questionText) {
       messages.push({
         key: `${record.chatId}-user-${recordIndex}`,
         chatId: record.chatId,
         role: "user",
         createdAt: normalizeRecordTime(record.askTime),
-        text: record.question,
+        text: questionText,
       });
     }
-    record.answers.forEach((answer, answerIndex) => {
-      if (answer.type === "TEXT") {
-        messages.push({
-          key: `${record.chatId}-answer-${answerIndex}`,
-          chatId: record.chatId,
-          role: "assistant",
-          createdAt: normalizeRecordTime(answer.answerTime),
-          text: answer.content,
-        });
-        return;
-      }
-      const response = chatResponseFromPiuAnswer(conversation.conversationId, record, answer);
-      if (!response) {
-        return;
-      }
+    const response = chatResponseFromRecordAnswers(conversation.conversationId, record);
+    if (response) {
       messages.push({
-        key: `${record.chatId}-answer-${answerIndex}`,
+        key: `${record.chatId}-assistant`,
         chatId: record.chatId,
         role: "assistant",
-        createdAt: normalizeRecordTime(answer.answerTime),
-        text: extractMessageText({ response }),
+        createdAt: latestAnswerTime(record.answers),
+        text: textAnswers || extractMessageText({ response }),
         response,
       });
-    });
+    } else {
+      if (textAnswers) {
+        messages.push({
+          key: `${record.chatId}-assistant`,
+          chatId: record.chatId,
+          role: "assistant",
+          createdAt: latestAnswerTime(record.answers),
+          text: textAnswers,
+        });
+      }
+    }
     return messages;
   });
 }
 
 function mergeConversationAndOptimisticMessages(historyMessages: ChatDisplayMessage[], optimisticTurns: OptimisticTurn[]): ChatDisplayMessage[] {
-  const known = new Set(historyMessages.map((message) => messageKey(message.chatId, message.role)));
-  const projected: ChatDisplayMessage[] = [];
+  const merged = historyMessages.slice();
+  const known = new Set(merged.map((message) => messageKey(message.chatId, message.role)));
   for (const turn of optimisticTurns) {
     if (!known.has(messageKey(turn.chatId, "user"))) {
-      projected.push({
+      const userMessage: ChatDisplayMessage = {
         key: `${turn.chatId}-optimistic-user`,
         chatId: turn.chatId,
         role: "user",
         text: turn.userText,
         createdAt: turn.createdAt,
-      });
+      };
+      const assistantIndex = merged.findIndex((message) => message.chatId === turn.chatId && message.role === "assistant");
+      if (assistantIndex >= 0) {
+        merged.splice(assistantIndex, 0, userMessage);
+      } else {
+        merged.push(userMessage);
+      }
+      known.add(messageKey(turn.chatId, "user"));
     }
     if ((turn.response || turn.error) && !known.has(messageKey(turn.chatId, "assistant"))) {
       const response = turn.response ?? createLocalErrorResponse(turn);
-      projected.push({
+      const assistantMessage: ChatDisplayMessage = {
         key: `${turn.chatId}-optimistic-assistant`,
         chatId: turn.chatId,
         role: "assistant",
         text: extractMessageText({ response }),
         response,
         createdAt: turn.createdAt,
-      });
+      };
+      const userIndex = merged.findIndex((message) => message.chatId === turn.chatId && message.role === "user");
+      if (userIndex >= 0) {
+        merged.splice(userIndex + 1, 0, assistantMessage);
+      } else {
+        merged.push(assistantMessage);
+      }
+      known.add(messageKey(turn.chatId, "assistant"));
     }
   }
-  return historyMessages.concat(projected);
+  return merged;
 }
 
 function messageKey(chatId: string, role: "user" | "assistant") {
@@ -797,7 +880,7 @@ function describeChatRequest(payload: ChatRequest) {
     return "确认并生成报告";
   }
   if (payload.reply?.type === "fill_params") {
-    return "已补充报告参数";
+    return payload.question?.trim() || "补充参数";
   }
   return payload.question?.trim() || "继续对话";
 }
@@ -829,37 +912,69 @@ function findLatestResponse(conversation: ConversationDetail | undefined): ChatR
     return null;
   }
   for (const record of [...(conversation.records ?? [])].reverse()) {
-    for (const answer of [...record.answers].reverse()) {
-      if (answer.type !== "PIU") {
-        continue;
-      }
-      const response = chatResponseFromPiuAnswer(conversation.conversationId, record, answer);
-      if (response) {
-        return response;
-      }
+    const response = chatResponseFromRecordAnswers(conversation.conversationId, record);
+    if (response) {
+      return response;
     }
   }
   return null;
 }
 
-function chatResponseFromPiuAnswer(conversationId: string, record: ConversationRecord, answer: ConversationAnswer): ChatResponse | null {
-  const payload = parsePiuContent(answer.content);
-  const answers = payload?.answers;
-  if (!answers || typeof answers !== "object") {
+function chatResponseFromRecordAnswers(conversationId: string, record: ConversationRecord): ChatResponse | null {
+  const fragments = record.answers
+    .filter((answer) => answer.type === "PIU")
+    .map((answer, index) => ({ answer, index, payload: parsePiuContent(answer.content) }))
+    .filter((item) => item.payload?.piuName === "ReportGenerationPIU" && isRecord(item.payload.answers));
+  if (!fragments.length) {
     return null;
   }
-  const answerRecord = answers as Record<string, unknown>;
+  fragments.sort((left, right) => compareAnswerTime(left.answer.answerTime, right.answer.answerTime) || left.index - right.index);
+  const merged = mergePiuAnswerRecords(fragments.map((item) => item.payload?.answers as Record<string, unknown>));
+  const latest = fragments[fragments.length - 1].answer;
   return {
     conversationId,
     chatId: record.chatId,
-    status: inferResponseStatus(answerRecord),
-    steps: Array.isArray(answerRecord.steps) ? answerRecord.steps as ChatResponse["steps"] : [],
-    ask: isRecord(answerRecord.ask) ? answerRecord.ask as ChatResponse["ask"] : null,
-    answer: isRecord(answerRecord.answer) ? answerRecord.answer as ChatResponse["answer"] : null,
-    errors: Array.isArray(answerRecord.errors) ? answerRecord.errors : [],
-    timestamp: normalizeRecordTimestamp(answer.answerTime),
+    status: inferResponseStatus(merged),
+    steps: merged.steps,
+    ask: merged.ask,
+    answer: merged.answer,
+    errors: merged.errors,
+    timestamp: normalizeRecordTimestamp(latest.answerTime),
     apiVersion: "v1",
   };
+}
+
+function mergePiuAnswerRecords(records: Array<Record<string, unknown>>): Pick<ChatResponse, "steps" | "ask" | "answer" | "errors"> {
+  const steps: ChatResponse["steps"] = [];
+  const errors: unknown[] = [];
+  let ask: ChatResponse["ask"] = null;
+  let answer: ChatResponse["answer"] = null;
+  for (const record of records) {
+    if (Array.isArray(record.steps)) {
+      steps.push(...record.steps as ChatResponse["steps"]);
+    }
+    const deltaSteps = extractStepsFromDelta(record.delta);
+    if (deltaSteps.length) {
+      steps.push(...deltaSteps);
+    }
+    if (isRecord(record.ask)) {
+      ask = record.ask as ChatResponse["ask"];
+    }
+    if (isRecord(record.answer)) {
+      answer = record.answer as ChatResponse["answer"];
+    }
+    if (Array.isArray(record.errors)) {
+      errors.push(...record.errors);
+    }
+  }
+  return { steps: dedupeStepsById(steps), ask, answer, errors };
+}
+
+function extractStepsFromDelta(delta: unknown): ChatResponse["steps"] {
+  if (!Array.isArray(delta)) {
+    return [];
+  }
+  return delta.filter(isRecord).map((item) => item.step).filter(isRecord) as ChatResponse["steps"];
 }
 
 function parsePiuContent(content: string): { piuName?: string; answers?: unknown } | null {
@@ -884,6 +999,63 @@ function inferResponseStatus(answers: Record<string, unknown>): ChatResponse["st
     return "finished";
   }
   return "running";
+}
+
+function optionsFromAsk(ask: ChatAsk): DynamicOptionMap {
+  return Object.fromEntries((ask.parameters ?? []).map((parameter) => [parameter.id, parameter.options ?? parameter.defaultValue ?? parameter.values ?? []]));
+}
+
+function latestAnswerTime(answers: ConversationAnswer[]): string | undefined {
+  const sorted = [...answers].sort((left, right) => compareAnswerTime(left.answerTime, right.answerTime));
+  const latest = sorted[sorted.length - 1];
+  return normalizeRecordTime(latest?.answerTime);
+}
+
+function compareAnswerTime(left: string | number | null | undefined, right: string | number | null | undefined): number {
+  return normalizeRecordTimestamp(left) - normalizeRecordTimestamp(right);
+}
+
+function dedupeStepsById(steps: ChatResponse["steps"]): ChatResponse["steps"] {
+  const output: ChatResponse["steps"] = [];
+  const indexById = new Map<string, number>();
+  for (const step of steps) {
+    const stepId = step.stepId || step.code;
+    if (!stepId) {
+      output.push(step);
+      continue;
+    }
+    const existingIndex = indexById.get(stepId);
+    if (existingIndex === undefined) {
+      indexById.set(stepId, output.length);
+      output.push(step);
+    } else {
+      output[existingIndex] = { ...output[existingIndex], ...step };
+    }
+  }
+  return output;
+}
+
+function buildStepTree(steps: ChatResponse["steps"]): StepTreeNode[] {
+  const nodes: StepTreeNode[] = dedupeStepsById(steps).map((step, index) => ({
+    ...step,
+    key: step.stepId || step.code || `step-${index}`,
+    children: [],
+  }));
+  const byId = new Map(nodes.map((node) => [node.stepId || node.code, node]));
+  const roots: StepTreeNode[] = [];
+  for (const node of nodes) {
+    const parent = node.parentStepId ? byId.get(node.parentStepId) : undefined;
+    if (parent && parent !== node) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+}
+
+function isFinishedStep(status: string) {
+  return ["finished", "completed", "success", "succeeded"].includes(status);
 }
 
 function normalizeRecordTime(value: string | number | null | undefined): string | undefined {
@@ -995,10 +1167,12 @@ function submitAskReply(
   if (!response.ask) return;
   if (!response.ask.reportContext) return;
   const mergedParameters = mergeAskParameters(response.ask.parameters ?? [], parameterDrafts, dynamicOptions);
+  const question = type === "confirm_params" ? "确认并生成报告" : summarizeParameterValues(mergedParameters);
   mutate({
     conversationId: response.conversationId,
     chatId: buildChatId(),
     instruction: "generate_report",
+    question,
     reply: {
       type,
       sourceChatId: response.chatId,

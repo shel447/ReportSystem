@@ -78,6 +78,14 @@
   - 固定为 `Record<parameterId, Scalar[]>`
   - 单值参数也使用长度为 1 的数组
 - 参数值三元组正式使用 `{label, value, query}`
+- 动态参数候选项由服务端在报告 ask 生成前解析并写入 `ask.parameters[].options/defaultValue/values`；前端不直接调用 `/parameter-options/resolve`，只按普通参数模型渲染表单。
+
+会话历史 `records[].answers[]` 的展示规则：
+
+- 同一 `Record` 表示一轮对话，前端应把该轮多条 `Answer` 聚合成一个 assistant 内容块。
+- `Answer.type = TEXT` 的内容作为该 assistant 块的文本说明。
+- `Answer.type = PIU` 且 `piuName = ReportGenerationPIU` 时，前端按 `answerTime` 合并 `answers.steps/ask/delta/answer/errors`。
+- 进度使用 `stepId/parentStepId` 构造成层级树；同一 `stepId` 后续状态覆盖前序状态，`running` 显示进行中，完成态显示完成标记。
   - UI 展示默认读 `label`
   - 结构化回填时只提交 `value` 数组，不重复回传完整三元组
 - 回传 `reply.reportContext.templateInstance`

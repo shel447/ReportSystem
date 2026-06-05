@@ -32,6 +32,18 @@ def test_sequential_flow_emits_steps_and_answer():
     assert events[-1].status == "finished"
 
 
+def test_node_can_disable_automatic_lifecycle_steps():
+    def only_business_step(context):
+        context.emit_step(code="business.step", title="业务步骤", status="finished")
+
+    events = InMemoryFlowRuntime().run_sync(SequentialFlow(
+        FlowNode(id="internal.node", handler=only_business_step, emit_lifecycle_step=False),
+    ).to_graph())
+
+    step_codes = [event.step.code for event in events if event.step is not None]
+    assert step_codes == ["business.step"]
+
+
 def test_graph_condition_loop_and_join():
     visited = []
 

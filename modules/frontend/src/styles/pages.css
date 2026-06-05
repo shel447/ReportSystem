@@ -403,6 +403,67 @@
   color: var(--text-secondary);
 }
 
+.step-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-tree--children {
+  margin-top: 8px;
+  margin-left: 24px;
+}
+
+.step-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.step-tree__toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  inline-size: 20px;
+  block-size: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.step-tree__toggle:hover {
+  background: rgba(27, 36, 48, 0.06);
+  color: var(--text-primary);
+}
+
+.step-tree__toggle-spacer {
+  flex: 0 0 20px;
+  inline-size: 20px;
+}
+
+.step-status-icon {
+  flex: 0 0 15px;
+  color: var(--text-muted);
+}
+
+.step-status-icon--running {
+  color: var(--accent-strong);
+}
+
+.step-status-icon--finished {
+  color: #16a34a;
+}
+
 .inline-panel {
   display: grid;
   gap: 8px;
