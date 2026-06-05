@@ -29,7 +29,7 @@ class _Codec:
         return context, payload
 
 
-def _registration(*, key="report", instructions=None, handler=None):
+def _registration(*, key="report", instructions=None, handler=None, keywords=None, examples=None):
     instructions = instructions or {"generate_report", "extract_report_template"}
     return ScenarioRegistration(
         key=key,
@@ -38,8 +38,8 @@ def _registration(*, key="report", instructions=None, handler=None):
         instructions=instructions,
         default_instruction=next(iter(instructions)),
         stateless_instructions={"extract_report_template"} & instructions,
-        keywords={"报告", "日报"},
-        examples={"帮我生成网络日报"},
+        keywords=set(keywords or {"报告", "日报"}),
+        examples=set(examples or {"帮我生成网络日报"}),
         codec=_Codec(),
         handler=handler or _Handler([]),
     )
@@ -128,6 +128,26 @@ def test_unknown_explicit_instruction_is_rejected():
     dispatcher = _dispatcher(_registration())
     with pytest.raises(ValidationError, match="Unsupported instruction"):
         dispatcher.resolve(instruction="unknown", question=None, reply_source_trace=None, previous_trace=None)
+
+
+def test_data_analysis_instruction_is_public_entry_and_query_data_is_not_registered():
+    dispatcher = _dispatcher(
+        _registration(
+            key="data_analysis",
+            instructions={"data_analysis"},
+            keywords={"查询", "统计", "趋势", "分布"},
+            examples={"查询本月设备告警分布"},
+        )
+    )
+    resolution = dispatcher.resolve(instruction="data_analysis", question=None, reply_source_trace=None, previous_trace=None)
+    assert resolution.key == "data_analysis"
+
+    with pytest.raises(ValidationError, match="Unsupported instruction"):
+        dispatcher.resolve(instruction="query_data", question=None, reply_source_trace=None, previous_trace=None)
+
+    recognized = dispatcher.resolve(instruction=None, question="统计核心设备健康评分趋势", reply_source_trace=None, previous_trace=None)
+    assert recognized.key == "data_analysis"
+    assert recognized.instruction == "data_analysis"
 
 
 def test_stateless_instruction_does_not_create_conversation_messages():

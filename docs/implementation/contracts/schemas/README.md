@@ -51,7 +51,7 @@ Report DSL 常用 fragment：
 | 接口或模型 | Request | Response | 使用状态 | 用途与详细文档 |
 |---|---|---|---|---|
 | OneQuery | [onequery.schema.json#/$defs/OneQueryRequest](onequery.schema.json#/$defs/OneQueryRequest) | [onequery.schema.json#/$defs/OneQueryResponse](onequery.schema.json#/$defs/OneQueryResponse) | 契约测试 | 执行 SQL/UQL；见 [外部依赖接口技术契约](../apis/external-dependencies.md#5-onequery) |
-| DATA_ANALYSIS Answer | - | [data-analysis-answer.schema.json](data-analysis-answer.schema.json) | 文档契约 | `query_data` 场景返回给前端的答案模型，不是外部 HTTP 调用 |
+| DATA_ANALYSIS Answer | - | [data-analysis-answer.schema.json](data-analysis-answer.schema.json) | 文档契约 | `data_analysis` 场景返回给前端的答案模型，不是外部 HTTP 调用 |
 
 OneQuery 与 API Dataset 的响应都使用 `retCode/retInfo/data.columns/data.results` 包络，但分别定义在各自 Schema 中。两份契约保持独立可读，并由测试保证同构结构不会漂移。
 

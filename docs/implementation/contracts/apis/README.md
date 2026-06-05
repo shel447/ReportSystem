@@ -295,7 +295,7 @@ X-User-Id: <external-user-id>
 
 - `conversationId`：会话 id
 - `chatId`：当前轮 id
-- `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`；智能问数正式支持 `query_data`
+- `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`；智能问数正式支持 `data_analysis`
 - `reply`：承接对某条追问的结构化答复；业务字段按 instruction 场景定义
 - `report`：仅在外部系统已经识别报告模板并预提取部分根级参数时使用，承载报告场景首次交接载荷（详见 2.2 ChatRequest.report 子结构）
 - `attachments`：仅在 `extract_report_template` 且需要上传原始材料时必填
@@ -304,7 +304,7 @@ X-User-Id: <external-user-id>
 - `question` / `reply` / `report` / `template`：普通 `generate_report` 场景下 `question` 或 `reply` 至少出现一个；携带 `report` 的首次交接请求中 `question` 仍必填；`generate_report_segment` 场景下 `template` 必填，`question` 和 `reply` 不使用
 - `extract_report_template` 用于"从附件、原始文本或自然语言描述中提取模板草案"；其结果是预览态，不直接落库
 - `generate_report_segment` 用于"报告生成完成后，基于编辑后的章节大纲重新生成单个章节"；返回预览结果，不直接更新报告实例
-- `query_data` 用于智能问数；服务端返回结论、QuerySpec、SQL、明细数据和 BI Engine 可视化建议
+- `data_analysis` 用于智能问数；服务端返回结论、QuerySpec、SQL、明细数据和 BI Engine 可视化建议
 - 未传 `instruction` 时，通用对话会结合当前输入和上一轮场景识别业务场景；无法可靠识别时返回 `clarify_scenario`
 
 ##### ChatRequest.reply 子结构
@@ -512,7 +512,7 @@ X-User-Id: <external-user-id>
 - `generate_report_segment`
   - 至少经历 `status -> answer -> done`
   - `answer` 事件承载 `REPORT_SEGMENT`，过程中可承载 `delta`
-- `query_data`
+- `data_analysis`
   - 至少经历 `status -> answer -> done`
   - `answer` 事件承载 `DATA_ANALYSIS`
 - 若中途失败：
@@ -851,7 +851,7 @@ paged Report DSL 示例：
 - `generateMeta` 是章节生成证据，结构与 `reportMeta[sectionId]` 一致
 - 该结果不会自动更新 ReportInstance；后续确认更新接口待设计
 
-`query_data` 时，`answerType` 为 `DATA_ANALYSIS`：
+`data_analysis` 时，`answerType` 为 `DATA_ANALYSIS`：
 
 ```json
 {

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
 from ....infrastructure.platform.http_client import PlatformHttpClient
 from ....infrastructure.platform.runtime import audit_dispatcher, build_platform_client
-from ....shared.agentflow import InMemoryFlowRuntime
+from ....shared.agentflow import InMemoryFlowRuntime, SubflowSpec
 from ..application.scenarios import ScenarioDispatchService, ScenarioRegistry, ScenarioRegistrationProvider
 from ..application.services import ConversationFlowRegistry, ConversationService
 from .agentcore import ExternalConversationHistoryGateway
@@ -27,7 +27,9 @@ def build_conversation_service(
     db: Session,
     *,
     scenario_providers: Iterable[ScenarioRegistrationProvider],
+    subflow_specs: Iterable[SubflowSpec] = (),
 ) -> ConversationService:
+    _register_subflows(subflow_specs)
     registry = ScenarioRegistry()
     for provider in scenario_providers:
         registry.register(provider.registration())
@@ -40,3 +42,11 @@ def build_conversation_service(
         flow_registry=_FLOW_REGISTRY,
         audit_dispatcher=audit_dispatcher,
     )
+
+
+def _register_subflows(specs: Iterable[SubflowSpec]) -> None:
+    for spec in specs:
+        try:
+            _FLOW_RUNTIME.subflow_registry.get(spec.name)
+        except ValueError:
+            _FLOW_RUNTIME.subflow_registry.register(spec)

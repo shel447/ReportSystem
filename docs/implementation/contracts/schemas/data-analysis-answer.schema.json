@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "data-analysis-answer.schema.json",
   "title": "DATA_ANALYSIS Answer",
-  "description": "智能问数 query_data 场景返回给前端的答案模型。该模型不是外部 HTTP 接口。",
+  "description": "智能问数 data_analysis 场景返回给前端的答案模型。该模型不是外部 HTTP 接口。",
   "type": "object",
   "required": ["summary", "querySpec", "sql", "data", "visualizations", "warnings"],
   "properties": {

@@ -42,5 +42,5 @@ def build_data_analysis_service() -> DataAnalysisService:
     )
 
 
-def build_data_analysis_scenario_provider() -> DataAnalysisScenarioRegistrationProvider:
-    return DataAnalysisScenarioRegistrationProvider(service=build_data_analysis_service())
+def build_data_analysis_scenario_provider(service: DataAnalysisService | None = None) -> DataAnalysisScenarioRegistrationProvider:
+    return DataAnalysisScenarioRegistrationProvider(service=service or build_data_analysis_service())

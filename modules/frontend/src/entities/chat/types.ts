@@ -313,7 +313,7 @@ export type ChatRequest = {
   conversationId?: string;
   chatId?: string;
   question?: string;
-  instruction?: "generate_report" | "extract_report_template" | "generate_report_segment" | "query_data";
+  instruction?: "generate_report" | "extract_report_template" | "generate_report_segment" | "data_analysis";
   report?: {
     templateName: string;
     parameters?: TemplateParameter[];
