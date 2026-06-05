@@ -44,14 +44,14 @@ class MetricsSink(Protocol):
     def publish(self, metrics: FlowMetrics) -> None: ...
 
 
-class NoopMetricsSink:
+class NoopMetricsSink(MetricsSink):
     """Default sink used when metrics publishing is not configured."""
 
     def publish(self, metrics: FlowMetrics) -> None:  # pragma: no cover - intentionally empty
         return None
 
 
-class InMemoryMetricsSink:
+class InMemoryMetricsSink(MetricsSink):
     """Test and local-debug sink."""
 
     def __init__(self) -> None:

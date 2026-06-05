@@ -6,10 +6,10 @@ import json
 from typing import Any
 
 from ....shared.kernel.errors import ErrorCode, UpstreamError
-from ..application.ports import HostedAnswer, HostedChat, HostedConversation
+from ..application.ports import ConversationHistoryGateway, HostedAnswer, HostedChat, HostedConversation
 
 
-class ExternalConversationHistoryGateway:
+class ExternalConversationHistoryGateway(ConversationHistoryGateway):
     def __init__(self, *, client, piu_name: str = "ReportGenerationPIU", piu_version: str = "1.0.0") -> None:
         self.client = client
         self.piu_name = piu_name

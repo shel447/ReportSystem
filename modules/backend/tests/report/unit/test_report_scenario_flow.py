@@ -1,7 +1,7 @@
 from src.contexts.conversation.application.scenarios import ScenarioResult
-from src.contexts.conversation.domain.models import ChatContext
+from src.contexts.conversation.domain.models import ScenarioInvocationContext
 from src.contexts.report.application.scenario_models import ReportScenarioCommand
-from src.contexts.report.infrastructure.conversation import ReportConversationScenarioCodec, ReportConversationScenarioHandler
+from src.contexts.report.infrastructure.scenario_registration import ReportScenarioCodec, ReportScenarioHandler
 from src.shared.agentflow import FlowGraph, FlowNode, SequentialFlow
 
 
@@ -11,7 +11,7 @@ class _ReportService:
 
 
 def test_generate_report_uses_flow_dispatch():
-    handler = ReportConversationScenarioHandler(report_service=_ReportService())
+    handler = ReportScenarioHandler(report_service=_ReportService())
     result = handler.handle(
         command=ReportScenarioCommand(
             conversation_id="conv_001",
@@ -28,7 +28,7 @@ def test_generate_report_uses_flow_dispatch():
 
 
 def test_extract_template_uses_unified_flow_entry():
-    handler = ReportConversationScenarioHandler(report_service=_ReportService())
+    handler = ReportScenarioHandler(report_service=_ReportService())
     result = handler.handle(
         command=ReportScenarioCommand(
             conversation_id="",
@@ -44,8 +44,8 @@ def test_extract_template_uses_unified_flow_entry():
 
 
 def test_report_codec_keeps_strict_command_for_flow():
-    command = ReportConversationScenarioCodec().decode(
-        context=ChatContext(
+    command = ReportScenarioCodec().decode(
+        context=ScenarioInvocationContext(
             conversation_id="conv_001",
             chat_id="chat_001",
             user_id="u_001",

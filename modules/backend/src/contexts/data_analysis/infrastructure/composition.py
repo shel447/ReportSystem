@@ -8,13 +8,13 @@ from ....infrastructure.platform.http_client import PlatformHttpClient
 from ....infrastructure.platform.runtime import audit_dispatcher, build_platform_client
 from ....infrastructure.settings.system_settings import build_completion_provider_config
 from ..application.services import DataAnalysisService, DataQueryService
-from .conversation import DataAnalysisScenarioRegistrationProvider
 from .gateways import (
     ExternalApiDatasetGateway,
     ExternalDataCatalogGateway,
     ExternalKnowledgeGateway,
     ExternalOneQueryGateway,
 )
+from .scenario_registration import DataAnalysisScenarioRegistrationProvider
 
 
 def _client(*, service_key: str | None = None) -> PlatformHttpClient:

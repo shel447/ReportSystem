@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from ....shared.kernel.errors import ValidationError
+from ..application.interfaces import ParameterOptionsResolver
 from .external_business import ExternalBusinessGateway
 from .template_schema import validate_parameter_option_source_response
 
 
-class ParameterOptionsGateway:
+class ParameterOptionsGateway(ParameterOptionsResolver):
     """通过正式 HTTP 契约调用动态候选源。"""
 
     def __init__(self, *, gateway: ExternalBusinessGateway | None = None) -> None:

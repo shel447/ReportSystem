@@ -8,10 +8,11 @@ from typing import Any
 from ....infrastructure.platform.cache import MemoryTtlCache, platform_cache
 from ....shared.agentflow.metrics import record_unique_metric
 from ....shared.kernel.errors import ErrorCode, UpstreamError
+from ..application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
 from ..domain.models import DatasetColumn, DatasetResult
 
 
-class ExternalOneQueryGateway:
+class ExternalOneQueryGateway(OneQueryGateway):
     def __init__(self, *, client) -> None:
         self.client = client
 
@@ -51,7 +52,7 @@ class ExternalOneQueryGateway:
         )
 
 
-class ExternalApiDatasetGateway:
+class ExternalApiDatasetGateway(ApiDatasetGateway):
     def __init__(self, *, client) -> None:
         self.client = client
 
@@ -87,7 +88,7 @@ class ExternalApiDatasetGateway:
         )
 
 
-class ExternalDataCatalogGateway:
+class ExternalDataCatalogGateway(DataCatalogGateway):
     def __init__(self, *, client, cache: MemoryTtlCache | None = None) -> None:
         self.client = client
         self.cache = cache or platform_cache
@@ -162,7 +163,7 @@ class ExternalDataCatalogGateway:
         return result
 
 
-class ExternalKnowledgeGateway:
+class ExternalKnowledgeGateway(KnowledgeGateway):
     def __init__(self, *, client, cache: MemoryTtlCache | None = None) -> None:
         self.client = client
         self.cache = cache or platform_cache

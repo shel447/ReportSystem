@@ -8,6 +8,7 @@ from pathlib import Path
 from ....infrastructure.exporter.java_office import JavaOfficeExporterGateway
 from ....shared.kernel.errors import ValidationError
 from ....shared.kernel.paths import generated_documents_dir
+from ..application.interfaces import DocumentExportGateway
 from ..application.generation_models import DownloadResolution, DocumentView, GeneratedArtifact, document_view_from_artifact
 from ..domain.generation_models import DocumentArtifact, ReportDsl, report_dsl_to_dict
 
@@ -25,7 +26,7 @@ EXTENSIONS = {
 }
 
 
-class ReportDocumentGateway:
+class ReportDocumentGateway(DocumentExportGateway):
     """隔离文稿导出与办公文档导出后端的文档适配器。"""
 
     def __init__(self, *, office_exporter: JavaOfficeExporterGateway | None = None) -> None:

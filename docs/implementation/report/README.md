@@ -28,7 +28,7 @@
 
 ## 依赖边界
 
-- `conversation` 拥有场景注册协议；report 在 `contexts/report/infrastructure/conversation.py` 中提供 `ReportScenarioRegistrationProvider`，把 report 自己的 codec、handler、instruction 和识别信息封装为 conversation 能理解的注册信息。
+- `conversation` 拥有场景注册协议；report 在 `contexts/report/infrastructure/scenario_registration.py` 中提供 `ReportScenarioRegistrationProvider`，把 report 自己的 codec、handler、instruction 和识别信息封装为 conversation 能理解的注册信息。
 - `ReportService.chat()` 是 report 场景进入报告流程的统一入口；所有报告场景均返回可执行 Flow，不再保留同步/流式两套入口。
 - report 如需动态参数、Schema 校验、数据查询和文档导出，只依赖 report application 声明的 `ParameterOptionsResolver`、`ReportSchemaValidator`、`DatasetQueryGateway`、`DocumentExportGateway` 等接口；HTTP、JSON Schema 和 Java exporter 只是这些接口的 infrastructure 实现。
 - `report` 可接入 `data_analysis` 的查询能力，但接口 owner 是 report 自己声明的 `DatasetQueryGateway`；装配层只接线，不解释查询业务语义。

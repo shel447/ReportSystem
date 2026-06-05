@@ -18,8 +18,8 @@ class ScenarioTrace:
 
 
 @dataclass(slots=True)
-class ChatContext:
-    """通用对话上下文，不承载任何具体业务场景的领域对象。"""
+class ScenarioInvocationContext:
+    """场景接入上下文，不承载任何具体业务场景的领域对象。"""
 
     conversation_id: str
     chat_id: str

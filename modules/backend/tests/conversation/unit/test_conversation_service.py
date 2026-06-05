@@ -24,7 +24,7 @@ from src.contexts.conversation.application.services import ConversationFlowRegis
 from src.contexts.report.application.scenario_models import ReportContext, ReportReplyPayload
 from src.contexts.report.application.scenario_service import ReportScenarioService, missing_required_parameters
 from src.contexts.conversation.application.scenarios import ScenarioDispatchService, ScenarioRegistry
-from src.contexts.report.infrastructure.conversation import ReportScenarioRegistrationProvider
+from src.contexts.report.infrastructure.scenario_registration import ReportScenarioRegistrationProvider
 from src.contexts.report.domain.generation_models import (
     ParameterConfirmation,
     ReportBasicInfo,

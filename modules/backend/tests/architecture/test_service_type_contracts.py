@@ -3,15 +3,33 @@ from typing import get_type_hints
 
 from src.contexts.conversation.application.models import ChatCommand, ChatResponse
 from src.contexts.conversation.application.services import ConversationService
-from src.contexts.conversation.application.ports import HostedChat
+from src.contexts.conversation.application.ports import ConversationHistoryGateway, HostedChat
 from src.contexts.conversation.infrastructure.agentcore import ExternalConversationHistoryGateway
+from src.contexts.conversation.application.scenarios import ScenarioCodec, ScenarioHandler, ScenarioRegistrationProvider
+from src.contexts.data_analysis.application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
+from src.contexts.data_analysis.infrastructure.gateways import (
+    ExternalApiDatasetGateway,
+    ExternalDataCatalogGateway,
+    ExternalKnowledgeGateway,
+    ExternalOneQueryGateway,
+)
+from src.contexts.data_analysis.infrastructure.scenario_registration import DataAnalysisScenarioCodec, DataAnalysisScenarioHandler, DataAnalysisScenarioRegistrationProvider
 from src.contexts.report.application.generation_models import ReportAnswerView, ReportView
+from src.contexts.report.application.interfaces import DocumentExportGateway, ParameterOptionsResolver, ReportSchemaValidator
 from src.contexts.report.application.generation_service import ReportGenerationService
 from src.contexts.report.application.report_service import ReportService
 from src.contexts.report.application.template_models import TemplateImportPreview
 from src.contexts.report.application.template_service import ReportTemplateService
 from src.contexts.report.domain.template_models import ReportTemplate
+from src.contexts.report.infrastructure.documents import ReportDocumentGateway
+from src.contexts.report.infrastructure.parameter_options import ParameterOptionsGateway
+from src.contexts.report.infrastructure.scenario_registration import ReportScenarioCodec, ReportScenarioHandler, ReportScenarioRegistrationProvider
+from src.contexts.report.infrastructure.template_schema import ReportDslSchemaGateway
 from src.contexts.report.infrastructure.template_repositories import SqlAlchemyTemplateManagementRepository
+from src.infrastructure.platform.guardrail import ExternalGuardrailGateway
+from src.shared.agentflow.checkpoints import CheckpointSaver, InMemoryCheckpointSaver
+from src.shared.agentflow.metrics import InMemoryMetricsSink, MetricsSink, NoopMetricsSink
+from src.shared.kernel.safety import GuardrailGateway
 
 
 class ServiceTypeContractTests(unittest.TestCase):
@@ -48,6 +66,32 @@ class ServiceTypeContractTests(unittest.TestCase):
         self.assertIs(chat_hints["data"], ChatCommand)
         self.assertIs(chat_hints["return"], ChatResponse)
         self.assertIs(import_hints["chat"], HostedChat)
+
+    def test_infrastructure_adapters_explicitly_inherit_owned_protocols(self):
+        pairs = [
+            (ExternalConversationHistoryGateway, ConversationHistoryGateway),
+            (ExternalGuardrailGateway, GuardrailGateway),
+            (ExternalOneQueryGateway, OneQueryGateway),
+            (ExternalApiDatasetGateway, ApiDatasetGateway),
+            (ExternalDataCatalogGateway, DataCatalogGateway),
+            (ExternalKnowledgeGateway, KnowledgeGateway),
+            (ReportScenarioCodec, ScenarioCodec),
+            (ReportScenarioHandler, ScenarioHandler),
+            (ReportScenarioRegistrationProvider, ScenarioRegistrationProvider),
+            (DataAnalysisScenarioCodec, ScenarioCodec),
+            (DataAnalysisScenarioHandler, ScenarioHandler),
+            (DataAnalysisScenarioRegistrationProvider, ScenarioRegistrationProvider),
+            (ParameterOptionsGateway, ParameterOptionsResolver),
+            (ReportDslSchemaGateway, ReportSchemaValidator),
+            (ReportDocumentGateway, DocumentExportGateway),
+            (InMemoryCheckpointSaver, CheckpointSaver),
+            (NoopMetricsSink, MetricsSink),
+            (InMemoryMetricsSink, MetricsSink),
+        ]
+
+        for implementation, protocol in pairs:
+            with self.subTest(implementation=implementation.__name__, protocol=protocol.__name__):
+                self.assertIn(protocol, implementation.__mro__)
 
 
 if __name__ == "__main__":

@@ -11,7 +11,7 @@ from src.contexts.conversation.application.scenarios import (
 from src.contexts.conversation.application.models import ChatCommand
 from src.contexts.conversation.application.ports import GuardrailResult
 from src.contexts.conversation.application.services import ConversationService
-from src.contexts.conversation.domain.models import ChatContext, ScenarioTrace
+from src.contexts.conversation.domain.models import ScenarioInvocationContext, ScenarioTrace
 from src.shared.kernel.errors import ValidationError
 
 
@@ -25,7 +25,7 @@ class _Handler:
 
 
 class _Codec:
-    def decode(self, *, context: ChatContext, payload: dict):
+    def decode(self, *, context: ScenarioInvocationContext, payload: dict):
         return context, payload
 
 
@@ -112,7 +112,7 @@ def test_local_recognizer_matches_report_and_unmatched_returns_clarification():
     assert unmatched.key is None
     result = dispatcher.dispatch(
         resolution=unmatched,
-        context=ChatContext(
+        context=ScenarioInvocationContext(
             conversation_id="conv_001",
             chat_id="chat_001",
             user_id="default",

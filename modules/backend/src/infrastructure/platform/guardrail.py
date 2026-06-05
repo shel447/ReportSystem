@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ...shared.kernel.safety import GuardrailResult
+from ...shared.kernel.safety import GuardrailGateway, GuardrailResult
 
 
-class ExternalGuardrailGateway:
+class ExternalGuardrailGateway(GuardrailGateway):
     def __init__(self, *, client) -> None:
         self.client = client
 

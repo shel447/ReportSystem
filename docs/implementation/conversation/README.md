@@ -14,7 +14,7 @@ conversation 自己维护运行中业务索引：启动 Flow 后记录 `chatId/c
 
 - 通过 AgentCore 创建、读取和归档会话。
 - 使用 `chat/import` 的 upsert 语义更新已消费追问。
-- 创建 `ChatContext`，承载当前会话、消息、用户、instruction、问题、答复和请求元信息。
+- 创建 `ScenarioInvocationContext`，承载当前会话、消息、用户、instruction、问题、答复和请求元信息。
 - 按 `reply.sourceChatId` 精确消费一条 `pending` 追问，并将其状态更新为 `replied`。
 - 对同步场景直接返回 `ChatResponse`。
 - 对 Flow 场景启动 `InMemoryFlowRuntime`，按顺序输出 `status / step_delta / delta / ask / answer / error / done`。
@@ -44,7 +44,7 @@ conversation 自己维护运行中业务索引：启动 Flow 后记录 `chatId/c
 4. 无法延续时，由统一识别器根据所有注册场景的声明做本地可解释评分。
 5. 仍无法可靠识别时，返回通用 `clarify_scenario` 追问。
 
-第一版识别器不调用外部模型；后续可通过语义匹配接口接入 embedding 或 LLM。conversation 只拥有场景注册协议，不拥有报告或智能问数的业务语义；报告场景由 `contexts/report/infrastructure/conversation.py` 提供 registration provider，智能问数场景由 `contexts/data_analysis/infrastructure/conversation.py` 提供 registration provider。参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report/generation.md)。
+第一版识别器不调用外部模型；后续可通过语义匹配接口接入 embedding 或 LLM。conversation 只拥有场景注册协议，不拥有报告或智能问数的业务语义；报告场景由 `contexts/report/infrastructure/scenario_registration.py` 提供 registration provider，智能问数场景由 `contexts/data_analysis/infrastructure/scenario_registration.py` 提供 registration provider。参数提取、补参、诉求确认、模板实例更新和报告冻结的实现规则见 [报告生成实现](../report/generation.md)。
 
 场景 handler 可以返回一次性 `ScenarioResult`，也可以返回 Flow。返回 Flow 时，conversation 不理解业务节点，只消费公共事件。
 
@@ -61,7 +61,7 @@ Agent Flow 还提供工具调用、提示词组装、节点 hook、checkpoint、
 
 ## 5. 上下文与严格模型
 
-`ChatContext` 只包含所有场景都能理解的公共信息：
+`ScenarioInvocationContext` 只包含所有场景都能理解的公共信息：
 
 - `conversationId/chatId/userId`
 - `instruction/question`
@@ -72,7 +72,7 @@ Agent Flow 还提供工具调用、提示词组装、节点 hook、checkpoint、
 
 原始 JSON map 只允许在 HTTP 解析、数据库序列化和场景 codec 解码的短暂边界存在。dispatcher 调用 codec 后，业务 handler 必须只接收本场景的严格 command。
 
-`ChatContext` 不持有 `Parameter`、`TemplateInstance` 或 `ReportDsl`。未来智能问数等场景应定义自己的严格 ask/reply 扩展，并复用相同的追问生命周期。
+`ScenarioInvocationContext` 不持有 `Parameter`、`TemplateInstance` 或 `ReportDsl`。未来智能问数等场景应定义自己的严格 ask/reply 扩展，并复用相同的追问生命周期。
 
 ## 6. 持久化边界
 

@@ -11,6 +11,10 @@ class OneQueryGateway(Protocol):
     def execute(self, *, query: str, context: dict[str, Any], user_id: str) -> DatasetResult: ...
 
 
+class ApiDatasetGateway(Protocol):
+    def execute(self, *, source: str, payload: dict[str, Any], user_id: str) -> DatasetResult: ...
+
+
 class DataCatalogGateway(Protocol):
     def list_logical_entities(self, *, user_id: str) -> list[dict[str, Any]]: ...
 

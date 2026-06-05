@@ -30,7 +30,7 @@ class CheckpointSaver(Protocol):
     def latest(self, run_id: str) -> FlowCheckpoint | None: ...
 
 
-class InMemoryCheckpointSaver:
+class InMemoryCheckpointSaver(CheckpointSaver):
     """单进程内存 checkpoint 保存器。"""
 
     def __init__(self) -> None:

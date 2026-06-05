@@ -14,7 +14,7 @@ from src.contexts.report.application.scenario_models import (
 )
 from src.contexts.report.application.scenario_service import ReportScenarioService
 from src.contexts.report.application.template_service import ReportTemplateService
-from src.contexts.conversation.domain.models import ChatContext
+from src.contexts.conversation.domain.models import ScenarioInvocationContext
 from src.contexts.report.domain.generation_models import (
     GridDefinition,
     ReportBasicInfo,
@@ -22,7 +22,7 @@ from src.contexts.report.domain.generation_models import (
     ReportLayout,
 )
 from src.contexts.report.domain.template_models import report_template_from_dict
-from src.contexts.report.infrastructure.conversation import ReportConversationScenarioCodec
+from src.contexts.report.infrastructure.scenario_registration import ReportScenarioCodec
 from src.shared.agentflow import InMemoryFlowRuntime
 from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
 
@@ -413,8 +413,8 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
                 report_bootstrap_request_from_dict(payload)
 
         with self.assertRaises(ValidationError):
-            ReportConversationScenarioCodec().decode(
-                context=ChatContext(
+            ReportScenarioCodec().decode(
+                context=ScenarioInvocationContext(
                     conversation_id="conv_001",
                     chat_id="chat_001",
                     user_id="user_001",

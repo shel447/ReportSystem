@@ -9,12 +9,13 @@ from ....shared.kernel.errors import ErrorCode, ValidationError
 from ....shared.kernel.audit import AuditEvent
 from ....shared.kernel.safety import GuardrailGateway
 from ..domain.models import DataAnalysisAnswer, DatasetResult, QuerySpec
+from .ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
 
 
 class DataQueryService:
     """Shared SQL/API query execution used by reports and interactive analysis."""
 
-    def __init__(self, *, onequery_gateway, api_gateway=None) -> None:
+    def __init__(self, *, onequery_gateway: OneQueryGateway, api_gateway: ApiDatasetGateway | None = None) -> None:
         self.onequery_gateway = onequery_gateway
         self.api_gateway = api_gateway
 
@@ -36,8 +37,8 @@ class DataAnalysisService:
         self,
         *,
         query_service: DataQueryService,
-        data_catalog_gateway,
-        knowledge_gateway,
+        data_catalog_gateway: DataCatalogGateway,
+        knowledge_gateway: KnowledgeGateway,
         guardrail_gateway: GuardrailGateway,
         ai_gateway,
         completion_config_builder,

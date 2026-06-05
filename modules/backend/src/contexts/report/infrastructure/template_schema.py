@@ -10,6 +10,7 @@ from typing import Any
 from jsonschema import Draft202012Validator, RefResolver
 
 from src.shared.kernel.paths import project_root
+from ..application.interfaces import ReportSchemaValidator
 
 
 CONTRACTS_ROOT = project_root() / "docs" / "implementation" / "contracts"
@@ -112,7 +113,7 @@ def validate_parameter_option_source_response(payload: dict[str, Any]) -> dict[s
     return candidate
 
 
-class ReportDslSchemaGateway:
+class ReportDslSchemaGateway(ReportSchemaValidator):
     """集中校验完整 Report DSL 与外部 custom 片段。"""
 
     def validate_template_instance(self, payload: dict[str, Any]) -> dict[str, Any]:

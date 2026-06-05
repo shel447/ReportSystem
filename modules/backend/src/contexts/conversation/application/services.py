@@ -10,7 +10,7 @@ from ....shared.kernel.errors import ConflictError, ErrorCode, NotFoundError, Un
 from ....shared.kernel.audit import AuditEvent
 from ....shared.agentflow import FlowEvent, FlowStep, InMemoryFlowRuntime
 from ..domain.models import (
-    ChatContext,
+    ScenarioInvocationContext,
     ScenarioTrace,
     scenario_trace_from_dict,
     scenario_trace_to_dict,
@@ -533,8 +533,8 @@ class ConversationService:
             return
 
 
-def _build_context(*, data: ChatCommand, user_id: str, chat_id: str, resolution, previous_trace=None, conversation_id: str | None = None) -> ChatContext:
-    return ChatContext(
+def _build_context(*, data: ChatCommand, user_id: str, chat_id: str, resolution, previous_trace=None, conversation_id: str | None = None) -> ScenarioInvocationContext:
+    return ScenarioInvocationContext(
         conversation_id=conversation_id if conversation_id is not None else data.conversation_id or "",
         chat_id=chat_id,
         user_id=user_id,

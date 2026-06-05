@@ -143,6 +143,19 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         violations = [str(item.relative_to(ROOT)) for item in path.rglob("*.py")] if path.exists() else []
         self.assertEqual([], violations, "\n".join(violations))
 
+    def test_business_scenario_registration_uses_neutral_names(self):
+        violations: list[str] = []
+        for context in BUSINESS_CONTEXTS - {"conversation"}:
+            root = ROOT / "contexts" / context / "infrastructure"
+            for path in root.rglob("*.py"):
+                relative = str(path.relative_to(ROOT))
+                if path.name in {"conversation.py", "chat.py"}:
+                    violations.append(relative)
+                source = path.read_text(encoding="utf-8-sig")
+                if "ConversationScenario" in source or "ChatScenario" in source:
+                    violations.append(f"{relative}: class or symbol contains ConversationScenario/ChatScenario")
+        self.assertEqual([], violations, "\n".join(violations))
+
     def test_global_dependency_builder_only_collects_context_composition_builders(self):
         path = ROOT / "infrastructure" / "dependencies.py"
         violations: list[str] = []
@@ -159,11 +172,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_context_infrastructure_does_not_import_other_context_application_or_domain(self):
         allowed = {
-            "contexts/report/infrastructure/conversation.py": (
+            "contexts/report/infrastructure/scenario_registration.py": (
                 "backend.contexts.conversation.application.scenarios",
                 "backend.contexts.conversation.domain.models",
             ),
-            "contexts/data_analysis/infrastructure/conversation.py": (
+            "contexts/data_analysis/infrastructure/scenario_registration.py": (
                 "backend.contexts.conversation.application.scenarios",
                 "backend.contexts.conversation.domain.models",
             ),

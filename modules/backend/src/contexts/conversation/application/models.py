@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..domain.models import (
-    ChatContext,
     ConversationMessageAction,
     ConversationMessageContent,
     ConversationMessageMeta,

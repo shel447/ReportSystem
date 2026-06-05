@@ -17,7 +17,6 @@ from ..application.report_service import ReportService
 from ..application.scenario_service import ReportScenarioService
 from ..application.template_service import ReportTemplateService
 from ..domain.report_dsl_compiler import ReportDslCompiler
-from .conversation import ReportScenarioRegistrationProvider
 from .custom_content import CustomContentGateway
 from .documents import ReportDocumentGateway
 from .external_business import ExternalBusinessGateway
@@ -29,6 +28,7 @@ from .generation_repositories import (
     SqlAlchemyTemplateInstanceRepository,
 )
 from .parameter_options import ParameterOptionsGateway
+from .scenario_registration import ReportScenarioRegistrationProvider
 from .template_repositories import SqlAlchemyTemplateManagementRepository, TemplateSchemaGateway
 from .template_schema import ReportDslSchemaGateway
 

@@ -1,24 +1,31 @@
-"""Data-analysis scenario registration provider for the conversation context."""
+"""Data-analysis scenario registration provider."""
 
 from __future__ import annotations
 
-from ...conversation.application.scenarios import ScenarioAnswerProjection, ScenarioRegistration, ScenarioResult
-from ...conversation.domain.models import ChatContext
+from ...conversation.application.scenarios import (
+    ScenarioAnswerProjection,
+    ScenarioCodec,
+    ScenarioHandler,
+    ScenarioRegistration,
+    ScenarioRegistrationProvider,
+    ScenarioResult,
+)
+from ...conversation.domain.models import ScenarioInvocationContext
 from ..domain.models import data_analysis_answer_to_dict
 
 
-class DataAnalysisScenarioCodec:
-    def decode(self, *, context: ChatContext, payload: dict) -> ChatContext:
+class DataAnalysisScenarioCodec(ScenarioCodec):
+    def decode(self, *, context: ScenarioInvocationContext, payload: dict) -> ScenarioInvocationContext:
         return context
 
 
-class DataAnalysisScenarioHandler:
+class DataAnalysisScenarioHandler(ScenarioHandler):
     def __init__(self, *, service) -> None:
         self.service = service
 
     def handle(self, *, command: object) -> ScenarioResult:
-        if not isinstance(command, ChatContext):
-            raise TypeError("data analysis scenario requires ChatContext")
+        if not isinstance(command, ScenarioInvocationContext):
+            raise TypeError("data analysis scenario requires ScenarioInvocationContext")
         answer = self.service.query_data(question=str(command.question or ""), user_id=command.user_id)
         return ScenarioResult(
             status="finished",
@@ -26,7 +33,7 @@ class DataAnalysisScenarioHandler:
         )
 
 
-class DataAnalysisScenarioRegistrationProvider:
+class DataAnalysisScenarioRegistrationProvider(ScenarioRegistrationProvider):
     def __init__(self, *, service) -> None:
         self.service = service
 

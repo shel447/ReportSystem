@@ -8,7 +8,7 @@ from typing import Any, Protocol
 
 from ....shared.kernel.errors import ValidationError
 from ....shared.agentflow import FlowGraph
-from ..domain.models import ChatContext, ScenarioTrace
+from ..domain.models import ScenarioInvocationContext, ScenarioTrace
 
 
 @dataclass(slots=True)
@@ -50,7 +50,7 @@ class ScenarioHandler(Protocol):
 class ScenarioCodec(Protocol):
     """把短暂存在于对话入口的原始字段解码为场景自己的严格命令。"""
 
-    def decode(self, *, context: ChatContext, payload: dict[str, Any]) -> object: ...
+    def decode(self, *, context: ScenarioInvocationContext, payload: dict[str, Any]) -> object: ...
 
 
 class ScenarioRegistrationProvider(Protocol):
@@ -233,7 +233,7 @@ class ScenarioDispatchService:
         registration = self.registry.get(resolution.key)
         return bool(registration and resolution.instruction in registration.stateless_instructions)
 
-    def dispatch(self, *, resolution: ScenarioResolution, context: ChatContext, payload: dict[str, Any]) -> ScenarioResult:
+    def dispatch(self, *, resolution: ScenarioResolution, context: ScenarioInvocationContext, payload: dict[str, Any]) -> ScenarioResult:
         registration = self.registry.get(resolution.key)
         if registration is None:
             return ScenarioResult(

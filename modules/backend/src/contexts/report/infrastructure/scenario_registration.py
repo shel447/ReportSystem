@@ -1,26 +1,26 @@
-"""Report scenario registration provider for the conversation context."""
+"""Report scenario registration provider."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from ...conversation.application.scenarios import (
+    ScenarioCodec,
+    ScenarioHandler,
     ScenarioRegistration,
     ScenarioRegistrationProvider,
     ScenarioResult,
 )
-from ...conversation.domain.models import ChatContext
+from ...conversation.domain.models import ScenarioInvocationContext
 from ..application.scenario_models import (
     ReportScenarioCommand,
-    report_ask_payload_to_dict,
     report_bootstrap_request_from_dict,
     report_reply_payload_from_dict,
-    report_scenario_answer_to_dict,
     report_segment_request_from_dict,
 )
 
 
-class ReportConversationScenarioHandler:
+class ReportScenarioHandler(ScenarioHandler):
     """Execute decoded report scenario commands through the report application entry."""
 
     def __init__(self, *, report_service) -> None:
@@ -32,10 +32,10 @@ class ReportConversationScenarioHandler:
         return ScenarioResult(status="running", flow=self.report_service.chat(command=command))
 
 
-class ReportConversationScenarioCodec:
-    """Decode generic chat payload into a strict report scenario command."""
+class ReportScenarioCodec(ScenarioCodec):
+    """Decode generic scenario payload into a strict report scenario command."""
 
-    def decode(self, *, context: ChatContext, payload: dict[str, Any]) -> ReportScenarioCommand:
+    def decode(self, *, context: ScenarioInvocationContext, payload: dict[str, Any]) -> ReportScenarioCommand:
         reply_payload = payload.get("reply") if isinstance(payload.get("reply"), dict) else None
         bootstrap = report_bootstrap_request_from_dict(payload.get("report"))
         if bootstrap is not None and reply_payload is not None:
@@ -55,8 +55,8 @@ class ReportConversationScenarioCodec:
         )
 
 
-class ReportScenarioRegistrationProvider:
-    """Report-owned implementation of conversation scenario registration."""
+class ReportScenarioRegistrationProvider(ScenarioRegistrationProvider):
+    """Report-owned implementation of scenario registration."""
 
     def __init__(self, *, report_service) -> None:
         self.report_service = report_service
@@ -72,6 +72,6 @@ class ReportScenarioRegistrationProvider:
             keywords={"报告", "日报", "周报", "月报", "生成报告"},
             examples={"生成本月网络运行分析报告", "帮我做一份总部网络日报"},
             supports_continuation=True,
-            codec=ReportConversationScenarioCodec(),
-            handler=ReportConversationScenarioHandler(report_service=self.report_service),
+            codec=ReportScenarioCodec(),
+            handler=ReportScenarioHandler(report_service=self.report_service),
         )

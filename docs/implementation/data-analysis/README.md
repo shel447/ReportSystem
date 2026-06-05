@@ -9,6 +9,7 @@
 - domain：`QuerySpec`、数据列、查询结果、知识上下文、可视化建议和 `DATA_ANALYSIS` 答案。
 - application：编排 DataCatalog、Knowledge、LLM、SQL 安全检查、OneQuery 和可视化建议；定义外部能力 ports。
 - infrastructure：屏蔽外部接口路径、报文和错误码差异。
+- 场景接入：`infrastructure/scenario_registration.py` 只实现 conversation 拥有的场景注册协议，不承载会话或聊天业务语义。
 
 ## 3. 智能问数流程
 
