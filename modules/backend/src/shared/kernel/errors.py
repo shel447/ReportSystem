@@ -15,6 +15,7 @@ class ErrorCode:
     BASE_PARAM_INVALID = "chatbi.base.param.invalid"
     BASE_OVERTIME = "chatbi.base.overtime"
     BASE_AUTH_REQUIRED = "chatbi.base.auth.required"
+    BASE_PERMISSION_DENIED = "chatbi.base.permission.denied"
     BASE_RESOURCE_NOT_FOUND = "chatbi.base.resource.not_found"
     BASE_RESOURCE_CONFLICT = "chatbi.base.resource.conflict"
     BASE_CAPABILITY_UNSUPPORTED = "chatbi.base.capability.unsupported"
@@ -112,6 +113,13 @@ class ValidationError(ApplicationError):
     error_code = ErrorCode.BASE_PARAM_INVALID
     category = "param"
     http_status = 400
+
+
+class PermissionDeniedError(ApplicationError):
+    error_code = ErrorCode.BASE_PERMISSION_DENIED
+    category = "auth"
+    retryable = False
+    http_status = 403
 
 
 class NotFoundError(ApplicationError):

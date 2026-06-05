@@ -9,6 +9,7 @@ flowchart LR
     client["前端与业务调用方"]
     identity["外部用户管理与网关<br/>认证、授权、注入可信身份"]
     reportSystem["ReportSystem<br/>模板、对话、报告生成与报告管理"]
+    policy["Policy Authentication<br/>平台接口鉴权"]
     llm["OpenAI Compatible 服务"]
     parameterSource["动态参数数据源"]
     customSource["Dynamic Custom 内容源"]
@@ -23,6 +24,7 @@ flowchart LR
 
     client -->|"登录与业务请求"| identity
     identity -->|"REST / SSE<br/>X-User-Id"| reportSystem
+    reportSystem -->|"GET /rest/dte/smartbi/v1/proxy/auth/chat<br/>透传请求头"| policy
     reportSystem -->|"/chat/completions<br/>/embeddings"| llm
     reportSystem -->|"POST 模板 parameter.source"| parameterSource
     reportSystem -->|"POST 模板 dynamic.custom.url"| customSource
@@ -47,6 +49,8 @@ X-User-Id: <external-user-id>
 ```
 
 缺失或空白身份返回 `401`。ReportSystem 将该值作为不透明归属键，不提供用户管理接口，也不保存用户资料。部署时网关必须丢弃客户端伪造的同名 Header，并在认证成功后重新写入可信值。模板是平台共享资产，其写权限由上游统一授权。
+
+正式业务接口还会在进入业务逻辑前调用平台接口鉴权。鉴权不通过时返回 `403 chatbi.base.permission.denied`，提示“没有操作权限”。开发辅助接口 `/rest/dev/*`、前端静态资源和 SPA 页面不纳入该鉴权。
 
 | 接口分组 | 方法与路径 | 用途 |
 |---|---|---|
@@ -84,6 +88,7 @@ X-User-Id: <external-user-id>
 |---|---|---|---|
 | OpenAI Compatible 对话 | `POST {baseUrl}/chat/completions` | 模板识别、参数提取、诉求整理和内容生成 | 已实现，地址由系统设置提供 |
 | OpenAI Compatible 向量化 | `POST {baseUrl}/embeddings` | 模板语义索引和召回 | 已实现，地址由系统设置提供 |
+| Policy Authentication | `GET /rest/dte/smartbi/v1/proxy/auth/chat` | 公开业务接口进入业务逻辑前鉴权 | 已实现 |
 | Parameter Options 数据源 | `POST {parameter.source}` | 解析动态参数候选项 | 已实现，地址由模板声明 |
 | Dynamic Custom 内容源 | `POST {dynamic.custom.url}` | 获取目录、章节或组件 DSL 片段 | 已实现，地址由模板声明 |
 | API 查询数据源 | `POST {externalBusinessBaseUrl}{dataset.source}` | 根据模板声明的 `/rest/...` 地址查询报告数据 | 已定义正式协议 |
@@ -146,6 +151,7 @@ X-User-Id: <external-user-id>
 | `chatbi.base.unknown` | 500 | 未预先识别的兜底错误 |
 | `chatbi.base.param.invalid` | 400 | 请求参数校验失败 |
 | `chatbi.base.auth.required` | 401 | 缺少可信用户身份 |
+| `chatbi.base.permission.denied` | 403 | 当前用户没有操作权限 |
 | `chatbi.base.resource.not_found` | 404 | 资源不存在或无权访问 |
 | `chatbi.base.resource.conflict` | 409 | 资源状态冲突 |
 | `chatbi.base.overtime` | 504 | 系统处理或外部调用超时 |

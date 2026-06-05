@@ -28,6 +28,15 @@ def test_guardrail_protocols_use_formal_naie_paths_only():
     assert client.post("/rest/naie/guardrail/v1/application-sec/check", json={"kind": "sql", "content": "select 1"}).json()["status"] is False
 
 
+def test_policy_authentication_protocol():
+    assert client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-User-Id": "user_001"}).json() == {"allowed": True}
+    denied = client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-Mock-Scenario": "deny"}).json()
+    assert denied["allowed"] is False
+    assert denied["errorCode"] == "naie.priv.permission.denied"
+    assert client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-Mock-Scenario": "error"}).status_code == 500
+    assert client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-Mock-Scenario": "timeout"}).status_code == 504
+
+
 def test_header_scenarios_are_request_scoped():
     assert client.post("/rest/datasets/availability-trend", headers={"X-Mock-Scenario": "empty"}, json={}).json()["data"]["results"] == []
     assert client.post("/rest/datasets/availability-trend", headers={"X-Mock-Scenario": "business-error"}, json={}).json() == {

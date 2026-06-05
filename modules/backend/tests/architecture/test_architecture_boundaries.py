@@ -2,6 +2,11 @@ import ast
 import unittest
 from pathlib import Path
 
+from fastapi.routing import APIRoute
+
+from src.main import CHATBI_PREFIX, create_app
+from src.shared.kernel.policy_auth import get_policy_auth_metadata
+
 MODULE_ROOT = Path(__file__).resolve().parents[2]
 ROOT = MODULE_ROOT / "src"
 ROUTERS_DIR = ROOT / "routers"
@@ -235,6 +240,19 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             ):
                 if forbidden in source:
                     violations.append(f"{name}: references {forbidden}")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_every_public_business_route_declares_policy_auth_metadata(self):
+        app = create_app()
+        violations: list[str] = []
+        for route in app.routes:
+            if not isinstance(route, APIRoute):
+                continue
+            if not route.path.startswith(CHATBI_PREFIX):
+                continue
+            if get_policy_auth_metadata(route.endpoint) is None:
+                methods = ",".join(sorted(route.methods or []))
+                violations.append(f"{methods} {route.path}")
         self.assertEqual([], violations, "\n".join(violations))
 
 

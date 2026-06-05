@@ -11,6 +11,7 @@ from .audit import AsyncAuditDispatcher, ExternalAuditGateway
 from .cache import platform_cache
 from .configuration import ExternalMetadataSyncGateway, ExternalNodeAgentGateway, RuntimeConfigurationStore
 from .http_client import ExternalServiceConfig, PlatformHttpClient
+from .policy_auth import ExternalPolicyAuthenticationGateway
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_PLATFORM_BASE_URL = "http://127.0.0.1:8310"
@@ -23,6 +24,10 @@ def build_platform_client(*, service_key: str | None = None) -> PlatformHttpClie
             timeout_seconds=float(os.getenv("REPORT_EXTERNAL_TIMEOUT_SECONDS") or 10),
         )
     )
+
+
+def build_policy_auth_gateway() -> ExternalPolicyAuthenticationGateway:
+    return ExternalPolicyAuthenticationGateway(client=build_platform_client(service_key="policy"))
 
 
 def _service_base_url(*, service_key: str | None) -> str:

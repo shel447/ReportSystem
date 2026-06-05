@@ -23,6 +23,7 @@ from ..infrastructure.dependencies import build_conversation_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ApplicationError, ErrorCode, NotFoundError, error_response_payload
 from ..shared.kernel.http import get_current_user_id
+from ..shared.kernel.policy_auth import policy_auth
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -53,11 +54,13 @@ class ChatForkRequest(BaseModel):
 
 
 @router.get("")
+@policy_auth(resource="chat", action="list")
 def list_sessions(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)):
     return [session_summary_to_dict(item) for item in build_conversation_service(db).list_sessions(user_id=user_id)]
 
 
 @router.post("")
+@policy_auth(resource="chat", action="create")
 def chat(
     data: ChatRequestPayload,
     request: Request = None,
@@ -82,6 +85,7 @@ def chat(
 
 
 @router.post("/{chat_id}/stop")
+@policy_auth(resource="chat", action="stop")
 def stop_chat(
     chat_id: str,
     db: Session = Depends(get_db),
@@ -97,6 +101,7 @@ def stop_chat(
 
 
 @router.get("/{conversation_id}")
+@policy_auth(resource="chat", action="read")
 def get_session(
     conversation_id: str,
     db: Session = Depends(get_db),
@@ -106,6 +111,7 @@ def get_session(
 
 
 @router.delete("/{conversation_id}")
+@policy_auth(resource="chat", action="delete")
 def delete_session(
     conversation_id: str,
     db: Session = Depends(get_db),
@@ -117,6 +123,7 @@ def delete_session(
 
 
 @router.post("/forks")
+@policy_auth(resource="chat", action="fork")
 def fork_session(
     data: ChatForkRequest,
     db: Session = Depends(get_db),

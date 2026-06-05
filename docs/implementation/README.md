@@ -21,6 +21,7 @@
 - `contexts/report`
 - `contexts/data_analysis`
 - `shared/agentflow`
+- `shared/kernel`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
 用户管理属于平台外部模块。ReportSystem 不实现用户 context，不保存用户档案，只消费网关注入的可信 `X-User-Id` 作为不透明数据归属键。
@@ -29,6 +30,7 @@
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
 - `shared/agentflow` 提供公共流程运行、事件发布、工具调用、提示词组装、hook、checkpoint、拒答、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
+- `shared/kernel` 提供公开错误模型、用户身份解析、路由级平台鉴权注解和其他跨业务基础契约；平台鉴权的 HTTP 实现位于 infrastructure
 - `conversation` 拥有场景注册协议；`report` 和 `data_analysis` 在各自 context 内提供 registration provider、codec 和 handler 实现
 - `data_analysis` 拥有查询、数据目录和知识检索相关业务接口；`report` 如需查询能力，只依赖自己声明的数据查询接口，由装配层接入对应实现
 - 顶层装配只收集各 context 暴露的 composition builder 和 provider，不拼接业务 DTO，不解释业务场景语义

@@ -13,6 +13,7 @@ from ..infrastructure.dependencies import build_report_service
 from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ErrorCode, NotFoundError, ValidationError
 from ..shared.kernel.http import get_current_user_id
+from ..shared.kernel.policy_auth import policy_auth
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -26,6 +27,7 @@ class DocumentGenerationRequest(BaseModel):
 
 
 @router.get("/{report_id}")
+@policy_auth(resource="report", action="read")
 def get_report_view(
     report_id: str,
     db: Session = Depends(get_db),
@@ -35,6 +37,7 @@ def get_report_view(
 
 
 @router.post("/{report_id}/document-generations")
+@policy_auth(resource="report_document", action="generate")
 def generate_report_documents(
     report_id: str,
     data: DocumentGenerationRequest,
@@ -53,6 +56,7 @@ def generate_report_documents(
 
 
 @router.get("/{report_id}/documents/{document_id}/download")
+@policy_auth(resource="report_document", action="download")
 def download_report_document(
     report_id: str,
     document_id: str,

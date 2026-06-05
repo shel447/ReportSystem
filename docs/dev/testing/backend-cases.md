@@ -5,10 +5,10 @@
 | ID | 分类 | 目标 | 实现位置 |
 |---|---|---|---|
 | BE-CONV | 通用对话 | AgentCore 托管会话、轮次 upsert、追问答复、暂未开放能力与 SSE 契约 | `modules/backend/tests/conversation/` |
-| BE-SHARED | 公共基础 | Agent Flow 图执行、React、human-in-loop、取消和运行事件 | `modules/backend/tests/shared/` |
+| BE-SHARED | 公共基础 | Agent Flow 图执行、React、human-in-loop、取消、运行事件、身份和路由权限基础能力 | `modules/backend/tests/shared/` |
 | BE-DATA | 智能问数 | NL2SQL 编排、安全检查、查询协议与 BI 可视化建议 | `modules/backend/tests/data_analysis/` |
 | BE-REPORT | 报告生成 | 模板、参数、模板实例、Report DSL 和章节重生成 | `modules/backend/tests/report/` |
-| BE-INFRA | 基础设施 | 数据库升级、查询、动态数据源、前端托管与文档网关 | `modules/backend/tests/infrastructure/` |
+| BE-INFRA | 基础设施 | 数据库升级、查询、动态数据源、平台外部依赖、前端托管与文档网关 | `modules/backend/tests/infrastructure/` |
 | BE-DEV | 开发辅助 | docs、feedback 和系统设置接口 | `modules/backend/tests/dev_support/` |
 | BE-ARCH | 架构审计 | Context 依赖边界、类型契约和测试目录规则 | `modules/backend/tests/architecture/` |
 
@@ -18,7 +18,7 @@
 
 | 文件 | 源码用例数 | 主要覆盖目标 |
 |---|---:|---|
-| `tests/architecture/test_architecture_boundaries.py` | 9 | Context、router、compiler 和文档职责边界 |
+| `tests/architecture/test_architecture_boundaries.py` | 10 | Context、router、compiler、文档职责和业务路由权限注解边界 |
 | `tests/architecture/test_dataclass_alias_contract.py` | 4 | lowerCamelCase 序列化契约 |
 | `tests/architecture/test_service_type_contracts.py` | 4 | 应用服务正式类型 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
@@ -36,6 +36,7 @@
 | `tests/features/test_template_management_flow.py` | 2 | 模板 CRUD、导入预览、导出 API 闭环和跨用户共享可见性 |
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 7 | 业务库、开发库、升级规则和 V004 用户镜像无损移除 |
 | `tests/infrastructure/platform/test_guardrail_gateway.py` | 1 | Guardrail 正式 `/rest/naie/...` 路径和用户身份透传 |
+| `tests/infrastructure/platform/test_policy_auth_gateway.py` | 4 | Policy Authentication 正式路径、GET 调用、头透传、拒绝和上游失败转换 |
 | `tests/infrastructure/platform/test_platform_runtime.py` | 3 | NodeAgent 分层配置、环境应急覆盖和审计尽力投递 |
 | `tests/infrastructure/platform/test_external_dependency_contracts.py` | 56 | 平台外部依赖消费者 Schema、集中示例、AgentCore upsert、查询响应同构与 Schema 索引完整性 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
@@ -53,5 +54,6 @@
 | `tests/report/unit/test_report_scenario_bootstrap.py` | 6 | 外部报告交接、根级参数快照、名称精确定位和非法输入拒绝 |
 | `tests/report/unit/test_report_scenario_flow.py` | 3 | 报告场景 Flow 接入、同步预览保留和严格 codec |
 | `tests/shared/test_http_identity.py` | 2 | 正式用户身份必填和本地开发用户覆盖 |
+| `tests/shared/test_policy_auth.py` | 3 | 路由级权限注解、dependency 鉴权调用、拒绝响应和缺注解 fail-closed |
 | `tests/shared/test_agentflow_runtime.py` | 5 | Agent Flow 顺序、条件/汇合、React、human-in-loop 和协作取消 |
 | `tests/shared/test_agentflow_capabilities.py` | 7 | Tool、Prompt、Hook、Checkpoint、拒答、动态追加分支和非法改图拒绝 |

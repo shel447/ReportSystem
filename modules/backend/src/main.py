@@ -9,11 +9,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .infrastructure.persistence.database import init_db
+from .infrastructure.platform.runtime import build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
 from .routers import chat, docs, feedback, reports, system_settings, templates
 from .shared.kernel.errors import ApplicationError, ErrorCode, error_response_payload, http_status_for
 from .shared.kernel.http import get_current_user_id
 from .shared.kernel.paths import project_root
-from .infrastructure.platform.runtime import start_platform_runtime, stop_platform_runtime
+from .shared.kernel.policy_auth import enforce_policy_auth
 
 CHATBI_PREFIX = "/rest/chatbi/v1"
 DEV_PREFIX = "/rest/dev"
@@ -22,9 +23,10 @@ FRONTEND_DIST_DIR = str(project_root() / "modules" / "frontend" / "dist")
 
 def create_app(*, frontend_dir: str | None = None) -> FastAPI:
     app = FastAPI(title="Smart Report System", version="1.6.0")
+    app.state.policy_auth_gateway = build_policy_auth_gateway()
     register_error_handlers(app)
 
-    business_dependencies = [Depends(get_current_user_id)]
+    business_dependencies = [Depends(get_current_user_id), Depends(enforce_policy_auth)]
     app.include_router(templates.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
     app.include_router(chat.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
     app.include_router(reports.router, prefix=CHATBI_PREFIX, dependencies=business_dependencies)
@@ -118,6 +120,8 @@ def _is_chatbi_business_path(request: Request) -> bool:
 
 
 def _http_error_code(status_code: int) -> str:
+    if status_code == 403:
+        return ErrorCode.BASE_PERMISSION_DENIED
     if status_code == 404:
         return ErrorCode.BASE_RESOURCE_NOT_FOUND
     if status_code == 409:
