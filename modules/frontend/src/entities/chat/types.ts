@@ -184,9 +184,7 @@ export type ChatResponse = {
       }
     | null;
   errors: unknown[];
-  requestId?: string;
   timestamp: number;
-  apiVersion: string;
 };
 
 export type ChatStreamStep = {
@@ -330,8 +328,6 @@ export type ChatRequest = {
   } | null;
   attachments?: Array<Record<string, unknown>>;
   histories?: Array<Record<string, unknown>>;
-  requestId?: string;
-  apiVersion?: "v1";
 };
 
 export type ChatForkRequest = {

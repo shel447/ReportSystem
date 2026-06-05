@@ -40,8 +40,6 @@ class ChatCommand:
     instruction: str | None = None
     reply: ChatReply | None = None
     raw_payload: dict[str, Any] = field(default_factory=dict)
-    request_id: str | None = None
-    api_version: str | None = None
 
 
 @dataclass(slots=True)
@@ -110,9 +108,7 @@ class ChatResponse:
     ask: ChatAsk | None = None
     answer: ChatAnswerEnvelope | None = None
     errors: list[dict[str, Any]] = field(default_factory=list)
-    request_id: str | None = None
     timestamp: int | None = None
-    api_version: str = "v1"
 
 
 @dataclass(slots=True)
@@ -184,8 +180,6 @@ def chat_command_from_payload(payload: dict[str, Any]) -> ChatCommand:
         instruction=str(payload.get("instruction") or "").strip() or None,
         reply=reply,
         raw_payload=dict(payload),
-        request_id=str(payload.get("requestId") or "").strip() or None,
-        api_version=str(payload.get("apiVersion") or "").strip() or None,
     )
 
 
@@ -233,9 +227,7 @@ def chat_response_to_dict(response: ChatResponse) -> dict[str, object]:
         "ask": chat_ask_to_dict(response.ask) if response.ask is not None else None,
         "answer": chat_answer_to_dict(response.answer) if response.answer is not None else None,
         "errors": [_normalize_error(item) for item in response.errors],
-        "requestId": response.request_id,
         "timestamp": response.timestamp,
-        "apiVersion": response.api_version,
     }
 
 

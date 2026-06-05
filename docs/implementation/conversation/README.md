@@ -65,7 +65,6 @@ Agent Flow 还提供工具调用、提示词组装、节点 hook、checkpoint、
 - `instruction/question`
 - `reply.sourceChatId`
 - `scenarioKey/previousScenarioKey/scenarioResolution`
-- `requestId/apiVersion`
 
 `ChatAsk` 与 `ChatReply` 是通用追问和答复外壳。`status/mode/type/title/text/sourceChatId` 属于通用字段；报告场景的 `parameters/reportContext` 通过 report application 中的严格 DTO 扩展。不得为了扩展新场景把业务载荷退化成无约束 `dict`。
 

@@ -903,7 +903,6 @@ function createLocalErrorResponse(turn: OptimisticTurn): ChatResponse {
     answer: null,
     errors: [turn.error ?? "请求失败"],
     timestamp: Date.now(),
-    apiVersion: "v1",
   };
 }
 
@@ -940,7 +939,6 @@ function chatResponseFromRecordAnswers(conversationId: string, record: Conversat
     answer: merged.answer,
     errors: merged.errors,
     timestamp: normalizeRecordTimestamp(latest.answerTime),
-    apiVersion: "v1",
   };
 }
 

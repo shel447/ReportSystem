@@ -31,8 +31,6 @@ class ChatContext:
     question: str | None = None
     reply_type: str | None = None
     source_chat_id: str | None = None
-    request_id: str | None = None
-    api_version: str = "v1"
 
 
 @dataclass(slots=True)

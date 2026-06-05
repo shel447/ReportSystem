@@ -171,9 +171,7 @@ class ChatContractApiTests(unittest.TestCase):
                     ),
                     answer=None,
                     errors=[],
-                    request_id="req_001",
                     timestamp=1713427200000,
-                    api_version="v1",
                 )
             },
         )()
@@ -196,6 +194,8 @@ class ChatContractApiTests(unittest.TestCase):
         self.assertEqual(payload["ask"]["type"], "confirm_params")
         self.assertEqual(payload["ask"]["parameters"][0]["id"], "scope")
         self.assertEqual(payload["ask"]["reportContext"]["templateInstance"]["id"], "ti_001")
+        self.assertNotIn("requestId", payload)
+        self.assertNotIn("apiVersion", payload)
 
     def test_get_chat_detail_returns_records_without_legacy_messages(self):
         fake_service = type(
@@ -273,9 +273,7 @@ class ChatContractApiTests(unittest.TestCase):
                         )),
                     ),
                     errors=[],
-                    request_id="req_002",
                     timestamp=1713427200001,
-                    api_version="v1",
                 )
             },
         )()
@@ -391,9 +389,7 @@ class ChatContractApiTests(unittest.TestCase):
                         )),
                     ),
                     errors=[],
-                    request_id="req_stream",
                     timestamp=1713427200200,
-                    api_version="v1",
                 ),
                 "chat_stream": lambda self, data, user_id: _stream_events_from_response(
                     self.chat(data, user_id),
@@ -478,9 +474,7 @@ class ChatContractApiTests(unittest.TestCase):
                     ask=None,
                     answer=None,
                     errors=[],
-                    request_id="req_003",
                     timestamp=1713427200000,
-                    api_version="v1",
                 )
 
         with patch("src.routers.chat.build_conversation_service", return_value=FakeConversationService()):
@@ -520,9 +514,7 @@ class ChatContractApiTests(unittest.TestCase):
                     ask=None,
                     answer=None,
                     errors=[],
-                    request_id="req_003",
                     timestamp=1713427200000,
-                    api_version="v1",
                 )
 
             def chat_stream(self, data, user_id):
@@ -724,8 +716,8 @@ class ChatContractApiTests(unittest.TestCase):
             with self.client.stream(
                 "POST",
                 "/rest/chatbi/v1/chat",
-                headers={"X-User-Id": "default", "Accept": "text/event-stream"},
-                json={"conversationId": "conv_001", "chatId": "chat_001", "question": "你好", "requestId": "req_001"},
+                headers={"X-User-Id": "default", "Accept": "text/event-stream", "X-Request-Id": "req_001"},
+                json={"conversationId": "conv_001", "chatId": "chat_001", "question": "你好"},
             ) as response:
                 body = "".join(response.iter_text())
 

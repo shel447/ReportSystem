@@ -137,6 +137,7 @@ X-User-Id: <external-user-id>
 - 外部平台返回的错误码必须转换为 ChatBI 错误码。原始上游错误码可以放入 `details.upstreamCode`，用于排查和审计。
 - `errorMsg` 面向最终用户或集成方，可直接展示或记录。
 - `retryable` 表示同一请求在不修改输入的情况下是否值得稍后重试。
+- `requestId` 来自 HTTP `X-Request-Id` 请求头或入口生成的通用追踪信息，不属于 `/chat` 请求体字段。
 - 跨用户资源访问与资源不存在统一按 `404` 处理，避免泄漏资源归属。
 
 常用错误码：
@@ -287,9 +288,7 @@ X-User-Id: <external-user-id>
   "report": null,
   "template": null,
   "attachments": [],
-  "histories": [],
-  "requestId": "req_001",
-  "apiVersion": "v1"
+  "histories": []
 }
 ```
 

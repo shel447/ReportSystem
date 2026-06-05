@@ -156,7 +156,6 @@ function readPiuResponse(record: ConversationRecord, answer: ConversationAnswer)
       answer: answers.answer ?? null,
       errors: Array.isArray(answers.errors) ? answers.errors : [],
       timestamp: typeof answer.answerTime === "number" ? answer.answerTime : Date.now(),
-      apiVersion: "v1",
     };
   } catch {
     return null;

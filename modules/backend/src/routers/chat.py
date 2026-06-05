@@ -44,8 +44,6 @@ class ChatRequestPayload(BaseModel):
     template: Optional[dict[str, Any]] = None
     attachments: list[dict[str, Any]] = []
     histories: list[dict[str, Any]] = []
-    requestId: Optional[str] = None
-    apiVersion: Optional[str] = None
 
 
 class ChatForkRequest(BaseModel):
@@ -74,7 +72,7 @@ def chat(
                 lambda: service.chat_stream(data=command, user_id=user_id),
                 conversation_id=command.conversation_id or "",
                 chat_id=command.chat_id or "",
-                request_id=command.request_id,
+                request_id=request.headers.get("X-Request-Id") if request is not None else None,
             ),
             media_type="text/event-stream",
         )

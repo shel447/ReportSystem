@@ -44,6 +44,9 @@ describe("chat stream api", () => {
     const response = await sendChatMessageStream({ conversationId: "conv_1", question: "生成日报" });
 
     expect(response.steps).toEqual([{ code: "report.template.match", stepId: "report.template.match", title: "识别模板", status: "running", parentStepId: "report", stepPath: ["report", "template"] }]);
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(requestBody).not.toHaveProperty("requestId");
+    expect(requestBody).not.toHaveProperty("apiVersion");
     fetchMock.mockRestore();
   });
 

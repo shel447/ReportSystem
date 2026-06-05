@@ -23,8 +23,6 @@ export function sendChatMessage(payload: ChatRequest) {
     instruction: payload.instruction ?? "generate_report",
     attachments: payload.attachments ?? [],
     histories: payload.histories ?? [],
-    requestId: payload.requestId ?? buildRequestId(),
-    apiVersion: payload.apiVersion ?? "v1",
     ...payload,
   });
 }
@@ -44,8 +42,6 @@ export async function sendChatMessageStream(
     instruction: payload.instruction ?? "generate_report",
     attachments: payload.attachments ?? [],
     histories: payload.histories ?? [],
-    requestId: payload.requestId ?? buildRequestId(),
-    apiVersion: payload.apiVersion ?? "v1",
     ...payload,
   };
   const response = await fetch(chatbiPath("/chat"), {
@@ -81,10 +77,6 @@ export function buildChatId() {
   return `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function buildRequestId() {
-  return `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function createEmptyChatResponse(payload: Record<string, unknown>): ChatResponse {
   return {
     conversationId: String(payload.conversationId ?? ""),
@@ -94,9 +86,7 @@ function createEmptyChatResponse(payload: Record<string, unknown>): ChatResponse
     ask: null,
     answer: null,
     errors: [],
-    requestId: typeof payload.requestId === "string" ? payload.requestId : undefined,
     timestamp: Date.now(),
-    apiVersion: typeof payload.apiVersion === "string" ? payload.apiVersion : "v1",
   };
 }
 

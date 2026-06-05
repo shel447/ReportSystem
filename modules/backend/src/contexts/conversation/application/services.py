@@ -461,8 +461,6 @@ def _build_context(*, data: ChatCommand, user_id: str, chat_id: str, resolution,
         question=data.question,
         reply_type=data.reply.type if data.reply else None,
         source_chat_id=data.reply.source_chat_id if data.reply else None,
-        request_id=data.request_id,
-        api_version=data.api_version or "v1",
     )
 
 
@@ -483,9 +481,7 @@ def _response_from_scenario_result(*, data: ChatCommand, conversation_id: str, c
         ask=ask,
         answer=answer,
         errors=[],
-        request_id=data.request_id,
         timestamp=_epoch_ms(),
-        api_version=data.api_version or "v1",
     )
 
 
@@ -529,9 +525,7 @@ def _response_from_flow_events(*, data: ChatCommand, conversation_id: str, chat_
         ask=ask,
         answer=answer,
         errors=[dict(last_error)] if isinstance(last_error, dict) else [],
-        request_id=data.request_id,
         timestamp=_epoch_ms(),
-        api_version=data.api_version or "v1",
     )
 
 
