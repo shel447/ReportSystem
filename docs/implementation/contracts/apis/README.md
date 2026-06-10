@@ -24,7 +24,7 @@ flowchart LR
 
     client -->|"登录与业务请求"| identity
     identity -->|"REST / SSE<br/>X-User-Id"| reportSystem
-    reportSystem -->|"GET /rest/dte/smartbi/v1/proxy/auth/chat<br/>透传请求头"| policy
+    reportSystem -->|"POST /rest/plat/priv/v1/policy/authentication<br/>逐项校验 privilege"| policy
     reportSystem -->|"/chat/completions<br/>/embeddings"| llm
     reportSystem -->|"POST 模板 parameter.source"| parameterSource
     reportSystem -->|"POST 模板 dynamic.custom.url"| customSource
@@ -50,26 +50,29 @@ X-User-Id: <external-user-id>
 
 缺失或空白身份返回 `401`。ReportSystem 将该值作为不透明归属键，不提供用户管理接口，也不保存用户资料。部署时网关必须丢弃客户端伪造的同名 Header，并在认证成功后重新写入可信值。模板是平台共享资产，其写权限由上游统一授权。
 
-正式业务接口还会在进入业务逻辑前调用平台接口鉴权。鉴权不通过时返回 `403 chatbi.base.permission.denied`，提示“没有操作权限”。开发辅助接口 `/rest/dev/*`、前端静态资源和 SPA 页面不纳入该鉴权。
+正式业务接口还会在进入业务逻辑前调用平台接口鉴权。鉴权不通过时返回 `403 chatbi.base.permission.denied`，错误信息为 `auth failed`，并异步记录安全审计。
+
+ReportSystem 自有正式业务接口不使用资源 Path 参数。资源标识统一通过 lowerCamelCase Query 参数传递；必填 Query 参数缺失、空白或重复时返回 `400 chatbi.base.param.invalid`。
 
 | 接口分组 | 方法与路径 | 用途 |
 |---|---|---|
 | 模板管理 | `POST /templates` | 创建正式报告模板 |
 | 模板管理 | `GET /templates` | 查询模板列表 |
-| 模板管理 | `GET /templates/{id}` | 获取模板详情 |
-| 模板管理 | `PUT /templates/{id}` | 更新模板 |
-| 模板管理 | `DELETE /templates/{id}` | 删除模板 |
+| 模板管理 | `GET /templates/detail?templateId={id}` | 获取模板详情 |
+| 模板管理 | `PUT /templates/detail?templateId={id}` | 更新模板 |
+| 模板管理 | `DELETE /templates/detail?templateId={id}` | 删除模板 |
 | 模板管理 | `POST /templates/import/preview` | 解析并预览待导入模板，不落库 |
-| 模板管理 | `GET /templates/{id}/export` | 导出规范化后的模板定义 |
+| 模板管理 | `GET /templates/export?templateId={id}` | 导出规范化后的模板定义 |
 | 通用对话 | `GET /chat` | 查询会话列表 |
 | 通用对话 | `POST /chat` | 发送消息，支持 SSE 流式响应 |
-| 通用对话 | `POST /chat/{chatId}/stop` | 请求停止仍在运行中的当前轮对话 |
-| 通用对话 | `GET /chat/{conversationId}` | 获取会话详情 |
-| 通用对话 | `DELETE /chat/{conversationId}` | 暂未开放，返回 `501 capability_not_available` |
+| 通用对话 | `POST /chat/stop?chatId={chatId}` | 请求停止仍在运行中的当前轮对话 |
+| 通用对话 | `GET /chat/detail?conversationId={conversationId}` | 获取会话详情 |
+| 通用对话 | `DELETE /chat/detail?conversationId={conversationId}` | 暂未开放，返回 `501 capability_not_available` |
 | 通用对话 | `POST /chat/forks` | 暂未开放，返回 `501 capability_not_available` |
-| 报告管理 | `GET /reports/{reportId}` | 获取完成态报告详情 |
-| 文档导出 | `POST /reports/{reportId}/document-generations` | 为冻结报告创建文档生成任务 |
-| 文档导出 | `GET /reports/{reportId}/documents/{documentId}/download` | 下载已生成文档 |
+| 报告管理 | `GET /reports/detail?reportId={reportId}` | 获取完成态报告详情 |
+| 文档导出 | `POST /reports/document-generations?reportId={reportId}` | 为冻结报告创建文档生成任务 |
+| 文档导出 | `GET /reports/documents/download?reportId={reportId}&documentId={documentId}` | 下载已生成文档 |
+| 健康检查 | `GET /rest/chatbi/healthcheck` | 检查服务进程是否正常，不需要用户身份和权限 |
 
 ### 1.2 调用外部系统的接口
 
@@ -88,7 +91,7 @@ X-User-Id: <external-user-id>
 |---|---|---|---|
 | OpenAI Compatible 对话 | `POST {baseUrl}/chat/completions` | 模板识别、参数提取、诉求整理和内容生成 | 已实现，地址由系统设置提供 |
 | OpenAI Compatible 向量化 | `POST {baseUrl}/embeddings` | 模板语义索引和召回 | 已实现，地址由系统设置提供 |
-| Policy Authentication | `GET /rest/dte/smartbi/v1/proxy/auth/chat` | 公开业务接口进入业务逻辑前鉴权 | 已实现 |
+| Policy Authentication | `POST /rest/plat/priv/v1/policy/authentication` | 公开业务接口进入业务逻辑前鉴权 | 已实现 |
 | Parameter Options 数据源 | `POST {parameter.source}` | 解析动态参数候选项 | 已实现，地址由模板声明 |
 | Dynamic Custom 内容源 | `POST {dynamic.custom.url}` | 获取目录、章节或组件 DSL 片段 | 已实现，地址由模板声明 |
 | API 查询数据源 | `POST {externalBusinessBaseUrl}{dataset.source}` | 根据模板声明的 `/rest/...` 地址查询报告数据 | 已定义正式协议 |
@@ -110,13 +113,13 @@ X-User-Id: <external-user-id>
 
 ### 1.3 路由实现映射
 
-公开业务接口由 Tornado `RequestHandler` 负责协议适配，业务规则下沉到对应 application service。Handler 不接收或向内层传递数据库 session。
+公开业务接口由平台 `runtime.server` 调用注解式 Controller。Controller 方法可以使用 Tornado `RequestHandler` 完成协议适配，但不接收或向内层传递数据库 session。
 
-| 路由分组 | Handler 入口 | 应用服务 |
+| 路由分组 | Controller 入口 | 应用服务 |
 |---|---|---|
-| `templates` | `routers/templates.py` | `report` |
-| `chat` | `routers/chat.py` | `conversation` |
-| `reports` | `routers/reports.py` | `report` |
+| `templates` | `controllers/template.py` | `report` |
+| `chat` | `controllers/chat.py` | `conversation` |
+| `reports` | `controllers/report.py` | `report` |
 
 ### 1.4 统一错误响应
 
@@ -188,10 +191,10 @@ X-User-Id: <external-user-id>
 规则：
 
 - `POST /templates`：以 `ReportTemplate.id` 作为资源主键；若同 id 已存在，返回冲突错误，不做隐式覆盖
-- `PUT /templates/{id}`：路径 `id` 与请求体 `ReportTemplate.id` 必须一致；不允许借更新接口改资源主键
-- `GET /templates/{id}/export`：返回规范化后的正式 `ReportTemplate`，其结构应与模板详情接口等价
+- `PUT /templates/detail?templateId={id}`：Query 参数 `templateId` 与请求体 `ReportTemplate.id` 必须一致；不允许借更新接口改资源主键
+- `GET /templates/export?templateId={id}`：返回规范化后的正式 `ReportTemplate`，其结构应与模板详情接口等价
 - 模板详情、创建、更新、导出都返回“规范化后”的正式模板对象，不返回原始导入文本
-- `POST /templates` 与 `PUT /templates/{id}` 是正式持久化接口；模板提取和导入预览都不能隐式代替落库
+- `POST /templates` 与 `PUT /templates/detail?templateId={id}` 是正式持久化接口；模板提取和导入预览都不能隐式代替落库
 - `structureType` 缺省按 `flow`；flow 模板使用 `catalogs`，paged 模板使用 `chapters`，两者不能同时出现在同一个规范化模板对象中
 - paged 模板详情的主体结构固定为 `chapters -> slides -> sections`；`ChapterDefinition` 承载章节分组，`SlideDefinition` 承载 PPT 页面，页面内容继续复用 `SectionDefinition`
 - flow 模板详情的主体结构继续固定为 `catalogs -> sections`；接口不得为了兼容 paged 把 flow 主体改写为 `chapters`
@@ -533,7 +536,7 @@ X-User-Id: <external-user-id>
 取消运行中流程：
 
 ```http
-POST /chat/{chatId}/stop
+POST /chat/stop?chatId={chatId}
 ```
 
 成功响应：
@@ -554,7 +557,7 @@ POST /chat/{chatId}/stop
 
 ##### 会话详情响应
 
-`GET /chat/{conversationId}` 返回结构与 AgentCore `/chat/history?conversationId=...` 的核心定义保持一致。外层使用 `records[]`，每条 `Record` 表示一轮对话：
+`GET /chat/detail?conversationId={conversationId}` 返回结构与 AgentCore `/chat/history?conversationId=...` 的核心定义保持一致。外层使用 `records[]`，每条 `Record` 表示一轮对话：
 
 ```json
 {
@@ -701,7 +704,7 @@ POST /chat/{chatId}/stop
 
 对话历史回显约束：
 
-- `GET /chat/{conversationId}` 中，若某条 `Answer.type = PIU` 的回答片段是追问，则其 `content.answers.ask` 载荷与当前 `ChatResponse.ask` 使用同一结构
+- `GET /chat/detail?conversationId={conversationId}` 中，若某条 `Answer.type = PIU` 的回答片段是追问，则其 `content.answers.ask` 载荷与当前 `ChatResponse.ask` 使用同一结构
 - 历史回显中的 `ask.status` 必须反映该追问是否已经被后续回复消费
 
 `ask.status` 交互规则：
@@ -1000,7 +1003,7 @@ paged Report DSL 示例：
 - `delta` 是 `ChatResponse` 顶层可选字段，可出现在任意事件上；只有发生报告内容变化时才返回
 - 不新增 SSE 事件类型；是否处于生成过程，由顶层 `status=running` 判断
 - `delta` 只表达目录树和章节内容的 patch，不重复承载完整 `report`、完整 `templateInstance`
-- `delta` 不进入 `GET /reports/{reportId}`
+- `delta` 不进入 `GET /reports/detail?reportId={reportId}`
 - `init_report.report` 必须携带 `structureType`，取值为 `flow | paged`，用于前端在收到后续增量前初始化正确的报告骨架；历史响应缺失时可按 `flow` 兼容读取，但新响应必须显式返回
 - `init_report.report.structureType = flow` 时，后续增量使用 `add_catalog/add_section`，报告主体按 `catalogs + layout` 初始化
 - `init_report.report.structureType = paged` 时，后续增量可使用 `add_chapter/add_slide/add_section`，报告主体按 `content` 初始化
@@ -1253,36 +1256,3 @@ v6 正式请求体由 `parameters/templateNode/context` 组成：
 ### 3.4 平台外部依赖
 
 OpenAI Compatible、OneQuery、AgentCore、Guardrail、DataCatalog、Knowledge/RAG、NodeAgent 与 Audit 都属于 ReportSystem 主动适配的平台外部依赖。DataCatalog 还包含 Metadata Sync 辅助刷新特性。完整请求、响应、身份头和失败语义见 [外部依赖接口技术契约](external-dependencies.md)。
-
-## 4. 开发辅助接口
-
-开发辅助接口不属于公开业务资源，也不进入业务上下文图。统一使用前缀 `/rest/dev`。
-
-| 接口分组 | 方法与路径 | 用途 |
-|---|---|---|
-| 文档浏览 | `GET /docs` | 递归查询文档资产 |
-| 文档浏览 | `GET /docs/download.zip` | 下载完整文档包 |
-| 文档浏览 | `GET /docs/{filename}` | 读取 Markdown、Schema 或示例 JSON |
-| 反馈 | `GET /feedback/` | 查询开发反馈 |
-| 反馈 | `POST /feedback/` | 新增开发反馈 |
-| 反馈 | `GET /feedback/export.zip` | 导出开发反馈 |
-| 反馈 | `DELETE /feedback/{feedbackId}` | 删除开发反馈 |
-| 系统设置 | `GET /system-settings` | 获取开发环境系统设置 |
-| 系统设置 | `PUT /system-settings` | 更新开发环境系统设置 |
-| 系统设置 | `POST /system-settings/reindex` | 重建模板语义索引 |
-| 系统设置 | `POST /system-settings/test` | 测试系统设置和外部依赖 |
-
-### 4.1 开发辅助文档接口
-
-文档浏览属于开发辅助能力，不属于公开业务资源。统一前缀为 `/rest/dev/docs`：
-
-```text
-GET /rest/dev/docs
-GET /rest/dev/docs/download.zip
-GET /rest/dev/docs/{filename}
-```
-
-- 列表递归返回 `docs/` 下的 Markdown、Schema 和示例 JSON。
-- 单文件读取支持嵌套相对路径；Markdown 可省略 `.md` 后缀。
-- ZIP 下载保持目录结构。
-- 服务端必须拒绝目录逃逸路径。

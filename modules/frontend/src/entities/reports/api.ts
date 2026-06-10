@@ -1,10 +1,10 @@
-import { chatbiPath, postJson, requestJson } from "../../shared/api/http";
+import { chatbiPath, postJson, requestJson, withQuery } from "../../shared/api/http";
 import type { DocumentGenerationRequest, DocumentGenerationResponse, ReportView } from "./types";
 
 export function fetchReport(reportId: string) {
-  return requestJson<ReportView>(chatbiPath(`/reports/${encodeURIComponent(reportId)}`));
+  return requestJson<ReportView>(withQuery(chatbiPath("/reports/detail"), { reportId }));
 }
 
 export function generateReportDocuments(reportId: string, payload: DocumentGenerationRequest) {
-  return postJson<DocumentGenerationResponse>(chatbiPath(`/reports/${encodeURIComponent(reportId)}/document-generations`), payload);
+  return postJson<DocumentGenerationResponse>(withQuery(chatbiPath("/reports/document-generations"), { reportId }), payload);
 }

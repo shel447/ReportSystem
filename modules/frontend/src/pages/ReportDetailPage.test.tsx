@@ -26,7 +26,7 @@ describe("ReportDetailPage", () => {
   it("loads aggregated report view and renders template instance with generated content", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url === "/rest/chatbi/v1/reports/rpt-1") {
+      if (url === "/rest/chatbi/v1/reports/detail?reportId=rpt-1") {
         return {
           ok: true,
           json: async () => ({

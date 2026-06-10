@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import urlencode
 
 from ..domain.generation_models import (
     DocumentArtifact,
@@ -119,7 +120,7 @@ def document_view_from_artifact(document: DocumentArtifact) -> DocumentView:
         format=document.artifact_kind,
         mime_type=document.mime_type,
         file_name=document.storage_key.rsplit("\\", 1)[-1].rsplit("/", 1)[-1],
-        download_url=f"/rest/chatbi/v1/reports/{document.report_instance_id}/documents/{document.id}/download",
+        download_url=f"/rest/chatbi/v1/reports/documents/download?{urlencode({'reportId': document.report_instance_id, 'documentId': document.id})}",
         status=document.status,
     )
 

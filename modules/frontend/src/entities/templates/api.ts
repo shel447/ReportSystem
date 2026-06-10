@@ -1,4 +1,4 @@
-import { chatbiPath, deleteJson, postJson, putJson, requestJson } from "../../shared/api/http";
+import { chatbiPath, deleteJson, postJson, putJson, requestJson, withQuery } from "../../shared/api/http";
 import type { ReportTemplate, TemplateImportPreview, TemplateSummary, TemplateUpsertPayload } from "./types";
 
 export function fetchTemplates() {
@@ -6,7 +6,7 @@ export function fetchTemplates() {
 }
 
 export function fetchTemplate(templateId: string) {
-  return requestJson<ReportTemplate>(chatbiPath(`/templates/${encodeURIComponent(templateId)}`));
+  return requestJson<ReportTemplate>(withQuery(chatbiPath("/templates/detail"), { templateId }));
 }
 
 export function createTemplate(payload: TemplateUpsertPayload) {
@@ -14,11 +14,11 @@ export function createTemplate(payload: TemplateUpsertPayload) {
 }
 
 export function updateTemplate(templateId: string, payload: TemplateUpsertPayload) {
-  return putJson<ReportTemplate>(chatbiPath(`/templates/${encodeURIComponent(templateId)}`), payload);
+  return putJson<ReportTemplate>(withQuery(chatbiPath("/templates/detail"), { templateId }), payload);
 }
 
 export function deleteTemplate(templateId: string) {
-  return deleteJson(chatbiPath(`/templates/${encodeURIComponent(templateId)}`));
+  return deleteJson(withQuery(chatbiPath("/templates/detail"), { templateId }));
 }
 
 export function previewImportTemplate(content: unknown) {

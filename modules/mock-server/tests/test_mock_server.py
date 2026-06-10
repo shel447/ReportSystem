@@ -29,12 +29,12 @@ def test_guardrail_protocols_use_formal_naie_paths_only():
 
 
 def test_policy_authentication_protocol():
-    assert client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-User-Id": "user_001"}).json() == {"allowed": True}
-    denied = client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-Mock-Scenario": "deny"}).json()
-    assert denied["allowed"] is False
-    assert denied["errorCode"] == "naie.priv.permission.denied"
-    assert client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-Mock-Scenario": "error"}).status_code == 500
-    assert client.get("/rest/dte/smartbi/v1/proxy/auth/chat", headers={"X-Mock-Scenario": "timeout"}).status_code == 504
+    payload = {"userId": "user_001", "requests": [{"requestId": "req_1", "action": "dte.bi.chat.edit"}]}
+    assert client.post("/rest/plat/priv/v1/policy/authentication", json=payload).json() == {"results": [{"result": True}]}
+    denied = client.post("/rest/plat/priv/v1/policy/authentication", json=payload, headers={"X-Mock-Scenario": "deny"}).json()
+    assert denied["results"][0]["result"] is False
+    assert client.post("/rest/plat/priv/v1/policy/authentication", json=payload, headers={"X-Mock-Scenario": "error"}).status_code == 500
+    assert client.post("/rest/plat/priv/v1/policy/authentication", json=payload, headers={"X-Mock-Scenario": "timeout"}).status_code == 504
 
 
 def test_header_scenarios_are_request_scoped():

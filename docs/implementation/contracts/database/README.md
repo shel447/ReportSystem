@@ -7,7 +7,7 @@
 | 数据库 | 默认文件 | 职责 | 升级 SQL |
 |---|---|---|---|
 | 正式业务库 | `.runtime/report_system.db` | 保存模板、报告和文档任务 | `upgrades/*.sql` |
-| 开发辅助库 | `.runtime/dev_support.db` | 保存 `/rest/dev/*` 使用的设置和反馈 | `upgrades/dev/*.sql` |
+| 开发辅助库 | `.runtime/dev_support.db` | 保留本地开发设置和反馈数据；当前不通过 Backend 正式接口开放 | `upgrades/dev/*.sql` |
 | 查询演示库 | `.runtime/telecom_demo.db` | 保存本地电信网络演示数据 | 由 demo 初始化器维护 |
 
 命名约定：

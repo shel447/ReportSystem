@@ -2,15 +2,15 @@ import ast
 import unittest
 from pathlib import Path
 
-from tornado.web import RequestHandler
+from runtime.server import ROUTE_ATTR
 
-from src.main import BUSINESS_ROUTES, CHATBI_PREFIX
-from src.shared.kernel.policy_auth import get_policy_auth_metadata
+from src import register_handler
+from src.shared.kernel.authenticated import get_authenticated_metadata
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
 ROOT = MODULE_ROOT / "src"
-ROUTERS_DIR = ROOT / "routers"
-TARGET_ROUTERS = {"chat.py", "templates.py", "reports.py"}
+CONTROLLERS_DIR = ROOT / "controllers"
+TARGET_CONTROLLERS = {"chat.py", "template.py", "report.py"}
 FORBIDDEN_ROUTER_MODULES = {
     "src.models",
     "src.chat_flow_service",
@@ -41,10 +41,10 @@ def _resolve_import_from(path: Path, module: str | None, level: int) -> str:
 
 
 class ArchitectureBoundaryTests(unittest.TestCase):
-    def test_routers_do_not_import_legacy_business_or_orm_modules(self):
+    def test_controllers_do_not_import_legacy_business_or_orm_modules(self):
         violations: list[str] = []
-        for path in ROUTERS_DIR.glob("*.py"):
-            if path.name not in TARGET_ROUTERS:
+        for path in CONTROLLERS_DIR.glob("*.py"):
+            if path.name not in TARGET_CONTROLLERS:
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
             for node in ast.walk(tree):
@@ -224,10 +224,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for forbidden in ("document_repository", "export_job_repository", "document_gateway"):
             self.assertNotIn(forbidden, source)
 
-    def test_report_handlers_do_not_manage_database_sessions(self):
+    def test_report_controllers_do_not_manage_database_sessions(self):
         violations: list[str] = []
-        for name in ("templates.py", "reports.py"):
-            path = ROUTERS_DIR / name
+        for name in ("template.py", "report.py"):
+            path = CONTROLLERS_DIR / name
             source = path.read_text(encoding="utf-8-sig")
             for forbidden in ("get_db", "get_dev_db", "Session", "sqlalchemy", "build_report_service"):
                 if forbidden in source:
@@ -236,20 +236,49 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_every_public_business_route_declares_policy_auth_metadata(self):
         violations: list[str] = []
-        for path, handler in BUSINESS_ROUTES:
-            self.assertTrue(issubclass(handler, RequestHandler))
-            for method in ("get", "post", "put", "delete"):
-                endpoint = handler.__dict__.get(method)
-                if endpoint is not None and get_policy_auth_metadata(endpoint) is None:
-                    violations.append(f"{method.upper()} {path}")
+        for controller in register_handler():
+            self.assertEqual((object,), controller.__class__.__bases__)
+            if controller.__class__.__name__ == "HealthCheckController":
+                continue
+            for name in dir(controller):
+                endpoint = getattr(controller, name)
+                route = getattr(endpoint, ROUTE_ATTR, None)
+                if route is not None and get_authenticated_metadata(endpoint) is None:
+                    violations.append(f"{route.method} {route.path}")
         self.assertEqual([], violations, "\n".join(violations))
 
-    def test_backend_source_does_not_import_fastapi_or_uvicorn(self):
+    def test_backend_controllers_use_query_parameters_instead_of_path_parameters(self):
+        violations: list[str] = []
+        for controller in register_handler():
+            for name in dir(controller):
+                endpoint = getattr(controller, name)
+                route = getattr(endpoint, ROUTE_ATTR, None)
+                if route is not None and ("{" in route.path or "}" in route.path):
+                    violations.append(f"{route.method} {route.path}")
+        for path in CONTROLLERS_DIR.glob("*.py"):
+            if "req.path_params" in path.read_text(encoding="utf-8-sig"):
+                violations.append(f"{path.name}: references req.path_params")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_backend_only_controllers_import_tornado_request_handler(self):
         violations = []
         for path in ROOT.rglob("*.py"):
             source = path.read_text(encoding="utf-8-sig")
-            if "fastapi" in source or "uvicorn" in source:
-                violations.append(str(path.relative_to(ROOT)))
+            for line in source.splitlines():
+                if "tornado" not in line or line.strip().startswith("#"):
+                    continue
+                if CONTROLLERS_DIR in path.parents and line.strip() == "from tornado.web import RequestHandler":
+                    continue
+                violations.append(f"{path.relative_to(ROOT)}: {line.strip()}")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_backend_does_not_assemble_tornado_server(self):
+        violations = []
+        for path in ROOT.rglob("*.py"):
+            source = path.read_text(encoding="utf-8-sig")
+            for forbidden in ("httpserver.HTTPServer", "ioloop.IOLoop", "web.Application("):
+                if forbidden in source:
+                    violations.append(f"{path.relative_to(ROOT)}: {forbidden}")
         self.assertEqual([], violations, "\n".join(violations))
 
 

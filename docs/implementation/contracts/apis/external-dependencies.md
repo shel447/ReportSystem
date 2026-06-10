@@ -38,42 +38,34 @@ X-User-Id: <external-user-id>
 
 ### 1.3 Policy Authentication
 
-Policy Authentication 用于 ReportSystem 公开业务接口的前置权限校验。它只覆盖 `/rest/chatbi/v1/*`，不覆盖 `/rest/dev/*`、前端静态资源或 SPA 页面。
+Policy Authentication 用于 ReportSystem 公开业务接口的前置权限校验。
 
 ```http
-GET /rest/dte/smartbi/v1/proxy/auth/chat
+POST /rest/plat/priv/v1/policy/authentication
 ```
 
-调用要求：
-
-| 项 | 说明 |
-|---|---|
-| 调用时机 | 业务 route 匹配后、业务逻辑执行前 |
-| 请求头 | 透传当前请求头；协议类 hop-by-hop 头和长度类头不转发 |
-| 用户身份 | 必须随当前请求头携带 `X-User-Id` |
-| 通过语义 | HTTP 2xx 且未明确拒绝；推荐返回 `{"allowed": true}` |
-| 拒绝语义 | HTTP `401/403`、`allowed=false`、`retCode != 0` 均视为无权限 |
-| 失败语义 | 超时、HTTP 5xx、非法响应按 fail-closed 处理，不进入业务逻辑 |
-
-推荐响应：
+请求：
 
 ```json
 {
-  "allowed": true
+  "userId": "user_001",
+  "requests": [
+    {"requestId": "generated-request-id", "action": "dte.bi.chat.edit"}
+  ]
 }
 ```
 
-拒绝示例：
+响应按请求顺序返回逐项结果：
 
 ```json
 {
-  "allowed": false,
-  "errorCode": "naie.priv.permission.denied",
-  "errorMsg": "permission denied"
+  "results": [
+    {"result": true}
+  ]
 }
 ```
 
-ReportSystem 对外统一返回 `chatbi.base.permission.denied`，原始平台错误码只保留到 `details.upstreamCode`。
+任一 `result=false` 时 ReportSystem 抛出 `auth failed`，对外返回 HTTP 403 与 `chatbi.base.permission.denied`，并异步投递安全审计。超时、HTTP 错误、结果数量不匹配和非法报文均 fail-closed。
 
 ## 2. OpenAI Compatible
 

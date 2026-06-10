@@ -6,7 +6,8 @@ import time
 from typing import Any, Optional
 
 from pydantic import BaseModel
-from tornado.iostream import StreamClosedError
+from runtime.server import StreamClosedError, router
+from tornado.web import RequestHandler
 
 from ..contexts.conversation.application.models import (
     chat_command_from_payload,
@@ -18,9 +19,11 @@ from ..contexts.conversation.application.models import (
     session_summary_to_dict,
 )
 from ..shared.agentflow import FlowEvent
-from ..shared.kernel.errors import ApplicationError, ErrorCode, NotFoundError, error_response_payload
-from ..shared.kernel.policy_auth import policy_auth
-from ..web.base import BusinessHandler
+from ..shared.kernel.authenticated import authenticated
+from ..shared.kernel.errors import ErrorCode, NotFoundError, error_response_payload
+from .common import parse_body, required_query, user_id
+
+PRIVILEGE = ["dte.bi.chat.edit"]
 
 
 class ReplyPayload(BaseModel):
@@ -48,47 +51,49 @@ class ChatForkRequest(BaseModel):
     source_chat_id: Optional[str] = None
 
 
-class ChatsHandler(BusinessHandler):
-    @policy_auth(resource="chat", action="list")
-    async def get(self):
+class ChatController:
+    def __init__(self, server) -> None:
+        self.server = server
+
+    @router.GET("/rest/chatbi/v1/chat", user_handler=True)
+    @authenticated(origin_url="/rest/chatbi/v1/chat", privilege=PRIVILEGE)
+    async def list_sessions(self, req: RequestHandler, **query):
         def action():
-            with self.container.conversation_service_scope() as service:
-                return [session_summary_to_dict(item) for item in service.list_sessions(user_id=self.user_id)]
-        self.write_json(await self.run_blocking(action))
+            with self.server.conversation_service_scope() as service:
+                return [session_summary_to_dict(item) for item in service.list_sessions(user_id=user_id(req))]
+        return await self.server.run_blocking(action)
 
-    @policy_auth(resource="chat", action="create")
-    async def post(self):
-        data = self.parse_json(ChatRequestPayload)
+    @router.POST("/rest/chatbi/v1/chat", user_handler=True, use_body=True)
+    @authenticated(origin_url="/rest/chatbi/v1/chat", privilege=PRIVILEGE)
+    async def chat(self, req: RequestHandler, body, **query):
+        data = parse_body(body, ChatRequestPayload)
         command = chat_command_from_payload(data.model_dump(exclude_none=True))
-        if "text/event-stream" not in str(self.request.headers.get("Accept") or "").lower():
+        if "text/event-stream" not in str(req.request.headers.get("Accept") or "").lower():
             def action():
-                with self.container.conversation_service_scope() as service:
-                    return chat_response_to_dict(service.chat(data=command, user_id=self.user_id))
-            self.write_json(await self.run_blocking(action))
-            return
-        await self._stream(command)
+                with self.server.conversation_service_scope() as service:
+                    return chat_response_to_dict(service.chat(data=command, user_id=user_id(req)))
+            return await self.server.run_blocking(action)
+        await self._stream(req, command)
 
-    async def _stream(self, command) -> None:
-        self.set_header("Content-Type", "text/event-stream")
-        self.set_header("Cache-Control", "no-cache")
-        self.set_header("Connection", "keep-alive")
+    async def _stream(self, req: RequestHandler, command) -> None:
+        req.set_header("Content-Type", "text/event-stream")
+        req.set_header("Cache-Control", "no-cache")
+        req.set_header("Connection", "keep-alive")
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Any] = asyncio.Queue()
         end = object()
-        service_scope = self.container.conversation_service_scope
-        user_id = self.user_id
 
         def produce() -> None:
             try:
-                with service_scope() as service:
-                    for event in service.chat_stream(data=command, user_id=user_id):
+                with self.server.conversation_service_scope() as service:
+                    for event in service.chat_stream(data=command, user_id=user_id(req)):
                         loop.call_soon_threadsafe(queue.put_nowait, event)
             except Exception as exc:
                 loop.call_soon_threadsafe(queue.put_nowait, exc)
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, end)
 
-        self.container.executor.submit(produce)
+        self.server.executor.submit(produce)
         sequence = 1
         conversation_id = command.conversation_id or ""
         chat_id = command.chat_id or ""
@@ -98,59 +103,60 @@ class ChatsHandler(BusinessHandler):
                 if item is end:
                     break
                 if isinstance(item, Exception):
-                    for payload in _error_and_done(item, conversation_id=conversation_id, chat_id=chat_id, sequence=sequence, request_id=self.request.headers.get("X-Request-Id")):
-                        self.write(_sse_chunk(payload))
-                        await self.flush()
+                    for payload in _error_and_done(item, conversation_id=conversation_id, chat_id=chat_id, sequence=sequence, request_id=req.request.headers.get("X-Request-Id")):
+                        req.write(_sse_chunk(payload))
+                        await req.flush()
                     return
                 event: FlowEvent = item
                 conversation_id = event.conversation_id or conversation_id
                 chat_id = event.chat_id or chat_id
                 sequence = max(sequence, int(event.sequence or sequence))
-                self.write(_sse_chunk(_flow_event_to_chat_stream_event(event)))
-                await self.flush()
+                req.write(_sse_chunk(_flow_event_to_chat_stream_event(event)))
+                await req.flush()
                 sequence += 1
         except StreamClosedError:
             return
 
-
-class ChatStopHandler(BusinessHandler):
-    @policy_auth(resource="chat", action="stop")
-    async def post(self, chat_id: str):
+    @router.POST("/rest/chatbi/v1/chat/stop", user_handler=True)
+    @authenticated(origin_url="/rest/chatbi/v1/chat/stop", privilege=PRIVILEGE)
+    async def stop_chat(self, req: RequestHandler, **query):
+        chat_id = required_query(req, query, "chatId")
         def action():
-            with self.container.conversation_service_scope() as service:
-                return service.stop_chat(chat_id=chat_id, user_id=self.user_id)
-        if not await self.run_blocking(action):
+            with self.server.conversation_service_scope() as service:
+                return service.stop_chat(chat_id=chat_id, user_id=user_id(req))
+        if not await self.server.run_blocking(action):
             raise NotFoundError("当前没有正在运行的对话。", error_code=ErrorCode.CONVERSATION_CANCEL_NOT_RUNNING)
-        self.write_json({"chatId": chat_id, "status": "stop_requested"})
+        return {"chatId": chat_id, "status": "stop_requested"}
 
-
-class ChatDetailHandler(BusinessHandler):
-    @policy_auth(resource="chat", action="read")
-    async def get(self, conversation_id: str):
+    @router.GET("/rest/chatbi/v1/chat/detail", user_handler=True)
+    @authenticated(origin_url="/rest/chatbi/v1/chat/detail", privilege=PRIVILEGE)
+    async def get_session(self, req: RequestHandler, **query):
+        conversation_id = required_query(req, query, "conversationId")
         def action():
-            with self.container.conversation_service_scope() as service:
-                return session_detail_to_dict(service.get_session(conversation_id=conversation_id, user_id=self.user_id))
-        self.write_json(await self.run_blocking(action))
+            with self.server.conversation_service_scope() as service:
+                return session_detail_to_dict(service.get_session(conversation_id=conversation_id, user_id=user_id(req)))
+        return await self.server.run_blocking(action)
 
-    @policy_auth(resource="chat", action="delete")
-    async def delete(self, conversation_id: str):
+    @router.DELETE("/rest/chatbi/v1/chat/detail", user_handler=True)
+    @authenticated(origin_url="/rest/chatbi/v1/chat/detail", privilege=PRIVILEGE)
+    async def delete_session(self, req: RequestHandler, **query):
+        conversation_id = required_query(req, query, "conversationId")
         def action():
-            with self.container.conversation_service_scope() as service:
-                return delete_result_to_dict(service.delete_session(conversation_id=conversation_id, user_id=self.user_id))
-        self.write_json(await self.run_blocking(action))
+            with self.server.conversation_service_scope() as service:
+                return delete_result_to_dict(service.delete_session(conversation_id=conversation_id, user_id=user_id(req)))
+        return await self.server.run_blocking(action)
 
-
-class ChatForkHandler(BusinessHandler):
-    @policy_auth(resource="chat", action="fork")
-    async def post(self):
-        data = self.parse_json(ChatForkRequest)
+    @router.POST("/rest/chatbi/v1/chat/forks", user_handler=True, use_body=True)
+    @authenticated(origin_url="/rest/chatbi/v1/chat/forks", privilege=PRIVILEGE)
+    async def fork_session(self, req: RequestHandler, body, **query):
+        data = parse_body(body, ChatForkRequest)
         def action():
-            with self.container.conversation_service_scope() as service:
+            with self.server.conversation_service_scope() as service:
                 return fork_session_result_to_dict(service.fork_session(
                     data=fork_session_command_from_payload(data.model_dump(exclude_none=True)),
-                    user_id=self.user_id,
+                    user_id=user_id(req),
                 ))
-        self.write_json(await self.run_blocking(action))
+        return await self.server.run_blocking(action)
 
 
 def _sse_chunk(payload: dict[str, Any]) -> str:
@@ -167,14 +173,7 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
     event_type = "answer" if event.event_type == "delta" else event.event_type
     if event.event_type in {"tool_call", "tool_result", "checkpoint"}:
         event_type = "step_delta"
-    payload: dict[str, Any] = {
-        "conversationId": event.conversation_id or "",
-        "chatId": event.chat_id or "",
-        "eventType": event_type,
-        "sequence": event.sequence,
-        "timestamp": int(time.time() * 1000),
-        "status": event.status,
-    }
+    payload: dict[str, Any] = {"conversationId": event.conversation_id or "", "chatId": event.chat_id or "", "eventType": event_type, "sequence": event.sequence, "timestamp": int(time.time() * 1000), "status": event.status}
     if event.step is not None:
         payload["step"] = {"code": event.step.code, "stepId": event.step.code, "title": event.step.title, "status": event.step.status, "detail": event.step.detail, "parentStepId": event.step.parent_step_id, "stepPath": list(event.step.step_path)}
     if event.delta:
@@ -192,11 +191,3 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
     if event.source_subflow is not None:
         payload["sourceSubflow"] = event.source_subflow
     return payload
-
-
-ROUTES = [
-    (r"/rest/chatbi/v1/chat", ChatsHandler),
-    (r"/rest/chatbi/v1/chat/forks", ChatForkHandler),
-    (r"/rest/chatbi/v1/chat/([^/]+)/stop", ChatStopHandler),
-    (r"/rest/chatbi/v1/chat/([^/]+)", ChatDetailHandler),
-]

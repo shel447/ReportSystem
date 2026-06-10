@@ -220,7 +220,7 @@ def plan_sections(context):
 
 ## 对话协作
 
-- 停止当前运行中对话：前端调用 `POST /chat/{chatId}/stop`。
+- 停止当前运行中对话：前端调用 `POST /chat/stop?chatId={chatId}`。
 - 普通追加输入：前端本地排队，上一轮 `done` 后通过 `/chat` 创建新 chat。
 - 结构化追问答复：继续通过 `/chat reply.sourceChatId` 创建新 chat。
 - 不要向前端暴露 `runId`。

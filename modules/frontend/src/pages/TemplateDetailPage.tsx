@@ -141,7 +141,7 @@ export function TemplateDetailPage() {
         </div>
         <div className="template-detail-toolbar__actions">
           {!isCreateMode ? (
-            <a className="secondary-button button-link" href={`/rest/chatbi/v1/templates/${encodeURIComponent(activeDraft.id)}/export`}>
+            <a className="secondary-button button-link" href={`/rest/chatbi/v1/templates/export?templateId=${encodeURIComponent(activeDraft.id)}`}>
               <Download size={16} aria-hidden="true" />
               导出 JSON
             </a>

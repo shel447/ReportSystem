@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from src.contexts.report.application.generation_models import DocumentView, DownloadResolution
-from src.main import create_app
+from tests.support.tornado_client import create_app
 from src.shared.kernel.errors import ValidationError
 from tests.support.tornado_client import FakeWebContainer, TornadoTestClient
 
@@ -17,7 +17,7 @@ def test_report_download_handler_streams_resolved_file(tmp_path):
         resolve_download=lambda **kwargs: DownloadResolution(document=document, absolute_path=str(artifact)),
     )
     with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=FakeWebContainer(report_service=service)), headers={"X-User-Id": "user"}) as client:
-        response = client.get("/rest/chatbi/v1/reports/rpt_1/documents/doc_1/download")
+        response = client.get("/rest/chatbi/v1/reports/documents/download", params={"reportId": "rpt_1", "documentId": "doc_1"})
         assert response.status_code == 200
         assert response.text == "# report\n"
 
@@ -25,6 +25,15 @@ def test_report_download_handler_streams_resolved_file(tmp_path):
 def test_report_document_validation_error_uses_public_error(tmp_path):
     service = SimpleNamespace(generate_documents=lambda **kwargs: (_ for _ in ()).throw(ValidationError("PDF export is not available yet")))
     with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=FakeWebContainer(report_service=service)), headers={"X-User-Id": "user"}) as client:
-        response = client.post("/rest/chatbi/v1/reports/rpt_1/document-generations", json={"formats": ["pdf"]})
+        response = client.post("/rest/chatbi/v1/reports/document-generations", params={"reportId": "rpt_1"}, json={"formats": ["pdf"]})
         assert response.status_code == 400
         assert response.json()["errorCode"] == "chatbi.base.param.invalid"
+
+
+def test_report_query_parameters_are_required_and_legacy_paths_are_removed(tmp_path):
+    with TornadoTestClient(create_app(frontend_dir=str(tmp_path)), headers={"X-User-Id": "user"}) as client:
+        missing = client.get("/rest/chatbi/v1/reports/detail")
+        legacy = client.get("/rest/chatbi/v1/reports/rpt_1")
+    assert missing.status_code == 400
+    assert missing.json()["errorCode"] == "chatbi.base.param.invalid"
+    assert legacy.status_code == 404

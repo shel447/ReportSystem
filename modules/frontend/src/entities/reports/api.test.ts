@@ -17,7 +17,7 @@ describe("reports api", () => {
     await fetchReport("rpt/1");
 
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe("/rest/chatbi/v1/reports/rpt%2F1");
+    expect(url).toBe("/rest/chatbi/v1/reports/detail?reportId=rpt%2F1");
     expect(new Headers(options.headers).get("X-User-Id")).toBe("local-report-user");
   });
 });

@@ -1,37 +1,44 @@
-# Tornado Web 适配与事务边界
+# Runtime Server 与 Controller 适配
 
 ## 定位
 
-后端 Web 入口使用 Tornado。每个 HTTP 请求由一个 `RequestHandler` 实例承载，Handler 只负责协议适配，不把 `RequestHandler`、数据库 session 或 ORM 对象传入 application/domain。
+ReportSystem Backend 不创建 Tornado Application、HTTPServer 或 IOLoop。生产环境由平台 `runtime.server` SDK 承载，本仓库的 `modules/mock-sdk` 提供相同公开接口的开发态实现。
 
 ```mermaid
 flowchart LR
-    request["HTTP 请求"] --> handler["Tornado RequestHandler"]
-    handler --> auth["身份解析与策略鉴权"]
-    handler --> scope["Infrastructure Service Scope"]
+    runtime["runtime.server PythonRuntime"] --> lifecycle["Backend register_initialize / register_handler / register_destroy"]
+    runtime --> controller["注解式 Controller"]
+    controller --> scope["ChatBIServer Service Scope"]
     scope --> uow["SQLAlchemy Unit of Work"]
     uow --> service["Application Service"]
-    service --> repository["Repository Adapter"]
 ```
 
-## Handler 约束
+## Controller 契约
 
-- 正式业务 Handler 在 `prepare()` 中完成身份解析和 `@policy_auth` 校验。
-- JSON 请求继续使用 Pydantic 边界模型校验；校验失败转换为 `chatbi.base.param.invalid`。
-- 同步数据库、外部 HTTP 和文档生成调用放入受控线程池，避免阻塞 Tornado IOLoop。
-- SSE 后台生产者只产生事件；Handler 在 IOLoop 中按顺序逐条 `write/flush`。
+- Controller 不继承 RequestHandler 或公共 Controller 基类。
+- Controller 方法通过 `@router.GET/POST/PUT/DELETE` 声明路径、身份处理和 body 解析。
+- `tornado.web.RequestHandler` 是 Backend 唯一允许直接使用的 Tornado 类型，用于读取请求、输出 SSE 和下载文件。
+- URL 查询参数由 Runtime 汇总为 `**query`。ReportSystem 自有正式业务接口不使用资源 Path 参数，资源标识统一使用必填 Query 参数；Runtime 仍可为其他系统保留通用 Path 参数能力。
+- 正式接口同时声明 `@authenticated(origin_url, privilege)`；当前统一权限为 `dte.bi.chat.edit`。
+- Controller 不导入数据库 session、ORM 或 `get_db`，只调用 `ChatBIServer` 提供的 infrastructure service scope。
 
-## Unit of Work
+## 生命周期
 
-Handler 不导入 `get_db/get_dev_db/Session/sqlalchemy`，只通过 application-lifetime container 获取 infrastructure-owned service scope。
+Backend 包向 Runtime 暴露：
 
-`SqlAlchemyUnitOfWork` 负责 session 创建、显式提交、异常回滚和最终关闭。SQLAlchemy repository 只执行读写与 `flush()`，不自行提交事务。开发辅助数据使用独立 `DevSqlAlchemyUnitOfWork`。
+- `register_initialize()`：初始化数据库、平台后台任务、线程池和外部适配器。
+- `register_handler()`：返回 `ChatController`、`TemplateController`、`ReportController`、`HealthCheckController`。
+- `register_destroy()`：停止平台后台任务并释放线程池。
+
+健康检查 `GET /rest/chatbi/healthcheck` 不要求身份和权限，固定返回 `{"retCode": 0, "retInfo": "chatbi works well"}`。
 
 ## 启动与验证
 
 ```bash
 cd modules/backend
-uv run python -m src.main --host 0.0.0.0 --port 8300
+uv run python -m runtime.server --module src --host 0.0.0.0 --port 8300
 ```
 
-API 测试启动真实 Tornado HTTP server，覆盖 Handler、错误转换、SSE、文件下载、SPA fallback 和 OpenAPI。架构测试禁止 backend 源码残留 FastAPI/uvicorn，并禁止 Handler 依赖数据库 session。
+API 测试通过开发态 Runtime 创建真实 HTTP Server，覆盖注解路由、错误转换、SSE、文件下载和生命周期。架构测试禁止 Backend 自行组装 Tornado Server，并禁止 Controller 继承 RequestHandler。
+
+架构测试还会禁止 Backend Controller 路由声明 `{resourceId}` 或访问 `req.path_params`。必填 Query 参数缺失、空白或重复时统一返回 `chatbi.base.param.invalid`。

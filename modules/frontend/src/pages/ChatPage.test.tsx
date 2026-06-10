@@ -138,7 +138,7 @@ describe("ChatPage", () => {
           },
         ]));
       }
-      if (url === "/rest/chatbi/v1/chat/conv_1") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_1") {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -188,7 +188,7 @@ describe("ChatPage", () => {
           { conversationId: "conv_queue", chatId: payload.chatId, eventType: "done", sequence: 2, timestamp: 2, status: "finished" },
         ]));
       }
-      if (url === "/rest/chatbi/v1/chat/conv_queue") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_queue") {
         return Promise.resolve({ ok: true, json: async () => ({ conversationId: "conv_queue", title: "队列测试", status: "active", records: [] }) });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
@@ -314,7 +314,7 @@ describe("ChatPage", () => {
           },
         ]));
       }
-      if (url === "/rest/chatbi/v1/chat/conv_delta") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_delta") {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -472,7 +472,7 @@ describe("ChatPage", () => {
           },
         ]));
       }
-      if (url === "/rest/chatbi/v1/chat/conv_multi") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_multi") {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -682,7 +682,7 @@ describe("ChatPage", () => {
           json: async () => [{ conversationId: "conv_replied", title: "已回复追问", status: "active", lastMessagePreview: "请确认报告诉求" }],
         });
       }
-      if (url === "/rest/chatbi/v1/chat/conv_replied") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_replied") {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -870,7 +870,7 @@ describe("ChatPage", () => {
           { conversationId: "conv_confirm", chatId: payload.chatId, eventType: "done", sequence: 3, timestamp: 6, status: "finished" },
         ]));
       }
-      if (url === "/rest/chatbi/v1/chat/conv_confirm") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_confirm") {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -938,7 +938,7 @@ describe("ChatPage", () => {
           json: async () => [{ conversationId: "conv_piu_merge", title: "聚合 PIU", status: "active", lastMessagePreview: "已完成" }],
         });
       }
-      if (url === "/rest/chatbi/v1/chat/conv_piu_merge") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_piu_merge") {
         return Promise.resolve({
           ok: true,
           json: async () => ({
@@ -1037,7 +1037,7 @@ describe("ChatPage", () => {
           json: async () => [{ conversationId: "conv_dynamic_options", title: "动态参数", status: "active", lastMessagePreview: "请选择区域" }],
         });
       }
-      if (url === "/rest/chatbi/v1/chat/conv_dynamic_options") {
+      if (url === "/rest/chatbi/v1/chat/detail?conversationId=conv_dynamic_options") {
         return Promise.resolve({
           ok: true,
           json: async () => ({

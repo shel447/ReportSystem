@@ -76,7 +76,7 @@ flowchart LR
 
 ### 后端
 
-- Tornado
+- 平台 `runtime.server` SDK（本地由 `modules/mock-sdk` 提供）
 - SQLAlchemy
 - Pydantic
 - HTTPX
@@ -99,6 +99,7 @@ ReportSystem/
 │  ├─ backend/
 │  ├─ frontend/
 │  ├─ exporter/
+│  ├─ mock-sdk/        # 平台 runtime.server 的本地开发实现
 │  └─ mock-server/     # 可选开发态外部系统替身
 └─ README.md
 ```
@@ -111,7 +112,7 @@ ReportSystem/
 - `modules/backend/src/contexts/report`
 - `modules/backend/src/infrastructure`
 - `modules/backend/src/shared/kernel`
-- `modules/backend/src/routers`
+- `modules/backend/src/controllers`
 
 公开业务路由当前只保留：
 
@@ -169,21 +170,18 @@ npm run build
 
 ```powershell
 Set-Location modules/backend
-uv run python -m src.main --host 0.0.0.0 --port 8300
+uv run python -m runtime.server --module src --host 0.0.0.0 --port 8300
 ```
 
-本地直接由后端托管前端 `dist/` 时，如果没有上游网关注入 `X-User-Id`，可显式设置 `REPORT_DEV_USER_ID` 作为开发用户，例如 `REPORT_DEV_USER_ID=pycharm-check`。未设置该变量时，正式业务接口仍会要求请求携带可信用户身份。
+本地联调时，如果没有上游网关注入 `X-User-Id`，可显式设置 `REPORT_DEV_USER_ID` 作为开发用户，例如 `REPORT_DEV_USER_ID=pycharm-check`。未设置该变量时，正式业务接口仍会要求请求携带可信用户身份。
 
 默认访问地址：
 
-- 应用首页：[http://127.0.0.1:8300](http://127.0.0.1:8300)
-- OpenAPI：[http://127.0.0.1:8300/openapi.json](http://127.0.0.1:8300/openapi.json)
+- 健康检查：[http://127.0.0.1:8300/rest/chatbi/healthcheck](http://127.0.0.1:8300/rest/chatbi/healthcheck)
 
 接口前缀约定：
 
 - 业务接口：`/rest/chatbi/v1/*`
-- 开发接口：`/rest/dev/*`
-- 文档浏览：`/rest/dev/docs`
 
 ### 5.5 可选：启动开发态 Mock 外部服务
 
@@ -230,7 +228,7 @@ python3 scripts/setup_mock_demo.py
 
 ## 7. 当前实现边界
 
-- 报告级编辑流接口 `POST /rest/chatbi/v1/reports/{reportId}/edit-stream` 仍待实现
+- 报告级编辑流接口 `POST /rest/chatbi/v1/reports/edit-stream?reportId={reportId}` 仍待实现
 - Word/PPT 导出由 `modules/exporter` 提供，Markdown 由后端生成；PDF 暂未开放
 - 动态参数解析是辅助公共接口，不作为独立业务资源页暴露
 

@@ -29,7 +29,7 @@ describe("TemplateDetailPage", () => {
       if (url === "/rest/chatbi/v1/templates" && init?.method === "POST") {
         return Promise.resolve({ ok: true, json: async () => JSON.parse(String(init.body)) });
       }
-      if (url === "/rest/chatbi/v1/templates/tpl_network_daily" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates/detail?templateId=tpl_network_daily" && !init?.method) {
         return Promise.resolve({ ok: true, json: async () => ({}) });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });
@@ -114,7 +114,7 @@ describe("TemplateDetailPage", () => {
       if (url === "/rest/chatbi/v1/templates" && init?.method === "POST") {
         return Promise.resolve({ ok: true, json: async () => JSON.parse(String(init.body)) });
       }
-      if (url === "/rest/chatbi/v1/templates/tpl_network_paged" && !init?.method) {
+      if (url === "/rest/chatbi/v1/templates/detail?templateId=tpl_network_paged" && !init?.method) {
         return Promise.resolve({ ok: true, json: async () => ({}) });
       }
       return Promise.resolve({ ok: true, json: async () => ({}) });

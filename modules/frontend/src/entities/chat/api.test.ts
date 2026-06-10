@@ -57,7 +57,7 @@ describe("chat stream api", () => {
 
     await expect(stopChat("chat_1")).resolves.toEqual({ chatId: "chat_1", status: "stop_requested" });
     expect(fetchMock).toHaveBeenCalledWith(
-      "/rest/chatbi/v1/chat/chat_1/stop",
+      "/rest/chatbi/v1/chat/stop?chatId=chat_1",
       expect.objectContaining({ method: "POST" }),
     );
     fetchMock.mockRestore();

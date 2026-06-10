@@ -7,6 +7,7 @@ import argparse
 import json
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -39,10 +40,10 @@ def main() -> None:
     api = args.report_system_url.rstrip("/")
     for name in TEMPLATE_NAMES:
         template = json.loads((TEMPLATE_DIR / name).read_text(encoding="utf-8"))
-        existing = request_json("GET", f"{api}/rest/chatbi/v1/templates/{template['id']}")
+        detail_url = f"{api}/rest/chatbi/v1/templates/detail?{urlencode({'templateId': template['id']})}"
+        existing = request_json("GET", detail_url)
         method = "PUT" if existing else "POST"
-        suffix = f"/{template['id']}" if existing else ""
-        request_json(method, f"{api}/rest/chatbi/v1/templates{suffix}", template)
+        request_json(method, detail_url if existing else f"{api}/rest/chatbi/v1/templates", template)
         print(f"{method} {template['id']}")
     request_json(
         "PUT",

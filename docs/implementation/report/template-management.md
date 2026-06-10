@@ -69,7 +69,7 @@
   - 调用 repository 创建模板
   - 返回正式模板详情对象
 - `update_template`
-  - 校验路径 `id` 与 payload `id` 一致
+  - 校验 Query 参数 `templateId` 与 payload `id` 一致
   - 校验正式模板 payload
   - 更新模板并返回正式模板详情对象
 - `delete_template`
@@ -140,10 +140,10 @@
 
 - `POST /templates`
 - `GET /templates`
-- `GET /templates/{id}`
-- `PUT /templates/{id}`
-- `DELETE /templates/{id}`
+- `GET /templates/detail?templateId={id}`
+- `PUT /templates/detail?templateId={id}`
+- `DELETE /templates/detail?templateId={id}`
 - `POST /templates/import/preview`
-- `GET /templates/{id}/export`
+- `GET /templates/export?templateId={id}`
 
 模板详情、创建、更新、导出必须返回同一份正式 `ReportTemplate`。

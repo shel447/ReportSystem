@@ -215,14 +215,14 @@ application 层的 custom 内容解析器负责调用外部 gateway 并校验返
 
 ## 7. 对外接口映射
 
-- `GET /reports/{reportId}`
-- `POST /reports/{reportId}/document-generations`
-- `GET /reports/{reportId}/documents/{documentId}/download`
+- `GET /reports/detail?reportId={reportId}`
+- `POST /reports/document-generations?reportId={reportId}`
+- `GET /reports/documents/download?reportId={reportId}&documentId={documentId}`
 
-`GET /reports/{reportId}` 返回的 `answer` 结构必须与 `/chat` 里 `REPORT.answer` 完全等价。
+`GET /reports/detail?reportId={reportId}` 返回的 `answer` 结构必须与 `/chat` 里 `REPORT.answer` 完全等价。
 
 ## 8. 与流式 `delta` 的边界
 
 - `report` context 只负责产出完整 `Report DSL`
 - 目录与章节的流式 `delta` 属于 `conversation` 的对外投影，不写回 `ReportInstance`
-- `ReportInstance` 与 `/reports/{reportId}` 始终只返回完整报告，不回放生成阶段的 patch 历史
+- `ReportInstance` 与 `/reports/detail?reportId={reportId}` 始终只返回完整报告，不回放生成阶段的 patch 历史

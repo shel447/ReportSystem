@@ -12,7 +12,7 @@
 6. [外部集成](integrations/外部集成实现.md)
 7. [智能问数](data-analysis/README.md)
 8. [实现变更日志](changelog/README.md)
-9. [Tornado Web 适配与事务边界](web-adapter.md)
+9. [Runtime Server 与 Controller 适配](web-adapter.md)
 
 ## 模块映射
 
@@ -31,7 +31,7 @@
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
 - `shared/agentflow` 提供公共流程运行、事件发布、工具调用、提示词组装、hook、checkpoint、拒答、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
-- `shared/kernel` 提供公开错误模型、用户身份解析、路由级平台鉴权注解和其他跨业务基础契约；平台鉴权的 HTTP 实现位于 infrastructure
+- `shared/kernel` 提供公开错误模型、用户身份解析、`@authenticated` 权限注解和其他跨业务基础契约；平台鉴权的 HTTP 实现位于 infrastructure
 - `conversation` 拥有场景注册协议；`report` 和 `data_analysis` 在各自 context 内提供 registration provider、codec 和 handler 实现
 - `data_analysis` 拥有查询、数据目录和知识检索相关业务接口；`report` 如需查询能力，只依赖自己声明的数据查询接口，由装配层接入对应实现
 - 顶层装配只收集各 context 暴露的 composition builder 和 provider，不拼接业务 DTO，不解释业务场景语义
@@ -40,7 +40,7 @@
 
 `report.application` 按职责分为：
 
-- `ReportService`：report context 对 router 和其他 context 的唯一总入口
+- `ReportService`：report context 对 Controller 和其他 context 的唯一总入口
 - `ReportScenarioService`：编排报告场景 instruction
 - `ReportTemplateService`：模板 CRUD、导入和导出
 - `ReportParameterService`：参数提取、补参解释、缺参判断、追问构造和动态候选值解析
@@ -52,7 +52,7 @@
 
 `data_analysis` 是独立 bounded context：负责语义数据目录、知识增强、查询生成、安全校验、OneQuery 执行和可视化建议。`report` 不复制这些规则。
 
-禁止 RequestHandler 直接操作 ORM、依赖 `Session/get_db`，禁止 application 层直接使用 SQLAlchemy `Session`，或由基础设施反向定义领域对象。数据库 session、仓储实现和 Unit of Work 生命周期由 infrastructure 管理。
+Controller 方法可以直接接收 Tornado `RequestHandler`，但不得操作 ORM、依赖 `Session/get_db` 或把 RequestHandler 传入 application/domain。数据库 session、仓储实现和 Unit of Work 生命周期由 infrastructure 管理。
 
 ## 落地约束
 

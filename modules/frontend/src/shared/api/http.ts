@@ -9,6 +9,11 @@ export function chatbiPath(path: string): string {
   return `${CHATBI_API_PREFIX}${normalizePath(path)}`;
 }
 
+export function withQuery(path: string, query: Record<string, string>): string {
+  const params = new URLSearchParams(query);
+  return `${path}?${params.toString()}`;
+}
+
 export function devPath(path: string): string {
   return `${DEV_API_PREFIX}${normalizePath(path)}`;
 }

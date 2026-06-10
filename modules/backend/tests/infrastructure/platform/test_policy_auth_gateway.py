@@ -1,106 +1,43 @@
 from __future__ import annotations
 
-import httpx
 import pytest
 
-from src.infrastructure.platform.http_client import ExternalServiceConfig, PlatformHttpClient
 from src.infrastructure.platform.policy_auth import ExternalPolicyAuthenticationGateway, POLICY_AUTH_PATH
-from src.shared.kernel.errors import ErrorCode, UpstreamError
-from src.shared.kernel.policy_auth import PolicyAuthenticationRequest
+from src.shared.kernel.errors import ErrorCode, PermissionDeniedError, UpstreamError
 
 
-class _FakeClient:
-    calls: list[dict[str, object]] = []
-    response: httpx.Response | Exception = httpx.Response(200, json={"allowed": True})
+class Client:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
 
-    def __init__(self, *args, **kwargs) -> None:
-        self.timeout = kwargs.get("timeout")
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        return False
-
-    def get(self, url: str, *, headers: dict[str, str]):
-        self.calls.append({"method": "GET", "url": url, "headers": dict(headers)})
-        if isinstance(self.response, Exception):
-            raise self.response
-        self.response.request = httpx.Request("GET", url)
+    def post_json(self, **kwargs):
+        self.calls.append(kwargs)
         return self.response
 
 
-def _gateway() -> ExternalPolicyAuthenticationGateway:
-    return ExternalPolicyAuthenticationGateway(
-        client=PlatformHttpClient(config=ExternalServiceConfig(base_url="http://platform.example", timeout_seconds=3))
-    )
+def test_gateway_posts_privilege_requests():
+    client = Client({"results": [{"result": True}, {"result": True}]})
+    gateway = ExternalPolicyAuthenticationGateway(client=client)
+
+    gateway.authenticate(user_id="user_001", privileges=["a", "b"], origin_url="/chat")
+
+    call = client.calls[0]
+    assert call["path_or_url"] == POLICY_AUTH_PATH
+    assert call["payload"]["userId"] == "user_001"
+    assert [item["action"] for item in call["payload"]["requests"]] == ["a", "b"]
 
 
-def _request(headers: dict[str, str] | None = None) -> PolicyAuthenticationRequest:
-    return PolicyAuthenticationRequest(
-        user_id="user_001",
-        method="POST",
-        path="/rest/chatbi/v1/chat",
-        resource="chat",
-        action="create",
-        headers=headers or {"x-user-id": "user_001", "authorization": "Bearer token"},
-    )
+def test_gateway_denies_when_any_result_is_false():
+    gateway = ExternalPolicyAuthenticationGateway(client=Client({"results": [{"result": False}]}))
+    with pytest.raises(PermissionDeniedError) as exc:
+        gateway.authenticate(user_id="user", privileges=["a"], origin_url="/chat")
+    assert exc.value.error_code == ErrorCode.BASE_PERMISSION_DENIED
 
 
-def test_policy_auth_gateway_uses_get_formal_path_and_forwards_headers(monkeypatch):
-    _FakeClient.calls = []
-    _FakeClient.response = httpx.Response(200, json={"allowed": True})
-    monkeypatch.setattr("src.infrastructure.platform.policy_auth.httpx.Client", _FakeClient)
-
-    result = _gateway().authenticate(_request())
-
-    assert result.allowed is True
-    assert _FakeClient.calls == [
-        {
-            "method": "GET",
-            "url": f"http://platform.example{POLICY_AUTH_PATH}",
-            "headers": {"x-user-id": "user_001", "authorization": "Bearer token"},
-        }
-    ]
-
-
-@pytest.mark.parametrize(
-    "response",
-    [
-        httpx.Response(403, json={"errorCode": "naie.priv.permission.denied", "errorMsg": "denied"}),
-        httpx.Response(200, json={"allowed": False, "errorCode": "naie.priv.permission.denied", "errorMsg": "denied"}),
-        httpx.Response(200, json={"retCode": 1001, "retInfo": "denied"}),
-    ],
-)
-def test_policy_auth_gateway_maps_denial_to_result(monkeypatch, response):
-    _FakeClient.calls = []
-    _FakeClient.response = response
-    monkeypatch.setattr("src.infrastructure.platform.policy_auth.httpx.Client", _FakeClient)
-
-    result = _gateway().authenticate(_request())
-
-    assert result.allowed is False
-    assert result.upstream_code in {"naie.priv.permission.denied", "1001"}
-
-
-def test_policy_auth_gateway_fails_closed_when_upstream_errors(monkeypatch):
-    _FakeClient.calls = []
-    _FakeClient.response = httpx.Response(500, json={"errorCode": "naie.platform.error"})
-    monkeypatch.setattr("src.infrastructure.platform.policy_auth.httpx.Client", _FakeClient)
-
-    with pytest.raises(UpstreamError) as ctx:
-        _gateway().authenticate(_request())
-
-    assert ctx.value.error_code == ErrorCode.BASE_UPSTREAM_UNAVAILABLE
-    assert ctx.value.details["upstreamCode"] == "naie.platform.error"
-
-
-def test_policy_auth_gateway_times_out_as_base_overtime(monkeypatch):
-    _FakeClient.calls = []
-    _FakeClient.response = httpx.TimeoutException("timeout")
-    monkeypatch.setattr("src.infrastructure.platform.policy_auth.httpx.Client", _FakeClient)
-
-    with pytest.raises(UpstreamError) as ctx:
-        _gateway().authenticate(_request())
-
-    assert ctx.value.error_code == ErrorCode.BASE_OVERTIME
+@pytest.mark.parametrize("response", [{"results": []}, {"results": [{}]}, {"results": [{"result": "true"}]}])
+def test_gateway_rejects_invalid_results(response):
+    gateway = ExternalPolicyAuthenticationGateway(client=Client(response))
+    with pytest.raises(UpstreamError) as exc:
+        gateway.authenticate(user_id="user", privileges=["a"], origin_url="/chat")
+    assert exc.value.error_code == ErrorCode.BASE_UPSTREAM_INVALID_RESPONSE

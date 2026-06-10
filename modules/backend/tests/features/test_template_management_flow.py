@@ -4,7 +4,7 @@ import copy
 
 from tests.support.tornado_client import TornadoTestClient as TestClient
 
-from src.main import create_app
+from tests.support.tornado_client import create_app
 from tests.support.builders import load_json_fixture
 
 
@@ -19,13 +19,13 @@ def test_template_management_api_crud_import_preview_and_export(tmp_path):
         assert listed.status_code == 200
         assert any(item["id"] == template["id"] for item in listed.json())
 
-        detail = client.get(f"/rest/chatbi/v1/templates/{template['id']}")
+        detail = client.get("/rest/chatbi/v1/templates/detail", params={"templateId": template["id"]})
         assert detail.status_code == 200
         assert detail.json()["name"] == template["name"]
 
         updated_template = copy.deepcopy(template)
         updated_template["description"] = "E2E 更新后的模板说明"
-        updated = client.put(f"/rest/chatbi/v1/templates/{template['id']}", json=updated_template)
+        updated = client.put("/rest/chatbi/v1/templates/detail", params={"templateId": template["id"]}, json=updated_template)
         assert updated.status_code == 200
         assert updated.json()["description"] == "E2E 更新后的模板说明"
 
@@ -33,13 +33,13 @@ def test_template_management_api_crud_import_preview_and_export(tmp_path):
         assert preview.status_code == 200
         assert preview.json()["normalizedTemplate"]["id"] == template["id"]
 
-        exported = client.get(f"/rest/chatbi/v1/templates/{template['id']}/export")
+        exported = client.get("/rest/chatbi/v1/templates/export", params={"templateId": template["id"]})
         assert exported.status_code == 200
         assert exported.json()["id"] == template["id"]
 
-        deleted = client.delete(f"/rest/chatbi/v1/templates/{template['id']}")
+        deleted = client.delete("/rest/chatbi/v1/templates/detail", params={"templateId": template["id"]})
         assert deleted.status_code == 200
-        assert client.get(f"/rest/chatbi/v1/templates/{template['id']}").status_code == 404
+        assert client.get("/rest/chatbi/v1/templates/detail", params={"templateId": template["id"]}).status_code == 404
 
 
 def test_shared_template_is_visible_to_different_authenticated_users(tmp_path):
@@ -49,6 +49,6 @@ def test_shared_template_is_visible_to_different_authenticated_users(tmp_path):
         created = client.post("/rest/chatbi/v1/templates", headers={"X-User-Id": "template-admin"}, json=template)
         assert created.status_code == 200
 
-        detail = client.get(f"/rest/chatbi/v1/templates/{template['id']}", headers={"X-User-Id": "report-user"})
+        detail = client.get("/rest/chatbi/v1/templates/detail", params={"templateId": template["id"]}, headers={"X-User-Id": "report-user"})
         assert detail.status_code == 200
         assert detail.json()["id"] == template["id"]

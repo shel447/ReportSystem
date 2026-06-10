@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from src.contexts.conversation.application.models import ChatAnswerEnvelope, ChatResponse, SessionDetail
-from src.main import create_app
+from tests.support.tornado_client import create_app
 from src.shared.agentflow import FlowEvent, FlowStep
 from tests.support.tornado_client import FakeWebContainer, TornadoTestClient
 
@@ -26,13 +26,20 @@ class ConversationService:
         return True
 
 
+def test_health_check_requires_no_identity(tmp_path):
+    with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=FakeWebContainer())) as client:
+        response = client.get("/rest/chatbi/healthcheck")
+        assert response.status_code == 200
+        assert response.json() == {"retCode": 0, "retInfo": "chatbi works well"}
+
+
 def test_chat_json_and_history_contract(tmp_path):
     container = FakeWebContainer(conversation_service=ConversationService())
     with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=container), headers={"X-User-Id": "user"}) as client:
         response = client.post("/rest/chatbi/v1/chat", json={"question": "hello"})
         assert response.status_code == 200
         assert response.json()["answer"]["answerType"] == "TEXT"
-        history = client.get("/rest/chatbi/v1/chat/conv_1").json()
+        history = client.get("/rest/chatbi/v1/chat/detail", params={"conversationId": "conv_1"}).json()
         assert history["conversationId"] == "conv_1"
         assert "records" in history
 
@@ -43,3 +50,16 @@ def test_chat_sse_preserves_event_order(tmp_path):
         assert response.status_code == 200
         assert response.text.index('"sequence": 1') < response.text.index('"sequence": 2')
         assert '"eventType": "step_delta"' in response.text
+
+
+def test_chat_query_parameters_are_required_and_legacy_paths_are_removed(tmp_path):
+    container = FakeWebContainer(conversation_service=ConversationService())
+    with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=container), headers={"X-User-Id": "user"}) as client:
+        missing = client.get("/rest/chatbi/v1/chat/detail")
+        duplicate = client.get("/rest/chatbi/v1/chat/detail?conversationId=one&conversationId=two")
+        legacy = client.get("/rest/chatbi/v1/chat/conv_1")
+    assert missing.status_code == 400
+    assert missing.json()["errorCode"] == "chatbi.base.param.invalid"
+    assert duplicate.status_code == 400
+    assert duplicate.json()["errorCode"] == "chatbi.base.param.invalid"
+    assert legacy.status_code == 404

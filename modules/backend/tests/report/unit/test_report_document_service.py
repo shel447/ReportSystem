@@ -36,7 +36,7 @@ class _DocumentGateway:
             format=document.artifact_kind,
             mime_type=document.mime_type,
             file_name=Path(document.storage_key).name,
-            download_url=f"/reports/{document.report_instance_id}/documents/{document.id}/download",
+            download_url=f"/rest/chatbi/v1/reports/documents/download?reportId={document.report_instance_id}&documentId={document.id}",
             status=document.status,
         )
 

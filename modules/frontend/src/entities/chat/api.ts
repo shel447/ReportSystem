@@ -1,4 +1,4 @@
-import { ApiError, chatbiPath, deleteJson, postJson, requestJson, withChatbiHeaders } from "../../shared/api/http";
+import { ApiError, chatbiPath, deleteJson, postJson, requestJson, withChatbiHeaders, withQuery } from "../../shared/api/http";
 import type { ChatForkRequest, ChatRequest, ChatResponse, ChatStreamEvent, ConversationDetail, ConversationSummary } from "./types";
 
 export function fetchConversations() {
@@ -6,11 +6,11 @@ export function fetchConversations() {
 }
 
 export function fetchConversation(conversationId: string) {
-  return requestJson<ConversationDetail>(chatbiPath(`/chat/${encodeURIComponent(conversationId)}`));
+  return requestJson<ConversationDetail>(withQuery(chatbiPath("/chat/detail"), { conversationId }));
 }
 
 export function deleteConversation(conversationId: string) {
-  return deleteJson(chatbiPath(`/chat/${encodeURIComponent(conversationId)}`));
+  return deleteJson(withQuery(chatbiPath("/chat/detail"), { conversationId }));
 }
 
 export function forkConversation(payload: ChatForkRequest) {
@@ -28,7 +28,7 @@ export function sendChatMessage(payload: ChatRequest) {
 }
 
 export function stopChat(chatId: string) {
-  return postJson<{ chatId: string; status: "stop_requested" }>(chatbiPath(`/chat/${encodeURIComponent(chatId)}/stop`), {});
+  return postJson<{ chatId: string; status: "stop_requested" }>(withQuery(chatbiPath("/chat/stop"), { chatId }), {});
 }
 
 export async function sendChatMessageStream(

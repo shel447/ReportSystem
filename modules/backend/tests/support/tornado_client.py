@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
 import threading
 from typing import Any
 
 import httpx
 from tornado import httpserver, ioloop, netutil
+from runtime.server import create_application
+
+from src.controllers import ChatController, HealthCheckController, ReportController, TemplateController
 
 
 class TornadoTestClient:
@@ -41,9 +45,11 @@ class TornadoTestClient:
         self.client.close()
         self.loop.add_callback(self.loop.stop)
         self._thread.join(timeout=10)
-        container = self.app.settings.get("container")
-        if container is not None and hasattr(container, "close"):
-            container.close()
+        server = self.app.settings.get("chatbi_server")
+        if server is not None and hasattr(server, "destroy"):
+            server.destroy()
+        elif server is not None and hasattr(server, "close"):
+            server.close()
 
     def __enter__(self) -> "TornadoTestClient":
         return self
@@ -73,6 +79,7 @@ class FakeWebContainer:
     def __init__(self, *, report_service=None, conversation_service=None, policy_auth_gateway=None) -> None:
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.policy_auth_gateway = policy_auth_gateway
+        self.audit_dispatcher = type("AuditDispatcher", (), {"submit": lambda self, event: None})()
         self._report_service = report_service
         self._conversation_service = conversation_service
 
@@ -86,3 +93,26 @@ class FakeWebContainer:
 
     def close(self) -> None:
         self.executor.shutdown(wait=False, cancel_futures=True)
+
+    async def run_blocking(self, call, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self.executor, lambda: call(*args, **kwargs))
+
+
+def create_app(*, frontend_dir=None, container=None):
+    if container is None:
+        from src.infrastructure.chatbi_server import ChatBIServer
+        server = ChatBIServer()
+        server.initialize()
+    else:
+        server = container
+    app = create_application(
+        [
+            ChatController(server),
+            TemplateController(server),
+            ReportController(server),
+            HealthCheckController(),
+        ]
+    )
+    app.settings["chatbi_server"] = server
+    return app

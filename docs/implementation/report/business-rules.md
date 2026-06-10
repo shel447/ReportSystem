@@ -549,7 +549,7 @@ sequenceDiagram
     U->>Chat: POST /chat reply=confirm_params
     Chat->>App: freeze TemplateInstance and generate Report DSL
     App-->>Chat: stream delta patches and final REPORT answer
-    U->>Chat: POST /reports/{reportId}/document-generations
+    U->>Chat: POST /reports/document-generations?reportId={reportId}
     Chat->>Exp: generate word/ppt
     Exp-->>Chat: artifacts
     Chat-->>U: documents ready
@@ -565,7 +565,7 @@ sequenceDiagram
 
 `delta` 的正式行为：
 
-1. `delta` 只出现在流式 `ChatStreamEvent` 顶层，不进入 `ChatResponse` 完成态，也不进入 `GET /reports/{reportId}`。
+1. `delta` 只出现在流式 `ChatStreamEvent` 顶层，不进入 `ChatResponse` 完成态，也不进入 `GET /reports/detail?reportId={reportId}`。
 2. 不新增 SSE 事件类型；是否处于生成中由事件顶层 `status=running` 判断。
 3. `delta` 可附着在任意事件上，但只有内容变化时才返回。
 4. 当前正式支持三类动作：

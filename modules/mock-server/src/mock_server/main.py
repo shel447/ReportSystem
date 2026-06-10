@@ -104,19 +104,14 @@ def create_app() -> FastAPI:
     def health():
         return {"status": "ok"}
 
-    @app.get("/rest/dte/smartbi/v1/proxy/auth/chat")
-    def policy_authentication(x_mock_scenario: str | None = Header(default=None)):
+    @app.post("/rest/plat/priv/v1/policy/authentication")
+    def policy_authentication(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         if x_mock_scenario == "timeout":
             raise HTTPException(status_code=504, detail="mock timeout")
         if x_mock_scenario == "error":
             raise HTTPException(status_code=500, detail="mock error")
-        if x_mock_scenario in {"deny", "denied", "unauthorized"}:
-            return {
-                "allowed": False,
-                "errorCode": "naie.priv.permission.denied",
-                "errorMsg": "mock permission denied",
-            }
-        return {"allowed": True}
+        allowed = x_mock_scenario not in {"deny", "denied", "unauthorized"}
+        return {"results": [{"result": allowed} for _ in list(payload.get("requests") or [])]}
 
     @app.post("/v1/chat/completions")
     def chat_completions(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
