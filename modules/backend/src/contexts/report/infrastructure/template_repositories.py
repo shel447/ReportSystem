@@ -29,7 +29,7 @@ class SqlAlchemyTemplateManagementRepository:
             content=payload,
         )
         self.db.add(row)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_template(row)
 
@@ -43,7 +43,7 @@ class SqlAlchemyTemplateManagementRepository:
         row.description = template.description
         row.schema_version = template.schema_version
         row.content = payload
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_template(row)
 
@@ -52,7 +52,7 @@ class SqlAlchemyTemplateManagementRepository:
         if row is None:
             raise NotFoundError("Template not found", error_code=ErrorCode.REPORT_TEMPLATE_NOT_FOUND)
         self.db.delete(row)
-        self.db.commit()
+        self.db.flush()
 
     def get(self, template_id: str) -> ReportTemplate | None:
         row = self.db.get(ReportTemplateRow, template_id)

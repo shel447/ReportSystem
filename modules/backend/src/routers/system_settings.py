@@ -1,20 +1,11 @@
-"""系统设置路由"""
+from __future__ import annotations
+
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from ..infrastructure.ai.openai_compat import AIConfigurationError, OpenAICompatGateway
-from ..infrastructure.persistence.dev_database import get_dev_db
-from ..infrastructure.settings.system_settings import (
-    build_completion_provider_config,
-    build_embedding_provider_config,
-    get_settings_payload,
-    save_settings,
-)
-
-router = APIRouter(prefix="/system-settings", tags=["system-settings"])
+from ..infrastructure.dev_support import DevSupportService
+from ..web.base import DevHandler
 
 
 class CompletionSettingsUpdate(BaseModel):
@@ -44,89 +35,28 @@ class SettingsTestRequest(BaseModel):
     target: Literal["completion", "embedding", "both"] = "both"
 
 
-@router.get("")
-def get_system_settings(db: Session = Depends(get_dev_db)):
-    payload = get_settings_payload(db)
-    payload["index_status"] = get_index_status(db)
-    return payload
+class SystemSettingsHandler(DevHandler):
+    async def get(self):
+        self.write_json(await self.run_blocking(DevSupportService().get_settings))
+
+    async def put(self):
+        data = self.parse_json(SettingsUpdateRequest)
+        self.write_json(await self.run_blocking(DevSupportService().update_settings, data.model_dump(exclude_unset=True)))
 
 
-@router.put("")
-def update_system_settings(data: SettingsUpdateRequest, db: Session = Depends(get_dev_db)):
-    payload = save_settings(db, data.model_dump(exclude_unset=True))
-    payload["index_status"] = get_index_status(db)
-    return payload
+class SystemSettingsTestHandler(DevHandler):
+    async def post(self):
+        data = self.parse_json(SettingsTestRequest)
+        self.write_json(await self.run_blocking(DevSupportService().test_settings, data.target))
 
 
-@router.post("/test")
-def test_system_settings(data: SettingsTestRequest, db: Session = Depends(get_dev_db)):
-    gateway = OpenAICompatGateway()
-    result = {"target": data.target}
-    if data.target in ("completion", "both"):
-        result["completion"] = _test_completion(db, gateway)
-    if data.target in ("embedding", "both"):
-        result["embedding"] = _test_embedding(db, gateway)
-    return result
+class SystemSettingsReindexHandler(DevHandler):
+    async def post(self):
+        self.write_json({"message": "当前版本不再维护独立模板语义索引，模板匹配直接基于正式模板对象进行。", "index_status": {"ready_count": 0, "stale_count": 0, "error_count": 0, "total_count": 0}})
 
 
-@router.post("/reindex")
-def rebuild_template_indices(db: Session = Depends(get_dev_db)):
-    try:
-        return reindex_all_templates(db)
-    except AIConfigurationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-def _test_completion(db: Session, gateway: OpenAICompatGateway):
-    try:
-        config = build_completion_provider_config(db)
-        response = gateway.chat_completion(
-            config,
-            [
-                {"role": "system", "content": "你是连通性测试助手。"},
-                {"role": "user", "content": "请只回复：completion test ok"},
-            ],
-            temperature=0,
-            max_tokens=32,
-        )
-        return {
-            "ok": True,
-            "model": response["model"],
-            "preview": response["content"][:120],
-        }
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-
-
-def _test_embedding(db: Session, gateway: OpenAICompatGateway):
-    try:
-        config = build_embedding_provider_config(db)
-        vector = gateway.create_embedding(config, ["embedding test"])[0]
-        return {
-            "ok": True,
-            "model": config.model,
-            "dimension": len(vector),
-        }
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)}
-
-
-def _empty_index_status():
-    return {
-        "ready_count": 0,
-        "stale_count": 0,
-        "error_count": 0,
-        "total_count": 0,
-    }
-
-
-def get_index_status(db: Session):
-    _ = db
-    return _empty_index_status()
-
-
-def reindex_all_templates(db: Session):
-    return {
-        "message": "当前版本不再维护独立模板语义索引，模板匹配直接基于正式模板对象进行。",
-        "index_status": get_index_status(db),
-    }
+ROUTES = [
+    (r"/rest/dev/system-settings", SystemSettingsHandler),
+    (r"/rest/dev/system-settings/test", SystemSettingsTestHandler),
+    (r"/rest/dev/system-settings/reindex", SystemSettingsReindexHandler),
+]

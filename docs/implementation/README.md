@@ -12,6 +12,7 @@
 6. [外部集成](integrations/外部集成实现.md)
 7. [智能问数](data-analysis/README.md)
 8. [实现变更日志](changelog/README.md)
+9. [Tornado Web 适配与事务边界](web-adapter.md)
 
 ## 模块映射
 
@@ -51,7 +52,7 @@
 
 `data_analysis` 是独立 bounded context：负责语义数据目录、知识增强、查询生成、安全校验、OneQuery 执行和可视化建议。`report` 不复制这些规则。
 
-禁止 router 直接操作 ORM、application 层直接使用 `Session`，或由基础设施反向定义领域对象。
+禁止 RequestHandler 直接操作 ORM、依赖 `Session/get_db`，禁止 application 层直接使用 SQLAlchemy `Session`，或由基础设施反向定义领域对象。数据库 session、仓储实现和 Unit of Work 生命周期由 infrastructure 管理。
 
 ## 落地约束
 

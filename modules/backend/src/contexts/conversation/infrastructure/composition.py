@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from sqlalchemy.orm import Session
-
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
 from ....infrastructure.platform.http_client import PlatformHttpClient
 from ....infrastructure.platform.runtime import audit_dispatcher, build_platform_client
@@ -24,7 +22,6 @@ def _client(*, service_key: str | None = None) -> PlatformHttpClient:
 
 
 def build_conversation_service(
-    db: Session,
     *,
     scenario_providers: Iterable[ScenarioRegistrationProvider],
     subflow_specs: Iterable[SubflowSpec] = (),

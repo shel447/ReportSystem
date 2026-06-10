@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from tornado.iostream import StreamClosedError
 
 from ..contexts.conversation.application.models import (
     chat_command_from_payload,
@@ -19,13 +18,9 @@ from ..contexts.conversation.application.models import (
     session_summary_to_dict,
 )
 from ..shared.agentflow import FlowEvent
-from ..infrastructure.dependencies import build_conversation_service
-from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.errors import ApplicationError, ErrorCode, NotFoundError, error_response_payload
-from ..shared.kernel.http import get_current_user_id
 from ..shared.kernel.policy_auth import policy_auth
-
-router = APIRouter(prefix="/chat", tags=["chat"])
+from ..web.base import BusinessHandler
 
 
 class ReplyPayload(BaseModel):
@@ -53,217 +48,145 @@ class ChatForkRequest(BaseModel):
     source_chat_id: Optional[str] = None
 
 
-@router.get("")
-@policy_auth(resource="chat", action="list")
-def list_sessions(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)):
-    return [session_summary_to_dict(item) for item in build_conversation_service(db).list_sessions(user_id=user_id)]
+class ChatsHandler(BusinessHandler):
+    @policy_auth(resource="chat", action="list")
+    async def get(self):
+        def action():
+            with self.container.conversation_service_scope() as service:
+                return [session_summary_to_dict(item) for item in service.list_sessions(user_id=self.user_id)]
+        self.write_json(await self.run_blocking(action))
+
+    @policy_auth(resource="chat", action="create")
+    async def post(self):
+        data = self.parse_json(ChatRequestPayload)
+        command = chat_command_from_payload(data.model_dump(exclude_none=True))
+        if "text/event-stream" not in str(self.request.headers.get("Accept") or "").lower():
+            def action():
+                with self.container.conversation_service_scope() as service:
+                    return chat_response_to_dict(service.chat(data=command, user_id=self.user_id))
+            self.write_json(await self.run_blocking(action))
+            return
+        await self._stream(command)
+
+    async def _stream(self, command) -> None:
+        self.set_header("Content-Type", "text/event-stream")
+        self.set_header("Cache-Control", "no-cache")
+        self.set_header("Connection", "keep-alive")
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[Any] = asyncio.Queue()
+        end = object()
+        service_scope = self.container.conversation_service_scope
+        user_id = self.user_id
+
+        def produce() -> None:
+            try:
+                with service_scope() as service:
+                    for event in service.chat_stream(data=command, user_id=user_id):
+                        loop.call_soon_threadsafe(queue.put_nowait, event)
+            except Exception as exc:
+                loop.call_soon_threadsafe(queue.put_nowait, exc)
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, end)
+
+        self.container.executor.submit(produce)
+        sequence = 1
+        conversation_id = command.conversation_id or ""
+        chat_id = command.chat_id or ""
+        try:
+            while True:
+                item = await queue.get()
+                if item is end:
+                    break
+                if isinstance(item, Exception):
+                    for payload in _error_and_done(item, conversation_id=conversation_id, chat_id=chat_id, sequence=sequence, request_id=self.request.headers.get("X-Request-Id")):
+                        self.write(_sse_chunk(payload))
+                        await self.flush()
+                    return
+                event: FlowEvent = item
+                conversation_id = event.conversation_id or conversation_id
+                chat_id = event.chat_id or chat_id
+                sequence = max(sequence, int(event.sequence or sequence))
+                self.write(_sse_chunk(_flow_event_to_chat_stream_event(event)))
+                await self.flush()
+                sequence += 1
+        except StreamClosedError:
+            return
 
 
-@router.post("")
-@policy_auth(resource="chat", action="create")
-def chat(
-    data: ChatRequestPayload,
-    request: Request = None,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    command = chat_command_from_payload(data.model_dump(exclude_none=True))
-    service = build_conversation_service(db)
-    if _wants_sse(request):
-        return StreamingResponse(
-            _flow_event_stream(
-                lambda: service.chat_stream(data=command, user_id=user_id),
-                conversation_id=command.conversation_id or "",
-                chat_id=command.chat_id or "",
-                request_id=request.headers.get("X-Request-Id") if request is not None else None,
-            ),
-            media_type="text/event-stream",
-        )
-    payload = service.chat(data=command, user_id=user_id)
-
-    return chat_response_to_dict(payload)
+class ChatStopHandler(BusinessHandler):
+    @policy_auth(resource="chat", action="stop")
+    async def post(self, chat_id: str):
+        def action():
+            with self.container.conversation_service_scope() as service:
+                return service.stop_chat(chat_id=chat_id, user_id=self.user_id)
+        if not await self.run_blocking(action):
+            raise NotFoundError("当前没有正在运行的对话。", error_code=ErrorCode.CONVERSATION_CANCEL_NOT_RUNNING)
+        self.write_json({"chatId": chat_id, "status": "stop_requested"})
 
 
-@router.post("/{chat_id}/stop")
-@policy_auth(resource="chat", action="stop")
-def stop_chat(
-    chat_id: str,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    ok = build_conversation_service(db).stop_chat(chat_id=chat_id, user_id=user_id)
-    if not ok:
-        raise NotFoundError(
-            "当前没有正在运行的对话。",
-            error_code=ErrorCode.CONVERSATION_CANCEL_NOT_RUNNING,
-        )
-    return {"chatId": chat_id, "status": "stop_requested"}
+class ChatDetailHandler(BusinessHandler):
+    @policy_auth(resource="chat", action="read")
+    async def get(self, conversation_id: str):
+        def action():
+            with self.container.conversation_service_scope() as service:
+                return session_detail_to_dict(service.get_session(conversation_id=conversation_id, user_id=self.user_id))
+        self.write_json(await self.run_blocking(action))
+
+    @policy_auth(resource="chat", action="delete")
+    async def delete(self, conversation_id: str):
+        def action():
+            with self.container.conversation_service_scope() as service:
+                return delete_result_to_dict(service.delete_session(conversation_id=conversation_id, user_id=self.user_id))
+        self.write_json(await self.run_blocking(action))
 
 
-@router.get("/{conversation_id}")
-@policy_auth(resource="chat", action="read")
-def get_session(
-    conversation_id: str,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    return session_detail_to_dict(build_conversation_service(db).get_session(conversation_id=conversation_id, user_id=user_id))
-
-
-@router.delete("/{conversation_id}")
-@policy_auth(resource="chat", action="delete")
-def delete_session(
-    conversation_id: str,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    return delete_result_to_dict(
-        build_conversation_service(db).delete_session(conversation_id=conversation_id, user_id=user_id)
-    )
-
-
-@router.post("/forks")
-@policy_auth(resource="chat", action="fork")
-def fork_session(
-    data: ChatForkRequest,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    return fork_session_result_to_dict(
-        build_conversation_service(db).fork_session(
-            data=fork_session_command_from_payload(data.model_dump(exclude_none=True)),
-            user_id=user_id,
-        )
-    )
-
-
-def _wants_sse(request: Request | None) -> bool:
-    if request is None:
-        return False
-    return "text/event-stream" in str(request.headers.get("accept") or "").lower()
-
-
-def _flow_event_stream(events_factory, *, conversation_id: str = "", chat_id: str = "", request_id: str | None = None):
-    sequence = 1
-    current_conversation_id = conversation_id
-    current_chat_id = chat_id
-    try:
-        events = events_factory()
-        for event in events:
-            current_conversation_id = event.conversation_id or current_conversation_id
-            current_chat_id = event.chat_id or current_chat_id
-            sequence = max(sequence, int(event.sequence or sequence))
-            chunk = json.dumps(_flow_event_to_chat_stream_event(event), ensure_ascii=False)
-            yield f"event: message\ndata: {chunk}\n\n"
-            sequence += 1
-    except ApplicationError as exc:
-        yield _sse_chunk(
-            _stream_error_event(
-                conversation_id=current_conversation_id,
-                chat_id=current_chat_id,
-                sequence=sequence,
-                error=error_response_payload(exc, request_id=request_id),
-            )
-        )
-        yield _sse_chunk(
-            _stream_done_event(
-                conversation_id=current_conversation_id,
-                chat_id=current_chat_id,
-                sequence=sequence + 1,
-                status="failed",
-            )
-        )
-    except Exception as exc:
-        yield _sse_chunk(
-            _stream_error_event(
-                conversation_id=current_conversation_id,
-                chat_id=current_chat_id,
-                sequence=sequence,
-                error=error_response_payload(exc, request_id=request_id, fallback_message="系统处理失败，请稍后重试。"),
-            )
-        )
-        yield _sse_chunk(
-            _stream_done_event(
-                conversation_id=current_conversation_id,
-                chat_id=current_chat_id,
-                sequence=sequence + 1,
-                status="failed",
-            )
-        )
+class ChatForkHandler(BusinessHandler):
+    @policy_auth(resource="chat", action="fork")
+    async def post(self):
+        data = self.parse_json(ChatForkRequest)
+        def action():
+            with self.container.conversation_service_scope() as service:
+                return fork_session_result_to_dict(service.fork_session(
+                    data=fork_session_command_from_payload(data.model_dump(exclude_none=True)),
+                    user_id=self.user_id,
+                ))
+        self.write_json(await self.run_blocking(action))
 
 
 def _sse_chunk(payload: dict[str, Any]) -> str:
-    chunk = json.dumps(payload, ensure_ascii=False)
-    return f"event: message\ndata: {chunk}\n\n"
+    return f"event: message\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
-def _stream_error_event(*, conversation_id: str, chat_id: str, sequence: int, error: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "conversationId": conversation_id,
-        "chatId": chat_id,
-        "eventType": "error",
-        "sequence": sequence,
-        "timestamp": int(time.time() * 1000),
-        "status": "failed",
-        "error": error,
-    }
-
-
-def _stream_done_event(*, conversation_id: str, chat_id: str, sequence: int, status: str) -> dict[str, Any]:
-    return {
-        "conversationId": conversation_id,
-        "chatId": chat_id,
-        "eventType": "done",
-        "sequence": sequence,
-        "timestamp": int(time.time() * 1000),
-        "status": status,
-    }
-
-
-def _legacy_event_stream(payload: dict[str, Any]):
-    for event in _build_stream_events(payload):
-        chunk = json.dumps(event, ensure_ascii=False)
-        yield f"event: message\ndata: {chunk}\n\n"
+def _error_and_done(exc: Exception, *, conversation_id: str, chat_id: str, sequence: int, request_id: str | None):
+    error = error_response_payload(exc, request_id=request_id, fallback_message="系统处理失败，请稍后重试。")
+    yield {"conversationId": conversation_id, "chatId": chat_id, "eventType": "error", "sequence": sequence, "timestamp": int(time.time() * 1000), "status": "failed", "error": error}
+    yield {"conversationId": conversation_id, "chatId": chat_id, "eventType": "done", "sequence": sequence + 1, "timestamp": int(time.time() * 1000), "status": "failed"}
 
 
 def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
-    public_event_type = event.event_type
-    if event.event_type == "delta":
-        public_event_type = "answer"
+    event_type = "answer" if event.event_type == "delta" else event.event_type
     if event.event_type in {"tool_call", "tool_result", "checkpoint"}:
-        public_event_type = "step_delta"
+        event_type = "step_delta"
     payload: dict[str, Any] = {
         "conversationId": event.conversation_id or "",
         "chatId": event.chat_id or "",
-        "eventType": public_event_type,
+        "eventType": event_type,
         "sequence": event.sequence,
         "timestamp": int(time.time() * 1000),
         "status": event.status,
     }
     if event.step is not None:
-        payload["step"] = {
-            "code": event.step.code,
-            "stepId": event.step.code,
-            "title": event.step.title,
-            "status": event.step.status,
-            "detail": event.step.detail,
-            "parentStepId": event.step.parent_step_id,
-            "stepPath": list(event.step.step_path),
-        }
+        payload["step"] = {"code": event.step.code, "stepId": event.step.code, "title": event.step.title, "status": event.step.status, "detail": event.step.detail, "parentStepId": event.step.parent_step_id, "stepPath": list(event.step.step_path)}
     if event.delta:
         payload["delta"] = list(event.delta)
-    if event.answer is not None:
-        payload["answer"] = event.answer
-    if event.ask is not None:
-        payload["ask"] = event.ask
-    if event.error is not None:
-        payload["error"] = event.error
+    for name in ("answer", "ask", "error", "refusal"):
+        value = getattr(event, name, None)
+        if value is not None:
+            payload[name] = value
     if event.tool_call is not None:
         payload["toolCall"] = event.tool_call
     if event.tool_result is not None:
         payload["toolResult"] = event.tool_result
-    if event.refusal is not None:
-        payload["refusal"] = event.refusal
     if event.checkpoint is not None:
         payload["checkpoint"] = {key: value for key, value in event.checkpoint.items() if key != "runId"}
     if event.source_subflow is not None:
@@ -271,41 +194,9 @@ def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
     return payload
 
 
-def _build_stream_events(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    conversation_id = str(payload.get("conversationId") or "")
-    chat_id = str(payload.get("chatId") or "")
-    response_status = str(payload.get("status") or "finished")
-    sequence = 1
-    events: list[dict[str, Any]] = []
-
-    def append_event(*, event_type: str, status: str, ask: dict[str, Any] | None = None, answer: dict[str, Any] | None = None, delta: list[dict[str, Any]] | None = None):
-        nonlocal sequence
-        event = {
-            "conversationId": conversation_id,
-            "chatId": chat_id,
-            "eventType": event_type,
-            "sequence": sequence,
-            "timestamp": int(time.time() * 1000),
-            "status": status,
-        }
-        if ask is not None:
-            event["ask"] = ask
-        if answer is not None:
-            event["answer"] = answer
-        if delta is not None:
-            event["delta"] = delta
-        events.append(event)
-        sequence += 1
-
-    answer = payload.get("answer") if isinstance(payload.get("answer"), dict) else None
-    ask = payload.get("ask") if isinstance(payload.get("ask"), dict) else None
-
-    append_event(event_type="status", status=response_status)
-    if ask is not None:
-        append_event(event_type="ask", status=response_status, ask=ask)
-    if answer is not None:
-        append_event(event_type="answer", status=response_status, answer=answer)
-    if payload.get("errors"):
-        append_event(event_type="error", status="failed")
-    append_event(event_type="done", status=response_status)
-    return events
+ROUTES = [
+    (r"/rest/chatbi/v1/chat", ChatsHandler),
+    (r"/rest/chatbi/v1/chat/forks", ChatForkHandler),
+    (r"/rest/chatbi/v1/chat/([^/]+)/stop", ChatStopHandler),
+    (r"/rest/chatbi/v1/chat/([^/]+)", ChatDetailHandler),
+]

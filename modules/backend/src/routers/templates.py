@@ -5,20 +5,12 @@ import re
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from ..contexts.report.application.template_models import (
-    template_import_preview_to_dict,
-    template_summary_to_dict,
-)
+from ..contexts.report.application.template_models import template_import_preview_to_dict, template_summary_to_dict
 from ..contexts.report.domain.template_models import report_template_from_dict, report_template_to_dict
-from ..infrastructure.dependencies import build_report_service
-from ..infrastructure.persistence.database import get_db
 from ..shared.kernel.policy_auth import policy_auth
-
-router = APIRouter(prefix="/templates", tags=["templates"])
+from ..web.base import BusinessHandler
 
 
 class TemplateUpsertRequest(BaseModel):
@@ -37,58 +29,79 @@ class TemplateImportPreviewRequest(BaseModel):
     content: Any
 
 
-@router.post("")
-@policy_auth(resource="template", action="create")
-def create_template(data: TemplateUpsertRequest, db: Session = Depends(get_db)):
-    service = build_report_service(db)
-    return report_template_to_dict(service.create_template(report_template_from_dict(data.model_dump())))
+class TemplatesHandler(BusinessHandler):
+    @policy_auth(resource="template", action="list")
+    async def get(self):
+        def action():
+            with self.container.report_service_scope() as service:
+                return [template_summary_to_dict(item) for item in service.list_templates()]
+        self.write_json(await self.run_blocking(action))
+
+    @policy_auth(resource="template", action="create")
+    async def post(self):
+        data = self.parse_json(TemplateUpsertRequest)
+        def action():
+            with self.container.report_service_scope() as service:
+                return report_template_to_dict(service.create_template(report_template_from_dict(data.model_dump())))
+        self.write_json(await self.run_blocking(action))
 
 
-@router.get("")
-@policy_auth(resource="template", action="list")
-def list_templates(db: Session = Depends(get_db)):
-    return [template_summary_to_dict(item) for item in build_report_service(db).list_templates()]
+class TemplateHandler(BusinessHandler):
+    @policy_auth(resource="template", action="read")
+    async def get(self, template_id: str):
+        def action():
+            with self.container.report_service_scope() as service:
+                return report_template_to_dict(service.get_template(template_id))
+        self.write_json(await self.run_blocking(action))
+
+    @policy_auth(resource="template", action="update")
+    async def put(self, template_id: str):
+        data = self.parse_json(TemplateUpsertRequest)
+        def action():
+            with self.container.report_service_scope() as service:
+                return report_template_to_dict(service.update_template(template_id, report_template_from_dict(data.model_dump())))
+        self.write_json(await self.run_blocking(action))
+
+    @policy_auth(resource="template", action="delete")
+    async def delete(self, template_id: str):
+        def action():
+            with self.container.report_service_scope() as service:
+                service.delete_template(template_id)
+                return {"message": "deleted"}
+        self.write_json(await self.run_blocking(action))
 
 
-@router.get("/{template_id}")
-@policy_auth(resource="template", action="read")
-def get_template(template_id: str, db: Session = Depends(get_db)):
-    return report_template_to_dict(build_report_service(db).get_template(template_id))
+class TemplateImportPreviewHandler(BusinessHandler):
+    @policy_auth(resource="template", action="import_preview")
+    async def post(self):
+        data = self.parse_json(TemplateImportPreviewRequest)
+        def action():
+            with self.container.report_service_scope() as service:
+                return template_import_preview_to_dict(service.preview_import_template(data.content))
+        self.write_json(await self.run_blocking(action))
 
 
-@router.put("/{template_id}")
-@policy_auth(resource="template", action="update")
-def update_template(template_id: str, data: TemplateUpsertRequest, db: Session = Depends(get_db)):
-    service = build_report_service(db)
-    return report_template_to_dict(service.update_template(template_id, report_template_from_dict(data.model_dump())))
-
-
-@router.delete("/{template_id}")
-@policy_auth(resource="template", action="delete")
-def delete_template(template_id: str, db: Session = Depends(get_db)):
-    build_report_service(db).delete_template(template_id)
-    return {"message": "deleted"}
-
-
-@router.post("/import/preview")
-@policy_auth(resource="template", action="import_preview")
-def preview_import_template(data: TemplateImportPreviewRequest, db: Session = Depends(get_db)):
-    return template_import_preview_to_dict(build_report_service(db).preview_import_template(data.content))
-
-
-@router.get("/{template_id}/export")
-@policy_auth(resource="template", action="export")
-def export_template_definition(template_id: str, db: Session = Depends(get_db)):
-    payload, filename = build_report_service(db).export_template(template_id)
-    return Response(
-        content=json.dumps(report_template_to_dict(payload), ensure_ascii=False, indent=2),
-        media_type="application/json",
-        headers={"Content-Disposition": _build_download_header(filename)},
-    )
+class TemplateExportHandler(BusinessHandler):
+    @policy_auth(resource="template", action="export")
+    async def get(self, template_id: str):
+        def action():
+            with self.container.report_service_scope() as service:
+                payload, filename = service.export_template(template_id)
+                return report_template_to_dict(payload), filename
+        payload, filename = await self.run_blocking(action)
+        self.set_header("Content-Type", "application/json; charset=UTF-8")
+        self.set_header("Content-Disposition", _build_download_header(filename))
+        self.finish(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
 def _build_download_header(filename: str) -> str:
-    fallback = re.sub(r"[^0-9A-Za-z._-]+", "-", filename).strip("-")
-    if not fallback:
-        fallback = "template-export.json"
+    fallback = re.sub(r"[^0-9A-Za-z._-]+", "-", filename).strip("-") or "template-export.json"
     return f'attachment; filename="{fallback}"; filename*=UTF-8\'\'{quote(filename)}'
+
+
+ROUTES = [
+    (r"/rest/chatbi/v1/templates", TemplatesHandler),
+    (r"/rest/chatbi/v1/templates/import/preview", TemplateImportPreviewHandler),
+    (r"/rest/chatbi/v1/templates/([^/]+)/export", TemplateExportHandler),
+    (r"/rest/chatbi/v1/templates/([^/]+)", TemplateHandler),
+]

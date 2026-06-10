@@ -1,7 +1,5 @@
 import os
 
-from fastapi import Header
-
 from .errors import ErrorCode, ValidationError
 
 
@@ -19,7 +17,3 @@ def resolve_user_id(x_user_id: object | None) -> str:
         category="auth",
         http_status=401,
     )
-
-
-def get_current_user_id(x_user_id: str | None = Header(default=None, alias="X-User-Id")) -> str:
-    return resolve_user_id(x_user_id)

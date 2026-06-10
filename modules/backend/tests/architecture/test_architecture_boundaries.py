@@ -2,9 +2,9 @@ import ast
 import unittest
 from pathlib import Path
 
-from fastapi.routing import APIRoute
+from tornado.web import RequestHandler
 
-from src.main import CHATBI_PREFIX, create_app
+from src.main import BUSINESS_ROUTES, CHATBI_PREFIX
 from src.shared.kernel.policy_auth import get_policy_auth_metadata
 
 MODULE_ROOT = Path(__file__).resolve().parents[2]
@@ -224,35 +224,32 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for forbidden in ("document_repository", "export_job_repository", "document_gateway"):
             self.assertNotIn(forbidden, source)
 
-    def test_report_routers_use_single_report_service_builder(self):
+    def test_report_handlers_do_not_manage_database_sessions(self):
         violations: list[str] = []
         for name in ("templates.py", "reports.py"):
             path = ROUTERS_DIR / name
             source = path.read_text(encoding="utf-8-sig")
-            if "build_report_service" not in source:
-                violations.append(f"{name}: missing build_report_service")
-            for forbidden in (
-                "build_report_template_service",
-                "build_report_parameter_service",
-                "build_report_generation_service",
-                "build_report_document_service",
-                "build_report_scenario_service",
-            ):
+            for forbidden in ("get_db", "get_dev_db", "Session", "sqlalchemy", "build_report_service"):
                 if forbidden in source:
                     violations.append(f"{name}: references {forbidden}")
         self.assertEqual([], violations, "\n".join(violations))
 
     def test_every_public_business_route_declares_policy_auth_metadata(self):
-        app = create_app()
         violations: list[str] = []
-        for route in app.routes:
-            if not isinstance(route, APIRoute):
-                continue
-            if not route.path.startswith(CHATBI_PREFIX):
-                continue
-            if get_policy_auth_metadata(route.endpoint) is None:
-                methods = ",".join(sorted(route.methods or []))
-                violations.append(f"{methods} {route.path}")
+        for path, handler in BUSINESS_ROUTES:
+            self.assertTrue(issubclass(handler, RequestHandler))
+            for method in ("get", "post", "put", "delete"):
+                endpoint = handler.__dict__.get(method)
+                if endpoint is not None and get_policy_auth_metadata(endpoint) is None:
+                    violations.append(f"{method.upper()} {path}")
+        self.assertEqual([], violations, "\n".join(violations))
+
+    def test_backend_source_does_not_import_fastapi_or_uvicorn(self):
+        violations = []
+        for path in ROOT.rglob("*.py"):
+            source = path.read_text(encoding="utf-8-sig")
+            if "fastapi" in source or "uvicorn" in source:
+                violations.append(str(path.relative_to(ROOT)))
         self.assertEqual([], violations, "\n".join(violations))
 
 

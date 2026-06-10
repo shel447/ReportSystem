@@ -1,15 +1,12 @@
-"""Route-level policy authentication contracts and FastAPI integration."""
+"""Framework-neutral route-level policy authentication contracts."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import os
-from typing import Any, Callable, Protocol, TypeVar
-
-from fastapi import Depends, Request
+from typing import Any, Callable, Mapping, Protocol, TypeVar
 
 from .errors import ApplicationError, ErrorCode, PermissionDeniedError
-from .http import get_current_user_id
 
 
 POLICY_AUTH_ATTR = "__chatbi_policy_auth__"
@@ -73,11 +70,18 @@ def route_policy_auth_metadata(endpoint: Any) -> PolicyAuthMetadata:
     return metadata
 
 
-def enforce_policy_auth(request: Request, user_id: str = Depends(get_current_user_id)) -> None:
-    metadata = route_policy_auth_metadata(request.scope.get("endpoint"))
+def enforce_policy_auth(
+    *,
+    endpoint: Any,
+    user_id: str,
+    method: str,
+    path: str,
+    headers: Mapping[str, str],
+    gateway: PolicyAuthenticationGateway | None,
+) -> None:
+    metadata = route_policy_auth_metadata(endpoint)
     if _policy_auth_disabled_for_tests():
         return
-    gateway = getattr(request.app.state, "policy_auth_gateway", None)
     if gateway is None:
         raise ApplicationError(
             "权限校验服务未配置，请联系系统管理员。",
@@ -88,11 +92,11 @@ def enforce_policy_auth(request: Request, user_id: str = Depends(get_current_use
     result = gateway.authenticate(
         PolicyAuthenticationRequest(
             user_id=user_id,
-            method=request.method.upper(),
-            path=request.url.path,
+            method=method.upper(),
+            path=path,
             resource=metadata.resource,
             action=metadata.action,
-            headers=_forwardable_headers(request),
+            headers=_forwardable_headers(headers),
         )
     )
     if not result.allowed:
@@ -110,7 +114,7 @@ def enforce_policy_auth(request: Request, user_id: str = Depends(get_current_use
         )
 
 
-def _forwardable_headers(request: Request) -> dict[str, str]:
+def _forwardable_headers(headers: Mapping[str, str]) -> dict[str, str]:
     excluded = {
         "connection",
         "content-length",
@@ -123,7 +127,7 @@ def _forwardable_headers(request: Request) -> dict[str, str]:
         "transfer-encoding",
         "upgrade",
     }
-    return {key: value for key, value in request.headers.items() if key.lower() not in excluded}
+    return {key: value for key, value in headers.items() if key.lower() not in excluded}
 
 
 def _required(value: str, name: str) -> str:

@@ -41,7 +41,7 @@ def get_settings_payload(db: Session) -> Dict[str, Any]:
     }
 
 
-def save_settings(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
+def save_settings(db: Session, payload: Dict[str, Any], *, commit: bool = True) -> Dict[str, Any]:
     row = get_settings_record(db)
     if row is None:
         row = SystemSetting(id=GLOBAL_SETTINGS_ID)
@@ -71,7 +71,10 @@ def save_settings(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
 
     row.completion_config = completion
     row.embedding_config = embedding
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(row)
     return get_settings_payload(db)
 

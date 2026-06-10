@@ -110,9 +110,9 @@ X-User-Id: <external-user-id>
 
 ### 1.3 路由实现映射
 
-公开业务路由由 FastAPI router 负责协议适配，业务规则下沉到对应 application service。
+公开业务接口由 Tornado `RequestHandler` 负责协议适配，业务规则下沉到对应 application service。Handler 不接收或向内层传递数据库 session。
 
-| 路由分组 | 实现入口 | 应用服务 |
+| 路由分组 | Handler 入口 | 应用服务 |
 |---|---|---|
 | `templates` | `routers/templates.py` | `report` |
 | `chat` | `routers/chat.py` | `conversation` |

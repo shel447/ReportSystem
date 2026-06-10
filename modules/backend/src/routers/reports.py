@@ -1,21 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from pathlib import Path
+
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from ..contexts.report.application.generation_models import (
-    document_generation_result_to_dict,
-    report_view_to_dict,
-)
-from ..infrastructure.dependencies import build_report_service
-from ..infrastructure.persistence.database import get_db
+from ..contexts.report.application.generation_models import document_generation_result_to_dict, report_view_to_dict
 from ..shared.kernel.errors import ErrorCode, NotFoundError, ValidationError
-from ..shared.kernel.http import get_current_user_id
 from ..shared.kernel.policy_auth import policy_auth
-
-router = APIRouter(prefix="/reports", tags=["reports"])
+from ..web.base import BusinessHandler
 
 
 class DocumentGenerationRequest(BaseModel):
@@ -26,70 +18,60 @@ class DocumentGenerationRequest(BaseModel):
     regenerateIfExists: bool = False
 
 
-@router.get("/{report_id}")
-@policy_auth(resource="report", action="read")
-def get_report_view(
-    report_id: str,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    return report_view_to_dict(build_report_service(db).get_report_view(report_id, user_id=user_id))
+class ReportHandler(BusinessHandler):
+    @policy_auth(resource="report", action="read")
+    async def get(self, report_id: str):
+        def action():
+            with self.container.report_service_scope() as service:
+                return report_view_to_dict(service.get_report_view(report_id, user_id=self.user_id))
+        self.write_json(await self.run_blocking(action))
 
 
-@router.post("/{report_id}/document-generations")
-@policy_auth(resource="report_document", action="generate")
-def generate_report_documents(
-    report_id: str,
-    data: DocumentGenerationRequest,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    return document_generation_result_to_dict(build_report_service(db).generate_documents(
-        report_id=report_id,
-        user_id=user_id,
-        formats=data.formats,
-        pdf_source=data.pdfSource,
-        theme=data.theme,
-        strict_validation=data.strictValidation,
-        regenerate_if_exists=data.regenerateIfExists,
-    ))
+class ReportDocumentGenerationHandler(BusinessHandler):
+    @policy_auth(resource="report_document", action="generate")
+    async def post(self, report_id: str):
+        data = self.parse_json(DocumentGenerationRequest)
+        def action():
+            with self.container.report_service_scope() as service:
+                return document_generation_result_to_dict(service.generate_documents(
+                    report_id=report_id,
+                    user_id=self.user_id,
+                    formats=data.formats,
+                    pdf_source=data.pdfSource,
+                    theme=data.theme,
+                    strict_validation=data.strictValidation,
+                    regenerate_if_exists=data.regenerateIfExists,
+                ))
+        self.write_json(await self.run_blocking(action))
 
 
-@router.get("/{report_id}/documents/{document_id}/download")
-@policy_auth(resource="report_document", action="download")
-def download_report_document(
-    report_id: str,
-    document_id: str,
-    db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id),
-):
-    report = build_report_service(db).get_report_view(report_id, user_id=user_id)
+class ReportDocumentDownloadHandler(BusinessHandler):
+    @policy_auth(resource="report_document", action="download")
+    async def get(self, report_id: str, document_id: str):
+        def action():
+            with self.container.report_service_scope() as service:
+                report = service.get_report_view(report_id, user_id=self.user_id)
+                if not any(item.id == document_id for item in report.answer.documents):
+                    raise NotFoundError("Document not found")
+                try:
+                    return service.resolve_download(report_id=report_id, document_id=document_id, user_id=self.user_id)
+                except FileNotFoundError as exc:
+                    raise NotFoundError("Document file not found", error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING) from exc
+                except ValidationError as exc:
+                    if str(exc) == "Document file not found":
+                        raise NotFoundError("Document file not found", error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING) from exc
+                    raise
+        resolved = await self.run_blocking(action)
+        path = Path(resolved.absolute_path)
+        if not path.is_file():
+            raise NotFoundError("Document file not found", error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING)
+        self.set_header("Content-Type", resolved.document.mime_type or "application/octet-stream")
+        self.set_header("Content-Disposition", f'attachment; filename="{resolved.document.file_name or document_id}"')
+        self.finish(path.read_bytes())
 
-    documents = report.answer.documents
-    if not any(item.id == document_id for item in documents):
-        raise NotFoundError("Document not found")
 
-    try:
-        resolved = build_report_service(db).resolve_download(
-            report_id=report_id,
-            document_id=document_id,
-            user_id=user_id,
-        )
-    except FileNotFoundError as exc:
-        raise NotFoundError(
-            "Document file not found",
-            error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING,
-        ) from exc
-    except ValidationError as exc:
-        if str(exc) == "Document file not found":
-            raise NotFoundError(
-                "Document file not found",
-                error_code=ErrorCode.REPORT_DOCUMENT_FILE_MISSING,
-            ) from exc
-        raise
-
-    return FileResponse(
-        path=resolved.absolute_path,
-        filename=resolved.document.file_name or f"{document_id}.md",
-        media_type=resolved.document.mime_type or "application/octet-stream",
-    )
+ROUTES = [
+    (r"/rest/chatbi/v1/reports/([^/]+)/document-generations", ReportDocumentGenerationHandler),
+    (r"/rest/chatbi/v1/reports/([^/]+)/documents/([^/]+)/download", ReportDocumentDownloadHandler),
+    (r"/rest/chatbi/v1/reports/([^/]+)", ReportHandler),
+]

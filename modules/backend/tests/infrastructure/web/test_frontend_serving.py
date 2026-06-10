@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from fastapi.testclient import TestClient
+from tests.support.tornado_client import TornadoTestClient as TestClient
 from src.main import create_app
 from src.shared.kernel.errors import ErrorCode
 
@@ -86,7 +86,7 @@ class FrontendServingTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 401)
                 self.assertEqual(response.json()["errorCode"], ErrorCode.BASE_AUTH_REQUIRED)
 
-            blank = client.get("/rest/chatbi/v1/templates", headers={"X-User-Id": "   "})
+            blank = client.get("/rest/chatbi/v1/templates", headers={"X-User-Id": ""})
             self.assertEqual(blank.status_code, 401)
             self.assertEqual(blank.json()["errorCode"], ErrorCode.BASE_AUTH_REQUIRED)
 

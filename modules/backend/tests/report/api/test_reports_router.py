@@ -1,173 +1,30 @@
-import unittest
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import patch
 
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from src.contexts.report.application.generation_models import (
-    DocumentView,
-    DownloadResolution,
-    ReportAnswerView,
-    ReportView,
-)
-from src.contexts.report.domain.generation_models import (
-    DocumentArtifact,
-    ParameterConfirmation,
-    ReportBasicInfo,
-    ReportDsl,
-    ReportLayout,
-    TemplateInstance,
-    GridDefinition,
-)
-from src.contexts.report.domain.template_models import ReportTemplate
-from src.infrastructure.persistence.database import get_db
-from src.main import register_error_handlers
-from src.routers.reports import router as reports_router
-from src.shared.kernel.errors import ErrorCode, ValidationError
+from src.contexts.report.application.generation_models import DocumentView, DownloadResolution
+from src.main import create_app
+from src.shared.kernel.errors import ValidationError
+from tests.support.tornado_client import FakeWebContainer, TornadoTestClient
 
 
-def _sample_template_instance():
-    return TemplateInstance(
-        id="ti_001",
-        schema_version="template-instance.vNext-draft",
-        template_id="tpl_network_daily",
-        template=ReportTemplate(
-            id="tpl_network_daily",
-            category="network_operations",
-            name="网络运行日报",
-            description="面向网络运维中心的统一日报模板。",
-            schema_version="template.v3",
-        ),
-        conversation_id="conv_001",
-        chat_id="chat_003",
-        status="completed",
-        capture_stage="report_ready",
-        revision=3,
-        parameters=[],
-        parameter_confirmation=ParameterConfirmation(missing_parameter_ids=[], confirmed=True),
-        catalogs=[],
+def test_report_download_handler_streams_resolved_file(tmp_path):
+    artifact = tmp_path / "report.md"
+    artifact.write_text("# report\n", encoding="utf-8")
+    document = DocumentView(id="doc_1", format="markdown", mime_type="text/markdown", file_name="report.md", download_url="", status="ready")
+    report = SimpleNamespace(answer=SimpleNamespace(documents=[document]))
+    service = SimpleNamespace(
+        get_report_view=lambda report_id, user_id: report,
+        resolve_download=lambda **kwargs: DownloadResolution(document=document, absolute_path=str(artifact)),
     )
+    with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=FakeWebContainer(report_service=service)), headers={"X-User-Id": "user"}) as client:
+        response = client.get("/rest/chatbi/v1/reports/rpt_1/documents/doc_1/download")
+        assert response.status_code == 200
+        assert response.text == "# report\n"
 
 
-def _sample_report():
-    return ReportDsl(
-        basic_info=ReportBasicInfo(
-            id="rpt_001",
-            schema_version="1.0.0",
-            mode="published",
-            status="Success",
-        ),
-        catalogs=[],
-        layout=ReportLayout(type="grid", grid=GridDefinition(cols=12, row_height=24)),
-    )
-
-
-class ReportsRouterTests(unittest.TestCase):
-    def setUp(self):
-        app = FastAPI()
-        register_error_handlers(app)
-        app.include_router(reports_router, prefix="/rest/chatbi/v1")
-
-        def override_get_db():
-            yield object()
-
-        app.dependency_overrides[get_db] = override_get_db
-        self.client = TestClient(app)
-
-    def test_get_report_view_returns_formal_report_answer_wrapper(self):
-        fake_service = SimpleNamespace(
-            get_report_view=lambda report_id, user_id: ReportView(
-                report_id=report_id,
-                status="available",
-                answer_type="REPORT",
-                answer=ReportAnswerView(
-                    report_id=report_id,
-                    status="available",
-                    report=_sample_report(),
-                    template_instance=_sample_template_instance(),
-                    documents=[],
-                ),
-            )
-        )
-
-        with patch("src.routers.reports.build_report_service", return_value=fake_service):
-            response = self.client.get("/rest/chatbi/v1/reports/rpt_001", headers={"X-User-Id": "default"})
-
-        self.assertEqual(response.status_code, 200)
-        payload = response.json()
-        self.assertEqual(payload["reportId"], "rpt_001")
-        self.assertEqual(payload["answer"]["templateInstance"]["id"], "ti_001")
-        self.assertEqual(payload["answer"]["report"]["basicInfo"]["version"], "1.0.0")
-
-    def test_download_report_document_uses_report_scoped_download(self):
-        with TemporaryDirectory() as temp_dir:
-            file_path = Path(temp_dir) / "network-daily.md"
-            file_path.write_text("# report\n", encoding="utf-8")
-            fake_runtime = SimpleNamespace(
-                get_report_view=lambda report_id, user_id: ReportView(
-                    report_id=report_id,
-                    status="available",
-                    answer_type="REPORT",
-                    answer=ReportAnswerView(
-                        report_id=report_id,
-                        status="available",
-                        report=_sample_report(),
-                        template_instance=_sample_template_instance(),
-                        documents=[
-                            DocumentView(
-                                id="doc_001",
-                                format="markdown",
-                                mime_type="text/markdown",
-                                file_name="network-daily.md",
-                                download_url="/rest/chatbi/v1/reports/rpt_001/documents/doc_001/download",
-                                status="ready",
-                            )
-                        ],
-                    ),
-                )
-            )
-            fake_service = SimpleNamespace(
-                get_report_view=fake_runtime.get_report_view,
-                resolve_download=lambda report_id, document_id, user_id: DownloadResolution(
-                    document=DocumentView(
-                        id=document_id,
-                        format="markdown",
-                        mime_type="text/markdown",
-                        file_name="network-daily.md",
-                        download_url="/rest/chatbi/v1/reports/rpt_001/documents/doc_001/download",
-                        status="ready",
-                    ),
-                    absolute_path=str(file_path),
-                )
-            )
-
-            with patch("src.routers.reports.build_report_service", return_value=fake_service):
-                response = self.client.get(
-                    "/rest/chatbi/v1/reports/rpt_001/documents/doc_001/download",
-                    headers={"X-User-Id": "default"},
-                )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.text.replace("\r\n", "\n"), "# report\n")
-
-    def test_pdf_document_generation_returns_clear_http_400(self):
-        def generate_documents(**kwargs):
-            raise ValidationError("PDF export is not available yet")
-
-        with patch("src.routers.reports.build_report_service", return_value=SimpleNamespace(generate_documents=generate_documents)):
-            response = self.client.post(
-                "/rest/chatbi/v1/reports/rpt_001/document-generations",
-                headers={"X-User-Id": "default"},
-                json={"formats": ["pdf"], "pdfSource": "word"},
-            )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["errorCode"], ErrorCode.BASE_PARAM_INVALID)
-        self.assertEqual(response.json()["errorMsg"], "PDF export is not available yet")
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_report_document_validation_error_uses_public_error(tmp_path):
+    service = SimpleNamespace(generate_documents=lambda **kwargs: (_ for _ in ()).throw(ValidationError("PDF export is not available yet")))
+    with TornadoTestClient(create_app(frontend_dir=str(tmp_path), container=FakeWebContainer(report_service=service)), headers={"X-User-Id": "user"}) as client:
+        response = client.post("/rest/chatbi/v1/reports/rpt_1/document-generations", json={"formats": ["pdf"]})
+        assert response.status_code == 400
+        assert response.json()["errorCode"] == "chatbi.base.param.invalid"

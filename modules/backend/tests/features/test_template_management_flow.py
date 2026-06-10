@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 
-from fastapi.testclient import TestClient
+from tests.support.tornado_client import TornadoTestClient as TestClient
 
 from src.main import create_app
 from tests.support.builders import load_json_fixture

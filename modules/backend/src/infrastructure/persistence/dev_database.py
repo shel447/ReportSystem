@@ -21,16 +21,6 @@ DevSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class DevBase(DeclarativeBase):
     pass
-
-
-def get_dev_db():
-    db = DevSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 def init_dev_db() -> None:
     from . import dev_models  # noqa: F401
 

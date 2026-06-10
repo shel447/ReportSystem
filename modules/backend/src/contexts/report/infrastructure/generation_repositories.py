@@ -66,7 +66,7 @@ class SqlAlchemyTemplateInstanceRepository:
             content=payload,
         )
         self.db.add(row)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_template_instance(row)
 
@@ -81,7 +81,7 @@ class SqlAlchemyTemplateInstanceRepository:
         row.schema_version = instance.schema_version
         row.content = serialize_template_instance(instance)
         row.updated_at = datetime.now(timezone.utc).replace(microsecond=0)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_template_instance(row)
 
@@ -136,7 +136,7 @@ class SqlAlchemyReportInstanceRepository:
             content=report_payload,
         )
         self.db.add(row)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_report_instance(row)
 
@@ -154,7 +154,7 @@ class SqlAlchemyReportInstanceRepository:
         if report is not None:
             row.content = report_dsl_to_dict(report)
         row.updated_at = datetime.now(timezone.utc).replace(microsecond=0)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_report_instance(row)
 
@@ -188,7 +188,7 @@ class SqlAlchemyDocumentRepository:
             error_message=error_message,
         )
         self.db.add(row)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_document(row)
 
@@ -240,7 +240,7 @@ class SqlAlchemyExportJobRepository:
             request_payload_hash=request_payload_hash,
         )
         self.db.add(row)
-        self.db.commit()
+        self.db.flush()
         self.db.refresh(row)
         return _to_export_job(row)
 

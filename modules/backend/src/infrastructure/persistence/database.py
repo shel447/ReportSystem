@@ -25,16 +25,6 @@ if DeclarativeBase is not None:
 else:
     from sqlalchemy.ext.declarative import declarative_base
     Base = declarative_base()
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
 def init_db():
     from . import models  # noqa: F401
     from .dev_database import init_dev_db
