@@ -116,13 +116,14 @@ def test_dataset_response_requires_lineage_when_report_generation_enables_tracin
         )
 
 
-def test_dataset_business_error_becomes_empty_result_with_warning():
+@pytest.mark.parametrize("ret_code", [1001, "04003", "04023"])
+def test_dataset_business_error_becomes_empty_result_with_warning(ret_code):
     query_service = type(
         "BusinessErrorQueryService",
         (),
         {
             "execute_sql": lambda self, **kwargs: (_ for _ in ()).throw(
-                UpstreamError("query temporarily unavailable", details={"retCode": 1001})
+                UpstreamError("query temporarily unavailable", details={"retCode": ret_code})
             )
         },
     )()
@@ -140,7 +141,7 @@ def test_dataset_business_error_becomes_empty_result_with_warning():
     assert len(result.warnings) == 1
     assert result.warnings[0].code == "chatbi.report.dataset.business_failed_degraded"
     assert result.warnings[0].target_id == "dataset_health"
-    assert "retCode=1001" in result.warnings[0].message
+    assert f"retCode={ret_code}" in result.warnings[0].message
 
 
 def test_paged_template_merges_dynamic_components_and_slide():

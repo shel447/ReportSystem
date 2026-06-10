@@ -20,6 +20,63 @@ class DatasetResult:
 
 
 @dataclass(slots=True)
+class QueryResult:
+    ret_code: int | str
+    ret_info: str
+    data: DatasetResult
+
+
+@dataclass(frozen=True, slots=True)
+class Nl2SqlInput:
+    question: str
+
+
+@dataclass(frozen=True, slots=True)
+class Nl2SqlOutput:
+    sql: str
+    intent_function: str
+
+
+@dataclass(frozen=True, slots=True)
+class Sql2DataInput:
+    question: str
+    sql: str
+
+
+@dataclass(frozen=True, slots=True)
+class Nl2DataOutput:
+    sql: str
+    intent_function: str
+    query_result: QueryResult
+
+
+@dataclass(frozen=True, slots=True)
+class Data2ChartInput:
+    question: str
+    query_result: QueryResult
+
+
+@dataclass(frozen=True, slots=True)
+class Data2ChartOutput:
+    summaries: list[str]
+    type: str
+    series: list[dict[str, Any]]
+    query_result: QueryResult
+
+
+@dataclass(frozen=True, slots=True)
+class Data2SummaryInput:
+    question: str
+    sql: str
+    query_result: QueryResult
+
+
+@dataclass(frozen=True, slots=True)
+class Data2SummaryOutput:
+    summaries: list[str]
+
+
+@dataclass(slots=True)
 class QuerySpec:
     intent: str
     sql: str
@@ -56,6 +113,148 @@ def dataset_result_to_dict(result: DatasetResult) -> dict[str, Any]:
     }
 
 
+def query_result_to_dict(result: QueryResult) -> dict[str, Any]:
+    return {
+        "retCode": result.ret_code,
+        "retInfo": result.ret_info,
+        "data": dataset_result_to_dict(result.data),
+    }
+
+
+def query_result_from_dict(payload: object) -> QueryResult:
+    value = _object(payload, "query_result")
+    if "retCode" not in value:
+        raise ValueError("query_result.retCode is required")
+    ret_code = value["retCode"]
+    if not isinstance(ret_code, (int, str)) or isinstance(ret_code, bool):
+        raise ValueError("query_result.retCode must be an integer or string")
+    if ret_code not in (0, "0"):
+        raise ValueError("query_result must be a successful OneQuery response")
+    ret_info = value.get("retInfo")
+    if not isinstance(ret_info, str):
+        raise ValueError("query_result.retInfo must be a string")
+    return QueryResult(ret_code=ret_code, ret_info=ret_info, data=dataset_result_from_dict(value.get("data")))
+
+
+def nl2sql_input_to_dict(value: Nl2SqlInput) -> dict[str, Any]:
+    return {"question": value.question}
+
+
+def nl2sql_input_from_dict(payload: object) -> Nl2SqlInput:
+    return Nl2SqlInput(question=_required_string(_object(payload, "nl2sql input"), "question"))
+
+
+def nl2sql_output_to_dict(value: Nl2SqlOutput) -> dict[str, Any]:
+    return {"sql": value.sql, "intent_function": value.intent_function}
+
+
+def nl2sql_output_from_dict(payload: object) -> Nl2SqlOutput:
+    data = _object(payload, "nl2sql output")
+    return Nl2SqlOutput(
+        sql=_required_string(data, "sql"),
+        intent_function=_required_string(data, "intent_function"),
+    )
+
+
+def sql2data_input_to_dict(value: Sql2DataInput) -> dict[str, Any]:
+    return {"question": value.question, "sql": value.sql}
+
+
+def sql2data_input_from_dict(payload: object) -> Sql2DataInput:
+    data = _object(payload, "sql2data input")
+    return Sql2DataInput(question=_required_string(data, "question"), sql=_required_string(data, "sql"))
+
+
+def nl2data_output_to_dict(value: Nl2DataOutput) -> dict[str, Any]:
+    return {
+        "sql": value.sql,
+        "intent_function": value.intent_function,
+        "query_result": query_result_to_dict(value.query_result),
+    }
+
+
+def nl2data_output_from_dict(payload: object) -> Nl2DataOutput:
+    data = _object(payload, "nl2data output")
+    return Nl2DataOutput(
+        sql=_required_string(data, "sql"),
+        intent_function=_required_string(data, "intent_function"),
+        query_result=query_result_from_dict(data.get("query_result")),
+    )
+
+
+def data2chart_input_to_dict(value: Data2ChartInput) -> dict[str, Any]:
+    return {"question": value.question, "query_result": query_result_to_dict(value.query_result)}
+
+
+def data2chart_input_from_dict(payload: object) -> Data2ChartInput:
+    data = _object(payload, "data2chart input")
+    return Data2ChartInput(
+        question=_required_string(data, "question"),
+        query_result=query_result_from_dict(data.get("query_result")),
+    )
+
+
+def data2chart_output_to_dict(value: Data2ChartOutput) -> dict[str, Any]:
+    return {
+        "summaries": list(value.summaries),
+        "type": value.type,
+        "series": list(value.series),
+        "query_result": query_result_to_dict(value.query_result),
+    }
+
+
+def data2chart_output_from_dict(payload: object) -> Data2ChartOutput:
+    data = _object(payload, "data2chart output")
+    return Data2ChartOutput(
+        summaries=_string_list(data.get("summaries"), "summaries"),
+        type=_required_string(data, "type"),
+        series=_object_list(data.get("series"), "series"),
+        query_result=query_result_from_dict(data.get("query_result")),
+    )
+
+
+def data2summary_input_to_dict(value: Data2SummaryInput) -> dict[str, Any]:
+    return {
+        "question": value.question,
+        "sql": value.sql,
+        "query_result": query_result_to_dict(value.query_result),
+    }
+
+
+def data2summary_input_from_dict(payload: object) -> Data2SummaryInput:
+    data = _object(payload, "data2summary input")
+    return Data2SummaryInput(
+        question=_required_string(data, "question"),
+        sql=_required_string(data, "sql"),
+        query_result=query_result_from_dict(data.get("query_result")),
+    )
+
+
+def data2summary_output_to_dict(value: Data2SummaryOutput) -> dict[str, Any]:
+    return {"summaries": list(value.summaries)}
+
+
+def data2summary_output_from_dict(payload: object) -> Data2SummaryOutput:
+    return Data2SummaryOutput(summaries=_string_list(_object(payload, "data2summary output").get("summaries"), "summaries"))
+
+
+def dataset_result_from_dict(payload: object) -> DatasetResult:
+    data = _object(payload, "dataset")
+    columns = data.get("columns")
+    rows = data.get("results")
+    if not isinstance(columns, dict):
+        raise ValueError("dataset.columns must be an object")
+    if not isinstance(rows, list) or any(not isinstance(item, dict) for item in rows):
+        raise ValueError("dataset.results must be an array of objects")
+    return DatasetResult(
+        columns=[
+            DatasetColumn(key=str(key), metadata=dict(value if isinstance(value, dict) else {}))
+            for key, value in columns.items()
+        ],
+        rows=[dict(item) for item in rows],
+    )
+
+
 def data_analysis_answer_to_dict(answer: DataAnalysisAnswer) -> dict[str, Any]:
     return {
         "summary": answer.summary,
@@ -65,3 +264,28 @@ def data_analysis_answer_to_dict(answer: DataAnalysisAnswer) -> dict[str, Any]:
         "visualizations": {"components": list(answer.components)},
         "warnings": list(answer.warnings),
     }
+
+
+def _object(payload: object, name: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError(f"{name} must be an object")
+    return payload
+
+
+def _required_string(payload: dict[str, Any], field_name: str) -> str:
+    value = payload.get(field_name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return value.strip()
+
+
+def _string_list(value: object, name: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"{name} must be an array of strings")
+    return list(value)
+
+
+def _object_list(value: object, name: str) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError(f"{name} must be an array of objects")
+    return [dict(item) for item in value]

@@ -166,6 +166,8 @@ X-User-Id: <external-user-id>
 | `chatbi.report.generation.dsl_invalid` | 400 | 报告内容结构校验失败 |
 | `chatbi.report.document.pdf_not_available` | 400 | PDF 导出暂未开放 |
 | `chatbi.data_analysis.query_blocked` | 400 | 智能问数查询被安全规则拦截 |
+| `chatbi.data_analysis.query.unsupported_syntax` | 422 | 查询使用了当前数据源不支持的语法 |
+| `chatbi.data_analysis.query.field_not_found` | 422 | 查询引用的字段不存在 |
 
 ## 2. 客户端接口
 

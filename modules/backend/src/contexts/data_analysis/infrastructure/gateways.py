@@ -9,14 +9,14 @@ from ....infrastructure.platform.cache import MemoryTtlCache, platform_cache
 from ....shared.agentflow.metrics import record_unique_metric
 from ....shared.kernel.errors import ErrorCode, UpstreamError
 from ..application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
-from ..domain.models import DatasetColumn, DatasetResult
+from ..domain.models import DatasetColumn, DatasetResult, QueryResult
 
 
 class ExternalOneQueryGateway(OneQueryGateway):
     def __init__(self, *, client) -> None:
         self.client = client
 
-    def execute(self, *, query: str, context: dict[str, Any], user_id: str) -> DatasetResult:
+    def execute(self, *, query: str, context: dict[str, Any], user_id: str) -> QueryResult:
         payload = self.client.post_json(
             path_or_url="/rest/dte/v1/onequery/uql/query",
             payload={"query": query, "context": context},
@@ -29,14 +29,39 @@ class ExternalOneQueryGateway(OneQueryGateway):
                 source="onequery",
                 http_status=502,
             )
-        ret_code = int(payload["retCode"])
-        if ret_code != 0:
+        if not isinstance(payload.get("retInfo"), str):
             raise UpstreamError(
-                str(payload.get("retInfo") or f"OneQuery failed: {ret_code}"),
-                details={"retCode": ret_code},
-                error_code=ErrorCode.DATA_ANALYSIS_DATASOURCE_UNAVAILABLE,
+                "OneQuery response retInfo is required",
+                error_code=ErrorCode.DATA_ANALYSIS_RESULT_INVALID,
                 source="onequery",
                 http_status=502,
+            )
+        ret_code = payload["retCode"]
+        if isinstance(ret_code, bool) or not isinstance(ret_code, (int, str)) or (isinstance(ret_code, str) and not ret_code):
+            raise UpstreamError(
+                "OneQuery response retCode must be an integer or non-empty string",
+                error_code=ErrorCode.DATA_ANALYSIS_RESULT_INVALID,
+                source="onequery",
+                http_status=502,
+            )
+        if not _is_success_code(ret_code):
+            error_code, message, category, http_status, retryable = _onequery_business_error(
+                ret_code=ret_code,
+                ret_info=payload["retInfo"],
+            )
+            raise UpstreamError(
+                message,
+                details={
+                    "retCode": ret_code,
+                    "upstreamCode": str(ret_code),
+                    "retInfo": payload["retInfo"],
+                    "sql": query,
+                },
+                error_code=error_code,
+                category=category,
+                retryable=retryable,
+                source="onequery",
+                http_status=http_status,
             )
         data = payload.get("data")
         if not isinstance(data, dict) or not isinstance(data.get("columns"), dict) or not isinstance(data.get("results"), list):
@@ -46,9 +71,13 @@ class ExternalOneQueryGateway(OneQueryGateway):
                 source="onequery",
                 http_status=502,
             )
-        return DatasetResult(
-            columns=[DatasetColumn(key=str(key), metadata=deepcopy(metadata if isinstance(metadata, dict) else {})) for key, metadata in data["columns"].items()],
-            rows=deepcopy(data["results"]),
+        return QueryResult(
+            ret_code=ret_code,
+            ret_info=payload["retInfo"],
+            data=DatasetResult(
+                columns=[DatasetColumn(key=str(key), metadata=deepcopy(metadata if isinstance(metadata, dict) else {})) for key, metadata in data["columns"].items()],
+                rows=deepcopy(data["results"]),
+            ),
         )
 
 
@@ -209,3 +238,34 @@ def _ensure_success(payload: dict[str, Any], *, service: str) -> None:
             source=service.lower(),
             http_status=502,
         )
+
+
+def _is_success_code(value: object) -> bool:
+    return not isinstance(value, bool) and (value == 0 or value == "0")
+
+
+def _onequery_business_error(*, ret_code: object, ret_info: str) -> tuple[str, str, str, int, bool]:
+    code = str(ret_code)
+    if code == "04003":
+        return (
+            ErrorCode.DATA_ANALYSIS_QUERY_UNSUPPORTED_SYNTAX,
+            "查询使用了当前数据源不支持的 CONNECT BY 语法。",
+            "query",
+            422,
+            False,
+        )
+    if code == "04023":
+        return (
+            ErrorCode.DATA_ANALYSIS_QUERY_FIELD_NOT_FOUND,
+            "查询引用的字段不存在。",
+            "query",
+            422,
+            False,
+        )
+    return (
+        ErrorCode.DATA_ANALYSIS_DATASOURCE_UNAVAILABLE,
+        ret_info or f"OneQuery failed: {code}",
+        "upstream",
+        502,
+        True,
+    )

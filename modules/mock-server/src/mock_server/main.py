@@ -120,14 +120,11 @@ def create_app() -> FastAPI:
         system = str((messages[0] if messages else {}).get("content") or "")
         if empty is not None:
             content = empty
-        elif "必须包含 sql" in system:
+        elif "intent_function" in system:
             content = json.dumps(
                 {
-                    "intent": "查询网络健康数据",
                     "sql": "select * from network_health",
-                    "entities": ["network_health"],
-                    "dimensions": ["device_name"],
-                    "measures": ["health_score"],
+                    "intent_function": "def resolve_intent(question):\n    return {'topic': 'network_health', 'question': question}",
                 },
                 ensure_ascii=False,
             )
@@ -158,6 +155,10 @@ def create_app() -> FastAPI:
     def onequery(payload: dict[str, Any], x_mock_scenario: str | None = Header(default=None)):
         if x_mock_scenario == "business-error":
             return _dataset_business_error()
+        if x_mock_scenario == "unsupported-syntax":
+            return {"retCode": "04003", "retInfo": "dblink does not support connect by"}
+        if x_mock_scenario == "field-not-found":
+            return {"retCode": "04023", "retInfo": "query field does not exist"}
         empty = _apply_scenario(x_mock_scenario, empty=_dataset_response({"columns": {}, "results": []}))
         if empty is not None:
             return empty

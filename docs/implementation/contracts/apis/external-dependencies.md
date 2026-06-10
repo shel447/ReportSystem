@@ -348,9 +348,12 @@ POST /rest/dte/v1/onequery/uql/query
 
 规则：
 
-- `retCode/retInfo` 必填。
-- `retCode = 0` 时必须返回 `data.columns/data.results`。
+- `retCode/retInfo` 必填；consumer 保留原始 `retCode`，不得通过整数转换丢失前导零。
+- 整数 `0` 或字符串 `"0"` 表示成功，此时必须返回 `data.columns/data.results`。
 - `retCode != 0` 表示业务失败；报告生成场景降级为空数据并记录告警，智能问数场景返回明确错误。
+- 字符串 `"04003"` 表示数据源不支持 `CONNECT BY`，智能问数映射为 `chatbi.data_analysis.query.unsupported_syntax`。
+- 字符串 `"04023"` 表示查询字段不存在，智能问数映射为 `chatbi.data_analysis.query.field_not_found`。
+- 上述两个精确错误不可重试，智能问数停止后续图表、总结和聚合节点；错误详情保留 `upstreamCode/retInfo/sql`。
 - HTTP 错误、超时和非法结构属于上游调用失败。
 - 开启 `context["lineage.tracing.enable"]` 时，每列必须返回非空血缘来源。
 

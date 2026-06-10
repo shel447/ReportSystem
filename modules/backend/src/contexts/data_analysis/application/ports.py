@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from ..domain.models import DatasetResult
+from ..domain.models import DatasetResult, QueryResult
 
 
 class OneQueryGateway(Protocol):
-    def execute(self, *, query: str, context: dict[str, Any], user_id: str) -> DatasetResult: ...
+    def execute(self, *, query: str, context: dict[str, Any], user_id: str) -> QueryResult: ...
 
 
 class ApiDatasetGateway(Protocol):

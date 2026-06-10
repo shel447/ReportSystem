@@ -48,6 +48,21 @@ def test_header_scenarios_are_request_scoped():
     assert client.post("/rest/datasets/availability-trend", json={}).json()["data"]["results"]
 
 
+def test_onequery_exposes_known_string_business_errors():
+    payload = {"query": "select * from network_health", "context": {}}
+
+    assert client.post(
+        "/rest/dte/v1/onequery/uql/query",
+        headers={"X-Mock-Scenario": "unsupported-syntax"},
+        json=payload,
+    ).json() == {"retCode": "04003", "retInfo": "dblink does not support connect by"}
+    assert client.post(
+        "/rest/dte/v1/onequery/uql/query",
+        headers={"X-Mock-Scenario": "field-not-found"},
+        json=payload,
+    ).json() == {"retCode": "04023", "retInfo": "query field does not exist"}
+
+
 def test_agentcore_import_is_upsert():
     client.post("/__mock__/reset")
     conversation_id = client.post("/rest/naie/aiagentcore/v1/conversation", json={"title": "test"}).json()["conversationId"]

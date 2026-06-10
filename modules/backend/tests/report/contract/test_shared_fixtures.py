@@ -69,6 +69,19 @@ def test_query_response_schemas_accept_new_success_and_business_error_envelopes(
     }
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"retCode": "04003", "retInfo": "dblink does not support connect by"},
+        {"retCode": "04023", "retInfo": "query field does not exist"},
+    ],
+)
+def test_onequery_schema_preserves_known_string_business_error_codes(payload):
+    assert ReportDslSchemaGateway().validate_onequery_response(payload) == payload
+    with pytest.raises(ValueError, match="响应校验失败"):
+        ReportDslSchemaGateway().validate_api_dataset_response(payload)
+
+
 @pytest.mark.parametrize("validate_response", ["validate_onequery_response", "validate_api_dataset_response"])
 def test_query_response_schemas_reject_legacy_result_set_envelope(validate_response):
     with pytest.raises(ValueError, match="响应校验失败"):

@@ -134,6 +134,20 @@ def test_onequery_and_api_dataset_responses_accept_the_same_envelopes(payload):
 @pytest.mark.parametrize(
     "payload",
     [
+        {"retCode": "0", "retInfo": "", "data": {"columns": {}, "results": []}},
+        {"retCode": "04003", "retInfo": "dblink does not support connect by"},
+        {"retCode": "04023", "retInfo": "query field does not exist"},
+    ],
+)
+def test_onequery_accepts_string_consumer_codes_without_changing_api_dataset_contract(payload):
+    _validate("onequery.schema.json", "OneQueryResponse", payload)
+    with pytest.raises(ValidationError):
+        _validate("api-dataset.schema.json", "ApiDatasetResponse", payload)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
         {"retInfo": ""},
         {"retCode": 0, "retInfo": ""},
     ],
