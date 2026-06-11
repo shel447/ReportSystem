@@ -4,9 +4,9 @@
 
 `contexts/conversation` 负责通用会话、追问/答复生命周期、场景注册、场景识别、场景分发、安全检查和 SSE 事件输出。会话事实源由 AgentCore 托管。它允许业务场景使用严格类型扩展载荷，但不定义报告模板、参数模型或 Report DSL。
 
-运行中流程由 `shared/agentflow` 承载。conversation 只负责启动流程、订阅事件，并把 `step_delta/delta/answer/error` 投影成 `/chat` 响应。AgentFlow 内部 `runId` 不进入公开响应、SSE、前端类型或 API 契约。
+运行中流程由 `shared/agentflow` 承载，处理后的 interaction 消息进入 `shared/messaging`。conversation 在启动流程前注册当前轮次消费者，把 `step_delta/delta/answer/error` 投影成 `/chat` 响应。AgentFlow 内部 `runId` 不进入公开响应、SSE、前端类型或 API 契约。
 
-conversation 自己维护运行中业务索引：启动 Flow 后记录 `chatId/conversationId -> runId`，停止或运行中判断时再调用 AgentFlow 的通用 `cancel(runId)` / `is_running(runId)`。AgentFlow 不拥有 `chatId`、`conversationId` 的索引规则，也不理解“同一会话是否允许并发发起新消息”的业务限制。
+conversation 自己维护运行中业务索引：启动 Flow 后记录 `chatId/conversationId -> runId`；停止时向 MessageCenter 发布定向 `control.agentflow.cancel` command。AgentFlow 不拥有 `chatId`、`conversationId` 的索引规则，也不理解“同一会话是否允许并发发起新消息”的业务限制。
 
 ## 2. 应用服务
 

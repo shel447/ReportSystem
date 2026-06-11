@@ -17,8 +17,8 @@ from ..contexts.conversation.application.models import (
     fork_session_result_to_dict,
     session_detail_to_dict,
     session_summary_to_dict,
+    ChatStreamEvent,
 )
-from ..shared.agentflow import FlowEvent
 from ..shared.kernel.authenticated import authenticated
 from ..shared.kernel.errors import ErrorCode, NotFoundError, error_response_payload
 from .common import parse_body, required_query, user_id
@@ -107,11 +107,11 @@ class ChatController:
                         req.write(_sse_chunk(payload))
                         await req.flush()
                     return
-                event: FlowEvent = item
+                event: ChatStreamEvent = item
                 conversation_id = event.conversation_id or conversation_id
                 chat_id = event.chat_id or chat_id
                 sequence = max(sequence, int(event.sequence or sequence))
-                req.write(_sse_chunk(_flow_event_to_chat_stream_event(event)))
+                req.write(_sse_chunk(_chat_stream_event_to_dict(event)))
                 await req.flush()
                 sequence += 1
         except StreamClosedError:
@@ -169,13 +169,13 @@ def _error_and_done(exc: Exception, *, conversation_id: str, chat_id: str, seque
     yield {"conversationId": conversation_id, "chatId": chat_id, "eventType": "done", "sequence": sequence + 1, "timestamp": int(time.time() * 1000), "status": "failed"}
 
 
-def _flow_event_to_chat_stream_event(event: FlowEvent) -> dict[str, Any]:
+def _chat_stream_event_to_dict(event: ChatStreamEvent) -> dict[str, Any]:
     event_type = "answer" if event.event_type == "delta" else event.event_type
     if event.event_type in {"tool_call", "tool_result", "checkpoint"}:
         event_type = "step_delta"
     payload: dict[str, Any] = {"conversationId": event.conversation_id or "", "chatId": event.chat_id or "", "eventType": event_type, "sequence": event.sequence, "timestamp": int(time.time() * 1000), "status": event.status}
     if event.step is not None:
-        payload["step"] = {"code": event.step.code, "stepId": event.step.code, "title": event.step.title, "status": event.step.status, "detail": event.step.detail, "parentStepId": event.step.parent_step_id, "stepPath": list(event.step.step_path)}
+        payload["step"] = {"code": event.step.step_id, "stepId": event.step.step_id, "title": event.step.title, "status": event.step.status, "detail": event.step.detail, "parentStepId": event.step.parent_step_id, "stepPath": list(event.step.step_path)}
     if event.delta:
         payload["delta"] = list(event.delta)
     for name in ("answer", "ask", "error", "refusal"):

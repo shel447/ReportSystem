@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from src.contexts.conversation.application.models import ChatAnswerEnvelope, ChatResponse, SessionDetail
+from src.contexts.conversation.application.models import ChatAnswerEnvelope, ChatResponse, ChatStreamEvent, SessionDetail
 from tests.support.tornado_client import create_app
-from src.shared.agentflow import FlowEvent, FlowStep
+from src.shared.messaging import InteractionStep
 from tests.support.tornado_client import FakeWebContainer, TornadoTestClient
 
 
@@ -19,8 +19,8 @@ class ConversationService:
         return ChatResponse(conversation_id="conv_1", chat_id="chat_1", status="finished", steps=[], ask=None, answer=ChatAnswerEnvelope(answer_type="TEXT", payload={"text": "ok"}), errors=[], timestamp=1)
 
     def chat_stream(self, *, data, user_id):
-        yield FlowEvent(run_id="internal", sequence=1, event_type="step_delta", status="running", conversation_id="conv_1", chat_id="chat_1", step=FlowStep(code="step", title="处理中"))
-        yield FlowEvent(run_id="internal", sequence=2, event_type="done", status="finished", conversation_id="conv_1", chat_id="chat_1")
+        yield ChatStreamEvent(conversation_id="conv_1", chat_id="chat_1", sequence=1, event_type="step_delta", status="running", step=InteractionStep(step_id="step", title="处理中"))
+        yield ChatStreamEvent(conversation_id="conv_1", chat_id="chat_1", sequence=2, event_type="done", status="finished")
 
     def stop_chat(self, *, chat_id, user_id):
         return True

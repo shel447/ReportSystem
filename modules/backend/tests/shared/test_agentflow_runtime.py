@@ -8,11 +8,12 @@ from src.shared.agentflow import (
     FlowGraphRenderer,
     FlowNode,
     InMemoryFlowRuntime,
-    InMemoryMetricsSink,
-    MetricsCenter,
     ReactFlow,
     SequentialFlow,
 )
+from src.shared.agentflow.metrics import FlowMetrics
+from src.shared.messaging import InMemoryMessageCenter
+from src.shared.messaging import FlowControlCommand
 
 
 def test_sequential_flow_emits_steps_and_answer():
@@ -154,6 +155,29 @@ def test_cancel_by_run_id_reports_running_state():
     assert not runtime.is_running(run.run_id)
 
 
+def test_terminate_command_emits_terminated_error_and_done():
+    runtime = InMemoryFlowRuntime()
+
+    def slow_node(context):
+        while True:
+            context.check_cancelled()
+            time.sleep(0.01)
+
+    run = runtime.start(SequentialFlow(FlowNode(id="slow", handler=slow_node)).to_graph())
+    runtime.message_center.send_command(
+        topic="control.agentflow.terminate",
+        target=runtime.command_target,
+        source="test",
+        partition_key=run.partition_key,
+        payload=FlowControlCommand(run_id=run.run_id, reason="maintenance"),
+    )
+    events = list(runtime.iter_events(run.run_id))
+
+    assert any(event.event_type == "error" and event.status == "terminated" for event in events)
+    assert events[-1].event_type == "done"
+    assert events[-1].status == "terminated"
+
+
 def test_parallel_branches_run_concurrently_and_preserve_event_sequence():
     completed = []
 
@@ -242,9 +266,14 @@ def test_graph_renderer_outputs_mermaid_for_before_and_after_build():
     assert "start --> finish" in artifact.after_mermaid
 
 
-def test_metrics_center_receives_terminal_metrics_on_success_and_failure():
-    sink = InMemoryMetricsSink()
-    runtime = InMemoryFlowRuntime(metrics_center=MetricsCenter([sink]))
+def test_message_center_receives_terminal_metrics_on_success_and_failure():
+    center = InMemoryMessageCenter()
+    metrics = center.subscribe(
+        name="metrics-test",
+        channels={"observability"},
+        topics={"observability.metrics.recorded"},
+    )
+    runtime = InMemoryFlowRuntime(message_center=center)
 
     def success(context):
         context.record_unique_metric("business.resource.used", "device")
@@ -254,17 +283,20 @@ def test_metrics_center_receives_terminal_metrics_on_success_and_failure():
 
     runtime.run_sync(SequentialFlow(FlowNode(id="success", handler=success)).to_graph())
 
-    assert sink.items[-1].status == "finished"
-    assert sink.items[-1].unique_counts["business.resource.used"] == 1
-    assert sink.items[-1].llm_output_tokens == 42
+    success_metrics = metrics.messages.get(timeout=1).payload
+    assert isinstance(success_metrics, FlowMetrics)
+    assert success_metrics.status == "finished"
+    assert success_metrics.unique_counts["business.resource.used"] == 1
+    assert success_metrics.llm_output_tokens == 42
 
     def fail(context):
         raise RuntimeError("bad")
 
     runtime.run_sync(SequentialFlow(FlowNode(id="fail", handler=fail)).to_graph())
 
-    assert sink.items[-1].status == "failed"
-    assert sink.items[-1].failed_node_count == 1
+    failed_metrics = metrics.messages.get(timeout=1).payload
+    assert failed_metrics.status == "failed"
+    assert failed_metrics.failed_node_count == 1
 
 
 def test_agentflow_public_api_avoids_business_specific_helpers():

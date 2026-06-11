@@ -8,7 +8,7 @@ from typing import Callable, TypeVar
 
 from .dependencies import conversation_service_scope, report_service_scope
 from .persistence.database import init_db
-from .platform.runtime import audit_dispatcher, build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
+from .platform.runtime import audit_publisher, build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
 
 T = TypeVar("T")
 
@@ -17,7 +17,7 @@ class ChatBIServer:
     def __init__(self) -> None:
         self.executor: ThreadPoolExecutor | None = None
         self.policy_auth_gateway = None
-        self.audit_dispatcher = audit_dispatcher
+        self.audit_publisher = audit_publisher
         self.report_service_scope = report_service_scope
         self.conversation_service_scope = conversation_service_scope
 

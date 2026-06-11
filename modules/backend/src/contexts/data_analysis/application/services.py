@@ -8,7 +8,7 @@ from typing import Any
 
 from ....shared.agentflow import FlowContext, FlowEdge, FlowGraph, FlowNode, SubflowEventPolicy, SubflowSpec
 from ....shared.kernel.errors import ErrorCode, ValidationError
-from ....shared.kernel.audit import AuditEvent
+from ....shared.kernel.audit import AuditEvent, AuditPublisher
 from ....shared.kernel.safety import GuardrailGateway
 from ..domain.models import (
     Data2ChartInput,
@@ -78,7 +78,7 @@ class DataAnalysisService:
         guardrail_gateway: GuardrailGateway,
         ai_gateway,
         completion_config_builder,
-        audit_dispatcher=None,
+        audit_publisher: AuditPublisher | None = None,
     ) -> None:
         self.query_service = query_service
         self.data_catalog_gateway = data_catalog_gateway
@@ -86,7 +86,7 @@ class DataAnalysisService:
         self.guardrail_gateway = guardrail_gateway
         self.ai_gateway = ai_gateway
         self.completion_config_builder = completion_config_builder
-        self.audit_dispatcher = audit_dispatcher
+        self.audit_publisher = audit_publisher
 
     def analyze_from_natural_language(self, *, question: str, user_id: str) -> DataAnalysisAnswer:
         result = self.nl2data(value=Nl2SqlInput(question=question), user_id=user_id)
@@ -210,10 +210,10 @@ class DataAnalysisService:
         )
 
     def _audit(self, event: AuditEvent) -> None:
-        if self.audit_dispatcher is None:
+        if self.audit_publisher is None:
             return
         try:
-            self.audit_dispatcher.submit(event)
+            self.audit_publisher.submit(event)
         except Exception:
             return
 

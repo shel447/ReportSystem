@@ -27,8 +27,9 @@ from src.contexts.report.infrastructure.scenario_registration import ReportScena
 from src.contexts.report.infrastructure.template_schema import ReportDslSchemaGateway
 from src.contexts.report.infrastructure.template_repositories import SqlAlchemyTemplateManagementRepository
 from src.infrastructure.platform.guardrail import ExternalGuardrailGateway
+from src.infrastructure.platform.audit import AuditEventPublisher
 from src.shared.agentflow.checkpoints import CheckpointSaver, InMemoryCheckpointSaver
-from src.shared.agentflow.metrics import InMemoryMetricsSink, MetricsSink, NoopMetricsSink
+from src.shared.kernel.audit import AuditPublisher
 from src.shared.kernel.safety import GuardrailGateway
 
 
@@ -85,8 +86,7 @@ class ServiceTypeContractTests(unittest.TestCase):
             (ReportDslSchemaGateway, ReportSchemaValidator),
             (ReportDocumentGateway, DocumentExportGateway),
             (InMemoryCheckpointSaver, CheckpointSaver),
-            (NoopMetricsSink, MetricsSink),
-            (InMemoryMetricsSink, MetricsSink),
+            (AuditEventPublisher, AuditPublisher),
         ]
 
         for implementation, protocol in pairs:

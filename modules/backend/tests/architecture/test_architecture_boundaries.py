@@ -218,6 +218,17 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for forbidden in ("infrastructure", "httpx", "jsonschema", "sqlite3"):
             self.assertNotIn(forbidden, source)
 
+    def test_agentflow_does_not_own_conversation_or_chat_fields(self):
+        root = ROOT / "shared" / "agentflow"
+        source = "\n".join(path.read_text(encoding="utf-8-sig") for path in root.glob("*.py"))
+        for forbidden in ("conversation_id", "chat_id", "conversationId", "chatId"):
+            self.assertNotIn(forbidden, source)
+
+    def test_legacy_event_dispatch_centers_do_not_exist(self):
+        source = "\n".join(path.read_text(encoding="utf-8-sig") for path in ROOT.rglob("*.py"))
+        for forbidden in ("class MetricsCenter", "class AsyncAuditDispatcher"):
+            self.assertNotIn(forbidden, source)
+
     def test_report_generation_service_does_not_own_document_dependencies(self):
         path = ROOT / "contexts" / "report" / "application" / "generation_service.py"
         source = path.read_text(encoding="utf-8-sig")

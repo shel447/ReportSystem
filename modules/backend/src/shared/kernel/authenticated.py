@@ -50,7 +50,7 @@ def authenticated(*, origin_url: str, privilege: list[str]):
                     headers=dict(req.request.headers),
                 )
             except PermissionDeniedError:
-                controller.server.audit_dispatcher.submit(
+                controller.server.audit_publisher.submit(
                     AuditEvent(
                         user_id=user_id,
                         operation="authentication.denied",

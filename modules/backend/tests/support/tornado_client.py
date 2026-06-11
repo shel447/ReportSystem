@@ -79,7 +79,7 @@ class FakeWebContainer:
     def __init__(self, *, report_service=None, conversation_service=None, policy_auth_gateway=None) -> None:
         self.executor = ThreadPoolExecutor(max_workers=4)
         self.policy_auth_gateway = policy_auth_gateway
-        self.audit_dispatcher = type("AuditDispatcher", (), {"submit": lambda self, event: None})()
+        self.audit_publisher = type("AuditPublisher", (), {"submit": lambda self, event: None})()
         self._report_service = report_service
         self._conversation_service = conversation_service
 

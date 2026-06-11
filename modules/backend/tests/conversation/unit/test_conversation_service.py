@@ -1,4 +1,5 @@
 import unittest
+import time
 from copy import deepcopy
 from dataclasses import is_dataclass
 from types import SimpleNamespace
@@ -309,7 +310,7 @@ class _RuntimeService:
         )
 
 
-def _conversation_service(*, template, history_gateway, runtime_service, audit_dispatcher=None):
+def _conversation_service(*, template, history_gateway, runtime_service, audit_publisher=None):
     report_scenario_service = ReportScenarioService(
         template_service=SimpleNamespace(get_template=lambda template_id: template),
         template_repository=SimpleNamespace(list_all=lambda: [template]),
@@ -327,11 +328,42 @@ def _conversation_service(*, template, history_gateway, runtime_service, audit_d
         history_gateway=history_gateway,
         guardrail_gateway=_AllowGuardrail(),
         scenario_dispatcher=ScenarioDispatchService(registry=registry),
-        audit_dispatcher=audit_dispatcher,
+        audit_publisher=audit_publisher,
     )
 
 
 class ConversationServiceAskStatusTests(unittest.TestCase):
+    def test_stream_persistence_continues_after_client_stops_consuming(self):
+        template = report_template_from_dict({
+            "id": "tpl_network_daily",
+            "category": "network_operations",
+            "name": "网络运行日报",
+            "description": "面向网络运维中心的统一日报模板。",
+            "schemaVersion": "template.v3",
+            "parameters": [],
+            "catalogs": [],
+        })
+        history_gateway = _HistoryGateway()
+        service = _conversation_service(
+            template=template,
+            history_gateway=history_gateway,
+            runtime_service=_RuntimeService(),
+        )
+
+        stream = service.chat_stream(
+            data=ChatCommand(instruction="generate_report", question="帮我生成网络运行日报"),
+            user_id="default",
+        )
+        next(stream)
+        stream.close()
+
+        deadline = time.time() + 2
+        while not any(item.response_payload for item in history_gateway.chats.values()) and time.time() < deadline:
+            time.sleep(0.01)
+        persisted = list(history_gateway.chats.values())
+        self.assertEqual(len(persisted), 1)
+        self.assertTrue(persisted[0].response_payload)
+
     def test_successful_chat_submits_best_effort_audit_event(self):
         template = report_template_from_dict({
             "id": "tpl_network_daily",
@@ -347,7 +379,7 @@ class ConversationServiceAskStatusTests(unittest.TestCase):
             template=template,
             history_gateway=_HistoryGateway(),
             runtime_service=_RuntimeService(),
-            audit_dispatcher=SimpleNamespace(submit=events.append),
+            audit_publisher=SimpleNamespace(submit=events.append),
         )
 
         response = service.chat(

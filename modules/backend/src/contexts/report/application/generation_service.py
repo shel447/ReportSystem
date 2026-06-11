@@ -6,6 +6,7 @@ import copy
 import uuid
 
 from ....shared.kernel.errors import ErrorCode, NotFoundError, ValidationError
+from ....shared.messaging import DomainEvent, MessagePublisher
 from ..domain.generation_models import (
     ReportInstance,
     ReportDsl,
@@ -42,6 +43,7 @@ class ReportGenerationService:
         custom_content_resolver: CustomContentResolver | None = None,
         dataset_execution_service: DatasetExecutionService | None = None,
         schema_gateway: ReportSchemaValidator | None = None,
+        message_publisher: MessagePublisher | None = None,
     ) -> None:
         self.template_repository = template_repository
         self.template_instance_repository = template_instance_repository
@@ -50,6 +52,7 @@ class ReportGenerationService:
         self.schema_gateway = schema_gateway or _PassthroughReportSchemaValidator()
         self.custom_content_resolver = custom_content_resolver or CustomContentResolver(schema_gateway=self.schema_gateway)
         self.dataset_execution_service = dataset_execution_service
+        self.message_publisher = message_publisher
 
     def persist_template_instance(self, instance: TemplateInstance, *, user_id: str) -> TemplateInstance:
         try:
@@ -112,6 +115,19 @@ class ReportGenerationService:
         template_instance.status = "completed"
         template_instance.capture_stage = "report_ready"
         updated = self.template_instance_repository.update(template_instance, user_id=user_id)
+        if self.message_publisher is not None:
+            self.message_publisher.publish_event(
+                channel="domain",
+                topic="domain.report.generated",
+                source="contexts.report",
+                partition_key=report_id,
+                correlation_id=conversation_id,
+                payload=DomainEvent(
+                    context="report",
+                    fact="generated",
+                    data={"reportId": report_id, "templateInstanceId": template_instance.id, "userId": user_id},
+                ),
+            )
         return self.serialize_report_answer(instance=instance, template_instance=updated)
 
     def get_report_view(self, report_id: str, *, user_id: str) -> ReportView:

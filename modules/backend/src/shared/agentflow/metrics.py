@@ -7,7 +7,7 @@ import contextvars
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Protocol
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -32,50 +32,6 @@ class FlowMetrics:
     failed_node_count: int = 0
     custom: list[FlowMetricRecord] = field(default_factory=list)
     unique_counts: dict[str, int] = field(default_factory=dict)
-
-
-class MetricsSink(Protocol):
-    """Transport-neutral metrics sink.
-
-    Kafka, HTTP or database implementations can be added by implementing this
-    protocol. AgentFlow itself only depends on this abstraction.
-    """
-
-    def publish(self, metrics: FlowMetrics) -> None: ...
-
-
-class NoopMetricsSink(MetricsSink):
-    """Default sink used when metrics publishing is not configured."""
-
-    def publish(self, metrics: FlowMetrics) -> None:  # pragma: no cover - intentionally empty
-        return None
-
-
-class InMemoryMetricsSink(MetricsSink):
-    """Test and local-debug sink."""
-
-    def __init__(self) -> None:
-        self.items: list[FlowMetrics] = []
-        self._lock = threading.RLock()
-
-    def publish(self, metrics: FlowMetrics) -> None:
-        with self._lock:
-            self.items.append(metrics)
-
-
-class MetricsCenter:
-    """Publishes terminal flow metrics to configured sinks."""
-
-    def __init__(self, sinks: Iterable[MetricsSink] | None = None) -> None:
-        self.sinks = list(sinks or [NoopMetricsSink()])
-
-    def publish(self, metrics: FlowMetrics) -> None:
-        for sink in self.sinks:
-            try:
-                sink.publish(metrics)
-            except Exception:
-                # Metrics publishing must never change the business outcome.
-                continue
 
 
 class FlowMetricsCollector:

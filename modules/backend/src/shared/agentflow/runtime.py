@@ -7,19 +7,21 @@ import threading
 import uuid
 import copy
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Iterable
 
 from .checkpoints import CheckpointSaver, FlowCheckpoint, InMemoryCheckpointSaver
 from .events import FlowEvent, FlowSignal, FlowStep
 from .graph import FlowEdge, FlowGraph, FlowNode
 from .hooks import FlowHook, HookContext, HookDecision
-from .metrics import FlowMetricsCollector, MetricsCenter, use_metrics_collector
+from .event_processor import FlowEventPolicy, FlowEventProcessor
+from .metrics import FlowMetricsCollector, use_metrics_collector
 from .prompts import PromptAssembler, PromptMessage, PromptTemplate
 from .subflows import SubflowEventPolicy, SubflowRegistry
 from .termination import FlowCancelled, FlowRefused, FlowTerminated
 from .tools import ToolCall, ToolRegistry
 from ..kernel.errors import ApplicationError, ErrorCode, error_response_payload
+from ..messaging import FlowControlCommand, InMemoryMessageCenter, InteractionEvent, MessageCenter, MessageSubscription
 
 
 @dataclass(slots=True)
@@ -28,9 +30,11 @@ class FlowRun:
 
     run_id: str
     graph: FlowGraph
-    events: "queue.Queue[FlowEvent]" = field(default_factory=queue.Queue)
+    event_subscription: MessageSubscription | None = None
     inputs: "queue.Queue[FlowSignal]" = field(default_factory=queue.Queue)
     cancel_requested: threading.Event = field(default_factory=threading.Event)
+    terminate_requested: threading.Event = field(default_factory=threading.Event)
+    termination_reason: str = ""
     done: threading.Event = field(default_factory=threading.Event)
     sequence: int = 0
     final_event: FlowEvent | None = None
@@ -42,6 +46,9 @@ class FlowRun:
     failed_nodes: set[str] = field(default_factory=set)
     metrics: FlowMetricsCollector = field(default_factory=FlowMetricsCollector)
     terminal_status: str = "running"
+    partition_key: str = ""
+    correlation_id: str | None = None
+    source: str = "shared.agentflow"
 
 
 class FlowContext:
@@ -65,6 +72,8 @@ class FlowContext:
         return self.run.run_id
 
     def check_cancelled(self) -> None:
+        if self.run.terminate_requested.is_set():
+            raise FlowTerminated(self.run.termination_reason or "flow run was terminated")
         if self.run.cancel_requested.is_set():
             raise FlowCancelled("flow run was cancelled")
 
@@ -184,6 +193,10 @@ class FlowContext:
             if signal.type == "cancel":
                 self.run.cancel_requested.set()
                 self.check_cancelled()
+            if signal.type == "terminate":
+                self.run.terminate_requested.set()
+                self.run.termination_reason = str(signal.payload.get("reason") or "flow run was terminated")
+                self.check_cancelled()
             if signal.type == "input":
                 return signal
 
@@ -199,7 +212,8 @@ class InMemoryFlowRuntime:
         prompt_assembler: PromptAssembler | None = None,
         subflow_registry: SubflowRegistry | None = None,
         hooks: list[FlowHook] | None = None,
-        metrics_center: MetricsCenter | None = None,
+        message_center: MessageCenter | None = None,
+        event_policy: FlowEventPolicy | None = None,
         max_workers: int = 4,
     ) -> None:
         self._runs: dict[str, FlowRun] = {}
@@ -209,11 +223,48 @@ class InMemoryFlowRuntime:
         self.prompt_assembler = prompt_assembler or PromptAssembler()
         self.subflow_registry = subflow_registry or SubflowRegistry()
         self.hooks = list(hooks or [])
-        self.metrics_center = metrics_center or MetricsCenter()
+        self.message_center = message_center or InMemoryMessageCenter()
+        self.message_center.start()
+        self.event_processor = FlowEventProcessor(publisher=self.message_center, policy=event_policy)
+        self.command_target = f"agentflow.runtime.{uuid.uuid4().hex[:12]}"
+        self.message_center.register_command_handler(
+            target=self.command_target,
+            topic="control.agentflow.cancel",
+            handler=self._handle_control_command,
+        )
+        self.message_center.register_command_handler(
+            target=self.command_target,
+            topic="control.agentflow.terminate",
+            handler=self._handle_control_command,
+        )
         self.max_workers = max(1, int(max_workers))
 
-    def start(self, graph: FlowGraph, *, state: dict[str, Any] | None = None) -> FlowRun:
-        run = FlowRun(run_id=f"run_{uuid.uuid4().hex[:16]}", graph=graph, state=dict(state or {}))
+    def start(
+        self,
+        graph: FlowGraph,
+        *,
+        state: dict[str, Any] | None = None,
+        partition_key: str | None = None,
+        correlation_id: str | None = None,
+        source: str = "shared.agentflow",
+        recording_channels: Iterable[str] = ("interaction", "observability"),
+    ) -> FlowRun:
+        run_id = f"run_{uuid.uuid4().hex[:16]}"
+        run = FlowRun(
+            run_id=run_id,
+            graph=graph,
+            state=dict(state or {}),
+            partition_key=str(partition_key or run_id),
+            correlation_id=correlation_id,
+            source=source,
+        )
+        channels = frozenset(recording_channels)
+        if channels:
+            run.event_subscription = self.message_center.subscribe(
+                name=f"agentflow-recording-{run_id}",
+                channels=channels,
+                partition_key=run.partition_key,
+            )
         context = FlowContext(run=run, runtime=self, state=run.state)
         thread = threading.Thread(target=self._execute, args=(run, context), name=f"agentflow-{run.run_id}", daemon=True)
         run.thread = thread
@@ -242,6 +293,15 @@ class InMemoryFlowRuntime:
         run = self.get(run_id)
         return run is not None and not run.done.is_set()
 
+    def terminate(self, run_id: str, *, reason: str = "") -> bool:
+        run = self.get(run_id)
+        if run is None:
+            return False
+        run.termination_reason = reason
+        run.terminate_requested.set()
+        run.inputs.put(FlowSignal(type="terminate", payload={"reason": reason}))
+        return True
+
     def send_input(self, run_id: str, payload: dict[str, Any]) -> bool:
         run = self.get(run_id)
         if run is None:
@@ -253,12 +313,22 @@ class InMemoryFlowRuntime:
         run = self.get(run_id)
         if run is None:
             return
+        subscription = run.event_subscription
+        if subscription is None:
+            return
         while True:
             try:
-                yield run.events.get(timeout=0.1)
+                envelope = subscription.messages.get(timeout=0.1)
+                event = _flow_event_from_message(envelope.payload, sequence=envelope.sequence, run_id=run.run_id)
+                if event is not None:
+                    yield event
+                    if event.event_type == "done":
+                        break
             except queue.Empty:
                 if run.done.is_set():
                     break
+        self.message_center.unsubscribe(subscription)
+        run.event_subscription = None
 
     def emit(
         self,
@@ -284,8 +354,6 @@ class InMemoryFlowRuntime:
                 sequence=run.sequence,
                 event_type=event_type,
                 status=status,
-                conversation_id=str(context_value(run, "conversation_id") or "") or None,
-                chat_id=str(context_value(run, "chat_id") or "") or None,
                 step=step,
                 delta=list(delta or []),
                 answer=answer,
@@ -301,7 +369,12 @@ class InMemoryFlowRuntime:
                 run.final_event = event
             if event_type == "done":
                 run.terminal_status = status
-            run.events.put(event)
+            self.event_processor.publish(
+                event,
+                partition_key=run.partition_key,
+                correlation_id=run.correlation_id,
+                source=run.source,
+            )
             return event
 
     def save_checkpoint(self, run: FlowRun, *, reason: str, node_id: str | None = None) -> FlowCheckpoint:
@@ -350,16 +423,24 @@ class InMemoryFlowRuntime:
         policy = event_policy or spec.event_policy
         subflow_alias = alias or name
         call_id = f"subflow_{uuid.uuid4().hex[:12]}"
+        child_run_id = f"run_{uuid.uuid4().hex[:16]}"
         child_run = FlowRun(
-            run_id=f"run_{uuid.uuid4().hex[:16]}",
+            run_id=child_run_id,
             graph=spec.build_graph(dict(arguments)),
             state={**copy.deepcopy(context.state), "subflow_alias": subflow_alias, "subflow_call_id": call_id},
             cancel_requested=context.run.cancel_requested,
+            terminate_requested=context.run.terminate_requested,
             metrics=context.run.metrics,
+            partition_key=child_run_id,
+            correlation_id=context.run.correlation_id,
+            source=context.run.source,
+        )
+        child_run.event_subscription = self.message_center.subscribe(
+            name=f"agentflow-subflow-{child_run_id}",
+            channels={"interaction", "observability"},
+            partition_key=child_run.partition_key,
         )
         child_context = FlowContext(run=child_run, runtime=self, state=child_run.state)
-        original_events = child_run.events
-        child_run.events = queue.Queue()
         try:
             self._execute_graph(child_run.graph, child_context)
         except Exception as exc:
@@ -368,8 +449,18 @@ class InMemoryFlowRuntime:
                 return {"error": str(exc)}
             raise
         finally:
-            child_events = list(child_run.events.queue)
-            child_run.events = original_events
+            child_events: list[FlowEvent] = []
+            subscription = child_run.event_subscription
+            if subscription is not None:
+                while True:
+                    try:
+                        envelope = subscription.messages.get_nowait()
+                    except queue.Empty:
+                        break
+                    event = _flow_event_from_message(envelope.payload, sequence=envelope.sequence, run_id=child_run.run_id)
+                    if event is not None:
+                        child_events.append(event)
+                self.message_center.unsubscribe(subscription)
         last_answer = None
         for event in child_events:
             if event.event_type == "done":
@@ -445,7 +536,9 @@ class InMemoryFlowRuntime:
         except FlowCancelled as exc:
             self.emit(run, event_type="error", status="cancelled", error=_flow_error_payload(exc))
             self.emit(run, event_type="done", status="cancelled")
-        except FlowTerminated:
+        except FlowTerminated as exc:
+            if run.final_event is None or run.final_event.status != "terminated":
+                self.emit(run, event_type="error", status="terminated", error=_flow_error_payload(exc))
             self.emit(run, event_type="done", status="terminated")
         except FlowRefused:
             self.emit(run, event_type="done", status="refused")
@@ -586,7 +679,22 @@ class InMemoryFlowRuntime:
             run_id=run.run_id,
             status=run.terminal_status,
         )
-        self.metrics_center.publish(metrics)
+        self.message_center.publish_event(
+            channel="observability",
+            topic="observability.metrics.recorded",
+            source="shared.agentflow",
+            partition_key=run.partition_key,
+            correlation_id=run.correlation_id,
+            payload=metrics,
+        )
+
+    def _handle_control_command(self, message) -> None:
+        payload = message.payload
+        if isinstance(payload, FlowControlCommand):
+            if message.topic == "control.agentflow.terminate":
+                self.terminate(payload.run_id, reason=payload.reason)
+            else:
+                self.cancel(payload.run_id)
 
     def _run_hooks(
         self,
@@ -627,6 +735,39 @@ class InMemoryFlowRuntime:
 
 def context_value(run: FlowRun, key: str) -> Any:
     return run.state.get(key)
+
+
+def _flow_event_from_message(payload: object, *, sequence: int, run_id: str) -> FlowEvent | None:
+    if isinstance(payload, FlowEvent):
+        return replace(payload, sequence=sequence)
+    if not isinstance(payload, InteractionEvent):
+        return None
+    step = None
+    if payload.step is not None:
+        step = FlowStep(
+            code=payload.step.step_id,
+            title=payload.step.title,
+            status=payload.step.status,
+            detail=payload.step.detail,
+            parent_step_id=payload.step.parent_step_id,
+            step_path=list(payload.step.step_path),
+        )
+    return FlowEvent(
+        run_id=run_id,
+        sequence=sequence,
+        event_type=payload.event_type,
+        status=payload.status,
+        step=step,
+        delta=list(payload.delta),
+        answer=payload.answer,
+        ask=payload.ask,
+        error=payload.error,
+        tool_call=payload.tool_call,
+        tool_result=payload.tool_result,
+        refusal=payload.refusal,
+        checkpoint=payload.checkpoint,
+        source_subflow=payload.source_subflow,
+    )
 
 
 def _flow_error_payload(error: str | dict[str, Any] | Exception) -> dict[str, Any]:

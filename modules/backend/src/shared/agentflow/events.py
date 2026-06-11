@@ -20,14 +20,12 @@ class FlowStep:
 
 @dataclass(slots=True)
 class FlowEvent:
-    """流程运行事件；由 conversation 投影为 ChatStreamEvent。"""
+    """AgentFlow-internal event normalized before MessageCenter publication."""
 
     run_id: str
     sequence: int
     event_type: str
     status: str = "running"
-    conversation_id: str | None = None
-    chat_id: str | None = None
     step: FlowStep | None = None
     delta: list[dict[str, Any]] = field(default_factory=list)
     answer: dict[str, Any] | None = None

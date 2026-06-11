@@ -7,11 +7,12 @@ import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from .audit import AsyncAuditDispatcher, ExternalAuditGateway
+from .audit import AuditEventPublisher, ExternalAuditConsumer, ExternalAuditGateway
 from .cache import platform_cache
 from .configuration import ExternalMetadataSyncGateway, ExternalNodeAgentGateway, RuntimeConfigurationStore
 from .http_client import ExternalServiceConfig, PlatformHttpClient
 from .policy_auth import ExternalPolicyAuthenticationGateway
+from ...shared.messaging import InMemoryMessageCenter
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_PLATFORM_BASE_URL = "http://127.0.0.1:8310"
@@ -50,21 +51,32 @@ def _service_base_url(*, service_key: str | None) -> str:
 
 configuration_store = RuntimeConfigurationStore(gateway=ExternalNodeAgentGateway(client=build_platform_client()))
 metadata_gateway = ExternalMetadataSyncGateway(client=build_platform_client())
-audit_dispatcher = AsyncAuditDispatcher(gateway=ExternalAuditGateway(client=build_platform_client(service_key="audit")))
+message_center = InMemoryMessageCenter()
+audit_publisher = AuditEventPublisher(publisher=message_center)
+audit_consumer = ExternalAuditConsumer(gateway=ExternalAuditGateway(client=build_platform_client(service_key="audit")))
 _scheduler: BackgroundScheduler | None = None
 _metadata_version: str | None = None
+_consumers_registered = False
 
 
 def start_platform_runtime() -> None:
-    global _scheduler
+    global _scheduler, _consumers_registered
     if _scheduler is not None:
         return
+    if not _consumers_registered:
+        message_center.subscribe(
+            name="external-audit",
+            channels={"observability"},
+            topics={"observability.audit.requested"},
+            handler=audit_consumer,
+        )
+        _consumers_registered = True
+    message_center.start()
     _safe_refresh_configuration()
     _safe_refresh_metadata()
     _scheduler = BackgroundScheduler(daemon=True)
     _scheduler.add_job(_safe_refresh_configuration, "interval", seconds=300, id="nodeagent-refresh", replace_existing=True)
     _scheduler.add_job(_safe_refresh_metadata, "interval", seconds=300, id="metadata-refresh", replace_existing=True)
-    _scheduler.add_job(audit_dispatcher.drain, "interval", seconds=2, id="audit-drain", replace_existing=True)
     _scheduler.start()
 
 
@@ -74,6 +86,7 @@ def stop_platform_runtime() -> None:
         return
     _scheduler.shutdown(wait=False)
     _scheduler = None
+    message_center.stop()
 
 
 def _safe_refresh_configuration() -> None:

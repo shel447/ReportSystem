@@ -5,7 +5,7 @@ from __future__ import annotations
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
 from ....infrastructure.platform.http_client import PlatformHttpClient
-from ....infrastructure.platform.runtime import audit_dispatcher, build_platform_client
+from ....infrastructure.platform.runtime import audit_publisher, build_platform_client
 from ....infrastructure.settings.system_settings import build_completion_provider_config
 from ..application.services import DataAnalysisService, DataQueryService
 from .gateways import (
@@ -38,7 +38,7 @@ def build_data_analysis_service() -> DataAnalysisService:
         guardrail_gateway=ExternalGuardrailGateway(client=_client(service_key="guardrail")),
         ai_gateway=OpenAICompatGateway(),
         completion_config_builder=build_completion_provider_config,
-        audit_dispatcher=audit_dispatcher,
+        audit_publisher=audit_publisher,
     )
 
 

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
 from ....infrastructure.platform.http_client import PlatformHttpClient
 from ....infrastructure.platform.runtime import build_platform_client
+from ....shared.messaging import MessagePublisher
 from ....infrastructure.settings.system_settings import build_embedding_provider_config
 from ..application.custom_content_resolver import CustomContentResolver
 from ..application.dataset_execution_service import DatasetExecutionService
@@ -37,7 +38,7 @@ def _client(*, service_key: str | None = None) -> PlatformHttpClient:
     return build_platform_client(service_key=service_key)
 
 
-def build_report_service(db: Session, *, dataset_query_gateway=None) -> ReportService:
+def build_report_service(db: Session, *, dataset_query_gateway=None, message_publisher: MessagePublisher | None = None) -> ReportService:
     template_service = ReportTemplateService(
         repository=SqlAlchemyTemplateManagementRepository(db),
         schema_gateway=TemplateSchemaGateway(),
@@ -61,6 +62,7 @@ def build_report_service(db: Session, *, dataset_query_gateway=None) -> ReportSe
             schema_gateway=schema_gateway,
         ) if dataset_query_gateway is not None else None,
         schema_gateway=schema_gateway,
+        message_publisher=message_publisher,
     )
     document_service = ReportDocumentService(
         report_reader=generation_service,
@@ -85,5 +87,11 @@ def build_report_service(db: Session, *, dataset_query_gateway=None) -> ReportSe
     )
 
 
-def build_report_scenario_provider(db: Session, *, dataset_query_gateway=None) -> ReportScenarioRegistrationProvider:
-    return ReportScenarioRegistrationProvider(report_service=build_report_service(db, dataset_query_gateway=dataset_query_gateway))
+def build_report_scenario_provider(db: Session, *, dataset_query_gateway=None, message_publisher: MessagePublisher | None = None) -> ReportScenarioRegistrationProvider:
+    return ReportScenarioRegistrationProvider(
+        report_service=build_report_service(
+            db,
+            dataset_query_gateway=dataset_query_gateway,
+            message_publisher=message_publisher,
+        )
+    )

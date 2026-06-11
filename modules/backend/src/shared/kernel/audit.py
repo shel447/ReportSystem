@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Protocol
 
 
 @dataclass(slots=True)
@@ -17,3 +17,7 @@ class AuditEvent:
     result: str = "SUCCESSFUL"
     level: str = "INFORMATION"
     kind: Literal["operation", "security"] = "operation"
+
+
+class AuditPublisher(Protocol):
+    def submit(self, event: AuditEvent) -> None: ...

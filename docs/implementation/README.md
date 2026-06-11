@@ -5,8 +5,9 @@
 ## 实现导航
 
 1. [技术契约](contracts/README.md)
-2. [Agent Flow 公共流程框架](agentflow/README.md)
-3. [Report Context 实现](report/README.md)
+2. [统一消息中心](messaging/README.md)
+3. [Agent Flow 公共流程框架](agentflow/README.md)
+4. [Report Context 实现](report/README.md)
 4. [通用对话](conversation/README.md)
 5. [前端](frontend/README.md)
 6. [外部集成](integrations/外部集成实现.md)
@@ -22,6 +23,7 @@
 - `contexts/report`
 - `contexts/data_analysis`
 - `shared/agentflow`
+- `shared/messaging`
 - `shared/kernel`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
@@ -30,7 +32,8 @@
 依赖方向：
 
 - `conversation` 提供通用场景注册、识别和分发机制，不直接依赖具体业务 context
-- `shared/agentflow` 提供公共流程运行、事件发布、工具调用、提示词组装、hook、checkpoint、拒答、取消和人工输入信号；业务 context 与 conversation 都只依赖该公共抽象
+- `shared/messaging` 提供全系统统一消息包络、发布、订阅和定向 command；AgentFlow、业务 context、conversation、审计和指标均通过该中心协作
+- `shared/agentflow` 提供公共流程运行、Flow 事件预处理、工具调用、提示词组装、hook、checkpoint、拒答和取消；处理后的消息发布到 `shared/messaging`
 - `shared/kernel` 提供公开错误模型、用户身份解析、`@authenticated` 权限注解和其他跨业务基础契约；平台鉴权的 HTTP 实现位于 infrastructure
 - `conversation` 拥有场景注册协议；`report` 和 `data_analysis` 在各自 context 内提供 registration provider、codec 和 handler 实现
 - `data_analysis` 拥有查询、数据目录和知识检索相关业务接口；`report` 如需查询能力，只依赖自己声明的数据查询接口，由装配层接入对应实现

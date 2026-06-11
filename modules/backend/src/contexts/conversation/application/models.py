@@ -16,6 +16,7 @@ from ..domain.models import (
     conversation_message_meta_to_dict,
 )
 from ....shared.kernel.errors import error_response_payload
+from ....shared.messaging import InteractionStep
 
 Scalar = str | int | float | bool
 
@@ -108,6 +109,27 @@ class ChatResponse:
     answer: ChatAnswerEnvelope | None = None
     errors: list[dict[str, Any]] = field(default_factory=list)
     timestamp: int | None = None
+
+
+@dataclass(slots=True)
+class ChatStreamEvent:
+    """Conversation-owned projection of an internal interaction event."""
+
+    conversation_id: str
+    chat_id: str
+    sequence: int
+    event_type: str
+    status: str = "running"
+    step: InteractionStep | None = None
+    delta: list[dict[str, Any]] = field(default_factory=list)
+    answer: dict[str, Any] | None = None
+    ask: dict[str, Any] | None = None
+    error: dict[str, Any] | None = None
+    tool_call: dict[str, Any] | None = None
+    tool_result: dict[str, Any] | None = None
+    refusal: dict[str, Any] | None = None
+    checkpoint: dict[str, Any] | None = None
+    source_subflow: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)

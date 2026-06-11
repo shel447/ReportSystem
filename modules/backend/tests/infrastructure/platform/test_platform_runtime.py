@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from src.infrastructure.platform.audit import AsyncAuditDispatcher
+from src.infrastructure.platform.audit import AuditEventPublisher, ExternalAuditConsumer
 from src.infrastructure.platform import runtime
 from src.shared.kernel.audit import AuditEvent
+from src.shared.messaging import InMemoryMessageCenter
 
 
 class _ConfigurationStore:
@@ -28,12 +29,18 @@ def test_platform_service_url_uses_last_known_good_nodeagent_snapshot(monkeypatc
     assert runtime._service_base_url(service_key="agentcore") == "http://nodeagent"
 
 
-def test_async_audit_delivery_failure_does_not_escape_business_flow():
+def test_message_center_audit_delivery_failure_does_not_escape_business_flow():
     class _FailingGateway:
         def write(self, event):
             raise RuntimeError("audit unavailable")
 
-    dispatcher = AsyncAuditDispatcher(gateway=_FailingGateway())
-    dispatcher.submit(AuditEvent(operation="test", detail="best effort", user_id="default"))
-
-    dispatcher.drain()
+    center = InMemoryMessageCenter()
+    center.subscribe(
+        name="failing-audit",
+        channels={"observability"},
+        topics={"observability.audit.requested"},
+        handler=ExternalAuditConsumer(gateway=_FailingGateway()),
+    )
+    center.start()
+    AuditEventPublisher(publisher=center).submit(AuditEvent(operation="test", detail="best effort", user_id="default"))
+    center.stop()

@@ -6,14 +6,14 @@ from collections.abc import Iterable
 
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
 from ....infrastructure.platform.http_client import PlatformHttpClient
-from ....infrastructure.platform.runtime import audit_dispatcher, build_platform_client
+from ....infrastructure.platform.runtime import audit_publisher, build_platform_client, message_center
 from ....shared.agentflow import InMemoryFlowRuntime, SubflowSpec
 from ..application.scenarios import ScenarioDispatchService, ScenarioRegistry, ScenarioRegistrationProvider
 from ..application.services import ConversationFlowRegistry, ConversationService
 from .agentcore import ExternalConversationHistoryGateway
 
 
-_FLOW_RUNTIME = InMemoryFlowRuntime()
+_FLOW_RUNTIME = InMemoryFlowRuntime(message_center=message_center)
 _FLOW_REGISTRY = ConversationFlowRegistry()
 
 
@@ -37,7 +37,7 @@ def build_conversation_service(
         scenario_dispatcher=ScenarioDispatchService(registry=registry),
         flow_runtime=_FLOW_RUNTIME,
         flow_registry=_FLOW_REGISTRY,
-        audit_dispatcher=audit_dispatcher,
+        audit_publisher=audit_publisher,
     )
 
 

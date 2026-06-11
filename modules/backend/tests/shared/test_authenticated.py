@@ -24,7 +24,7 @@ class Server:
     def __init__(self, gateway):
         self.policy_auth_gateway = gateway
         self.audit_events = []
-        self.audit_dispatcher = SimpleNamespace(submit=self.audit_events.append)
+        self.audit_publisher = SimpleNamespace(submit=self.audit_events.append)
 
     async def run_blocking(self, call, *args, **kwargs):
         return call(*args, **kwargs)

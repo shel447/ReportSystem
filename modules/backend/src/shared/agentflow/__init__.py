@@ -2,9 +2,10 @@
 
 from .checkpoints import FlowCheckpoint, InMemoryCheckpointSaver
 from .events import FlowEvent, FlowSignal, FlowStep
+from .event_processor import FlowEventPolicy, FlowEventProcessor
 from .graph import FlowEdge, FlowGraph, FlowNode
 from .hooks import HookContext, HookDecision
-from .metrics import FlowMetrics, InMemoryMetricsSink, MetricsCenter, MetricsSink, NoopMetricsSink
+from .metrics import FlowMetrics
 from .prompts import PromptAssembler, PromptMessage, PromptTemplate
 from .runtime import FlowContext, FlowRun, InMemoryFlowRuntime
 from .patterns import ReactFlow, SequentialFlow
@@ -19,6 +20,8 @@ __all__ = [
     "FlowContext",
     "FlowEdge",
     "FlowEvent",
+    "FlowEventPolicy",
+    "FlowEventProcessor",
     "FlowGraph",
     "FlowGraphRenderer",
     "FlowNode",
@@ -33,10 +36,6 @@ __all__ = [
     "FlowMetrics",
     "InMemoryFlowRuntime",
     "InMemoryCheckpointSaver",
-    "InMemoryMetricsSink",
-    "MetricsCenter",
-    "MetricsSink",
-    "NoopMetricsSink",
     "PromptAssembler",
     "PromptMessage",
     "PromptTemplate",

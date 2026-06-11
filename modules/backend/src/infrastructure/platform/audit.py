@@ -1,13 +1,13 @@
-"""Non-blocking best-effort platform audit delivery."""
+"""MessageCenter consumer for best-effort platform audit delivery."""
 
 from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime, timezone
 import logging
-from queue import Empty, Queue
 from .http_client import PlatformHttpClient
-from ...shared.kernel.audit import AuditEvent
+from ...shared.kernel.audit import AuditEvent, AuditPublisher
+from ...shared.messaging import MessageEnvelope, MessagePublisher
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,24 +21,27 @@ class ExternalAuditGateway:
         self.client.post_json(path_or_url=path, payload=_to_payload(event), user_id=event.user_id)
 
 
-class AsyncAuditDispatcher:
-    def __init__(self, *, gateway: ExternalAuditGateway) -> None:
-        self.gateway = gateway
-        self.queue: Queue[AuditEvent] = Queue()
+class AuditEventPublisher(AuditPublisher):
+    def __init__(self, *, publisher: MessagePublisher) -> None:
+        self.publisher = publisher
 
     def submit(self, event: AuditEvent) -> None:
-        self.queue.put_nowait(event)
+        self.publisher.publish_event(
+            channel="observability",
+            topic="observability.audit.requested",
+            source="shared.kernel.audit",
+            partition_key=event.user_id or "audit",
+            payload=event,
+        )
 
-    def drain(self, *, limit: int = 100) -> None:
-        for _ in range(limit):
-            try:
-                event = self.queue.get_nowait()
-            except Empty:
-                return
-            try:
-                self.gateway.write(event)
-            except Exception as exc:  # audit delivery never blocks business flows
-                LOGGER.warning("audit delivery failed: %s", exc)
+
+class ExternalAuditConsumer:
+    def __init__(self, *, gateway: ExternalAuditGateway) -> None:
+        self.gateway = gateway
+
+    def __call__(self, message: MessageEnvelope) -> None:
+        if isinstance(message.payload, AuditEvent):
+            self.gateway.write(message.payload)
 
 
 def _to_payload(event: AuditEvent) -> dict[str, object]:

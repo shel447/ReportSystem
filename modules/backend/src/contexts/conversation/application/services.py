@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
+import queue
 import threading
+from dataclasses import replace
 from typing import Any
 
 from ....shared.kernel.errors import ConflictError, ErrorCode, NotFoundError, UnsupportedCapabilityError, ValidationError
-from ....shared.kernel.audit import AuditEvent
+from ....shared.kernel.audit import AuditEvent, AuditPublisher
 from ....shared.agentflow import FlowEvent, FlowStep, InMemoryFlowRuntime
+from ....shared.messaging import FlowControlCommand, InteractionEvent, InteractionStep, MessageSubscription
 from ..domain.models import (
     ScenarioInvocationContext,
     ScenarioTrace,
@@ -20,6 +24,7 @@ from .models import (
     ChatAsk,
     ChatCommand,
     ChatResponse,
+    ChatStreamEvent,
     ChatStep,
     ConversationAnswer,
     ConversationRecord,
@@ -34,6 +39,8 @@ from .models import (
 )
 from .ports import ConversationHistoryGateway, GuardrailGateway, HostedAnswer, HostedChat
 from .scenarios import ScenarioDispatchService, ScenarioResult
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ConversationFlowRegistry:
@@ -98,14 +105,14 @@ class ConversationService:
         scenario_dispatcher: ScenarioDispatchService,
         flow_runtime: InMemoryFlowRuntime | None = None,
         flow_registry: ConversationFlowRegistry | None = None,
-        audit_dispatcher=None,
+        audit_publisher: AuditPublisher | None = None,
     ) -> None:
         self.history_gateway = history_gateway
         self.guardrail_gateway = guardrail_gateway
         self.scenario_dispatcher = scenario_dispatcher
         self.flow_runtime = flow_runtime or InMemoryFlowRuntime()
         self.flow_registry = flow_registry or ConversationFlowRegistry()
-        self.audit_dispatcher = audit_dispatcher
+        self.audit_publisher = audit_publisher
 
     def list_sessions(self, *, user_id: str) -> list[SessionSummary]:
         return [
@@ -239,7 +246,7 @@ class ConversationService:
         return response
 
     def chat_stream(self, *, data: ChatCommand, user_id: str):
-        """推进一次聊天，并以统一 FlowEvent 流输出。"""
+        """推进一次聊天，并输出 conversation-owned ChatStreamEvent。"""
         self._ensure_question_allowed(data=data, user_id=user_id)
         initial_resolution = self.scenario_dispatcher.resolve(
             instruction=data.instruction,
@@ -258,7 +265,7 @@ class ConversationService:
                     result=result,
                 )
                 self._ensure_answer_allowed(response=response, user_id=user_id)
-                yield from _events_from_response(response)
+                yield from _stream_events_from_response(response)
                 return
             run = self.flow_runtime.start(
                 result.flow,
@@ -268,8 +275,10 @@ class ConversationService:
                     "user_id": user_id,
                     "scenario_key": initial_resolution.key,
                 },
+                partition_key=data.chat_id or "",
+                correlation_id=data.conversation_id or None,
+                source=f"scenario.{initial_resolution.key or 'unmatched'}",
             )
-            events: list[FlowEvent] = []
             for event in self.flow_runtime.iter_events(run.run_id):
                 if event.event_type == "answer":
                     self._ensure_answer_allowed(
@@ -281,8 +290,11 @@ class ConversationService:
                         ),
                         user_id=user_id,
                     )
-                events.append(event)
-                yield event
+                yield _chat_stream_event(
+                    conversation_id=data.conversation_id or "",
+                    chat_id=data.chat_id or "",
+                    event=event,
+                )
             return
 
         conversation_id = self._ensure_conversation(data=data, user_id=user_id)
@@ -322,12 +334,26 @@ class ConversationService:
                 ),
                 user_id=user_id,
             )
-            yield from _events_from_response(response)
+            yield from _stream_events_from_response(response)
             return
 
+        stream_subscription = self.flow_runtime.message_center.subscribe(
+            name=f"conversation-sse-{hosted_chat.chat_id}",
+            channels={"interaction"},
+            partition_key=hosted_chat.chat_id,
+        )
+        persistence_subscription = self.flow_runtime.message_center.subscribe(
+            name=f"conversation-persistence-{hosted_chat.chat_id}",
+            channels={"interaction"},
+            partition_key=hosted_chat.chat_id,
+        )
         run = self.flow_runtime.start(
             result.flow,
             state={"conversation_id": conversation_id, "chat_id": hosted_chat.chat_id, "user_id": user_id, "scenario_key": resolution.key},
+            partition_key=hosted_chat.chat_id,
+            correlation_id=conversation_id,
+            source=f"scenario.{resolution.key or 'unmatched'}",
+            recording_channels=(),
         )
         self.flow_registry.register(
             run_id=run.run_id,
@@ -335,46 +361,36 @@ class ConversationService:
             conversation_id=conversation_id,
             user_id=user_id,
         )
-        events: list[FlowEvent] = []
+        persistence_thread = threading.Thread(
+            target=self._persist_streamed_round,
+            kwargs={
+                "subscription": persistence_subscription,
+                "run_id": run.run_id,
+                "data": data,
+                "hosted_chat": hosted_chat,
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+                "resolution": resolution,
+            },
+            name=f"conversation-persistence-{hosted_chat.chat_id}",
+            daemon=True,
+        )
+        persistence_thread.start()
         try:
-            for event in self.flow_runtime.iter_events(run.run_id):
+            for event in _iter_subscription_events(stream_subscription):
                 if event.event_type == "answer":
                     self._ensure_answer_allowed(
                         response=_response_from_flow_events(data=data, conversation_id=conversation_id, chat_id=hosted_chat.chat_id, events=[event]),
                         user_id=user_id,
                     )
-                events.append(event)
-                yield event
+                yield _chat_stream_event(
+                    conversation_id=conversation_id,
+                    chat_id=hosted_chat.chat_id,
+                    event=event,
+                )
         finally:
-            if not self.flow_runtime.is_running(run.run_id):
-                self.flow_registry.unregister(run.run_id)
-        response = _response_from_flow_events(
-            data=data,
-            conversation_id=conversation_id,
-            chat_id=hosted_chat.chat_id,
-            events=events,
-        )
-        self._ensure_answer_allowed(response=response, user_id=user_id)
-        self.history_gateway.import_chat(
-            chat=HostedChat(
-                chat_id=hosted_chat.chat_id,
-                conversation_id=conversation_id,
-                question=str(data.question or ""),
-                request_payload=dict(data.raw_payload),
-                response_payload=chat_response_to_dict(response),
-                answers=_answers_from_flow_events(events=events, response=response, piu_name="ReportGenerationPIU"),
-                meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=response.status)) or {}},
-            ),
-            user_id=user_id,
-        )
-        self._audit(
-            AuditEvent(
-                operation="conversation.chat",
-                detail=f"stream completed scenario={resolution.key or 'unmatched'} status={response.status}",
-                user_id=user_id,
-                target_obj=f"{conversation_id}/{hosted_chat.chat_id}",
-            )
-        )
+            self.flow_runtime.message_center.unsubscribe(stream_subscription)
+        persistence_thread.join(timeout=5)
 
     def stop_chat(self, *, chat_id: str, user_id: str) -> bool:
         run_id = self.flow_registry.run_id_for_chat(chat_id=chat_id, user_id=user_id)
@@ -383,7 +399,15 @@ class ConversationService:
         if not self.flow_runtime.is_running(run_id):
             self.flow_registry.unregister(run_id)
             return False
-        return self.flow_runtime.cancel(run_id)
+        self.flow_runtime.message_center.send_command(
+            topic="control.agentflow.cancel",
+            target=self.flow_runtime.command_target,
+            source="contexts.conversation",
+            partition_key=chat_id,
+            correlation_id=chat_id,
+            payload=FlowControlCommand(run_id=run_id, reason="requested by conversation"),
+        )
+        return True
 
     def _run_flow_to_response(
         self,
@@ -525,12 +549,58 @@ class ConversationService:
         self.history_gateway.import_chat(chat=source, user_id=user_id)
 
     def _audit(self, event: AuditEvent) -> None:
-        if self.audit_dispatcher is None:
+        if self.audit_publisher is None:
             return
         try:
-            self.audit_dispatcher.submit(event)
+            self.audit_publisher.submit(event)
         except Exception:
             return
+
+    def _persist_streamed_round(
+        self,
+        *,
+        subscription: MessageSubscription,
+        run_id: str,
+        data: ChatCommand,
+        hosted_chat: HostedChat,
+        conversation_id: str,
+        user_id: str,
+        resolution,
+    ) -> None:
+        try:
+            events = list(_iter_subscription_events(subscription))
+            response = _response_from_flow_events(
+                data=data,
+                conversation_id=conversation_id,
+                chat_id=hosted_chat.chat_id,
+                events=events,
+            )
+            self._ensure_answer_allowed(response=response, user_id=user_id)
+            self.history_gateway.import_chat(
+                chat=HostedChat(
+                    chat_id=hosted_chat.chat_id,
+                    conversation_id=conversation_id,
+                    question=str(data.question or ""),
+                    request_payload=dict(data.raw_payload),
+                    response_payload=chat_response_to_dict(response),
+                    answers=_answers_from_flow_events(events=events, response=response, piu_name="ReportGenerationPIU"),
+                    meta={"scenario": scenario_trace_to_dict(resolution.to_trace(continuation_state=response.status)) or {}},
+                ),
+                user_id=user_id,
+            )
+            self._audit(
+                AuditEvent(
+                    operation="conversation.chat",
+                    detail=f"stream completed scenario={resolution.key or 'unmatched'} status={response.status}",
+                    user_id=user_id,
+                    target_obj=f"{conversation_id}/{hosted_chat.chat_id}",
+                )
+            )
+        except Exception:
+            LOGGER.exception("failed to persist streamed conversation round chat_id=%s", hosted_chat.chat_id)
+        finally:
+            self.flow_runtime.message_center.unsubscribe(subscription)
+            self.flow_registry.unregister(run_id)
 
 
 def _build_context(*, data: ChatCommand, user_id: str, chat_id: str, resolution, previous_trace=None, conversation_id: str | None = None) -> ScenarioInvocationContext:
@@ -545,6 +615,54 @@ def _build_context(*, data: ChatCommand, user_id: str, chat_id: str, resolution,
         question=data.question,
         reply_type=data.reply.type if data.reply else None,
         source_chat_id=data.reply.source_chat_id if data.reply else None,
+    )
+
+
+def _iter_subscription_events(subscription: MessageSubscription):
+    while True:
+        try:
+            envelope = subscription.messages.get(timeout=0.1)
+        except queue.Empty:
+            if not subscription.active:
+                return
+            continue
+        event = _flow_event_from_interaction(envelope.payload, sequence=envelope.sequence)
+        if event is not None:
+            yield event
+            if event.event_type == "done":
+                return
+
+
+def _flow_event_from_interaction(payload: object, *, sequence: int) -> FlowEvent | None:
+    if isinstance(payload, FlowEvent):
+        return replace(payload, sequence=sequence)
+    if not isinstance(payload, InteractionEvent):
+        return None
+    step = None
+    if payload.step is not None:
+        step = FlowStep(
+            code=payload.step.step_id,
+            title=payload.step.title,
+            status=payload.step.status,
+            detail=payload.step.detail,
+            parent_step_id=payload.step.parent_step_id,
+            step_path=list(payload.step.step_path),
+        )
+    return FlowEvent(
+        run_id="",
+        sequence=sequence,
+        event_type=payload.event_type,
+        status=payload.status,
+        step=step,
+        delta=list(payload.delta),
+        answer=payload.answer,
+        ask=payload.ask,
+        error=payload.error,
+        tool_call=payload.tool_call,
+        tool_result=payload.tool_result,
+        refusal=payload.refusal,
+        checkpoint=payload.checkpoint,
+        source_subflow=payload.source_subflow,
     )
 
 
@@ -649,6 +767,47 @@ def _events_from_response(response: ChatResponse) -> list[FlowEvent]:
         sequence += 1
     events.append(FlowEvent(run_id=run_id, sequence=sequence, event_type="done", status=response.status))
     return events
+
+
+def _stream_events_from_response(response: ChatResponse) -> list[ChatStreamEvent]:
+    return [
+        _chat_stream_event(
+            conversation_id=response.conversation_id,
+            chat_id=response.chat_id,
+            event=event,
+        )
+        for event in _events_from_response(response)
+    ]
+
+
+def _chat_stream_event(*, conversation_id: str, chat_id: str, event: FlowEvent) -> ChatStreamEvent:
+    step = None
+    if event.step is not None:
+        step = InteractionStep(
+            step_id=event.step.code,
+            title=event.step.title,
+            status=event.step.status,
+            detail=event.step.detail,
+            parent_step_id=event.step.parent_step_id,
+            step_path=list(event.step.step_path),
+        )
+    return ChatStreamEvent(
+        conversation_id=conversation_id,
+        chat_id=chat_id,
+        sequence=event.sequence,
+        event_type=event.event_type,
+        status=event.status,
+        step=step,
+        delta=list(event.delta),
+        answer=event.answer,
+        ask=event.ask,
+        error=event.error,
+        tool_call=event.tool_call,
+        tool_result=event.tool_result,
+        refusal=event.refusal,
+        checkpoint=event.checkpoint,
+        source_subflow=event.source_subflow,
+    )
 
 
 def _answers_from_response(response: ChatResponse, *, piu_name: str) -> list[HostedAnswer]:

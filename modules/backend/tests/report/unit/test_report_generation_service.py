@@ -144,6 +144,33 @@ class _FakeCustomContentGateway:
 
 
 class ReportGenerationServiceTests(unittest.TestCase):
+    def test_generated_report_publishes_representative_domain_event(self):
+        instance = _valid_template_instance()
+        published = []
+        service = ReportGenerationService(
+            template_repository=SimpleNamespace(),
+            template_instance_repository=SimpleNamespace(
+                get=lambda instance_id, user_id: instance,
+                update=lambda current, user_id: current,
+            ),
+            report_instance_repository=SimpleNamespace(
+                create=lambda **kwargs: SimpleNamespace(id=kwargs["report_id"], status=kwargs["status"], report=kwargs["report"])
+            ),
+            message_publisher=SimpleNamespace(publish_event=lambda **kwargs: published.append(kwargs)),
+        )
+
+        answer = service.generate_report_from_template_instance(
+            template_instance_id=instance.id,
+            user_id="user_001",
+            conversation_id="conv_001",
+            chat_id="chat_001",
+        )
+
+        self.assertEqual(published[0]["topic"], "domain.report.generated")
+        self.assertEqual(published[0]["partition_key"], answer.report_id)
+        self.assertEqual(published[0]["payload"].data["reportId"], answer.report_id)
+        self.assertEqual(published[0]["payload"].data["userId"], "user_001")
+
     def test_generate_report_collects_dataset_business_warnings_on_template_instance(self):
         instance = _valid_template_instance()
         warning = WarningItem(code="external_dataset_query_failed", message="retCode=1001", target_id="dataset_health")

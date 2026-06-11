@@ -19,28 +19,38 @@ from ..contexts.report.infrastructure.composition import (
     build_report_service,
 )
 from .persistence.unit_of_work import SqlAlchemyUnitOfWork
+from .messaging import AfterCommitMessagePublisher
+from .platform.runtime import message_center
 
 
 @contextmanager
 def report_service_scope():
     with SqlAlchemyUnitOfWork() as uow:
-        service = build_report_service(uow.session)
+        message_publisher = AfterCommitMessagePublisher(publisher=message_center)
+        service = build_report_service(uow.session, message_publisher=message_publisher)
         try:
             yield service
             uow.commit()
+            message_publisher.flush()
         except Exception:
             uow.rollback()
+            message_publisher.discard()
             raise
 
 
 @contextmanager
 def conversation_service_scope():
     with SqlAlchemyUnitOfWork() as uow:
+        message_publisher = AfterCommitMessagePublisher(publisher=message_center)
         dataset_query_gateway = build_data_query_gateway()
         data_analysis_service = build_data_analysis_service()
         service = _build_conversation_service(
             scenario_providers=[
-                build_report_scenario_provider(uow.session, dataset_query_gateway=dataset_query_gateway),
+                build_report_scenario_provider(
+                    uow.session,
+                    dataset_query_gateway=dataset_query_gateway,
+                    message_publisher=message_publisher,
+                ),
                 build_data_analysis_scenario_provider(service=data_analysis_service),
             ],
             subflow_specs=data_analysis_service.subflow_specs(),
@@ -48,8 +58,10 @@ def conversation_service_scope():
         try:
             yield service
             uow.commit()
+            message_publisher.flush()
         except Exception:
             uow.rollback()
+            message_publisher.discard()
             raise
 
 
