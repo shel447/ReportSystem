@@ -50,6 +50,8 @@
 - 处理 `generate_report`、`extract_report_template` 与 `generate_report_segment` instruction。
 - 识别模板，并调用 `ReportParameterService` 处理参数语义。
 - 接收外部系统首次交接的 `report.templateName + report.parameters`，精确定位模板并初始化根级参数快照。
+- 接收非空 `histories` 和可选的 `report.structureType`，将历史轮次按时间排序后参与模板识别与参数提取；未指定结构时使用 `flow`。
+- 历史生成先按 `structureType` 严格过滤模板，禁止在 flow/paged 模板之间做隐式结构转换。
 - 推进同一个 `TemplateInstance`，并在确认后调用报告冻结服务。
 
 报告场景统一通过 `shared/agentflow` 表达为 Flow。报告流程通过 `FlowContext.emit_step()` 发送阶段进展，通过 `emit_delta()` 发送报告增量，通过 `emit_answer()` 返回最终 `REPORT`、`REPORT_SEGMENT` 或模板预览 answer。step 应尽量提供 `parentStepId/stepPath`，delta 应提供统一 `parent`，同时保留 flow 的 `parentCatalogId/parentCatalog` 和 paged 的 `chapterId/slideId` 兼容字段。后续细化节点时可逐步使用 tool、prompt、hook、checkpoint、子流程和动态追加分支；首版不要求把现有业务推进拆成过细节点。
@@ -72,7 +74,13 @@
 
 领域层的 `ParameterResolver` 负责纯参数归一化、作用域解析、标量转换和缺参判断，不访问外部数据源，不构造聊天响应。动态候选值的本地或 HTTP 调用由基础设施 gateway 负责。
 
-外部交接载荷由 report context 自己提供的场景 codec 解码为严格 `ReportBootstrapRequest`。conversation 只透传顶层 JSON，不识别模板或参数。首版只允许交接 `ReportTemplate.parameters` 根级参数；catalog、section、chapter 与 slide 局部参数继续由 ReportSystem 自身流程解析。
+`report` 与 `histories` 由 report context 自己提供的场景 codec 联合解码：
+
+- 非空 `histories` 生成严格 `ReportHistoryRequest`，`structureType` 缺省为 `flow`
+- `templateName/parameters` 生成严格 `ReportBootstrapRequest`
+- 两种输入不能混用；空 `histories` 不创建历史生成请求，并忽略仅用于历史生成的 `structureType`
+
+conversation 只透传顶层 JSON，不识别报告结构、模板或参数。外部交接首版只允许交接 `ReportTemplate.parameters` 根级参数；catalog、section、chapter 与 slide 局部参数继续由 ReportSystem 自身流程解析。
 
 ### 3.4 `ReportGenerationService`
 

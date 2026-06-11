@@ -22,7 +22,6 @@ export function sendChatMessage(payload: ChatRequest) {
     chatId: payload.chatId ?? buildChatId(),
     instruction: payload.instruction ?? "generate_report",
     attachments: payload.attachments ?? [],
-    histories: payload.histories ?? [],
     ...payload,
   });
 }
@@ -41,7 +40,6 @@ export async function sendChatMessageStream(
     chatId: payload.chatId ?? buildChatId(),
     instruction: payload.instruction ?? "generate_report",
     attachments: payload.attachments ?? [],
-    histories: payload.histories ?? [],
     ...payload,
   };
   const response = await fetch(chatbiPath("/chat"), {

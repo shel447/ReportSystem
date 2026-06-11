@@ -309,15 +309,27 @@ export type ConversationAnswer = {
   answerTime?: string | number | null;
 };
 
+export type ChatHistoryRecord = {
+  chatId: string;
+  question: string;
+  askTime?: string | number | null;
+  answers: ConversationAnswer[];
+};
+
 export type ChatRequest = {
   conversationId?: string;
   chatId?: string;
   question?: string;
   instruction?: "generate_report" | "extract_report_template" | "generate_report_segment" | "data_analysis";
-  report?: {
-    templateName: string;
-    parameters?: TemplateParameter[];
-  } | null;
+  report?:
+    | {
+        structureType: "flow" | "paged";
+      }
+    | {
+        templateName: string;
+        parameters?: TemplateParameter[];
+      }
+    | null;
   reply?: {
     type: "fill_params" | "confirm_params";
     sourceChatId: string;
@@ -327,7 +339,7 @@ export type ChatRequest = {
     };
   } | null;
   attachments?: Array<Record<string, unknown>>;
-  histories?: Array<Record<string, unknown>>;
+  histories?: ChatHistoryRecord[];
 };
 
 export type ChatForkRequest = {

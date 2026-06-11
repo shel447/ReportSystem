@@ -47,6 +47,38 @@ describe("chat stream api", () => {
     const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
     expect(requestBody).not.toHaveProperty("requestId");
     expect(requestBody).not.toHaveProperty("apiVersion");
+    expect(requestBody).not.toHaveProperty("histories");
+    fetchMock.mockRestore();
+  });
+
+  it("sends histories and report structure only when explicitly provided", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        [
+          'data: {"conversationId":"conv_1","chatId":"chat_1","eventType":"done","sequence":1,"timestamp":1,"status":"finished"}',
+          "",
+        ].join("\n"),
+        { headers: { "Content-Type": "text/event-stream" } },
+      ),
+    );
+
+    await sendChatMessageStream({
+      conversationId: "conv_1",
+      question: "根据历史生成项目汇报",
+      report: { structureType: "paged" },
+      histories: [
+        {
+          chatId: "chat_history",
+          question: "本周完成了什么？",
+          askTime: 1,
+          answers: [{ type: "TEXT", content: "完成核心模块联调。", answerTime: 2 }],
+        },
+      ],
+    });
+
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(requestBody.report).toEqual({ structureType: "paged" });
+    expect(requestBody.histories).toHaveLength(1);
     fetchMock.mockRestore();
   });
 

@@ -22,6 +22,7 @@ from .section_regeneration_flow import SECTION_REGENERATION_SUBFLOW_NAME, Sectio
 from .scenario_models import (
     ReportAskPayload,
     ReportContext,
+    ReportHistoryRequest,
     ReportScenarioAnswer,
     ReportScenarioAsk,
     ReportScenarioCommand,
@@ -60,6 +61,11 @@ class ReportScenarioService:
         """按报告 instruction 推进一次场景状态机。"""
         if command.bootstrap is not None and command.instruction != "generate_report":
             raise ValidationError("report is only supported for generate_report", error_code="chatbi.report.bootstrap.invalid_instruction")
+        if command.history is not None and command.instruction != "generate_report":
+            raise ValidationError(
+                "histories are only supported for generate_report",
+                error_code=ErrorCode.BASE_PARAM_INVALID,
+            )
         if command.instruction == "extract_report_template":
             return self._extract_report_template(command=command)
         if command.instruction == "generate_report_segment":
@@ -150,6 +156,11 @@ class ReportScenarioService:
                 "report is only supported before a template instance exists",
                 error_code="chatbi.report.bootstrap.instance_exists",
             )
+        if command.history is not None and current_instance is not None:
+            raise ConflictError(
+                "histories are only supported before a template instance exists",
+                error_code="chatbi.report.history.instance_exists",
+            )
 
         if command.reply_type == "confirm_params":
             template_instance = reply.report_context.template_instance if reply and reply.report_context else None
@@ -237,6 +248,20 @@ class ReportScenarioService:
                 question=question,
                 user_id=command.user_id,
             )
+        elif command.history is not None:
+            generation_text = _history_generation_text(
+                question=str(command.question or ""),
+                history=command.history,
+            )
+            template = self._match_template(
+                generation_text,
+                structure_type=command.history.structure_type,
+            )
+            initial_values = self.parameter_service.extract_values(
+                template=template,
+                question=generation_text,
+                user_id=command.user_id,
+            )
         else:
             template = self._match_template(str(command.question or ""))
             initial_values = self.parameter_service.extract_values(
@@ -261,8 +286,14 @@ class ReportScenarioService:
             conversation_title=template.name,
         )
 
-    def _match_template(self, question: str) -> ReportTemplate:
+    def _match_template(self, question: str, *, structure_type: str | None = None) -> ReportTemplate:
         templates = list(self.template_repository.list_all())
+        if structure_type is not None:
+            templates = [
+                template
+                for template in templates
+                if str(template.structure_type or "flow") == structure_type
+            ]
         if not templates:
             raise ValidationError("No report templates available", error_code=ErrorCode.REPORT_TEMPLATE_NOT_FOUND)
         query_text = question.strip()
@@ -324,6 +355,36 @@ def _catalog_match_text(catalog) -> list[str]:
 def _lexical_score(question: str, template: ReportTemplate) -> float:
     lowered = question.lower()
     return sum(1.0 for part in [template.name, template.category, template.description] if str(part or "").lower() in lowered and part)
+
+
+def _history_generation_text(*, question: str, history: ReportHistoryRequest) -> str:
+    parts: list[str] = []
+    current_question = question.strip()
+    if current_question:
+        parts.append(current_question)
+    ordered_records = sorted(
+        enumerate(history.histories),
+        key=lambda item: _history_time_sort_key(item[1].ask_time, item[0]),
+    )
+    for _, record in ordered_records:
+        parts.append(record.question)
+        ordered_answers = sorted(
+            enumerate(record.answers),
+            key=lambda item: _history_time_sort_key(item[1].answer_time, item[0]),
+        )
+        parts.extend(answer.content for _, answer in ordered_answers if answer.content.strip())
+    return "\n".join(parts)
+
+
+def _history_time_sort_key(value: str | int | float | None, index: int) -> tuple[int, float, str, int]:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return 0, float(value), "", index
+    if isinstance(value, str):
+        try:
+            return 0, float(value), "", index
+        except ValueError:
+            return 1, 0.0, value, index
+    return 2, 0.0, "", index
 
 
 def _cosine_similarity(left: list[float], right: list[float]) -> float:

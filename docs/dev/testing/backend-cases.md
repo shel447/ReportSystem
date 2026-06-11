@@ -53,6 +53,7 @@
 | `tests/report/unit/test_report_document_service.py` | 2 | 文档格式校验、任务记录、列表和下载 |
 | `tests/report/unit/test_parameter_resolver.py` | 2 | 参数标量解释和缺参判断纯规则 |
 | `tests/report/unit/test_report_scenario_bootstrap.py` | 6 | 外部报告交接、根级参数快照、名称精确定位和非法输入拒绝 |
+| `tests/report/unit/test_report_scenario_history.py` | 6 | 历史对话报告结构选择、默认 flow、时间排序、模板过滤和混合输入拒绝 |
 | `tests/report/unit/test_report_scenario_flow.py` | 3 | 报告场景 Flow 接入、同步预览保留和严格 codec |
 | `tests/shared/test_http_identity.py` | 2 | 正式用户身份必填和本地开发用户覆盖 |
 | `tests/shared/test_authenticated.py` | 2 | Controller 权限注解、鉴权调用和拒绝响应 |

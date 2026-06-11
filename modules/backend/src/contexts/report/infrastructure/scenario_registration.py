@@ -14,8 +14,8 @@ from ...conversation.application.scenarios import (
 from ...conversation.domain.models import ScenarioInvocationContext
 from ..application.scenario_models import (
     ReportScenarioCommand,
-    report_bootstrap_request_from_dict,
     report_reply_payload_from_dict,
+    report_requests_from_dict,
     report_segment_request_from_dict,
 )
 
@@ -37,8 +37,8 @@ class ReportScenarioCodec(ScenarioCodec):
 
     def decode(self, *, context: ScenarioInvocationContext, payload: dict[str, Any]) -> ReportScenarioCommand:
         reply_payload = payload.get("reply") if isinstance(payload.get("reply"), dict) else None
-        bootstrap = report_bootstrap_request_from_dict(payload.get("report"))
-        if bootstrap is not None and reply_payload is not None:
+        bootstrap, history = report_requests_from_dict(payload.get("report"), payload.get("histories"))
+        if (bootstrap is not None or history is not None) and reply_payload is not None:
             from ....shared.kernel.errors import ValidationError
 
             raise ValidationError("report cannot be used together with reply")
@@ -51,6 +51,7 @@ class ReportScenarioCodec(ScenarioCodec):
             reply_type=context.reply_type,
             reply=report_reply_payload_from_dict(reply_payload) if reply_payload is not None else None,
             bootstrap=bootstrap,
+            history=history,
             segment=report_segment_request_from_dict(payload.get("template")),
         )
 

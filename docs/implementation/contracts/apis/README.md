@@ -295,7 +295,9 @@ X-User-Id: <external-user-id>
   "question": "帮我生成总部网络运行日报",
   "instruction": "generate_report",
   "reply": null,
-  "report": null,
+  "report": {
+    "structureType": "paged"
+  },
   "template": null,
   "attachments": [],
   "histories": []
@@ -308,9 +310,9 @@ X-User-Id: <external-user-id>
 - `chatId`：当前轮 id
 - `instruction`：可选；显式传入时精确匹配业务场景。报告场景正式支持 `generate_report`、`extract_report_template`、`generate_report_segment`；智能问数正式支持 `data_analysis`
 - `reply`：承接对某条追问的结构化答复；业务字段按 instruction 场景定义
-- `report`：仅在外部系统已经识别报告模板并预提取部分根级参数时使用，承载报告场景首次交接载荷（详见 2.2 ChatRequest.report 子结构）
+- `report`：报告场景附加输入；用于历史对话生成时指定 `structureType`，或用于外部系统首次交接模板和根级参数。这两种用法互斥（详见 2.2 ChatRequest.report 子结构）
 - `attachments`：仅在 `extract_report_template` 且需要上传原始材料时必填
-- `histories`：仅在“基于历史对话生成报告”场景下必填
+- `histories`：基于历史对话生成报告时使用；只有非空数组才进入历史生成模式
 - `template`：仅在 `generate_report_segment` 时必填，承载章节重新生成的定位与大纲信息（详见 2.2 ChatRequest.template 子结构）
 - `question` / `reply` / `report` / `template`：普通 `generate_report` 场景下 `question` 或 `reply` 至少出现一个；携带 `report` 的首次交接请求中 `question` 仍必填；`generate_report_segment` 场景下 `template` 必填，`question` 和 `reply` 不使用
 - `extract_report_template` 用于"从附件、原始文本或自然语言描述中提取模板草案"；其结果是预览态，不直接落库
@@ -362,7 +364,46 @@ X-User-Id: <external-user-id>
 - 模板实例中的展开来源统一通过 `dynamicContext` 返回；`foreach/foreachCase` 字段包含 `type/parameterId/itemValue/caseId`，`custom` 字段包含 `type/url/nodeType`；`nodeType` 取值为 `catalog | section | slide`；旧 `foreachContext` 只作为历史数据读取兼容，不再作为新响应字段
 - `dynamic.type = foreachCase` 时，服务端按 `ParameterValue.value` 匹配 `cases[].values`，多选参数按每个选中值生成对应分支内容
 
-##### ChatRequest.report 子结构（`generate_report` 首次交接专用）
+##### ChatRequest.report 子结构
+
+`report` 在 `generate_report` 中有两种互斥用法。
+
+**根据历史对话生成**
+
+```json
+{
+  "instruction": "generate_report",
+  "question": "请根据历史对话生成一份项目汇报 PPT。",
+  "report": {
+    "structureType": "paged"
+  },
+  "histories": [
+    {
+      "chatId": "chat_001",
+      "question": "本周项目有哪些进展？",
+      "askTime": 1713427200000,
+      "answers": [
+        {
+          "type": "TEXT",
+          "content": "本周完成核心模块联调。",
+          "answerTime": 1713427200100
+        }
+      ]
+    }
+  ]
+}
+```
+
+规则：
+
+- `histories` 非空时进入历史生成模式；历史轮次使用 `chatId/question/askTime/answers[]` 核心结构。
+- `answers[]` 按时间顺序承载 `type/content/answerTime`；`type` 使用既有 `TEXT | PIU`。时间缺失的内容排在有时间内容之后，并保持彼此的原始顺序。
+- `report.structureType` 可选值为 `flow | paged`；未指定时默认 `flow`。
+- 模板识别先按 `structureType` 过滤候选模板，再使用本轮问题和历史内容进行匹配。
+- `histories = []` 时按普通报告生成处理，`report.structureType` 不参与模板选择。
+- 历史生成模式不能同时携带 `templateName` 或 `parameters`。
+
+**外部系统首次交接**
 
 当外部系统已经识别出报告模板并提取出部分根级参数时，可在首次 `generate_report` 请求中携带：
 
@@ -392,6 +433,7 @@ X-User-Id: <external-user-id>
 规则：
 
 - `report` 仅允许用于 `instruction = generate_report` 的首次请求，并且不能和 `reply` 同时出现。
+- 外部交接不能携带 `structureType`；报告结构由所选模板确定。
 - `report.templateName` 必填。服务端按名称精确匹配共享模板；不存在返回 `404`，重名返回 `409`。
 - `report.parameters` 可省略或只提交一部分参数，但每个 `id` 必须唯一，并且只能引用模板根级 `template.parameters`。
 - 目录、章节、分页章节或分页页面中的局部参数不能由外部交接；提交局部参数返回 `400`。
