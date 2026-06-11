@@ -301,6 +301,29 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     violations.append(f"{name}: references {forbidden}")
         self.assertEqual([], violations, "\n".join(violations))
 
+    def test_runtime_database_dependencies_stay_in_persistence_infrastructure(self):
+        violations: list[str] = []
+        allowed_runtime_files = {
+            Path("infrastructure/persistence/db_ctx.py"),
+            Path("infrastructure/persistence/models.py"),
+        }
+        for path in ROOT.rglob("*.py"):
+            relative = path.relative_to(ROOT)
+            source = path.read_text(encoding="utf-8-sig")
+            if ("runtime.cache" in source or "runtime.db" in source) and relative not in allowed_runtime_files:
+                violations.append(f"{relative}: imports Runtime database outside persistence infrastructure")
+
+        formal_persistence = ROOT / "infrastructure" / "persistence"
+        for name in ("database.py", "unit_of_work.py"):
+            if (formal_persistence / name).exists():
+                violations.append(f"infrastructure/persistence/{name}: legacy formal database owner remains")
+        for name in ("models.py", "db_ctx.py"):
+            source = (formal_persistence / name).read_text(encoding="utf-8-sig")
+            for forbidden in ("create_engine", "sessionmaker", "SessionLocal", "DeclarativeBase"):
+                if forbidden in source:
+                    violations.append(f"infrastructure/persistence/{name}: references {forbidden}")
+        self.assertEqual([], violations, "\n".join(violations))
+
     def test_every_public_business_route_declares_policy_auth_metadata(self):
         violations: list[str] = []
         for controller in register_handler():

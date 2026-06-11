@@ -5,6 +5,7 @@ description = "Local runtime.server SDK implementation for ReportSystem developm
 requires-python = ">=3.11"
 dependencies = [
   "requests>=2.32,<3",
+  "sqlalchemy==2.0.30",
   "tornado>=6.4,<7",
 ]
 

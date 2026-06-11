@@ -1,14 +1,15 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from runtime.db import TableBase
 
 from src.contexts.report.infrastructure.generation_repositories import SqlAlchemyReportInstanceRepository
-from src.infrastructure.persistence.database import Base
+from src.infrastructure.persistence import models  # noqa: F401
 from tests.support.builders import build_flow_report
 
 
 def test_report_repository_hides_other_users_report():
     engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(bind=engine)
+    TableBase.metadata.create_all(bind=engine)
     session = sessionmaker(bind=engine)()
     repository = SqlAlchemyReportInstanceRepository(session)
 

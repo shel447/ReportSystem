@@ -33,8 +33,6 @@ def test_template_handlers_use_report_service_scope(tmp_path):
 
 
 def test_testdata_templates_import_create_update_export_roundtrip(tmp_path):
-    from src.infrastructure.persistence.database import init_db
-    init_db()
     fixtures = sorted(fixture_path("report-templates").glob("*.json"))
     with TornadoTestClient(create_app(frontend_dir=str(tmp_path)), headers={"X-User-Id": "template-admin"}) as client:
         for fixture in fixtures:

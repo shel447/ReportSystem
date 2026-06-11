@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import uuid
 
+from runtime.db import TableBase
 from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.sql import func
-
-from .database import Base
 
 
 def gen_id() -> str:
@@ -17,7 +16,7 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(microsecond=0)
 
 
-class ReportTemplate(Base):
+class ReportTemplate(TableBase):
     __tablename__ = "tbl_report_templates"
 
     id = Column(String, primary_key=True)
@@ -30,7 +29,7 @@ class ReportTemplate(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-class TemplateInstance(Base):
+class TemplateInstance(TableBase):
     __tablename__ = "tbl_template_instances"
 
     id = Column(String, primary_key=True, default=gen_id)
@@ -47,7 +46,7 @@ class TemplateInstance(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-class ReportInstance(Base):
+class ReportInstance(TableBase):
     __tablename__ = "tbl_report_instances"
 
     id = Column(String, primary_key=True, default=gen_id)
@@ -63,7 +62,7 @@ class ReportInstance(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-class ReportDocument(Base):
+class ReportDocument(TableBase):
     __tablename__ = "tbl_report_documents"
 
     id = Column(String, primary_key=True, default=gen_id)
@@ -79,7 +78,7 @@ class ReportDocument(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
 
-class ExportJob(Base):
+class ExportJob(TableBase):
     __tablename__ = "tbl_export_jobs"
 
     id = Column(String, primary_key=True, default=gen_id)

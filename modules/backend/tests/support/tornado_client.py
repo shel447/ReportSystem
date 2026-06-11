@@ -18,8 +18,6 @@ class TornadoTestClient:
     __test__ = False
 
     def __init__(self, app, *, headers: dict[str, str] | None = None) -> None:
-        from src.infrastructure.persistence.database import init_db
-        init_db()
         self.app = app
         self.default_headers = headers or {}
         self._ready = threading.Event()

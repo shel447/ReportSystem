@@ -1,12 +1,12 @@
 # 数据库契约
 
-本文件记录当前最新数据库结构。可执行 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`；本文件中的 DDL 用于结构评审和集成阅读。`V003__delegate_conversation_history_to_agentcore.sql` 将会话事实源迁移到 AgentCore，`V004__remove_local_user_mirror.sql` 将用户管理边界收口到外部平台。
+本文件记录当前最新数据库结构。正式业务库由 Runtime 实例 `dtesmartbiservicedb` 提供，Runtime 或部署流程负责生产环境建表与升级；ReportSystem 启动时不创建 Engine，也不执行升级。版本化 SQL 位于 `modules/backend/src/infrastructure/persistence/upgrades/`，继续作为部署资产、结构评审依据和本地兼容测试输入。`V003__delegate_conversation_history_to_agentcore.sql` 将会话事实源迁移到 AgentCore，`V004__remove_local_user_mirror.sql` 将用户管理边界收口到外部平台。
 
 ## 1. 数据库分类
 
 | 数据库 | 默认文件 | 职责 | 升级 SQL |
 |---|---|---|---|
-| 正式业务库 | `.runtime/report_system.db` | 保存模板、报告和文档任务 | `upgrades/*.sql` |
+| 正式业务库 | Runtime 实例 `dtesmartbiservicedb`；本地 mock 映射 `.runtime/report_system.db` | 保存模板、报告和文档任务 | Runtime/部署流程执行 `upgrades/*.sql` |
 | 开发辅助库 | `.runtime/dev_support.db` | 保留本地开发设置和反馈数据；当前不通过 Backend 正式接口开放 | `upgrades/dev/*.sql` |
 | 查询演示库 | `.runtime/telecom_demo.db` | 保存本地电信网络演示数据 | 由 demo 初始化器维护 |
 

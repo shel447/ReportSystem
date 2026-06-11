@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 import pytest
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_TEST_DATA_DIR = _PROJECT_ROOT / ".test" / "runs" / f"backend-pytest-{os.getpid()}"
+os.environ.setdefault("REPORT_SYSTEM_DATA_DIR", str(_TEST_DATA_DIR))
+os.environ.setdefault("RUNTIME_DB_DIR", str(_TEST_DATA_DIR))
 
 
 @pytest.fixture(autouse=True)

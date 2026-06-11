@@ -16,6 +16,7 @@
 10. [实现变更日志](changelog/README.md)
 11. [Runtime Server 与 Controller 适配](web-adapter.md)
 12. [日志实现](logging/README.md)
+13. [Runtime 数据库接入](persistence/runtime-db.md)
 
 ## 模块映射
 
@@ -44,6 +45,7 @@
 - 顶层装配只收集各 context 暴露的 composition builder 和 provider，不拼接业务 DTO，不解释业务场景语义
 - `report` 内部用 `application/domain/infrastructure` 三层组织；模板管理、报告生成和报告管理只在源文件命名上区分，不拆成子 context 目录。
 - application/domain 声明并拥有它们需要的业务接口；infrastructure 只提供实现，不反向定义业务接口
+- 正式业务 ORM 继承 `runtime.db.TableBase`，service scope 通过 persistence infrastructure 的 `db_session` 共享 Runtime Session；开发辅助库保持独立
 
 `report.application` 按职责分为：
 
@@ -59,7 +61,7 @@
 
 `data_analysis` 是独立 bounded context：负责语义数据目录、知识增强、查询生成、安全校验、OneQuery 执行和可视化建议。`report` 不复制这些规则。
 
-Controller 方法可以直接接收 Tornado `RequestHandler`，但不得操作 ORM、依赖 `Session/get_db` 或把 RequestHandler 传入 application/domain。数据库 session、仓储实现和 Unit of Work 生命周期由 infrastructure 管理。
+Controller 方法可以直接接收 Tornado `RequestHandler`，但不得操作 ORM、依赖 `Session/get_db` 或把 RequestHandler 传入 application/domain。正式业务库由 Runtime 提供，数据库 session、仓储实现和事务生命周期由 infrastructure 管理。
 
 ## 落地约束
 

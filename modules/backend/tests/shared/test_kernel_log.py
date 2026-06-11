@@ -120,7 +120,8 @@ def test_chatbi_server_owns_log_monitor_lifecycle(monkeypatch):
     from src.infrastructure import chatbi_server as server_module
 
     calls = []
-    monkeypatch.setattr(server_module, "init_db", lambda: calls.append("db"))
+    monkeypatch.setattr(server_module, "init_dev_db", lambda: calls.append("dev_db"))
+    monkeypatch.setattr(server_module, "init_telecom_demo_db", lambda: calls.append("demo_db"))
     monkeypatch.setattr(server_module, "initialize_config_center", lambda: calls.append("config"))
     monkeypatch.setattr(server_module, "start_platform_runtime", lambda: calls.append("platform_start"))
     monkeypatch.setattr(server_module, "stop_platform_runtime", lambda: calls.append("platform_stop"))
@@ -133,4 +134,12 @@ def test_chatbi_server_owns_log_monitor_lifecycle(monkeypatch):
     server.initialize()
     server.destroy()
 
-    assert calls == ["db", "log_start", "config", "platform_start", "platform_stop", "log_stop"]
+    assert calls == [
+        "dev_db",
+        "demo_db",
+        "log_start",
+        "config",
+        "platform_start",
+        "platform_stop",
+        "log_stop",
+    ]

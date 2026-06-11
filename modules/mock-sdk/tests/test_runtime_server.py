@@ -6,11 +6,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
 
 from requests import Session
+from sqlalchemy import Column, String, inspect
+from runtime.cache import zenith_instance
 from runtime.client._session import GLOBAL_HTTP_SESSION, RuntimeSession
 from runtime.config import Ini
+from runtime.db import TableBase
 from runtime.log import get_log, set_level
 from runtime.server import PythonRuntime, Route, create_application, router
 from tornado.testing import AsyncHTTPTestCase
+
+
+class RuntimeManagedRecord(TableBase):
+    __tablename__ = "runtime_managed_records"
+
+    id = Column(String, primary_key=True)
 
 
 class Controller:
@@ -132,6 +141,36 @@ def test_runtime_ini_can_reload_an_explicit_file(tmp_path):
     ini.load(path)
 
     assert ini.get("log", "level") == "DEBUG"
+
+
+def test_runtime_table_base_and_named_database_instance(tmp_path, monkeypatch):
+    monkeypatch.setenv("RUNTIME_DB_DIR", str(tmp_path))
+    instance_name = f"runtime_test_{tmp_path.name}"
+    first = zenith_instance(instance_name)
+    second = zenith_instance(instance_name)
+
+    session_one = first.session()
+    session_two = second.session()
+    try:
+        session_one.add(RuntimeManagedRecord(id="record_1"))
+        session_one.commit()
+        assert session_two.query(RuntimeManagedRecord).one().id == "record_1"
+        assert "runtime_managed_records" in inspect(session_one.get_bind()).get_table_names()
+    finally:
+        session_one.close()
+        session_two.close()
+
+    assert first is second
+    assert (tmp_path / f"{instance_name}.db").exists()
+
+
+def test_runtime_business_instance_keeps_local_report_system_database_name(tmp_path, monkeypatch):
+    monkeypatch.setenv("RUNTIME_DB_DIR", str(tmp_path))
+
+    session = zenith_instance("dtesmartbiservicedb").session()
+    session.close()
+
+    assert (tmp_path / "report_system.db").exists()
 
 
 def test_runtime_log_returns_stable_minimal_logger_and_updates_level():

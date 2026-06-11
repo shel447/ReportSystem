@@ -168,12 +168,14 @@ version = "0.1.0"
 source = { editable = "../mock-sdk" }
 dependencies = [
     { name = "requests" },
+    { name = "sqlalchemy" },
     { name = "tornado" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "requests", specifier = ">=2.32,<3" },
+    { name = "sqlalchemy", specifier = "==2.0.30" },
     { name = "tornado", specifier = ">=6.4,<7" },
 ]
 

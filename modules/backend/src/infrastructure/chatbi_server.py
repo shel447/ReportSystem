@@ -8,7 +8,8 @@ from typing import Callable, TypeVar
 
 from .configuration import initialize_config_center
 from .dependencies import conversation_service_scope, report_service_scope
-from .persistence.database import init_db
+from .demo.telecom import init_telecom_demo_db
+from .persistence.dev_database import init_dev_db
 from .platform.runtime import audit_publisher, build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
 from ..shared.kernel.log import start_log_level_monitor, stop_log_level_monitor
 
@@ -26,7 +27,8 @@ class ChatBIServer:
     def initialize(self) -> None:
         if self.executor is not None:
             return
-        init_db()
+        init_dev_db()
+        init_telecom_demo_db()
         start_log_level_monitor()
         initialize_config_center()
         start_platform_runtime()

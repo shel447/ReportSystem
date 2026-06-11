@@ -33,10 +33,6 @@ def generated_documents_dir() -> Path:
     return runtime_data_dir() / "generated_documents"
 
 
-def report_system_db_path() -> Path:
-    return runtime_data_dir() / "report_system.db"
-
-
 def dev_support_db_path() -> Path:
     return runtime_data_dir() / "dev_support.db"
 
