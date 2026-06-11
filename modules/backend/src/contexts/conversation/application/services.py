@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import queue
 import threading
 from dataclasses import replace
@@ -11,6 +10,7 @@ from typing import Any
 
 from ....shared.kernel.errors import ConflictError, ErrorCode, NotFoundError, UnsupportedCapabilityError, ValidationError
 from ....shared.kernel.audit import AuditEvent, AuditPublisher
+from ....shared.kernel.log import logger
 from ....shared.agentflow import FlowEvent, FlowStep, InMemoryFlowRuntime
 from ....shared.messaging import FlowControlCommand, InteractionEvent, InteractionStep, MessageSubscription
 from ..domain.models import (
@@ -39,9 +39,6 @@ from .models import (
 )
 from .ports import ConversationHistoryGateway, GuardrailGateway, HostedAnswer, HostedChat
 from .scenarios import ScenarioDispatchService, ScenarioResult
-
-LOGGER = logging.getLogger(__name__)
-
 
 class ConversationFlowRegistry:
     """Conversation-owned index from business ids to AgentFlow run ids."""
@@ -597,7 +594,7 @@ class ConversationService:
                 )
             )
         except Exception:
-            LOGGER.exception("failed to persist streamed conversation round chat_id=%s", hosted_chat.chat_id)
+            logger.exception("failed to persist streamed conversation round chat_id=%s", hosted_chat.chat_id)
         finally:
             self.flow_runtime.message_center.unsubscribe(subscription)
             self.flow_registry.unregister(run_id)

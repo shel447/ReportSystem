@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 from ...shared.configuration import (
     AIConfiguration,
     ConfigCenter,
@@ -16,8 +14,7 @@ from .sources import (
     NodeAgentAppConfigSource,
     RuntimeIniConfigSource,
 )
-
-LOGGER = logging.getLogger(__name__)
+from ...shared.kernel.log import logger
 
 AI_CONFIG = ConfigKey("ai", AIConfiguration.from_mapping, required=True)
 LLM_CONFIG = ConfigKey("llm", LLMConfiguration.from_mapping, required=True)
@@ -45,7 +42,7 @@ def initialize_config_center() -> None:
         )
     )
     for failure in snapshot.failures:
-        LOGGER.warning("ChatBI configuration source failed: %s", failure)
+        logger.warn("ChatBI configuration source failed: %s", failure)
 
 
 def get_ai_configuration() -> AIConfiguration:

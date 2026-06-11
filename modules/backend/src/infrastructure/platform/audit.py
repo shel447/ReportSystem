@@ -4,13 +4,9 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from datetime import datetime, timezone
-import logging
 from .client import RuntimeHttpClient
 from ...shared.kernel.audit import AuditEvent, AuditPublisher
 from ...shared.messaging import MessageEnvelope, MessagePublisher
-
-LOGGER = logging.getLogger(__name__)
-
 
 class ExternalAuditGateway:
     def __init__(self, *, client: RuntimeHttpClient) -> None:

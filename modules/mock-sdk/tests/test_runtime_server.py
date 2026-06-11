@@ -8,6 +8,7 @@ from threading import Thread
 from requests import Session
 from runtime.client._session import GLOBAL_HTTP_SESSION, RuntimeSession
 from runtime.config import Ini
+from runtime.log import get_log, set_level
 from runtime.server import PythonRuntime, Route, create_application, router
 from tornado.testing import AsyncHTTPTestCase
 
@@ -121,3 +122,26 @@ def test_runtime_ini_reads_configured_file(tmp_path, monkeypatch):
     ini = Ini()
 
     assert ini.get("chatbi.data_analysis", "query_strategy") == "ibis_planner"
+
+
+def test_runtime_ini_can_reload_an_explicit_file(tmp_path):
+    path = tmp_path / "runtime.ini"
+    path.write_text("[log]\nlevel = DEBUG\n", encoding="utf-8")
+    ini = Ini()
+
+    ini.load(path)
+
+    assert ini.get("log", "level") == "DEBUG"
+
+
+def test_runtime_log_returns_stable_minimal_logger_and_updates_level():
+    first = get_log("runtime-test")
+    second = get_log("runtime-test")
+
+    set_level("DEBUG")
+
+    assert first is second
+    assert first.depth == 0
+    assert not hasattr(first, "warning")
+    assert all(hasattr(first, name) for name in ("debug", "info", "warn", "error", "critical", "exception"))
+    assert first._logger.level == 10

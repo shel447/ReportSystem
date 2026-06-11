@@ -16,6 +16,11 @@ class Ini:
         if self.path is not None and self.path.exists():
             self._parser.read(self.path, encoding="utf-8")
 
+    def load(self, path: str | os.PathLike[str]) -> None:
+        self.path = Path(path).expanduser()
+        self._parser = ConfigParser()
+        self._parser.read(self.path, encoding="utf-8")
+
     def sections(self) -> list[str]:
         return self._parser.sections()
 

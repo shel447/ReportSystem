@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import queue
 import threading
 import time
@@ -11,9 +10,9 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Protocol
 
+from ..kernel.log import logger
 from .models import CommandFailure, CommandReceipt, ConsumerFailure, MessageChannel, MessageEnvelope
 
-LOGGER = logging.getLogger(__name__)
 MessageHandler = Callable[[MessageEnvelope], None]
 
 
@@ -289,7 +288,7 @@ class InMemoryMessageCenter(MessageCenter):
         try:
             subscription.handler(message)
         except Exception as exc:
-            LOGGER.warning("message consumer failed name=%s topic=%s: %s", subscription.name, message.topic, exc)
+            logger.warn("message consumer failed name=%s topic=%s: %s", subscription.name, message.topic, exc)
             if message.topic != "observability.consumer.failed":
                 self.publish_event(
                     channel="observability",

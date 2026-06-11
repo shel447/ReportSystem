@@ -265,6 +265,26 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     violations.append(f"{path.relative_to(ROOT)}: {forbidden}")
         self.assertEqual([], violations, "\n".join(violations))
 
+    def test_backend_logging_uses_kernel_facade_only(self):
+        violations: list[str] = []
+        kernel_log = ROOT / "shared" / "kernel" / "log.py"
+        for path in ROOT.rglob("*.py"):
+            source = path.read_text(encoding="utf-8-sig")
+            relative = path.relative_to(ROOT)
+            if path != kernel_log and (
+                "import runtime.log" in source
+                or "from runtime.log import" in source
+                or "import logging" in source
+                or "from logging import" in source
+            ):
+                violations.append(f"{relative}: bypasses shared.kernel.log")
+            if ".warning(" in source:
+                violations.append(f"{relative}: uses unsupported warning()")
+            if path != kernel_log and "algo_logger" in source:
+                if "shared/agentflow" not in relative.as_posix():
+                    violations.append(f"{relative}: uses algo_logger outside AgentFlow")
+        self.assertEqual([], violations, "\n".join(violations))
+
     def test_report_generation_service_does_not_own_document_dependencies(self):
         path = ROOT / "contexts" / "report" / "application" / "generation_service.py"
         source = path.read_text(encoding="utf-8-sig")

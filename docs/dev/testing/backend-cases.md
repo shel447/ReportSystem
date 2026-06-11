@@ -17,7 +17,7 @@
 
 | 文件 | 源码用例数 | 主要覆盖目标 |
 |---|---:|---|
-| `tests/architecture/test_architecture_boundaries.py` | 21 | Context、Controller、Runtime Server、compiler、事务依赖、消息边界和权限注解边界 |
+| `tests/architecture/test_architecture_boundaries.py` | 22 | Context、Controller、Runtime Server、compiler、事务依赖、消息边界、日志门面和权限注解边界 |
 | `tests/architecture/test_dataclass_alias_contract.py` | 4 | lowerCamelCase 序列化契约 |
 | `tests/architecture/test_service_type_contracts.py` | 5 | 应用服务正式类型与基础设施 adapter 显式 Protocol 实现 |
 | `tests/architecture/test_test_catalog.py` | 4 | 测试目录、清单、`.test/` 隔离 |
@@ -57,6 +57,7 @@
 | `tests/report/unit/test_report_scenario_flow.py` | 3 | 报告场景 Flow 接入、同步预览保留和严格 codec |
 | `tests/shared/test_http_identity.py` | 2 | 正式用户身份必填和本地开发用户覆盖 |
 | `tests/shared/test_authenticated.py` | 2 | Controller 权限注解、鉴权调用和拒绝响应 |
+| `tests/shared/test_kernel_log.py` | 8 | 日志转义、敏感信息脱敏、包装幂等、动态级别监控和 Server 生命周期 |
 | `tests/shared/test_agentflow_runtime.py` | 13 | Agent Flow 顺序、条件/汇合、真并行、图渲染、指标发布、human-in-loop、取消和系统终止 |
 | `tests/shared/test_agentflow_capabilities.py` | 7 | Tool、Prompt、Hook、Checkpoint、拒答、动态追加分支和非法改图拒绝 |
 | `tests/shared/test_message_center.py` | 9 | 统一 interaction 契约、消息过滤、无回放、同分区时序、跨分区并行、消费者隔离、Command 定向投递、未处理反馈和生命周期重启 |

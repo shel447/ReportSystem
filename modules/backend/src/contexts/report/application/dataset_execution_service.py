@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import copy
-import logging
 import re
 from typing import Any
 
 from ....shared.kernel.errors import ErrorCode, UpstreamError, ValidationError
+from ....shared.kernel.log import logger
 from ..domain.generation_models import DatasetExecutionResult, TemplateInstance, WarningItem
 from ..domain.template_models import DatasetDefinition, Parameter, ParameterValue, parameter_value_to_dict
 
 PARAMETER_PLACEHOLDER_PATTERN = re.compile(r"\{\$([A-Za-z0-9_\-]+)\}")
-LOGGER = logging.getLogger(__name__)
 
 
 class DatasetExecutionService:
@@ -88,7 +87,7 @@ class DatasetExecutionService:
                 message=f"dataset {dataset.id} query failed: retCode={ret_code}, retInfo={ret_info}",
                 target_id=dataset.id,
             )
-            LOGGER.warning(warning.message)
+            logger.warn(warning.message)
             return DatasetExecutionResult(dataset_id=dataset.id, warnings=[warning])
         columns = {item.key: copy.deepcopy(item.metadata) for item in result.columns}
         _validate_lineage(columns=columns, enabled=bool(context["lineage.tracing.enable"]))

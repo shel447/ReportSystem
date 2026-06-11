@@ -10,6 +10,7 @@ from .configuration import initialize_config_center
 from .dependencies import conversation_service_scope, report_service_scope
 from .persistence.database import init_db
 from .platform.runtime import audit_publisher, build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
+from ..shared.kernel.log import start_log_level_monitor, stop_log_level_monitor
 
 T = TypeVar("T")
 
@@ -26,6 +27,7 @@ class ChatBIServer:
         if self.executor is not None:
             return
         init_db()
+        start_log_level_monitor()
         initialize_config_center()
         start_platform_runtime()
         self.executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="report-web")
@@ -33,6 +35,7 @@ class ChatBIServer:
 
     def destroy(self) -> None:
         stop_platform_runtime()
+        stop_log_level_monitor()
         if self.executor is not None:
             self.executor.shutdown(wait=False, cancel_futures=True)
             self.executor = None

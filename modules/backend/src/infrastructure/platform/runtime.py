@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .audit import AuditEventPublisher, ExternalAuditConsumer, ExternalAuditGateway
@@ -11,9 +9,9 @@ from .cache import platform_cache
 from .client import RuntimeHttpClient
 from .configuration import ExternalMetadataSyncGateway
 from .policy_auth import ExternalPolicyAuthenticationGateway
+from ...shared.kernel.log import logger
 from ...shared.messaging import InMemoryMessageCenter
 
-LOGGER = logging.getLogger(__name__)
 def build_runtime_client() -> RuntimeHttpClient:
     return RuntimeHttpClient()
 
@@ -69,4 +67,4 @@ def _safe_refresh_metadata() -> None:
             platform_cache.clear(prefix="rag:")
         _metadata_version = version
     except Exception as exc:
-        LOGGER.warning("metadata refresh failed: %s", exc)
+        logger.warn("metadata refresh failed: %s", exc)
