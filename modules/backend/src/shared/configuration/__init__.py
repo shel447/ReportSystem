@@ -3,20 +3,24 @@
 from .center import ConfigCenter, ConfigKey, ConfigSnapshot, ConfigSource
 from .models import (
     AIConfiguration,
-    CompletionConfiguration,
+    CandidateLLMConfiguration,
     DataAnalysisConfiguration,
     EmbeddingConfiguration,
+    KnowledgeIndexConfiguration,
     KnowledgeConfiguration,
+    LLMConfiguration,
 )
 
 __all__ = [
     "AIConfiguration",
-    "CompletionConfiguration",
+    "CandidateLLMConfiguration",
     "ConfigCenter",
     "ConfigKey",
     "ConfigSnapshot",
     "ConfigSource",
     "DataAnalysisConfiguration",
     "EmbeddingConfiguration",
+    "KnowledgeIndexConfiguration",
     "KnowledgeConfiguration",
+    "LLMConfiguration",
 ]

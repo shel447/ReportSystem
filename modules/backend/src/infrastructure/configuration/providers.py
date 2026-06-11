@@ -3,17 +3,23 @@
 from __future__ import annotations
 
 from ..ai.openai_compat import ProviderConfig
-from .runtime import get_ai_configuration
+from .runtime import get_ai_configuration, get_llm_configuration
 
 
 def build_completion_provider_config() -> ProviderConfig:
-    completion = get_ai_configuration().completion
+    candidate = get_llm_configuration().resolve()
+    infer_params = dict(candidate.infer_params)
     return ProviderConfig(
-        base_url=completion.base_url,
-        model=completion.model,
-        api_key=completion.api_key,
-        timeout_sec=completion.timeout_seconds,
-        temperature=completion.temperature,
+        base_url=candidate.base_url,
+        model=candidate.model_name,
+        timeout_sec=int(
+            infer_params.pop(
+                "timeoutSeconds",
+                infer_params.pop("timeout_seconds", 60),
+            )
+        ),
+        temperature=float(infer_params.get("temperature", 0.2)),
+        infer_params=infer_params,
     )
 
 

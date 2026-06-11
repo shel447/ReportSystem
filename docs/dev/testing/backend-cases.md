@@ -34,7 +34,8 @@
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 7 | 业务库、开发库、升级规则和 V004 用户镜像无损移除 |
 | `tests/infrastructure/persistence/test_unit_of_work.py` | 2 | SQLAlchemy Unit of Work 显式提交、异常回滚和 session 关闭 |
 | `tests/infrastructure/test_messaging.py` | 2 | 领域事件仅在事务提交后进入统一消息中心，回滚时丢弃 |
-| `tests/infrastructure/configuration/test_config_center.py` | 6 | ConfigCenter 多来源字段合并、只读快照、敏感信息保护、必填校验和各来源业务字段映射 |
+| `tests/infrastructure/ai/test_openai_compat.py` | 2 | Completion 使用 Runtime 共享 HTTP Session、推理参数透传、流式增量聚合和响应关闭 |
+| `tests/infrastructure/configuration/test_config_center.py` | 10 | ConfigCenter 多来源合并、候选 LLM 选择与参数继承、知识索引、延迟校验、来源映射和 provider 投影 |
 | `tests/infrastructure/platform/test_guardrail_gateway.py` | 1 | Guardrail 正式 `/rest/naie/...` 路径和用户身份透传 |
 | `tests/infrastructure/platform/test_policy_auth_gateway.py` | 3 | Policy Authentication 正式 POST 报文、逐项判断和拒绝转换 |
 | `tests/infrastructure/platform/test_platform_runtime.py` | 1 | 审计消费者失败不影响业务流程 |
