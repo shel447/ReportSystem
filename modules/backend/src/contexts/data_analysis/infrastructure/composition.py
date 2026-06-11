@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
+from ....infrastructure.configuration import (
+    build_completion_provider_config,
+    get_knowledge_configuration,
+)
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
-from ....infrastructure.platform.http_client import PlatformHttpClient
-from ....infrastructure.platform.runtime import audit_publisher, build_platform_client
-from ....infrastructure.settings.system_settings import build_completion_provider_config
+from ....infrastructure.platform.client import RuntimeHttpClient
+from ....infrastructure.platform.runtime import audit_publisher, build_runtime_client
 from ..application.services import DataAnalysisService, DataQueryService
 from .gateways import (
     ExternalApiDatasetGateway,
@@ -17,12 +20,12 @@ from .gateways import (
 from .scenario_registration import DataAnalysisScenarioRegistrationProvider
 
 
-def _client(*, service_key: str | None = None) -> PlatformHttpClient:
-    return build_platform_client(service_key=service_key)
+def _client() -> RuntimeHttpClient:
+    return build_runtime_client()
 
 
 def build_data_query_gateway() -> DataQueryService:
-    client = _client(service_key="query")
+    client = _client()
     return DataQueryService(
         onequery_gateway=ExternalOneQueryGateway(client=client),
         api_gateway=ExternalApiDatasetGateway(client=client),
@@ -30,12 +33,15 @@ def build_data_query_gateway() -> DataQueryService:
 
 
 def build_data_analysis_service() -> DataAnalysisService:
-    client = _client(service_key="analysis")
+    client = _client()
     return DataAnalysisService(
         query_service=build_data_query_gateway(),
         data_catalog_gateway=ExternalDataCatalogGateway(client=client),
-        knowledge_gateway=ExternalKnowledgeGateway(client=client),
-        guardrail_gateway=ExternalGuardrailGateway(client=_client(service_key="guardrail")),
+        knowledge_gateway=ExternalKnowledgeGateway(
+            client=client,
+            configuration=get_knowledge_configuration(),
+        ),
+        guardrail_gateway=ExternalGuardrailGateway(client=_client()),
         ai_gateway=OpenAICompatGateway(),
         completion_config_builder=build_completion_provider_config,
         audit_publisher=audit_publisher,

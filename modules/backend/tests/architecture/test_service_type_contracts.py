@@ -28,6 +28,13 @@ from src.contexts.report.infrastructure.template_schema import ReportDslSchemaGa
 from src.contexts.report.infrastructure.template_repositories import SqlAlchemyTemplateManagementRepository
 from src.infrastructure.platform.guardrail import ExternalGuardrailGateway
 from src.infrastructure.platform.audit import AuditEventPublisher
+from src.infrastructure.configuration.sources import (
+    DatabaseConfigSource,
+    EnvironmentConfigSource,
+    NodeAgentAppConfigSource,
+    RuntimeIniConfigSource,
+)
+from src.shared.configuration import ConfigSource
 from src.shared.agentflow.checkpoints import CheckpointSaver, InMemoryCheckpointSaver
 from src.shared.kernel.audit import AuditPublisher
 from src.shared.kernel.safety import GuardrailGateway
@@ -87,6 +94,10 @@ class ServiceTypeContractTests(unittest.TestCase):
             (ReportDocumentGateway, DocumentExportGateway),
             (InMemoryCheckpointSaver, CheckpointSaver),
             (AuditEventPublisher, AuditPublisher),
+            (RuntimeIniConfigSource, ConfigSource),
+            (NodeAgentAppConfigSource, ConfigSource),
+            (DatabaseConfigSource, ConfigSource),
+            (EnvironmentConfigSource, ConfigSource),
         ]
 
         for implementation, protocol in pairs:

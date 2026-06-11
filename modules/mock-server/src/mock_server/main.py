@@ -308,7 +308,22 @@ def create_app() -> FastAPI:
 
     @app.get("/rest/nodeagent/v2/csi/appconf")
     def app_config(watch: str = "false"):
-        return {"externalServices": {"mock": True}, "watch": watch}
+        return {
+            "chatbi": {
+                "knowledge": {
+                    "nl2sql": {
+                        "indexName": "nl2sql_cache",
+                        "esTopN": 5,
+                        "vsTopN": 5,
+                    },
+                    "rankTopN": 3,
+                    "scoreThreshold": 0.5,
+                    "enableHybridResults": True,
+                },
+                "dataAnalysis": {"queryStrategy": "single_pass"},
+            },
+            "watch": watch,
+        }
 
     @app.post("/rest/plat/audit/v1/logs")
     def operation_audit(_: dict[str, Any]):

@@ -5,10 +5,10 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
-from ....infrastructure.platform.http_client import PlatformHttpClient
-from ....infrastructure.platform.runtime import build_platform_client
+from ....infrastructure.configuration import build_embedding_provider_config
+from ....infrastructure.platform.client import RuntimeHttpClient
+from ....infrastructure.platform.runtime import build_runtime_client
 from ....shared.messaging import MessagePublisher
-from ....infrastructure.settings.system_settings import build_embedding_provider_config
 from ..application.custom_content_resolver import CustomContentResolver
 from ..application.dataset_execution_service import DatasetExecutionService
 from ..application.document_service import ReportDocumentService
@@ -34,8 +34,8 @@ from .template_repositories import SqlAlchemyTemplateManagementRepository, Templ
 from .template_schema import ReportDslSchemaGateway
 
 
-def _client(*, service_key: str | None = None) -> PlatformHttpClient:
-    return build_platform_client(service_key=service_key)
+def _client() -> RuntimeHttpClient:
+    return build_runtime_client()
 
 
 def build_report_service(db: Session, *, dataset_query_gateway=None, message_publisher: MessagePublisher | None = None) -> ReportService:
@@ -43,7 +43,7 @@ def build_report_service(db: Session, *, dataset_query_gateway=None, message_pub
         repository=SqlAlchemyTemplateManagementRepository(db),
         schema_gateway=TemplateSchemaGateway(),
     )
-    external_gateway = ExternalBusinessGateway(client=_client(service_key="external_business"))
+    external_gateway = ExternalBusinessGateway(client=_client())
     parameter_service = ReportParameterService(
         options_gateway=ParameterOptionsGateway(gateway=external_gateway)
     )

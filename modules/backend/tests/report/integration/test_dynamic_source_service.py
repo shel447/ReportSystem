@@ -1,7 +1,4 @@
 import unittest
-from unittest.mock import patch
-
-import httpx
 
 from src.contexts.report.application.parameter_service import ReportParameterService
 from src.contexts.report.infrastructure.parameter_options import ParameterOptionsGateway
@@ -60,27 +57,24 @@ class DynamicSourceServiceTests(unittest.TestCase):
             )
 
     def test_external_gateway_joins_relative_url_and_sends_user_header(self):
-        requests = []
+        class Client:
+            def __init__(self):
+                self.calls = []
 
-        def handler(request):
-            requests.append(request)
-            return httpx.Response(200, json={"ok": True})
+            def post_json(self, **kwargs):
+                self.calls.append(kwargs)
+                return {"ok": True}
 
-        transport = httpx.MockTransport(handler)
-        client_type = httpx.Client
-        with patch(
-            "src.infrastructure.platform.http_client.httpx.Client",
-            side_effect=lambda **kwargs: client_type(transport=transport, **kwargs),
-        ):
-            result = ExternalBusinessGateway(base_url="http://mock.example").post_json(
-                path_or_url="/rest/datasets/network-health",
-                payload={"parameters": {}},
-                user_id="ops-user",
-            )
+        client = Client()
+        result = ExternalBusinessGateway(client=client).post_json(
+            path_or_url="/rest/datasets/network-health",
+            payload={"parameters": {}},
+            user_id="ops-user",
+        )
 
         self.assertEqual(result, {"ok": True})
-        self.assertEqual(str(requests[0].url), "http://mock.example/rest/datasets/network-health")
-        self.assertEqual(requests[0].headers["X-User-Id"], "ops-user")
+        self.assertEqual(client.calls[0]["path_or_url"], "/rest/datasets/network-health")
+        self.assertEqual(client.calls[0]["user_id"], "ops-user")
 
 
 if __name__ == "__main__":

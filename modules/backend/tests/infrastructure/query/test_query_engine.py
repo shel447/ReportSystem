@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
 import unittest
 from unittest.mock import patch
 
+from src.shared.configuration import DataAnalysisConfiguration
 from src.infrastructure.ai.openai_compat import ProviderConfig
 from src.infrastructure.demo.telecom import init_telecom_demo_db
 from src.infrastructure.query.engine import QueryRequest, run_query
@@ -186,7 +186,10 @@ class SectionQueryServiceStrategyTests(unittest.TestCase):
             ]
         )
 
-        with patch.dict(os.environ, {"REPORT_QUERY_STRATEGY": "ibis_planner"}, clear=False):
+        with patch(
+            "src.infrastructure.query.engine.get_data_analysis_configuration",
+            return_value=DataAnalysisConfiguration(query_strategy="ibis_planner"),
+        ):
             evidence = generate_section_evidence(
                 gateway=gateway,
                 config=self.config,

@@ -5,8 +5,6 @@ from typing import Any, Dict
 
 from sqlalchemy.orm import Session
 
-from ..ai.openai_compat import AIConfigurationError, ProviderConfig
-from ..persistence.dev_database import DevSessionLocal
 from ..persistence.dev_models import SystemSetting
 
 GLOBAL_SETTINGS_ID = "global"
@@ -77,45 +75,6 @@ def save_settings(db: Session, payload: Dict[str, Any], *, commit: bool = True) 
         db.flush()
     db.refresh(row)
     return get_settings_payload(db)
-
-
-def build_completion_provider_config(db: Session | None = None) -> ProviderConfig:
-    if db is None:
-        with DevSessionLocal() as session:
-            return build_completion_provider_config(session)
-    row = get_settings_record(db)
-    completion = _merged_completion(row.completion_config if row else {})
-    if not _completion_configured(completion):
-        raise AIConfigurationError("系统设置未完成，请先在“系统设置”中配置 Completion 接口。")
-    return ProviderConfig(
-        base_url=completion["base_url"],
-        model=completion["model"],
-        api_key=completion["api_key"],
-        timeout_sec=int(completion.get("timeout_sec") or 60),
-        temperature=float(completion.get("temperature") or 0.2),
-    )
-
-
-def build_embedding_provider_config(db: Session | None = None) -> ProviderConfig:
-    if db is None:
-        with DevSessionLocal() as session:
-            return build_embedding_provider_config(session)
-    row = get_settings_record(db)
-    completion = _merged_completion(row.completion_config if row else {})
-    embedding = _merged_embedding(row.embedding_config if row else {})
-    if not _embedding_configured(completion, embedding):
-        raise AIConfigurationError("系统设置未完成，请先在“系统设置”中配置 Embedding 接口。")
-
-    use_completion_auth = bool(embedding.get("use_completion_auth", True))
-    base_url = completion["base_url"] if use_completion_auth else str(embedding.get("base_url") or "").strip()
-    api_key = completion["api_key"] if use_completion_auth else str(embedding.get("api_key") or "").strip()
-    return ProviderConfig(
-        base_url=base_url,
-        model=str(embedding.get("model") or "").strip(),
-        api_key=api_key,
-        timeout_sec=int(embedding.get("timeout_sec") or 60),
-        temperature=0.0,
-    )
 
 
 def _merged_completion(raw: Dict[str, Any]) -> Dict[str, Any]:

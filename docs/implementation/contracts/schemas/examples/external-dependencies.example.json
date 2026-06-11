@@ -395,9 +395,19 @@
         "watch": "false"
       },
       "response": {
-        "externalServices": {
-          "agentcore": {
-            "baseUrl": "https://agentcore.example.test"
+        "chatbi": {
+          "knowledge": {
+            "nl2sql": {
+              "indexName": "nl2sql_cache",
+              "esTopN": 5,
+              "vsTopN": 5
+            },
+            "rankTopN": 3,
+            "scoreThreshold": 0.5,
+            "enableHybridResults": true
+          },
+          "dataAnalysis": {
+            "queryStrategy": "single_pass"
           }
         }
       }

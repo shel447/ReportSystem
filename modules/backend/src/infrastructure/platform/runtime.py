@@ -3,57 +3,29 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from .audit import AuditEventPublisher, ExternalAuditConsumer, ExternalAuditGateway
 from .cache import platform_cache
-from .configuration import ExternalMetadataSyncGateway, ExternalNodeAgentGateway, RuntimeConfigurationStore
-from .http_client import ExternalServiceConfig, PlatformHttpClient
+from .client import RuntimeHttpClient
+from .configuration import ExternalMetadataSyncGateway
 from .policy_auth import ExternalPolicyAuthenticationGateway
 from ...shared.messaging import InMemoryMessageCenter
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_PLATFORM_BASE_URL = "http://127.0.0.1:8310"
-
-
-def build_platform_client(*, service_key: str | None = None) -> PlatformHttpClient:
-    return PlatformHttpClient(
-        config=ExternalServiceConfig(
-            base_url=_service_base_url(service_key=service_key),
-            timeout_seconds=float(os.getenv("REPORT_EXTERNAL_TIMEOUT_SECONDS") or 10),
-        )
-    )
+def build_runtime_client() -> RuntimeHttpClient:
+    return RuntimeHttpClient()
 
 
 def build_policy_auth_gateway() -> ExternalPolicyAuthenticationGateway:
-    return ExternalPolicyAuthenticationGateway(client=build_platform_client(service_key="policy"))
+    return ExternalPolicyAuthenticationGateway(client=build_runtime_client())
 
 
-def _service_base_url(*, service_key: str | None) -> str:
-    if service_key:
-        env_key = f"REPORT_{service_key.upper().replace('-', '_')}_BASE_URL"
-        configured = str(os.getenv(env_key) or "").strip()
-        if configured:
-            return configured
-    emergency = str(os.getenv("REPORT_EXTERNAL_BUSINESS_BASE_URL") or "").strip()
-    if emergency:
-        return emergency
-    store = globals().get("configuration_store")
-    snapshot = store.current() if store is not None else {}
-    services = snapshot.get("externalServices") if isinstance(snapshot, dict) else None
-    service = services.get(service_key) if isinstance(services, dict) and service_key else None
-    if isinstance(service, dict) and str(service.get("baseUrl") or "").strip():
-        return str(service["baseUrl"]).strip()
-    return DEFAULT_PLATFORM_BASE_URL
-
-
-configuration_store = RuntimeConfigurationStore(gateway=ExternalNodeAgentGateway(client=build_platform_client()))
-metadata_gateway = ExternalMetadataSyncGateway(client=build_platform_client())
+metadata_gateway = ExternalMetadataSyncGateway(client=build_runtime_client())
 message_center = InMemoryMessageCenter()
 audit_publisher = AuditEventPublisher(publisher=message_center)
-audit_consumer = ExternalAuditConsumer(gateway=ExternalAuditGateway(client=build_platform_client(service_key="audit")))
+audit_consumer = ExternalAuditConsumer(gateway=ExternalAuditGateway(client=build_runtime_client()))
 _scheduler: BackgroundScheduler | None = None
 _metadata_version: str | None = None
 _consumers_registered = False
@@ -72,10 +44,8 @@ def start_platform_runtime() -> None:
         )
         _consumers_registered = True
     message_center.start()
-    _safe_refresh_configuration()
     _safe_refresh_metadata()
     _scheduler = BackgroundScheduler(daemon=True)
-    _scheduler.add_job(_safe_refresh_configuration, "interval", seconds=300, id="nodeagent-refresh", replace_existing=True)
     _scheduler.add_job(_safe_refresh_metadata, "interval", seconds=300, id="metadata-refresh", replace_existing=True)
     _scheduler.start()
 
@@ -87,13 +57,6 @@ def stop_platform_runtime() -> None:
     _scheduler.shutdown(wait=False)
     _scheduler = None
     message_center.stop()
-
-
-def _safe_refresh_configuration() -> None:
-    try:
-        configuration_store.refresh()
-    except Exception as exc:
-        LOGGER.warning("NodeAgent refresh failed; keeping last-known-good config: %s", exc)
 
 
 def _safe_refresh_metadata() -> None:

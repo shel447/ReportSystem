@@ -10,6 +10,7 @@ dependencies = [
   "ibis-framework[sqlite]==12.0.0",
   "jsonschema>=4.23,<5",
   "pydantic==2.7.0",
+  "requests>=2.32,<3",
   "sqlalchemy==2.0.30",
   "tornado>=6.4,<7",
 ]

@@ -9,10 +9,6 @@ from ...shared.agentflow.metrics import record_llm_usage
 from ...shared.kernel.errors import ErrorCode, UpstreamError
 
 
-class AIConfigurationError(Exception):
-    pass
-
-
 class AIRequestError(Exception):
     pass
 

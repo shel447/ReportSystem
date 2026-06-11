@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Local runtime.server SDK implementation for ReportSystem development"
 requires-python = ">=3.11"
 dependencies = [
+  "requests>=2.32,<3",
   "tornado>=6.4,<7",
 ]
 

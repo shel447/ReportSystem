@@ -229,6 +229,42 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for forbidden in ("class MetricsCenter", "class AsyncAuditDispatcher"):
             self.assertNotIn(forbidden, source)
 
+    def test_config_center_contains_only_chatbi_business_configuration(self):
+        root = ROOT / "shared" / "configuration"
+        source = "\n".join(path.read_text(encoding="utf-8-sig") for path in root.glob("*.py"))
+        for forbidden in (
+            "ReportConfiguration",
+            "DocumentConfiguration",
+            "externalServices",
+            "agentcore",
+            "guardrail",
+            "onequery",
+            "base_url_by_service",
+        ):
+            self.assertNotIn(forbidden, source)
+
+    def test_backend_does_not_own_platform_service_address_resolution(self):
+        source = "\n".join(path.read_text(encoding="utf-8-sig") for path in ROOT.rglob("*.py"))
+        for forbidden in (
+            "PlatformHttpClient",
+            "ExternalServiceConfig",
+            "build_platform_client",
+            "_service_base_url",
+            "REPORT_EXTERNAL_BUSINESS_BASE_URL",
+            "REPORT_EXTERNAL_TIMEOUT_SECONDS",
+            "REPORT_PLATFORM_AUTHORIZATION",
+        ):
+            self.assertNotIn(forbidden, source)
+
+    def test_business_contexts_do_not_read_configuration_sources_directly(self):
+        violations: list[str] = []
+        for path in (ROOT / "contexts").rglob("*.py"):
+            source = path.read_text(encoding="utf-8-sig")
+            for forbidden in ("os.getenv", "os.environ", "runtime.config", "SystemSetting"):
+                if forbidden in source:
+                    violations.append(f"{path.relative_to(ROOT)}: {forbidden}")
+        self.assertEqual([], violations, "\n".join(violations))
+
     def test_report_generation_service_does_not_own_document_dependencies(self):
         path = ROOT / "contexts" / "report" / "application" / "generation_service.py"
         source = path.read_text(encoding="utf-8-sig")

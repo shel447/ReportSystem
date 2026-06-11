@@ -5,8 +5,8 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
-from ....infrastructure.platform.http_client import PlatformHttpClient
-from ....infrastructure.platform.runtime import audit_publisher, build_platform_client, message_center
+from ....infrastructure.platform.client import RuntimeHttpClient
+from ....infrastructure.platform.runtime import audit_publisher, build_runtime_client, message_center
 from ....shared.agentflow import InMemoryFlowRuntime, SubflowSpec
 from ..application.scenarios import ScenarioDispatchService, ScenarioRegistry, ScenarioRegistrationProvider
 from ..application.services import ConversationFlowRegistry, ConversationService
@@ -17,8 +17,8 @@ _FLOW_RUNTIME = InMemoryFlowRuntime(message_center=message_center)
 _FLOW_REGISTRY = ConversationFlowRegistry()
 
 
-def _client(*, service_key: str | None = None) -> PlatformHttpClient:
-    return build_platform_client(service_key=service_key)
+def _client() -> RuntimeHttpClient:
+    return build_runtime_client()
 
 
 def build_conversation_service(
@@ -32,8 +32,8 @@ def build_conversation_service(
         registry.register(provider.registration())
     registry.seal()
     return ConversationService(
-        history_gateway=ExternalConversationHistoryGateway(client=_client(service_key="agentcore")),
-        guardrail_gateway=ExternalGuardrailGateway(client=_client(service_key="guardrail")),
+        history_gateway=ExternalConversationHistoryGateway(client=_client()),
+        guardrail_gateway=ExternalGuardrailGateway(client=_client()),
         scenario_dispatcher=ScenarioDispatchService(registry=registry),
         flow_runtime=_FLOW_RUNTIME,
         flow_registry=_FLOW_REGISTRY,

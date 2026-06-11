@@ -6,13 +6,13 @@ import uuid
 
 from ...shared.kernel.errors import ErrorCode, PermissionDeniedError, UpstreamError
 from ...shared.kernel.authenticated import AuthenticationGateway
-from .http_client import PlatformHttpClient
+from .client import RuntimeHttpClient
 
 POLICY_AUTH_PATH = "/rest/plat/priv/v1/policy/authentication"
 
 
 class ExternalPolicyAuthenticationGateway(AuthenticationGateway):
-    def __init__(self, *, client: PlatformHttpClient) -> None:
+    def __init__(self, *, client: RuntimeHttpClient) -> None:
         self._client = client
 
     def authenticate(

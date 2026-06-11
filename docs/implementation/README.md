@@ -7,13 +7,14 @@
 1. [技术契约](contracts/README.md)
 2. [统一消息中心](messaging/README.md)
 3. [Agent Flow 公共流程框架](agentflow/README.md)
-4. [Report Context 实现](report/README.md)
-4. [通用对话](conversation/README.md)
-5. [前端](frontend/README.md)
-6. [外部集成](integrations/外部集成实现.md)
-7. [智能问数](data-analysis/README.md)
-8. [实现变更日志](changelog/README.md)
-9. [Runtime Server 与 Controller 适配](web-adapter.md)
+4. [ChatBI 业务配置中心](configuration/README.md)
+5. [Report Context 实现](report/README.md)
+6. [通用对话](conversation/README.md)
+7. [前端](frontend/README.md)
+8. [外部集成](integrations/外部集成实现.md)
+9. [智能问数](data-analysis/README.md)
+10. [实现变更日志](changelog/README.md)
+11. [Runtime Server 与 Controller 适配](web-adapter.md)
 
 ## 模块映射
 
@@ -24,6 +25,7 @@
 - `contexts/data_analysis`
 - `shared/agentflow`
 - `shared/messaging`
+- `shared/configuration`
 - `shared/kernel`
 - `infrastructure/{persistence,ai,query,documents,settings}`
 
@@ -35,6 +37,7 @@
 - `shared/messaging` 提供全系统统一消息包络、发布、订阅和定向 command；AgentFlow、业务 context、conversation、审计和指标均通过该中心协作
 - `shared/agentflow` 提供公共流程运行、Flow 事件预处理、工具调用、提示词组装、hook、checkpoint、拒答和取消；处理后的消息发布到 `shared/messaging`
 - `shared/kernel` 提供公开错误模型、用户身份解析、`@authenticated` 权限注解和其他跨业务基础契约；平台鉴权的 HTTP 实现位于 infrastructure
+- `shared/configuration` 提供 ChatBI 业务配置的强类型只读视图；配置正本仍由 Runtime INI、NodeAgent appconf 或数据库等来源拥有
 - `conversation` 拥有场景注册协议；`report` 和 `data_analysis` 在各自 context 内提供 registration provider、codec 和 handler 实现
 - `data_analysis` 拥有查询、数据目录和知识检索相关业务接口；`report` 如需查询能力，只依赖自己声明的数据查询接口，由装配层接入对应实现
 - 顶层装配只收集各 context 暴露的 composition builder 和 provider，不拼接业务 DTO，不解释业务场景语义

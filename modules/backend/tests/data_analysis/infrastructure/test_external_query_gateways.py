@@ -9,6 +9,7 @@ from src.contexts.data_analysis.infrastructure.gateways import (
     ExternalOneQueryGateway,
 )
 from src.infrastructure.platform.cache import MemoryTtlCache
+from src.shared.configuration import KnowledgeConfiguration
 from src.shared.agentflow.metrics import FlowMetricsCollector, use_metrics_collector
 from src.shared.kernel.errors import ErrorCode, UpstreamError
 
@@ -136,3 +137,35 @@ def test_rag_cache_is_isolated_by_user_id():
     assert gateway.retrieve_multi_index(query="设备健康", user_id="user-b") == [{"query": "select 1"}]
 
     assert [call["user_id"] for call in client.calls] == ["user-a", "user-b"]
+
+
+def test_rag_request_uses_config_center_business_configuration():
+    client = _Client({"recommends": []})
+    configuration = KnowledgeConfiguration(
+        nl2sql_index_name="network_nl2sql",
+        es_top_n=7,
+        vs_top_n=9,
+        rank_top_n=4,
+        score_threshold=0.72,
+        enable_hybrid_results=False,
+    )
+
+    ExternalKnowledgeGateway(
+        client=client,
+        configuration=configuration,
+        cache=MemoryTtlCache(),
+    ).retrieve_multi_index(query="网络健康", user_id="user-a")
+
+    payload = client.calls[0]["payload"]
+    assert payload["ragIndexes"] == [
+        {
+            "ragIndex": "network_nl2sql",
+            "indexType": "NL2SQL",
+            "esTopN": 7,
+            "vsTopN": 9,
+            "filters": {},
+        }
+    ]
+    assert payload["rankTopN"] == 4
+    assert payload["ranking_options"]["score_threshold"] == 0.72
+    assert payload["enableHybridResults"] is False

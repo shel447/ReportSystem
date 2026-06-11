@@ -14,7 +14,7 @@ class ParameterOptionsGateway(ParameterOptionsResolver):
     """通过正式 HTTP 契约调用动态候选源。"""
 
     def __init__(self, *, gateway: ExternalBusinessGateway | None = None) -> None:
-        self.gateway = gateway or ExternalBusinessGateway(timeout_seconds=3.0)
+        self.gateway = gateway or ExternalBusinessGateway()
 
     def resolve(self, *, source: str, request_payload: dict[str, list[dict[str, Any]]], user_id: str) -> dict[str, Any]:
         source_url = str(source or "").strip()

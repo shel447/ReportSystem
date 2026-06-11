@@ -34,9 +34,11 @@
 | `tests/infrastructure/persistence/test_persistence_contract.py` | 7 | 业务库、开发库、升级规则和 V004 用户镜像无损移除 |
 | `tests/infrastructure/persistence/test_unit_of_work.py` | 2 | SQLAlchemy Unit of Work 显式提交、异常回滚和 session 关闭 |
 | `tests/infrastructure/test_messaging.py` | 2 | 领域事件仅在事务提交后进入统一消息中心，回滚时丢弃 |
+| `tests/infrastructure/configuration/test_config_center.py` | 6 | ConfigCenter 多来源字段合并、只读快照、敏感信息保护、必填校验和各来源业务字段映射 |
 | `tests/infrastructure/platform/test_guardrail_gateway.py` | 1 | Guardrail 正式 `/rest/naie/...` 路径和用户身份透传 |
 | `tests/infrastructure/platform/test_policy_auth_gateway.py` | 3 | Policy Authentication 正式 POST 报文、逐项判断和拒绝转换 |
-| `tests/infrastructure/platform/test_platform_runtime.py` | 3 | NodeAgent 分层配置、环境应急覆盖和审计尽力投递 |
+| `tests/infrastructure/platform/test_platform_runtime.py` | 1 | 审计消费者失败不影响业务流程 |
+| `tests/infrastructure/platform/test_runtime_http_client.py` | 1 | Runtime 共享 Session 接收相对平台路径并透传用户身份 |
 | `tests/infrastructure/platform/test_external_dependency_contracts.py` | 56 | 平台外部依赖消费者 Schema、集中示例、AgentCore upsert、查询响应同构与 Schema 索引完整性 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
 | `tests/infrastructure/web/test_report_document_gateway.py` | 5 | Markdown、下载、PDF 拒绝和 CLI 参数 |

@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from ....infrastructure.platform.cache import MemoryTtlCache, platform_cache
+from ....shared.configuration import KnowledgeConfiguration
 from ....shared.agentflow.metrics import record_unique_metric
 from ....shared.kernel.errors import ErrorCode, UpstreamError
 from ..application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
@@ -193,12 +194,19 @@ class ExternalDataCatalogGateway(DataCatalogGateway):
 
 
 class ExternalKnowledgeGateway(KnowledgeGateway):
-    def __init__(self, *, client, cache: MemoryTtlCache | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        client,
+        configuration: KnowledgeConfiguration | None = None,
+        cache: MemoryTtlCache | None = None,
+    ) -> None:
         self.client = client
+        self.configuration = configuration or KnowledgeConfiguration()
         self.cache = cache or platform_cache
 
     def retrieve_multi_index(self, *, query: str, user_id: str) -> list[dict[str, Any]]:
-        key = f"rag:{user_id}:retriever:{query}"
+        key = f"rag:{user_id}:retriever:{self.configuration.nl2sql_index_name}:{query}"
         cached = self.cache.get(key)
         if cached is not None:
             return deepcopy(cached)
@@ -206,10 +214,21 @@ class ExternalKnowledgeGateway(KnowledgeGateway):
             path_or_url="/rest/naie/rag/v1/retriever",
             payload={
                 "query": query,
-                "rankTopN": 3,
-                "ragIndexes": [{"ragIndex": "nl2sql_cache", "indexType": "NL2SQL", "esTopN": 5, "vsTopN": 5, "filters": {}}],
-                "ranking_options": {"ranker": "DEFAULT", "score_threshold": 0.5},
-                "enableHybridResults": True,
+                "rankTopN": self.configuration.rank_top_n,
+                "ragIndexes": [
+                    {
+                        "ragIndex": self.configuration.nl2sql_index_name,
+                        "indexType": "NL2SQL",
+                        "esTopN": self.configuration.es_top_n,
+                        "vsTopN": self.configuration.vs_top_n,
+                        "filters": {},
+                    }
+                ],
+                "ranking_options": {
+                    "ranker": "DEFAULT",
+                    "score_threshold": self.configuration.score_threshold,
+                },
+                "enableHybridResults": self.configuration.enable_hybrid_results,
             },
             user_id=user_id,
         )

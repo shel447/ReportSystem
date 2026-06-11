@@ -429,7 +429,7 @@ POST /rest/naie/rag/v1/retriever
 GET /rest/nodeagent/v2/csi/appconf?watch=false
 ```
 
-响应是开放配置对象。ReportSystem 将成功响应保存为 last-known-good 快照；刷新失败时继续使用上一份有效快照。当前会读取 `externalServices[serviceKey].baseUrl` 作为平台服务地址。
+响应是开放配置对象。ReportSystem 在启动阶段读取其中 `chatbi.ai`、`chatbi.knowledge` 和 `chatbi.dataAnalysis`，合并到进程内 ConfigCenter。平台服务地址和 HTTP 基础设施配置由 `runtime.client` SDK 负责，不从该响应读取。
 
 正式结构见 [nodeagent.schema.json](../schemas/nodeagent.schema.json)。
 

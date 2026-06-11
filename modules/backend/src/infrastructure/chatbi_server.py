@@ -6,6 +6,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, TypeVar
 
+from .configuration import initialize_config_center
 from .dependencies import conversation_service_scope, report_service_scope
 from .persistence.database import init_db
 from .platform.runtime import audit_publisher, build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
@@ -25,6 +26,7 @@ class ChatBIServer:
         if self.executor is not None:
             return
         init_db()
+        initialize_config_center()
         start_platform_runtime()
         self.executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="report-web")
         self.policy_auth_gateway = build_policy_auth_gateway()

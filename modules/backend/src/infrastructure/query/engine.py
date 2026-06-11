@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import json
-import os
 import re
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -11,6 +10,7 @@ from typing import Any, Dict, Iterable, List, Mapping
 import ibis
 
 from ..ai.openai_compat import OpenAICompatGateway, ProviderConfig
+from ..configuration import get_data_analysis_configuration
 from ..demo.telecom import (
     get_demo_db_path,
     get_schema_registry,
@@ -206,7 +206,8 @@ class SqliteCompilerAdapter:
 
 
 def resolve_query_strategy(explicit: str | None = None) -> str:
-    candidate = str(explicit or os.getenv("REPORT_QUERY_STRATEGY") or DEFAULT_QUERY_STRATEGY).strip().lower()
+    configured = get_data_analysis_configuration().query_strategy
+    candidate = str(explicit or configured or DEFAULT_QUERY_STRATEGY).strip().lower()
     if candidate not in VALID_QUERY_STRATEGIES:
         return DEFAULT_QUERY_STRATEGY
     return candidate
