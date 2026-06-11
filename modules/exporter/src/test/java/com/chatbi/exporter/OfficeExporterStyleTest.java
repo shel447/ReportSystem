@@ -218,6 +218,43 @@ class OfficeExporterStyleTest {
     }
 
     @Test
+    void docxCoverWithoutSubtitleDoesNotRenderReportPlaceholder() throws Exception {
+        Path output = tempDir.resolve("cover-without-subtitle.docx");
+
+        new ReportDocxExporter().export(coverReportWithoutSubtitle(), output, ExportRequest.defaults());
+
+        String documentXml = zipEntry(output, "word/document.xml");
+        assertTrue(documentXml.contains("无副标题报告"));
+        assertFalse(documentXml.contains(">Report<"));
+    }
+
+    @Test
+    void flowDslWithoutSubtitleNormalizesToEmptyAndDoesNotRenderReportPlaceholder() throws Exception {
+        Path input = tempDir.resolve("flow-without-subtitle.json");
+        Path output = tempDir.resolve("flow-without-subtitle.docx");
+        Files.writeString(input, flowDslWithoutSubtitle(), StandardCharsets.UTF_8);
+
+        VDoc doc = DslReader.read(input);
+
+        assertEquals("", doc.root.propString("coverSubtitle", "missing"));
+        new ReportDocxExporter().export(doc, output, ExportRequest.defaults());
+        assertFalse(zipEntry(output, "word/document.xml").contains(">Report<"));
+    }
+
+    @Test
+    void pagedDslWithoutSubtitleDoesNotRenderReportPlaceholder() throws Exception {
+        Path input = tempDir.resolve("paged-without-subtitle.json");
+        Path output = tempDir.resolve("paged-without-subtitle.pptx");
+        Files.writeString(input, pagedDslWithoutSubtitle(), StandardCharsets.UTF_8);
+
+        new DeckPptxExporter().export(DslReader.read(input), output, ExportRequest.defaults());
+
+        String slideXml = zipEntry(output, "ppt/slides/slide1.xml");
+        assertTrue(slideXml.contains("无副标题演示"));
+        assertFalse(slideXml.contains(">Report<"));
+    }
+
+    @Test
     void docxCoverImageRendersAsFullPageBackgroundBehindText() throws Exception {
         Path output = tempDir.resolve("cover-background.docx");
 
@@ -499,6 +536,17 @@ class OfficeExporterStyleTest {
         props.put("signatureEnabled", false);
         props.put("headerShow", false);
         props.put("footerShow", false);
+        doc.root.props = props;
+        return doc;
+    }
+
+    private static VDoc coverReportWithoutSubtitle() {
+        VDoc doc = coverReport();
+        doc.docId = "cover-without-subtitle";
+        doc.title = "无副标题报告";
+        LinkedHashMap<String, Object> props = new LinkedHashMap<>(doc.root.props);
+        props.put("coverTitle", "无副标题报告");
+        props.remove("coverSubtitle");
         doc.root.props = props;
         return doc;
     }
@@ -1047,6 +1095,63 @@ class OfficeExporterStyleTest {
                       ]
                     }
                   ]
+                }
+                """;
+    }
+
+    private static String flowDslWithoutSubtitle() {
+        return """
+                {
+                  "structureType": "flow",
+                  "basicInfo": {
+                    "id": "flow-without-subtitle",
+                    "name": "无副标题报告",
+                    "schemaVersion": "1.0.0",
+                    "reportType": "Word"
+                  },
+                  "cover": {
+                    "title": "无副标题报告",
+                    "author": "张三",
+                    "date": "2026年6月11日"
+                  },
+                  "catalogs": [
+                    {
+                      "id": "catalog",
+                      "name": "正文",
+                      "sections": [
+                        {
+                          "id": "section",
+                          "components": [
+                            {
+                              "id": "text",
+                              "type": "text",
+                              "dataProperties": {"content": "正文内容"}
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+                """;
+    }
+
+    private static String pagedDslWithoutSubtitle() {
+        return """
+                {
+                  "structureType": "paged",
+                  "basicInfo": {
+                    "id": "paged-without-subtitle",
+                    "name": "无副标题演示",
+                    "schemaVersion": "1.0.0",
+                    "reportType": "PPT"
+                  },
+                  "cover": {
+                    "title": "无副标题演示",
+                    "author": "张三",
+                    "date": "2026年6月11日"
+                  },
+                  "content": []
                 }
                 """;
     }

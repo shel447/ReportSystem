@@ -340,7 +340,7 @@ public class ReportDocxExporter implements DocumentExporter {
     private void addCoverPage(DocxRenderContext context, Map<String, Object> props, VDoc doc) {
         String reportTitle = str(props.get("reportTitle"), defaultReportTitle(doc));
         String coverTitle = str(props.get("coverTitle"), reportTitle);
-        String coverSubtitle = str(props.get("coverSubtitle"), "Report");
+        String coverSubtitle = str(props.get("coverSubtitle"), "");
         String coverAuthor = str(props.get("coverAuthor"), "");
         String coverDate = str(props.get("coverDate"), "");
         String coverNote = str(props.get("coverNote"), "");

@@ -15,6 +15,8 @@ Report Exporter 位于 `modules/exporter`。它接收 Report DSL 或归一化后
 
 Document Configuration 独立于 Report DSL。当前 exporter 使用内置默认值，后续可由边界适配器映射外部可选配置。
 
+封面副标题只读取正式 Report DSL 的 `cover.subTitle`。字段缺失或内容为空时，归一化结果使用空字符串，DOCX/PPTX 渲染器跳过副标题文本，不生成 `Report` 等占位值。
+
 ## 配置优先级
 
 未来开放外部 Document Configuration 后，文档样式按以下优先级解析：

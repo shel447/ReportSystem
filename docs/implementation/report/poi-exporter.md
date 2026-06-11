@@ -239,6 +239,8 @@ flowchart TB
 
 PPT 页眉标题只输出当前 slide title，不拼接报告名称或 `basicInfo.header`；封面页不输出左上角页眉标题。PPT 页码独立于页脚文本渲染，默认锚定到右下角；页脚文本仍左对齐显示。`masterShowSlideNumber=false` 时不输出页码。
 
+Word/PPT 封面副标题只来自 `cover.subTitle`。归一化层和渲染层均以空字符串作为缺省值；副标题为空时不创建对应文本内容，不再使用 `Report` 占位，也不读取已退出正式 Schema 的 `basicInfo.subTitle`。
+
 ### 4.3 封面渲染 (DocxCoverRenderer)
 
 ```java
@@ -272,7 +274,7 @@ public static void renderCover(XWPFDocument doc, ReportCover cover,
 | DSL 字段 | POI 对象 | 样式 |
 |---------|---------|------|
 | `cover.title` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 页面上半部居中，34pt，粗体 |
-| `cover.subTitle` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 标题下方居中，16pt，次色 |
+| `cover.subTitle` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 非空时在标题下方居中显示，16pt，次色；为空时跳过 |
 | `cover.image` | `wp:anchor` drawing | 相对 page 定位，铺满首页，behind text |
 | `cover.contents` / `basicInfo.description` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 页面中部居中 |
 | `cover.author` | `XWPFTableCell` 内 `XWPFParagraph` + `XWPFRun` | 右下角，“报告人：...” |
@@ -706,7 +708,7 @@ private void renderCoverSlide(XMLSlideShow pptx, ReportDslModel dsl, ThemeTokens
 | DSL 字段 | POI 对象 | 位置 (x, y, w, h) | 样式 |
 |---------|---------|------------------|------|
 | `cover.title` | `XSLFTextBox` | (50, 150, 860, 100) | 22pt，主色，粗体，居中 |
-| `cover.subTitle` | `XSLFTextBox` | (50, 260, 860, 50) | 14pt，次色，居中 |
+| `cover.subTitle` | `XSLFTextBox` | (50, 260, 860, 50) | 非空时显示，14pt，次色，居中；为空时跳过 |
 | `cover.author` + `date` | `XSLFTextBox` | (50, 340, 860, 40) | 11pt，次色，居中 |
 
 ### 5.4 目录幻灯片

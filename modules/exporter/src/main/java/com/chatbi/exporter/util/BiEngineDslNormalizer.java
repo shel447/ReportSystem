@@ -127,7 +127,7 @@ public final class BiEngineDslNormalizer {
         props.put("tocShow", true);
         props.put("coverEnabled", !cover.isEmpty());
         props.put("coverTitle", str(cover.get("title"), title));
-        props.put("coverSubtitle", str(cover.get("subTitle"), str(basic.get("subTitle"), "Report")));
+        props.put("coverSubtitle", str(cover.get("subTitle"), ""));
         props.put("coverAuthor", str(cover.get("author"), str(basic.get("creator"), "")));
         props.put("coverDate", str(cover.get("date"), str(basic.get("createdAt"), "")));
         props.put("coverNote", str(basic.get("description"), ""));
