@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from threading import Thread
+
+from runtime.schedule import Schedule
 
 from .audit import AuditEventPublisher, ExternalAuditConsumer, ExternalAuditGateway
 from .cache import platform_cache
@@ -24,14 +26,17 @@ metadata_gateway = ExternalMetadataSyncGateway(client=build_runtime_client())
 message_center = InMemoryMessageCenter()
 audit_publisher = AuditEventPublisher(publisher=message_center)
 audit_consumer = ExternalAuditConsumer(gateway=ExternalAuditGateway(client=build_runtime_client()))
-_scheduler: BackgroundScheduler | None = None
+_scheduler = Schedule()
+_schedule_thread: Thread | None = None
+_metadata_refresh_registered = False
+_platform_started = False
 _metadata_version: str | None = None
 _consumers_registered = False
 
 
 def start_platform_runtime() -> None:
-    global _scheduler, _consumers_registered
-    if _scheduler is not None:
+    global _consumers_registered, _metadata_refresh_registered, _platform_started, _schedule_thread
+    if _platform_started:
         return
     if not _consumers_registered:
         message_center.subscribe(
@@ -43,18 +48,29 @@ def start_platform_runtime() -> None:
         _consumers_registered = True
     message_center.start()
     _safe_refresh_metadata()
-    _scheduler = BackgroundScheduler(daemon=True)
-    _scheduler.add_job(_safe_refresh_metadata, "interval", seconds=300, id="metadata-refresh", replace_existing=True)
-    _scheduler.start()
+    if not _metadata_refresh_registered:
+        _scheduler.add(func=_run_metadata_refresh, interval=300)
+        _metadata_refresh_registered = True
+    if _schedule_thread is None:
+        _schedule_thread = Thread(
+            target=_scheduler.run,
+            name="runtime-schedule",
+            daemon=True,
+        )
+        _schedule_thread.start()
+    _platform_started = True
 
 
 def stop_platform_runtime() -> None:
-    global _scheduler
-    if _scheduler is None:
+    global _platform_started
+    if not _platform_started:
         return
-    _scheduler.shutdown(wait=False)
-    _scheduler = None
     message_center.stop()
+    _platform_started = False
+
+
+def _run_metadata_refresh(_params) -> None:
+    _safe_refresh_metadata()
 
 
 def _safe_refresh_metadata() -> None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Thread
+from threading import Event, Thread
 
 from requests import Session
 from sqlalchemy import Column, String, inspect
@@ -12,6 +12,7 @@ from runtime.client._session import GLOBAL_HTTP_SESSION, RuntimeSession
 from runtime.config import Ini
 from runtime.db import TableBase
 from runtime.log import get_log, set_level
+from runtime.schedule import Job, Schedule
 from runtime.server import PythonRuntime, Route, create_application, router
 from tornado.testing import AsyncHTTPTestCase
 
@@ -184,3 +185,64 @@ def test_runtime_log_returns_stable_minimal_logger_and_updates_level():
     assert not hasattr(first, "warning")
     assert all(hasattr(first, name) for name in ("debug", "info", "warn", "error", "critical", "exception"))
     assert first._logger.level == 10
+
+
+def test_runtime_schedule_runs_one_time_job_with_params():
+    received = []
+    job = Job(lambda params: received.append(params), params={"id": "job_1"})
+
+    should_repeat = job.run()
+
+    assert received == [{"id": "job_1"}]
+    assert should_repeat is False
+
+
+def test_runtime_schedule_run_waits_for_delay_and_executes_one_time_job(monkeypatch):
+    from runtime.schedule import _schedule as schedule_module
+
+    executed = Event()
+    sleeps = []
+    monkeypatch.setattr(schedule_module.time, "sleep", lambda seconds: sleeps.append(seconds))
+    schedule = Schedule()
+    schedule.add(func=lambda _params: executed.set(), delay=2)
+
+    Thread(target=schedule.run, daemon=True).start()
+
+    assert executed.wait(timeout=1)
+    assert sleeps == [2]
+    assert schedule._jobs == []
+
+
+def test_runtime_schedule_reschedules_interval_job():
+    job = Job(lambda _params: None, interval=30)
+    previous_next_time = job.next_time
+
+    should_repeat = job.run()
+
+    assert should_repeat is True
+    assert job.next_time >= previous_next_time
+
+
+def test_runtime_schedule_adds_jobs_and_rejects_invalid_inputs():
+    schedule = Schedule()
+
+    assert schedule.add(func=lambda _params: None, delay=2) is True
+    assert schedule.add(func=None) is False
+    assert schedule.add_job(None) is False
+    assert len(schedule._jobs) == 1
+
+
+def test_runtime_schedule_accepts_custom_job():
+    class CustomJob:
+        next_time = 0
+
+        def run(self):
+            return False
+
+        def __lt__(self, other):
+            return self.next_time < other.next_time
+
+    schedule = Schedule()
+
+    assert schedule.add_job(CustomJob()) is True
+    assert len(schedule._jobs) == 1
