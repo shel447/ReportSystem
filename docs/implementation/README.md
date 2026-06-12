@@ -18,6 +18,7 @@
 12. [日志实现](logging/README.md)
 13. [Runtime 数据库接入](persistence/runtime-db.md)
 14. [Runtime Schedule 接入](scheduling/README.md)
+15. [Backend 第三方扩展层](third-party/README.md)
 
 ## 模块映射
 
@@ -48,6 +49,7 @@
 - application/domain 声明并拥有它们需要的业务接口；infrastructure 只提供实现，不反向定义业务接口
 - 正式业务 ORM 继承 `runtime.db.TableBase`，service scope 通过 persistence infrastructure 的 `db_session` 共享 Runtime Session；开发辅助库保持独立
 - 进程级后台周期任务使用 `runtime.schedule`；业务模块不直接引入第三方调度框架
+- `_third_party` 保存 Backend 对第三方库的项目级扩展源码；当前仅包含尚未接入正式查询链路的 Ibis 扩展
 
 `report.application` 按职责分为：
 

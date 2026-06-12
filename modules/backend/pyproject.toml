@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = [
   "chatbi-runtime-mock",
   "httpx==0.28.1",
-  "ibis-framework[sqlite]==12.0.0",
+  "ibis-framework[sqlite]==11.0.0",
   "jsonschema>=4.23,<5",
   "pydantic==2.7.0",
   "PyYAML>=6.0,<7",

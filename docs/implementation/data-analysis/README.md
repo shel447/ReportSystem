@@ -11,6 +11,8 @@
 - infrastructure：屏蔽外部接口路径、报文和错误码差异。
 - 场景接入：`infrastructure/scenario_registration.py` 只实现 conversation 拥有的场景注册协议，不承载会话或聊天业务语义。
 
+当前实验性 Ibis 查询链路继续使用官方 `ibis-framework[sqlite] == 11.0.0`。Backend 的 [`_third_party/ibis`](../third-party/README.md) 保存后续 DTE SQL 方言和编译器适配源码，但尚未接入本 Context，也不改变当前查询执行行为。
+
 ## 3. 智能问数 Flow
 
 公开 `/chat instruction=data_analysis` 是自然语言入口，对应内部 `analysis_from_nl` Flow：
