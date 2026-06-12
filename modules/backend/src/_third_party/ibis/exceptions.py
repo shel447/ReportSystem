@@ -1,0 +1,2 @@
+class UnsupportedSyntaxException(Exception):
+    pass
