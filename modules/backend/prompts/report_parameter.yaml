@@ -1,0 +1,138 @@
+parameter_batch_extract_prompt:
+  description: "从用户问题中批量提取多个参数值"
+  prompt: |
+    ## 任务
+    从用户问题中提取所有可能的参数值，系统当前的时间是{current_time}。
+
+    ## 用户问题
+    {user_question}
+
+    ## 模板参数定义
+    {parameter_definitions}
+
+    ## 参数转换规则
+    {extract_rule}
+
+    ## 输出要求
+    以文本格式输出，格式如下：
+    {{
+      "param_id1": "提取到的值",
+      "param_id2": "提取到的值"
+    }}
+    如果某个参数无法从问题中提取，不要包含在输出中，只显示空json即可。
+
+
+    /no_think
+
+parameter_extract_prompt:
+  description: "从用户回答中提取单个参数值"
+  prompt: |
+    ## 任务
+    从用户的回答中提取参数值，系统当前的时间是{current_time}。
+
+    ## 上下文
+    - 模板名称：{template_name}
+    - 当前需要提取的参数：{current_param_label}
+    - 用户回答：{current_question}
+    - 可选值：{current_param_options}
+
+    ## 参数提取
+    {extract_rule}
+
+    ## 参数定义
+    {parameter_definitions}
+
+    ## 输出要求
+    直接输出参数值，不需要任何格式。
+    当用户输入无法提取时，请输出“未提取到目标值，请重新输入”。
+    如果是多选，则输出为列表格式，例如['a', 'b']
+
+
+    /no_think
+
+parameter_request_prompt:
+  description: "生成请求单个参数的提示文本"
+  prompt: |
+    ## 任务
+    请生成一段专业、自然的文字，向用户说明上一轮输入的参数内容，以及向用户请求当前需要输入的参数。
+
+
+    ## 参数
+    1.上一轮问答中，用户补充了参数{last_params}
+    2.当前需要请求的参数：{current_param_label}
+    - 类型：{current_param_type}
+    - 是否必填：{current_param_required}
+    - 可选值：{current_param_options}
+    - 是否多选：{multi_select}
+
+
+    ## 要求
+    - 语气自然，像对话一样
+    - 只请求当前这1个参数
+    - 不超过50字
+    - 问题不要太死板，多变一点
+    - 如果有待选值，需要委婉的体现是单选还是多选
+    - 如果没有待选值，不要举例说明
+
+
+    /no_think
+
+parameter_multi_request_prompt:
+  description: "生成同时请求多个参数的提示文本"
+  prompt: |
+    ## 任务
+    请生成一段专业、自然的文字，向用户说明上一轮输入的参数内容，以及当前需要输入的多个参数。
+
+
+    ## 参数
+    1.上一轮问答中，用户补充了参数{last_params}
+    2.当前需要请求的参数列表：
+    {current_params}
+
+    ## 要求
+    - 语气自然，像对话一样
+    - 一次性请求上述所有参数
+    - 每个参数需说明其类型、是否必填、可选值、是否多选
+    - 不超过100字
+    - 问题不要太死板，多变一点
+    - 如果有待选值，需要委婉的体现是单选还是多选
+    - 如果没有待选值，不要举例说明
+
+
+    /no_think
+
+parameter_reask_request_prompt:
+  description: "重新生成请求单个参数的提示文本"
+  prompt: |
+    ## 任务
+    请生成一段专业、自然的文字，告诉用户本轮输入的参数值不合理，需要重新输入。
+
+
+    ## 参数
+    1.用户补充的参数值是：{value}
+    2.当前需要请求的参数：{current_param_label}
+    - 类型：{current_param_type}
+    - 是否必填：{current_param_required}
+    - 可选值：{current_param_options}
+    - 是否多选：{multi_select}
+
+
+    ## 要求
+    - 语气自然，像对话一样
+    - 只请求当前这1个参数
+    - 不超过50字
+    - 问题不要太死板，多变一点
+    - 如果有待选值，需要委婉的体现是单选还是多选
+    - 如果没有待选值，不要举例说明
+
+
+    /no_think
+
+extract_rule:
+  description: "参数提取相关格式"
+  prompt: |
+    1.date类型展示形式为YYYY-MM-DD
+    - 如果用户使用相对时间，例如去年、过去一周，需要使用系统当前时间进行转换
+    - 如果用户回答不包含时间时，严禁使用系统当前时间作为提取值
+    2.当参数类型为enum类型时，提取出的值必须在参数的待选列表中，否则不进行提取
+    3.需要从用户回答中，剔除无意义的语气助词，例如啊、吧、吗等

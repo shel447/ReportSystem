@@ -38,6 +38,29 @@ from src.contexts.report.domain.template_instance_builder import instantiate_tem
 from src.contexts.report.application.template_models import ParameterOptionsResult
 from src.contexts.report.domain.template_models import ParameterValue, report_template_from_dict
 from src.shared.kernel.errors import ConflictError, ErrorCode, UnsupportedCapabilityError
+from src.infrastructure.prompts import get_prompt_catalog
+
+
+class _ParameterAiGateway:
+    def chat_completion(self, _config, messages, **_kwargs):
+        prompt = messages[0]["content"]
+        if "当前需要提取的参数：分析对象" in prompt:
+            return {"content": '["华东", "华北"]'}
+        if "当前需要提取的参数：报告日期" in prompt:
+            return {"content": "2026-04-18"}
+        if "生成专业、自然的追问" in prompt:
+            return {"content": "请补充报告条件。"}
+        if "提取所有可能的参数值" in prompt:
+            return {"content": "{}"}
+        raise AssertionError(f"unexpected prompt: {prompt[:80]}")
+
+
+def _parameter_service():
+    return ReportParameterService(
+        ai_gateway=_ParameterAiGateway(),
+        completion_config_builder=lambda: object(),
+        prompt_catalog=get_prompt_catalog(),
+    )
 
 
 def _service():
@@ -45,7 +68,7 @@ def _service():
         template_service=SimpleNamespace(),
         template_repository=SimpleNamespace(),
         generation_service=SimpleNamespace(),
-        parameter_service=ReportParameterService(),
+        parameter_service=_parameter_service(),
     )
 
 
@@ -97,10 +120,11 @@ class ReportScenarioServiceScopedParameterTests(unittest.TestCase):
             template=report_template_from_dict(_scoped_template()),
             question="请分析华东、华北的运行态势",
             user_id="default",
+            prefer_single_prompt=True,
         )
 
         self.assertIn("scope", values)
-        self.assertEqual(values["scope"][0].label, "请分析华东、华北的运行态势")
+        self.assertEqual([item.label for item in values["scope"]], ["华东", "华北"])
 
     def test_missing_required_parameters_includes_section_scoped_parameters(self):
         template = report_template_from_dict(_scoped_template())
@@ -315,7 +339,7 @@ def _conversation_service(*, template, history_gateway, runtime_service, audit_p
         template_service=SimpleNamespace(get_template=lambda template_id: template),
         template_repository=SimpleNamespace(list_all=lambda: [template]),
         generation_service=runtime_service,
-        parameter_service=ReportParameterService(),
+        parameter_service=_parameter_service(),
     )
     registry = ScenarioRegistry()
     registry.register(

@@ -582,13 +582,15 @@ function AssistantResponseCard({
   }
 
   if (response.answer?.answerType === "DATA_ANALYSIS") {
+    const analysis = response.answer.answer;
     return (
       <article className="message-bubble message-bubble--assistant message-bubble--has-action">
         <div className="card-heading">
           <div>
-            <strong>智能问数已完成</strong>
+            <strong>{analysis.title || "智能问数已完成"}</strong>
             {intro ? <p className="template-hint">{intro}</p> : null}
-            <p className="template-hint">{response.answer.answer.summary}</p>
+            <p className="template-hint">{analysis.summary}</p>
+            {analysis.sqlExplanation ? <p className="template-hint">{analysis.sqlExplanation}</p> : null}
           </div>
         </div>
         <StepTree steps={stepTree} />

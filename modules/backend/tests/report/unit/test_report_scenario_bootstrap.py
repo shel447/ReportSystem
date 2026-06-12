@@ -33,6 +33,7 @@ from src.contexts.report.domain.template_models import OutlineDefinition, report
 from src.contexts.report.infrastructure.scenario_registration import ReportScenarioCodec
 from src.shared.agentflow import FlowNode, InMemoryFlowRuntime, SequentialFlow, SubflowRegistry
 from src.shared.kernel.errors import ConflictError, NotFoundError, ValidationError
+from src.infrastructure.prompts import get_prompt_catalog
 
 
 def _template():
@@ -219,13 +220,41 @@ class _ScopeOptionsGateway:
         }
 
 
+class _ParameterAiGateway:
+    def chat_completion(self, _config, messages, **_kwargs):
+        prompt = messages[0]["content"]
+        if "提取所有可能的参数值" in prompt:
+            question = prompt.split("## 用户问题", 1)[1].split("## 模板参数定义", 1)[0]
+            values = {}
+            if "2026-06-02" in question:
+                values["reportDate"] = "2026-06-02"
+            if "总部网络" in question:
+                values["scope"] = ["hq-network"]
+            import json
+            return {"content": json.dumps(values, ensure_ascii=False)}
+        if "当前参数" in prompt and "用户回答" in prompt:
+            return {"content": "未提取到目标值，请重新输入"}
+        if "生成专业、自然的追问" in prompt:
+            return {"content": "请补充所需的报告参数。"}
+        raise AssertionError(f"unexpected prompt: {prompt[:80]}")
+
+
+def _parameter_service(options_gateway=None):
+    return ReportParameterService(
+        options_gateway=options_gateway,
+        ai_gateway=_ParameterAiGateway(),
+        completion_config_builder=lambda: object(),
+        prompt_catalog=get_prompt_catalog(),
+    )
+
+
 class ReportScenarioBootstrapTests(unittest.TestCase):
     def test_initial_report_flow_finishes_preparation_steps_without_generation_step(self):
         service = ReportScenarioService(
             template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
             template_repository=_TemplateRepository([_template()]),
             generation_service=_GenerationService(),
-            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+            parameter_service=_parameter_service(_ScopeOptionsGateway()),
         )
 
         events = InMemoryFlowRuntime().run_sync(service.create_flow(
@@ -250,7 +279,7 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
             template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
             template_repository=_TemplateRepository([_template()]),
             generation_service=generation,
-            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+            parameter_service=_parameter_service(_ScopeOptionsGateway()),
         )
         initial = service.handle(
             command=ReportScenarioCommand(
@@ -288,7 +317,7 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
             template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
             template_repository=_TemplateRepository([_template()]),
             generation_service=_GenerationService(),
-            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+            parameter_service=_parameter_service(_ScopeOptionsGateway()),
         )
 
         events = InMemoryFlowRuntime().run_sync(service.create_flow(
@@ -318,7 +347,7 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
             template_service=ReportTemplateService(repository=_TemplateRepository([_template()]), schema_gateway=SimpleNamespace()),
             template_repository=_TemplateRepository([_template()]),
             generation_service=_GenerationService(),
-            parameter_service=ReportParameterService(options_gateway=_ScopeOptionsGateway()),
+            parameter_service=_parameter_service(_ScopeOptionsGateway()),
         )
         command = ReportScenarioCommand(
             conversation_id="conv_001",
@@ -360,7 +389,7 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
             template_service=ReportTemplateService(repository=template_repository, schema_gateway=SimpleNamespace()),
             template_repository=template_repository,
             generation_service=generation,
-            parameter_service=ReportParameterService(options_gateway=gateway),
+            parameter_service=_parameter_service(gateway),
         )
 
         result = service.handle(
@@ -390,7 +419,7 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
             template_service=ReportTemplateService(repository=template_repository, schema_gateway=SimpleNamespace()),
             template_repository=template_repository,
             generation_service=generation,
-            parameter_service=ReportParameterService(options_gateway=gateway),
+            parameter_service=_parameter_service(gateway),
         )
 
         result = service.handle(
@@ -413,7 +442,7 @@ class ReportScenarioBootstrapTests(unittest.TestCase):
 
     def test_bootstrap_uses_external_dynamic_options_without_refetching(self):
         gateway = _OptionsGateway()
-        parameter_service = ReportParameterService(options_gateway=gateway)
+        parameter_service = _parameter_service(gateway)
         snapshot = _scope_snapshot(values=[])
         merged_template, values = parameter_service.merge_bootstrap_values(
             template=_template(),

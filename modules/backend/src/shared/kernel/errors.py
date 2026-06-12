@@ -38,6 +38,8 @@ class ErrorCode:
     REPORT_TEMPLATE_SCHEMA_INVALID = "chatbi.report.template.schema_invalid"
     REPORT_PARAMETER_MISSING_REQUIRED = "chatbi.report.parameter.missing_required"
     REPORT_PARAMETER_OPTIONS_UNAVAILABLE = "chatbi.report.parameter.options_unavailable"
+    REPORT_PARAMETER_EXTRACTION_FAILED = "chatbi.report.parameter.extraction_failed"
+    REPORT_PARAMETER_PROMPT_FAILED = "chatbi.report.parameter.prompt_failed"
     REPORT_GENERATION_DSL_INVALID = "chatbi.report.generation.dsl_invalid"
     REPORT_GENERATION_CANCELLED = "chatbi.report.generation.cancelled"
     REPORT_SECTION_NOT_FOUND = "chatbi.report.section.not_found"
@@ -53,6 +55,8 @@ class ErrorCode:
     DATA_ANALYSIS_QUERY_FIELD_NOT_FOUND = "chatbi.data_analysis.query.field_not_found"
     DATA_ANALYSIS_DATASOURCE_UNAVAILABLE = "chatbi.data_analysis.datasource_unavailable"
     DATA_ANALYSIS_RESULT_INVALID = "chatbi.data_analysis.result_invalid"
+    DATA_ANALYSIS_VISUALIZATION_FAILED = "chatbi.data_analysis.visualization_failed"
+    DATA_ANALYSIS_SUMMARY_FAILED = "chatbi.data_analysis.summary_failed"
 
 
 @dataclass(slots=True)

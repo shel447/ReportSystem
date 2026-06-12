@@ -6,10 +6,13 @@ import ast
 import json
 from typing import Any
 
+import yaml
+
 from ....shared.agentflow import FlowContext, FlowEdge, FlowGraph, FlowNode, SubflowEventPolicy, SubflowSpec
-from ....shared.kernel.errors import ErrorCode, ValidationError
+from ....shared.kernel.errors import ApplicationError, ErrorCode, ValidationError
 from ....shared.kernel.audit import AuditEvent, AuditPublisher
 from ....shared.kernel.safety import GuardrailGateway
+from ....shared.prompts import PromptCatalog
 from ..domain.models import (
     Data2ChartInput,
     Data2ChartOutput,
@@ -78,6 +81,7 @@ class DataAnalysisService:
         guardrail_gateway: GuardrailGateway,
         ai_gateway,
         completion_config_builder,
+        prompt_catalog: PromptCatalog,
         audit_publisher: AuditPublisher | None = None,
     ) -> None:
         self.query_service = query_service
@@ -86,6 +90,7 @@ class DataAnalysisService:
         self.guardrail_gateway = guardrail_gateway
         self.ai_gateway = ai_gateway
         self.completion_config_builder = completion_config_builder
+        self.prompt_catalog = prompt_catalog
         self.audit_publisher = audit_publisher
 
     def analyze_from_natural_language(self, *, question: str, user_id: str) -> DataAnalysisAnswer:
@@ -161,17 +166,49 @@ class DataAnalysisService:
         )
 
     def data2chart(self, *, value: Data2ChartInput) -> Data2ChartOutput:
-        chart_type, series = _visualization_selection(value.query_result.data)
-        return Data2ChartOutput(
-            summaries=[],
-            type=chart_type,
-            series=series,
-            query_result=value.query_result,
+        data = value.query_result.data
+        response = self._complete(
+            prompt=[{
+                "role": "system",
+                "content": self.prompt_catalog.render(
+                    "figure.any",
+                    user_question=value.question,
+                    query_results=json.dumps(data.rows[:50], ensure_ascii=False),
+                    field_descriptions=json.dumps(
+                        [{"column": item.key, **item.metadata} for item in data.columns],
+                        ensure_ascii=False,
+                    ),
+                ),
+            }],
+            error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+            error_message="智能问数可视化模型调用失败。",
+            temperature=0.0,
+            max_tokens=1000,
         )
+        return _parse_chart_output(response.get("content"), query_result=value.query_result)
 
     def data2summary(self, *, value: Data2SummaryInput) -> Data2SummaryOutput:
-        summary = self._summarize(question=value.question, sql=value.sql, data=value.query_result.data)
-        return Data2SummaryOutput(summaries=[summary] if summary else [])
+        data = value.query_result.data
+        response = self._complete(
+            prompt=[{
+                "role": "system",
+                "content": self.prompt_catalog.render(
+                    "figure.summary_system",
+                    query=value.question,
+                    sql=value.sql,
+                    result_fields=json.dumps(
+                        [{"column": item.key, **item.metadata} for item in data.columns],
+                        ensure_ascii=False,
+                    ),
+                    data_sample=json.dumps(data.rows[:20], ensure_ascii=False),
+                ),
+            }],
+            error_code=ErrorCode.DATA_ANALYSIS_SUMMARY_FAILED,
+            error_message="智能问数总结模型调用失败。",
+            temperature=0.1,
+            max_tokens=700,
+        )
+        return _parse_summary_output(response.get("content"))
 
     def create_natural_language_flow(self, *, question: str, user_id: str) -> FlowGraph:
         return DataAnalysisFlowFactory(service=self).analysis_from_natural_language(question=question, user_id=user_id)
@@ -197,6 +234,8 @@ class DataAnalysisService:
             data=data,
             components=_visualization_components(chart),
             warnings=list(data.warnings),
+            title=summary.title or chart.title,
+            sql_explanation=summary.sql_explanation,
         )
 
     def _audit_analysis_completed(self, *, answer: DataAnalysisAnswer, user_id: str) -> None:
@@ -218,18 +257,20 @@ class DataAnalysisService:
             return
 
     def _generate_nl2sql_output(self, *, question: str, entities: list[dict[str, Any]], retrieved: list[dict[str, Any]]) -> Nl2SqlOutput:
-        response = self.ai_gateway.chat_completion(
-            self.completion_config_builder(),
-            [
+        response = self._complete(
+            prompt=[
                 {
                     "role": "system",
-                    "content": (
-                        "把用户问题转换为 JSON，只返回 sql 和 intent_function。"
-                        "intent_function 必须是完整、单一的 Python 函数定义源码。"
+                    "content": self.prompt_catalog.render(
+                        "data_analysis.nl2sql",
+                        question=question,
+                        entities=json.dumps(entities[:20], ensure_ascii=False),
+                        retrieved=json.dumps(retrieved[:5], ensure_ascii=False),
                     ),
                 },
-                {"role": "user", "content": json.dumps({"question": question, "entities": entities[:20], "retrieved": retrieved[:5]}, ensure_ascii=False)},
             ],
+            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
+            error_message="智能问数查询生成模型调用失败。",
             temperature=0.0,
             max_tokens=900,
         )
@@ -244,18 +285,40 @@ class DataAnalysisService:
         _validate_intent_function(intent_function)
         return Nl2SqlOutput(sql=sql, intent_function=intent_function)
 
-    def _summarize(self, *, question: str, sql: str, data: DatasetResult) -> str:
-        response = self.ai_gateway.chat_completion(
-            self.completion_config_builder(),
-            [
-                {"role": "system", "content": "根据查询结果给出简洁中文结论。"},
-                {"role": "user", "content": json.dumps({"question": question, "sql": sql, "rows": data.rows[:20]}, ensure_ascii=False)},
-            ],
-            temperature=0.1,
-            max_tokens=400,
-        )
-        return str(response.get("content") or "").strip()
-
+    def _complete(
+        self,
+        *,
+        prompt: list[dict[str, Any]],
+        error_code: str,
+        error_message: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> dict[str, Any]:
+        try:
+            return self.ai_gateway.chat_completion(
+                self.completion_config_builder(),
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except ApplicationError as exc:
+            raise ApplicationError(
+                error_message,
+                details=dict(exc.details),
+                error_code=error_code,
+                category="upstream",
+                retryable=exc.retryable,
+                source=exc.source,
+                http_status=exc.http_status,
+            ) from exc
+        except Exception as exc:
+            raise ApplicationError(
+                error_message,
+                error_code=error_code,
+                category="upstream",
+                retryable=False,
+                http_status=502,
+            ) from exc
 
 class DataAnalysisFlowFactory:
     """Builds composable AgentFlow graphs for data-analysis capabilities."""
@@ -538,13 +601,127 @@ def _validate_intent_function(source: str) -> None:
         )
 
 
-def _visualization_selection(data: DatasetResult) -> tuple[str, list[dict[str, Any]]]:
-    columns = [item.key for item in data.columns]
-    numeric = next((item.key for item in data.columns if str(item.metadata.get("type") or "").lower() in {"int", "integer", "long", "float", "double", "number"}), None)
-    dimension = next((item for item in columns if item != numeric), None)
-    if not numeric or not dimension:
-        return "table", []
-    return "bar", [{"type": "bar", "name": numeric, "dataKey": numeric}]
+def _yaml_object(raw: object, *, error_code: str, label: str) -> dict[str, Any]:
+    text = _strip_code_fence(str(raw or "").strip())
+    try:
+        payload = yaml.safe_load(text)
+    except yaml.YAMLError as exc:
+        raise ValidationError(f"{label}不是合法 YAML。", error_code=error_code) from exc
+    if not isinstance(payload, dict):
+        raise ValidationError(f"{label}必须是 YAML object。", error_code=error_code)
+    return payload
+
+
+def _parse_chart_output(raw: object, *, query_result: QueryResult) -> Data2ChartOutput:
+    payload = _yaml_object(
+        raw,
+        error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+        label="可视化模型输出",
+    )
+    type_map = {
+        "text": "text", "table": "table", "bar": "bar", "line": "line",
+        "multiline": "line", "pie": "pie", "ring": "pie", "scatter": "scatter",
+        "radar": "radar", "gauge": "gauge", "candlestick": "candlestick",
+    }
+    series_payload = payload.get("series") or []
+    if not isinstance(series_payload, list) or any(not isinstance(item, dict) for item in series_payload):
+        raise ValidationError(
+            "可视化 series 必须是对象数组。",
+            error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+        )
+    raw_type = str(payload.get("type") or "").strip().lower()
+    if raw_type == "chart":
+        if not series_payload:
+            raise ValidationError(
+                "Chart 可视化必须在 series 中声明具体图表类型。",
+                error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+            )
+        raw_visual_type = str(series_payload[0].get("type") or "").strip().lower()
+    else:
+        raw_visual_type = raw_type
+    chart_type = type_map.get(raw_visual_type)
+    if chart_type is None:
+        raise ValidationError(
+            f"不支持的可视化类型：{payload.get('type')}",
+            error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+        )
+    columns = {item.key for item in query_result.data.columns}
+    series: list[dict[str, Any]] = []
+    field_names = {"ex", "ey", "ename", "evalue", "time", "open", "close", "lowest", "highest", "volume"}
+    for item in series_payload:
+        normalized = dict(item)
+        item_type = str(item.get("type") or raw_visual_type).strip().lower()
+        normalized_item_type = type_map.get(item_type)
+        if normalized_item_type is None or normalized_item_type != chart_type:
+            raise ValidationError(
+                f"series 图表类型不一致或不受支持：{item.get('type')}",
+                error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+            )
+        normalized["type"] = normalized_item_type
+        if item_type == "ring":
+            normalized["radius"] = ["45%", "70%"]
+        for field_name in field_names:
+            field = normalized.get(field_name)
+            if field is not None and str(field) not in columns:
+                raise ValidationError(
+                    f"可视化引用了不存在的字段：{field}",
+                    error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+                )
+        series.append(normalized)
+    if chart_type not in {"table", "text"} and not series:
+        raise ValidationError(
+            "图表可视化必须包含 series。",
+            error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+        )
+    summaries = payload.get("summaries") or []
+    if not isinstance(summaries, list) or any(not isinstance(item, str) for item in summaries):
+        raise ValidationError(
+            "可视化 summaries 必须是字符串数组。",
+            error_code=ErrorCode.DATA_ANALYSIS_VISUALIZATION_FAILED,
+        )
+    return Data2ChartOutput(
+        summaries=list(summaries),
+        type=chart_type,
+        series=series,
+        query_result=query_result,
+        title=str(payload.get("title") or "").strip(),
+        content=payload.get("content"),
+    )
+
+
+def _parse_summary_output(raw: object) -> Data2SummaryOutput:
+    payload = _yaml_object(
+        raw,
+        error_code=ErrorCode.DATA_ANALYSIS_SUMMARY_FAILED,
+        label="查询总结模型输出",
+    )
+    summaries = payload.get("summaries")
+    if not isinstance(summaries, list) or any(not isinstance(item, str) or not item.strip() for item in summaries):
+        raise ValidationError(
+            "查询总结 summaries 必须是非空字符串数组。",
+            error_code=ErrorCode.DATA_ANALYSIS_SUMMARY_FAILED,
+        )
+    title = payload.get("title")
+    sql_explanation = payload.get("sql_explanation")
+    if not isinstance(title, str) or not title.strip() or not isinstance(sql_explanation, str) or not sql_explanation.strip():
+        raise ValidationError(
+            "查询总结必须包含 title 和 sql_explanation。",
+            error_code=ErrorCode.DATA_ANALYSIS_SUMMARY_FAILED,
+        )
+    return Data2SummaryOutput(
+        summaries=[item.strip() for item in summaries],
+        title=title.strip(),
+        sql_explanation=sql_explanation.strip(),
+    )
+
+
+def _strip_code_fence(content: str) -> str:
+    if not content.startswith("```"):
+        return content
+    lines = content.splitlines()
+    lines = lines[1:] if lines and lines[0].startswith("```") else lines
+    lines = lines[:-1] if lines and lines[-1].strip() == "```" else lines
+    return "\n".join(lines).strip()
 
 
 def _visualization_components(output: Data2ChartOutput) -> list[dict[str, Any]]:
@@ -556,16 +733,24 @@ def _visualization_components(output: Data2ChartOutput) -> list[dict[str, Any]]:
         "title": "查询结果",
         "dataProperties": {"columns": [{"key": item.key, **item.metadata} for item in data.columns], "data": list(data.rows)},
     }
+    if output.type == "text":
+        return [{
+            "id": "analysis_text",
+            "type": "text",
+            "title": output.title,
+            "dataProperties": {"content": str(output.content or "")},
+        }, table]
     if output.type == "table" or not output.series:
         return [table]
-    numeric = str(output.series[0].get("dataKey") or "")
-    dimension = next((item for item in columns if item != numeric), None)
-    if not numeric or not dimension:
+    first = output.series[0]
+    dimension = str(first.get("ex") or first.get("ename") or first.get("time") or "")
+    numeric = str(first.get("ey") or first.get("evalue") or first.get("close") or "")
+    if not numeric or not dimension or numeric not in columns or dimension not in columns:
         return [table]
     chart_component = {
         "id": "analysis_chart",
         "type": "chart",
-        "title": "查询结果图表",
+        "title": output.title or "查询结果图表",
         "dataProperties": {
             "chartType": output.type,
             "columns": [{"key": item.key, **item.metadata} for item in data.columns],

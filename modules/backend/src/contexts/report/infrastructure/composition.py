@@ -5,7 +5,8 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ....infrastructure.ai.openai_compat import OpenAICompatGateway
-from ....infrastructure.configuration import build_embedding_provider_config
+from ....infrastructure.configuration import build_completion_provider_config, build_embedding_provider_config
+from ....infrastructure.prompts import get_prompt_catalog
 from ....infrastructure.platform.client import RuntimeHttpClient
 from ....infrastructure.platform.runtime import build_runtime_client
 from ....shared.messaging import MessagePublisher
@@ -45,7 +46,10 @@ def build_report_service(db: Session, *, dataset_query_gateway=None, message_pub
     )
     external_gateway = ExternalBusinessGateway(client=_client())
     parameter_service = ReportParameterService(
-        options_gateway=ParameterOptionsGateway(gateway=external_gateway)
+        options_gateway=ParameterOptionsGateway(gateway=external_gateway),
+        ai_gateway=OpenAICompatGateway(),
+        completion_config_builder=build_completion_provider_config,
+        prompt_catalog=get_prompt_catalog(),
     )
     schema_gateway = ReportDslSchemaGateway()
     generation_service = ReportGenerationService(

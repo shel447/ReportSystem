@@ -163,11 +163,15 @@ X-User-Id: <external-user-id>
 | `chatbi.conversation.quota_exceeded` | 409 | 会话数量达到平台限制 |
 | `chatbi.report.template.not_found` | 404 | 报告模板不存在 |
 | `chatbi.report.parameter.missing_required` | 400 | 报告生成缺少必填参数 |
+| `chatbi.report.parameter.extraction_failed` | 400 | 报告参数模型输出无法通过参数规则校验 |
+| `chatbi.report.parameter.prompt_failed` | 500 | 报告参数提示词或模型调用失败 |
 | `chatbi.report.generation.dsl_invalid` | 400 | 报告内容结构校验失败 |
 | `chatbi.report.document.pdf_not_available` | 400 | PDF 导出暂未开放 |
 | `chatbi.data_analysis.query_blocked` | 400 | 智能问数查询被安全规则拦截 |
 | `chatbi.data_analysis.query.unsupported_syntax` | 422 | 查询使用了当前数据源不支持的语法 |
 | `chatbi.data_analysis.query.field_not_found` | 422 | 查询引用的字段不存在 |
+| `chatbi.data_analysis.visualization_failed` | 400 | 智能问数可视化建议输出无效 |
+| `chatbi.data_analysis.summary_failed` | 400 | 智能问数总结输出无效 |
 
 ## 2. 客户端接口
 
@@ -910,7 +914,9 @@ paged Report DSL 示例：
 {
   "answerType": "DATA_ANALYSIS",
   "answer": {
+    "title": "核心设备健康评分",
     "summary": "核心设备整体稳定，建议关注评分较低的设备。",
+    "sqlExplanation": "按设备展示健康评分，并按当前查询条件返回结果。",
     "querySpec": {
       "intent": "查询核心设备健康评分",
       "sql": "select device_name, health_score from network_health"
@@ -934,6 +940,7 @@ paged Report DSL 示例：
 - DataCatalog 用于理解实体与字段；Knowledge/RAG 不可用时允许降级为空上下文。
 - OneQuery、DataCatalog 或 SQL 安全检查失败时，本次智能问数明确失败，不伪装为正常空结果。
 - `visualizations.components` 使用 BI Engine 可消费的组件结构。
+- `title/sqlExplanation` 为向后兼容的可选字段，分别表达业务标题和查询口径说明。
 
 ##### ChatResponse.delta 子结构
 

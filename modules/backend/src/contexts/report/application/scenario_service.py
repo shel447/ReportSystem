@@ -207,16 +207,37 @@ class ReportScenarioService:
                 catalogs=current.catalogs,
                 chapters=current.chapters,
             )
-            merged_values = merge_parameter_values(
-                parameter_definitions=definitions,
-                current_values=parameters_to_value_map(current_parameters),
-                incoming_values=self.parameter_service.merge_reply_values(
-                    reply.parameters if reply else None,
+            current_values = parameters_to_value_map(current_parameters)
+            reask_value = None
+            if reply is not None:
+                incoming_values = self.parameter_service.merge_reply_values(
+                    reply.parameters,
                     parameter_definitions=definitions,
                     current_parameters=current_parameters,
                 )
-                if reply is not None
-                else self.parameter_service.extract_values(template=template, question=str(command.question or ""), user_id=command.user_id),
+            else:
+                missing = self.parameter_service.missing_required_parameters(
+                    template=template,
+                    template_instance=current,
+                )
+                target_ids = {
+                    parameter.id
+                    for parameter in self.parameter_service.next_missing_batch(missing)
+                }
+                incoming_values = self.parameter_service.extract_values(
+                    template=template,
+                    question=str(command.question or ""),
+                    user_id=command.user_id,
+                    skip_parameter_ids=set(current_values),
+                    target_parameter_ids=target_ids,
+                    prefer_single_prompt=True,
+                )
+                if target_ids and not incoming_values:
+                    reask_value = str(command.question or "").strip() or None
+            merged_values = merge_parameter_values(
+                parameter_definitions=definitions,
+                current_values=current_values,
+                incoming_values=incoming_values,
             )
             instance = instantiate_template_instance(
                 instance_id=current.id,
@@ -234,7 +255,12 @@ class ReportScenarioService:
             persisted = self.generation_service.persist_template_instance(instance, user_id=command.user_id)
             return ReportScenarioResult(
                 status="waiting_user",
-                ask=self.parameter_service.build_ask(template=template, template_instance=persisted, user_id=command.user_id),
+                ask=self.parameter_service.build_ask(
+                    template=template,
+                    template_instance=persisted,
+                    user_id=command.user_id,
+                    reask_value=reask_value,
+                ),
             )
 
         if command.bootstrap is not None:

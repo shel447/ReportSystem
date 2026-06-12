@@ -11,6 +11,7 @@ from .dependencies import conversation_service_scope, report_service_scope
 from .demo.telecom import init_telecom_demo_db
 from .persistence.dev_database import init_dev_db
 from .platform.runtime import audit_publisher, build_policy_auth_gateway, start_platform_runtime, stop_platform_runtime
+from .prompts import initialize_prompt_catalog
 from ..shared.kernel.log import start_log_level_monitor, stop_log_level_monitor
 
 T = TypeVar("T")
@@ -31,6 +32,7 @@ class ChatBIServer:
         init_telecom_demo_db()
         start_log_level_monitor()
         initialize_config_center()
+        initialize_prompt_catalog()
         start_platform_runtime()
         self.executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="report-web")
         self.policy_auth_gateway = build_policy_auth_gateway()

@@ -174,7 +174,9 @@ export type ChatResponse = {
     | {
         answerType: "DATA_ANALYSIS";
         answer: {
+          title?: string;
           summary: string;
+          sqlExplanation?: string;
           querySpec: Record<string, unknown>;
           sql: string;
           data: { columns: Record<string, unknown>; results: Array<Record<string, unknown>> };

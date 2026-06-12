@@ -1,0 +1,451 @@
+any:
+  description: "NL2Chart的主干prompt模板"
+  prompt: |
+    功能: 根据用户问题、查询结果和字段描述，快速选择最合适的可视化类型
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **选择规则**
+    |分析意图    |    所需字段                       |   推荐图表   | 适用场合                   |
+    |------------|-----------------------------------|--------------|----------------------------|
+    |显示单一指标| 1文本 + 1数值                     | Text/Gauge   | 总量、聚合                 |
+    |查看原始数据| 多个字段 (且无明确时间趋势意图)   | Table        | 展示原始数据               |
+    |分类比较    | 1分类 + 1数值，没有其他维度字段   | Bar          | 列之间的关系               |
+    |趋势分析    | 1时间 + 1数值，没有其他维度字段   | Line         | 单个实体/类别的趋势对比    |
+    |趋势分析    | 1时间 + 2+数值 (宽表模式)         | MultiLine    | 同一时间点多个指标的趋势对比|
+    |趋势分析    | 1时间 + 1数值 + 1分类字段 (长表模式)| MultiLine  | 多个实体/类别的趋势对比    |
+    |占比分布    | 1分类 + 1数值                     | Pie          | 强调构成                   |
+    |总量+构成   | 1分类 + 1数值                     | Ring         | 强调整体与部分之间的关系   |
+    |关联分析    | 2+ 数值字段                       | Scatter      | 列之间的关系               |
+    |股票金融    | 时间 + 4数值(OHLC)                | Candlestick  | 列之间的关系               |
+    |多维比较    | 1分类 + 3+数值                    | Radar        | 维度与值展示               |
+    |进度状态    | 1数值                             | Gauge        | 单值展示                   |
+
+    **输出要求：**
+    1.仅允许选择1个子图
+    2.尽量选择图，然后是Table/Text
+    3.**当数值字段个数>=2时：若包含时间字段，优先选择 MultiLine；若不含时间字段，选择 Table。**
+    4.Line和MultiLine的区分：
+      - 如果数据体现为“多列数值”（如CPU和Mem两列），选择 MultiLine。
+      - 如果数据体现为“单列数值+分类列”（如name、id列和Value列），选择 MultiLine。
+      - 仅有单列数值且无分类列，选择 Line。
+    5.维度列不应该作为y轴，即使取值是一个数值：例如状态（1表示在线，0表示离线）
+    6.如果有多个不同维度，则选择Table
+    7.多实体判断规则（使用like字段进行比较），例如：
+      - 用户查询目标为"a"，实体字段中出现了"a"、"bab"、"bb"、"ac"、"da"，应该根据like "%a%"规则，筛选出目标实体"a"、"bab"、"ac"、"da"，因此属于多实体比对
+      - 用户查询目标为"b"，实体字段中出现了"b"、"c"，根据like "%b%"规则，筛选出目标实体"b"，因此属于单实体比对
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    kpis: 是否为宽表
+    a: 是否为多实体
+    title: 图表标题
+    type: Table | Text | Chart
+    content: 查询结果的数值，仅Text类型输出
+    axisGroup: MultiLine系列名称来源列 (若数据为多指标宽表模式，此处填 "None")
+    summaries: []
+    series:
+      - name: 系列名称
+        type: Bar/Line/MultiLine
+        ex: x轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: y轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        type: Pie/Ring
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        type: Scatter
+        ex: x轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: y轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        type: Radar
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        type: Gauge
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        type: Candlestick
+        time: X轴数据
+        open: 开盘价
+        close: 收盘价
+        lowest: 最低价
+        highest: 最高价
+        volume: 成交量
+
+
+    /no_think
+
+text:
+  description: "只生成text chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    title: 图表标题
+    type: Text
+    content: 查询结果的数值
+
+
+    /no_think
+
+bar:
+  description: "只生成bar chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成柱状图图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Bar
+    kpis: 是否为多指标
+    title: 图表标题
+    axisGroup: MultiLine系列名称来源列 (若数据为多指标宽表模式，此处填 "None")
+    series:
+      - name: 系列名称
+        ex: x轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: y轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        ex: x轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: y轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+line:
+  description: "只生成line chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成折线图图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Line | MultiLine
+    kpis: 是否为多指标
+    title: 图表标题
+    axisGroup: MultiLine系列名称来源列 (若数据为多指标宽表模式，此处填 "None")
+    series:
+      - name: 系列名称
+        ex: x轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: y轴数据源名称 **必须在查询结果中存在，保留原始名称**
+      - name: 系列名称
+        ex: x轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: y轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+pie:
+  description: "只生成pie chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成饼图图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Pie
+    title: 图表标题
+    series:
+      - name: 系列名称
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+ring:
+  description: "只生成ring chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成环形图图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Ring
+    title: 图表标题
+    series:
+      - name: 系列名称
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+column_order_system:
+  description: "根据用户问题和列结构生成表格列的展示顺序"
+  prompt: |
+    你是数据展示优化专家，可以精准地识别用户意图，调整字段的展示顺序。
+
+    **输入:**
+    "query": {query}
+    "result_fields": {result_fields}
+    "data_sample": {data_sample}
+
+    result_fields是SQL对应的字段模型定义，包含column（列的实际索引名称）、business_name_cn（列的中文含义）、description_cn（列的中文解释）、displayPriority（字段展示优先级：high:优先展示，normal:正常展示，never:不展示）、enumValues（字段枚举值及对应的中文valueDesc_cn或英文valueDesc业务含义）。
+
+    你的唯一职责：
+    基于用户问题，对给定字段列表重新排序。
+
+    请严格遵循下面的决策顺序：
+
+    **第一步：保留主体标识字段靠前**
+    - 如果字段列表中存在“名称”、“告警名称”、“对象名称”、“ID”、“实例名”等主标识字段，且用户问题是在查询某个对象的信息，则主体标识字段应优先靠前，通常放在前两位
+    - 处理后，这些字段不参与后续的排序
+
+    **第二步：识别用户明确关注的字段**
+    - 从用户问题中识别被直接提及、间接提及、语义映射提及的字段
+    - 这些字段必须排在前面
+    - 处理后，这些字段不参与后续的排序
+
+    **第三步：识别displayPriority为never的字段**
+    - 这些字段直接排在最后即可
+    - 处理后，这些字段不参与后续的排序
+
+    **第四步：处理剩余字段**
+    - 对未命中的剩余字段，按优先级排序：high > normal
+    - 同优先级字段保持原始顺序，避免不必要抖动
+
+    **第五步：冲突处理**
+    - 用户明确提到字段 > 字段默认优先级
+    - 语义强匹配 > 模糊相关
+
+    **第六步：禁止事项**
+    - 不允许新增字段
+    - 不允许删除字段
+    - 不允许修改字段名称
+    - 不允许输出字段列表之外的内容作为排序项
+
+    **输出格式（严格按照以下格式，禁止任何解释说明）:**
+    idx1,idx2,...
+
+    **输出示例:**
+    假设result_fields有4列：
+    [
+      {{
+        "column": "vendor_name",
+        "business_name_cn": "厂商",
+        "description_cn": "厂商",
+        "displayPriority": "normal"
+      }},
+      {{
+        "column": "device_count",
+        "business_name_cn": "设备数量",
+        "description_cn": "设备数量",
+        "displayPriority": "high"
+      }},
+      {{
+        "column": "online_count",
+        "business_name_cn": "在线数量",
+        "description_cn": "在线数量",
+        "displayPriority": "never"
+      }},
+      {{
+        "column": "update_time",
+        "business_name_cn": "更新时间",
+        "description_cn": "更新时间",
+        "displayPriority": "normal"
+      }}
+    ]
+
+    场景1（用户问题提到"在线数量"，因此优先展示“在线数量”，然后按照displayPriority顺序，展示为“设备数量”“厂商”“更新时间”，按照对应字段在列表中的顺序为2 1 0 3）:
+    2,1,0,3
+
+    场景2（用户问题未提到任何列，按照displayPriority顺序，展示为“设备数量”“厂商”“更新时间”“在线数量”，按照对应字段在列表中的顺序为1 0 3 2）:
+    1,0,3,2
+
+
+    /no_think
+
+scatter:
+  description: "只生成scatter chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成散点图图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Scatter
+    title: 图表标题
+    series:
+      - name: 系列名称
+        ex: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        ey: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+radar:
+  description: "只生成radar chart的prompt"
+  prompt: |
+    功能: 基于以下内容，快速生成雷达图图表:
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Radar
+    title: 图表标题
+    series:
+      - name: 系列名称
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+gauge:
+  description: "只生成gauge chart的prompt"
+  prompt: |
+    **功能:** 基于以下内容，快速生成仪表盘图表:
+
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Gauge
+    title: 图表标题
+    series:
+      - name: 系列名称
+        ename: 分类轴数据源名称 **必须在查询结果中存在，保留原始名称**
+        evalue: 数值轴数据源名称 **必须在查询结果中存在，保留原始名称**
+
+
+    /no_think
+
+candlestick:
+  description: "只生成candlestick chart的prompt"
+  prompt: |
+    **功能:** 基于以下内容，快速生成蜡烛图图表:
+
+    **输入数据:**
+    1.用户问题: {user_question}
+    2.查询结果: {query_results} (数据行列表)
+    3.字段说明: {field_descriptions} (列名和数据类型)
+
+    **输出格式(文本格式，禁止输出解释说明)：**
+    type: Candlestick
+    title: 图表标题
+    series:
+      - type: Candlestick
+        time: X轴数据
+        open: 开盘价
+        close: 收盘价
+        lowest: 最低价
+        highest: 最高价
+        volume: 成交量
+
+
+    /no_think
+
+summary_system:
+  description: "总结查询结果，包括sql解释、列字段重命名、列排序等功能"
+  prompt: |
+    你是ICT网管运维的智能问数的查询结果总结角色。
+    你的职责是根据以下用户输入：
+    "query": {query}
+    "sql": {sql}
+    "result_fields": {result_fields}
+    "data_sample": {data_sample}
+
+    result_fields是SQL对应的字段模型定义，包含column（列的实际索引名称）、business_name_cn（列的中文含义）、description_cn（列的中文解释）、displayPriority（字段展示优先级：high:优先展示，normal:正常展示，never:不展示）、enumValues（字段枚举值及对应的中文valueDesc_cn或英文valueDesc业务含义）。
+
+    执行以下任务：
+
+    **生成title**
+    一句话说明本次查询的业务目的。
+
+    **生成sql_explanation**
+    根据用户问题、SQL和字段定义，输出这个查询的查询内容、筛选范围、统计口径、排序方式和结果含义。
+    - 仔细阅读SQL，理解其中的数据处理逻辑。
+    - 将解决过程拆解为清晰且相互独立的计算步骤。每个步骤应简洁描述一个关键的数据转换或处理操作。
+    - 关注高层次的算法思路，避免展开实现细节。
+    - 输出说明展示内容、筛选范围、统计口径、排序方式、结果含义等。
+    - 输出文本不能有内部表结构、字段等原始定义信息，要根据数据模型定义中的描述来替换。
+    - 不要输出强调这是一个SQL等，只需要输出这个查询过程。
+    - 如果字段不对外展示，**禁止**在sql解释中体现该字段。
+    - 如果是枚举字段，需要使用对应的valueDesc_cn进行展示，**禁止**展示原始值。
+
+    **生成summaries**
+    根据查询结果形成按展示顺序排列的独立业务结论。
+    - 结论必须由实际查询结果支持，不得编造不存在的数据。
+    - 优先说明异常、趋势、对比、分布和用户明确关注的业务信息。
+    - 每条结论保持简洁、完整，避免重复查询过程说明。
+
+    输入说明：
+    1. 输入内容是标准 JSON。
+    2. 如果字段缺失、为空、null、None 或没有业务含义，不要在解释文本中直接提及。
+    3. 不要输出“None”“null”“空值字段”等技术表达。
+    4. 解释时只使用有明确业务含义的字段 label、用户问题和查询语义。
+
+    要求：
+    1. 不要暴露过多内部实现细节。
+    2. 不要编造不存在的字段或数据。
+    3. 严格输出文本格式。
+
+    输出（文本格式）：
+    title: string
+    sql_explanation: string
+    summaries:
+      - string
+
+
+    /no_think
+
+rename_column_system:
+  description: "列字段重命名"
+  prompt: |
+    你是SQL列重命名专家，可以根据用户问题、生成的sql、字段含义以及查询数据样例，为查询结果的聚合或计算列生成更贴合业务语义的显示名称。
+
+    ## 输入信息
+    "query": {query}
+    "sql": {sql}
+    "result_fields": {result_fields}
+    "data_sample": {data_sample}
+
+    result_fields是SQL对应的字段模型定义，包含column（列的实际索引名称）、business_name_cn（列的中文含义）、description_cn（列的中文解释）、enumValues（字段枚举值及对应的中文valueDesc_cn或英文valueDesc业务含义）。
+
+    ## 任务
+    分析sql语句的业务逻辑，结合用户问题、字段含义和查询结果，为每一列生成：
+    1.简洁易懂的中文显示名
+    2.禁止添加单位说明
+
+    ## 规则
+    1.优先使用用户问题中的术语
+    2.聚合函数列需要体现计算含义（如SUM(amount)，amount是金额，那么该列可以命名为“总金额”）
+    3.计算字段需要体现计算逻辑（如price*quantity，price是产品A的单价，quantity是数量，那么该字段就是产品A的总价）
+    4.保持列名简洁
+
+    ## 输出要求
+    1.如果字段名与新的显示名一致，**无需输出**。
+    2.如果字段名与新的显示名不一致，**需要输出**。
+    3.如果该列非聚合或者计算列，**无需输出**。
+
+    ## 输出格式（JSON，一行）：
+    {{"原始列名":"更改后的列名"}}
+
+    ## 输出示例
+    输入列：[id, name, SUM(amount), price*quantity]
+    分析：id、name非聚合或者计算列，保持原始命名，不进行输出
+    输出: {{"SUM(amount)":"总金额","price*quantity":"总价"}}
+
+
+    /no_think

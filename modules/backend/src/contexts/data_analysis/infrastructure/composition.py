@@ -10,6 +10,7 @@ from ....infrastructure.configuration import (
 from ....infrastructure.platform.guardrail import ExternalGuardrailGateway
 from ....infrastructure.platform.client import RuntimeHttpClient
 from ....infrastructure.platform.runtime import audit_publisher, build_runtime_client
+from ....infrastructure.prompts import get_prompt_catalog
 from ..application.services import DataAnalysisService, DataQueryService
 from .gateways import (
     ExternalApiDatasetGateway,
@@ -44,6 +45,7 @@ def build_data_analysis_service() -> DataAnalysisService:
         guardrail_gateway=ExternalGuardrailGateway(client=_client()),
         ai_gateway=OpenAICompatGateway(),
         completion_config_builder=build_completion_provider_config,
+        prompt_catalog=get_prompt_catalog(),
         audit_publisher=audit_publisher,
     )
 

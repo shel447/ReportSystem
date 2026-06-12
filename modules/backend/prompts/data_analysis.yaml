@@ -1,0 +1,23 @@
+nl2sql:
+  description: "根据自然语言问题和数据上下文生成 SQL 与意图函数"
+  prompt: |
+    ## 任务
+    根据用户问题、逻辑实体和检索到的样例生成查询。
+
+    ## 用户问题
+    {question}
+
+    ## 可用逻辑实体
+    {entities}
+
+    ## 检索上下文
+    {retrieved}
+
+    ## 输出要求
+    仅输出 JSON：
+    {{
+      "sql": "可执行 SQL",
+      "intent_function": "完整且唯一的 Python 函数定义源码"
+    }}
+    不要输出 Markdown 或解释。
+    /no_think

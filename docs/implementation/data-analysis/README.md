@@ -31,8 +31,8 @@ flowchart LR
 | `nl2sql` | `{"question": string}` | `{"sql": string, "intent_function": string}` | 加载 DataCatalog 和 Knowledge/RAG 上下文，调用 LLM 生成 SQL 与预留意图函数，执行 SQL Guardrail |
 | `sql2data` | `{"question": string, "sql": string}` | 完整 OneQuery 成功响应 | 调用 OneQuery 执行查询并保留原始成功包络 |
 | `nl2data` | `{"question": string}` | `sql + intent_function + query_result` | 固定组合 `nl2sql -> sql2data` |
-| `data2chart` | `question + query_result` | `summaries + type + series + query_result` | 选择 BI Engine 图表或表格展示，并原样保留查询结果 |
-| `data2summary` | `question + sql + query_result` | `{"summaries": string[]}` | 基于问题、SQL 和数据生成按顺序展示的分析结论 |
+| `data2chart` | `question + query_result` | `title + content + summaries + type + series + query_result` | 选择 BI Engine 图表或表格展示，并原样保留查询结果 |
+| `data2summary` | `question + sql + query_result` | `title + sql_explanation + summaries` | 基于问题、SQL 和数据生成标题、查询口径说明和分析结论 |
 | `finalize` | 上述步骤结果 | `DATA_ANALYSIS` answer | 适配为当前 `/chat` 最终答案结构 |
 
 ### 3.1 子流程契约
@@ -65,7 +65,9 @@ flowchart LR
 
 `series` 是 BI Engine series 对象数组。无法形成合适图表时 `type = "table"`。最终 `visualizations.components` 由该 DTO 适配生成，以保持现有 `/chat` 答案兼容。
 
-`data2summary.summaries` 是有序结论数组；最终 `DATA_ANALYSIS.answer.summary` 暂以换行拼接，保留现有前端契约。
+`data2chart` 与 `data2summary` 使用 `modules/backend/prompts/figure_generate_template.yaml`。主流程调用 `any` 与 `summary_system`；指定图表、列排序和列重命名模板在启动时一并校验，留作后续流程节点。模型输出必须通过 YAML 解析、图表类型和字段引用校验。
+
+`data2summary.summaries` 是有序结论数组；最终 `DATA_ANALYSIS.answer.summary` 暂以换行拼接，并新增可选 `title/sqlExplanation`。LLM 调用或输出非法时直接返回 `chatbi.data_analysis.*` 错误，不使用固定柱状图或固定摘要兜底。
 
 `nl2data` 是组合能力：`nl2sql -> sql2data`。它不是公开 `/chat` 指令，而是供其他流程或未来集成复用的内部子流程。
 

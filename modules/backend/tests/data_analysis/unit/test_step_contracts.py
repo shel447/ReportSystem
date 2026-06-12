@@ -67,7 +67,13 @@ def test_data_analysis_step_contracts_round_trip():
         ),
         (Data2ChartInput("查询核心设备健康评分", query_result), data2chart_input_to_dict, data2chart_input_from_dict),
         (
-            Data2ChartOutput([], "bar", [{"type": "bar", "dataKey": "health_score"}], query_result),
+            Data2ChartOutput(
+                [],
+                "bar",
+                [{"type": "bar", "ex": "device_name", "ey": "health_score"}],
+                query_result,
+                title="健康评分",
+            ),
             data2chart_output_to_dict,
             data2chart_output_from_dict,
         ),
@@ -76,7 +82,15 @@ def test_data_analysis_step_contracts_round_trip():
             data2summary_input_to_dict,
             data2summary_input_from_dict,
         ),
-        (Data2SummaryOutput(["核心设备整体稳定。"]), data2summary_output_to_dict, data2summary_output_from_dict),
+        (
+            Data2SummaryOutput(
+                ["核心设备整体稳定。"],
+                title="健康评分",
+                sql_explanation="按设备展示健康评分。",
+            ),
+            data2summary_output_to_dict,
+            data2summary_output_from_dict,
+        ),
         (query_result, query_result_to_dict, query_result_from_dict),
     ]
 

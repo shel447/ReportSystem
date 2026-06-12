@@ -15,22 +15,42 @@ from src.contexts.data_analysis.domain.models import (
 )
 from src.shared.agentflow import FlowEdge, FlowGraph, FlowNode, InMemoryFlowRuntime, SubflowRegistry
 from src.shared.kernel.errors import ErrorCode, UpstreamError, ValidationError
+from src.infrastructure.prompts import get_prompt_catalog
 
 
 class _AiGateway:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def chat_completion(self, *_args, **_kwargs):
-        self.calls += 1
-        if self.calls == 1:
+    def chat_completion(self, _config, messages, **_kwargs):
+        prompt = messages[0]["content"]
+        if "可用逻辑实体" in prompt:
             return {
                 "content": (
                     '{"sql":"select device_name, health_score from network_health",'
                     '"intent_function":"def resolve_intent(question):\\n    return {\'question\': question}"}'
                 )
             }
-        return {"content": "核心设备整体稳定，建议关注出口路由器-B。"}
+        if "选择最合适的可视化类型" in prompt:
+            return {
+                "content": (
+                    "title: 核心设备健康评分\n"
+                    "type: Bar\n"
+                    "summaries: []\n"
+                    "series:\n"
+                    "  - name: 健康评分\n"
+                    "    type: Bar\n"
+                    "    ex: device_name\n"
+                    "    ey: health_score\n"
+                )
+            }
+        if "sql_explanation" in prompt:
+            return {
+                "content": (
+                    "title: 核心设备健康评分\n"
+                    "sql_explanation: 按设备展示健康评分并关注低分设备。\n"
+                    "summaries:\n"
+                    "  - 核心设备整体稳定，建议关注出口路由器-B。\n"
+                )
+            }
+        raise AssertionError(f"unexpected prompt: {prompt[:80]}")
 
 
 class _QueryService:
@@ -83,6 +103,7 @@ def _service(*, guardrail_passed: bool = True, query_service=None):
             guardrail_gateway=_GuardrailGateway(passed=guardrail_passed),
             ai_gateway=_AiGateway(),
             completion_config_builder=lambda: object(),
+            prompt_catalog=get_prompt_catalog(),
         ),
         query,
     )
@@ -96,6 +117,8 @@ def test_data_analysis_generates_guarded_sql_and_bi_visualizations():
     assert answer.query_spec.sql == "select device_name, health_score from network_health"
     assert query.calls[0]["context"] == {"lineage.tracing.enable": True, "scenario": DATA_ANALYSIS_INSTRUCTION}
     assert answer.summary == "核心设备整体稳定，建议关注出口路由器-B。"
+    assert answer.title == "核心设备健康评分"
+    assert answer.sql_explanation == "按设备展示健康评分并关注低分设备。"
     assert [item["type"] for item in answer.components] == ["chart", "table"]
     assert answer.components[0]["dataProperties"]["chartType"] == "bar"
 
@@ -116,9 +139,11 @@ def test_data_analysis_step_contracts_share_complete_query_result():
     assert generated.intent_function.startswith("def resolve_intent")
     assert query_result.ret_code == 0
     assert chart.type == "bar"
-    assert chart.series == [{"type": "bar", "name": "health_score", "dataKey": "health_score"}]
+    assert chart.title == "核心设备健康评分"
+    assert chart.series == [{"name": "健康评分", "type": "bar", "ex": "device_name", "ey": "health_score"}]
     assert chart.query_result is query_result
     assert summary.summaries == ["核心设备整体稳定，建议关注出口路由器-B。"]
+    assert summary.sql_explanation == "按设备展示健康评分并关注低分设备。"
 
 
 def test_data_analysis_stops_before_execution_when_application_guardrail_blocks_sql():

@@ -62,6 +62,8 @@ class Data2ChartOutput:
     type: str
     series: list[dict[str, Any]]
     query_result: QueryResult
+    title: str = ""
+    content: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +76,8 @@ class Data2SummaryInput:
 @dataclass(frozen=True, slots=True)
 class Data2SummaryOutput:
     summaries: list[str]
+    title: str = ""
+    sql_explanation: str = ""
 
 
 @dataclass(slots=True)
@@ -93,6 +97,8 @@ class DataAnalysisAnswer:
     data: DatasetResult
     components: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[dict[str, Any]] = field(default_factory=list)
+    title: str = ""
+    sql_explanation: str = ""
 
 
 def query_spec_to_dict(spec: QuerySpec) -> dict[str, Any]:
@@ -196,6 +202,8 @@ def data2chart_input_from_dict(payload: object) -> Data2ChartInput:
 
 def data2chart_output_to_dict(value: Data2ChartOutput) -> dict[str, Any]:
     return {
+        "title": value.title,
+        "content": value.content,
         "summaries": list(value.summaries),
         "type": value.type,
         "series": list(value.series),
@@ -210,6 +218,8 @@ def data2chart_output_from_dict(payload: object) -> Data2ChartOutput:
         type=_required_string(data, "type"),
         series=_object_list(data.get("series"), "series"),
         query_result=query_result_from_dict(data.get("query_result")),
+        title=_optional_string(data.get("title")),
+        content=data.get("content"),
     )
 
 
@@ -231,11 +241,20 @@ def data2summary_input_from_dict(payload: object) -> Data2SummaryInput:
 
 
 def data2summary_output_to_dict(value: Data2SummaryOutput) -> dict[str, Any]:
-    return {"summaries": list(value.summaries)}
+    return {
+        "title": value.title,
+        "sql_explanation": value.sql_explanation,
+        "summaries": list(value.summaries),
+    }
 
 
 def data2summary_output_from_dict(payload: object) -> Data2SummaryOutput:
-    return Data2SummaryOutput(summaries=_string_list(_object(payload, "data2summary output").get("summaries"), "summaries"))
+    data = _object(payload, "data2summary output")
+    return Data2SummaryOutput(
+        summaries=_string_list(data.get("summaries"), "summaries"),
+        title=_optional_string(data.get("title")),
+        sql_explanation=_optional_string(data.get("sql_explanation")),
+    )
 
 
 def dataset_result_from_dict(payload: object) -> DatasetResult:
@@ -256,7 +275,7 @@ def dataset_result_from_dict(payload: object) -> DatasetResult:
 
 
 def data_analysis_answer_to_dict(answer: DataAnalysisAnswer) -> dict[str, Any]:
-    return {
+    payload = {
         "summary": answer.summary,
         "querySpec": query_spec_to_dict(answer.query_spec),
         "sql": answer.query_spec.sql,
@@ -264,6 +283,11 @@ def data_analysis_answer_to_dict(answer: DataAnalysisAnswer) -> dict[str, Any]:
         "visualizations": {"components": list(answer.components)},
         "warnings": list(answer.warnings),
     }
+    if answer.title:
+        payload["title"] = answer.title
+    if answer.sql_explanation:
+        payload["sqlExplanation"] = answer.sql_explanation
+    return payload
 
 
 def _object(payload: object, name: str) -> dict[str, Any]:
@@ -283,6 +307,14 @@ def _string_list(value: object, name: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
         raise ValueError(f"{name} must be an array of strings")
     return list(value)
+
+
+def _optional_string(value: object) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("optional string field must be a string")
+    return value.strip()
 
 
 def _object_list(value: object, name: str) -> list[dict[str, Any]]:

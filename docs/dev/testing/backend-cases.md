@@ -26,6 +26,7 @@
 | `tests/conversation/unit/test_conversation_service.py` | 10 | AgentCore 托管对话、通用追问生命周期、SSE 断开后持久化、运行中会话并发保护、upsert 消费、暂未开放 fork 和异步审计提交 |
 | `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
 | `tests/data_analysis/unit/test_data_analysis_service.py` | 7 | 智能问数编排、强类型步骤组合、SQL 安全拒绝、精确查询错误停止后续节点和 BI 可视化建议 |
+| `tests/data_analysis/unit/test_prompt_outputs.py` | 3 | 图表提示词类型映射、字段引用校验和标题/SQL 解释/业务结论解析 |
 | `tests/data_analysis/unit/test_step_contracts.py` | 5 | 五个内部子流程 DTO round-trip、必填字段、`intent_function` AST 校验和禁止执行源码 |
 | `tests/data_analysis/infrastructure/test_external_query_gateways.py` | 9 | OneQuery 正式路径、完整成功包络、精确业务错误、未知错误兼容语义、必填包络字段、字段元数据和用户级 DataCatalog/RAG 缓存 |
 | `tests/features/test_document_export_flow.py` | 1 | 文档生成 Controller 到应用服务的契约 |
@@ -52,12 +53,14 @@
 | `tests/report/unit/test_report_generation_service.py` | 33 | 模板实例、DSL 编译、报告生成领域事件、数据集告警汇总、动态结构和自定义内容 |
 | `tests/report/unit/test_report_document_service.py` | 2 | 文档格式校验、任务记录、列表和下载 |
 | `tests/report/unit/test_parameter_resolver.py` | 2 | 参数标量解释和缺参判断纯规则 |
+| `tests/report/unit/test_report_parameter_prompts.py` | 4 | 参数优先级批量追问、`priority=99` 确认策略、批量提取及候选值校验 |
 | `tests/report/unit/test_report_scenario_bootstrap.py` | 6 | 外部报告交接、根级参数快照、名称精确定位和非法输入拒绝 |
 | `tests/report/unit/test_report_scenario_history.py` | 6 | 历史对话报告结构选择、默认 flow、时间排序、模板过滤和混合输入拒绝 |
 | `tests/report/unit/test_report_scenario_flow.py` | 3 | 报告场景 Flow 接入、同步预览保留和严格 codec |
 | `tests/shared/test_http_identity.py` | 2 | 正式用户身份必填和本地开发用户覆盖 |
 | `tests/shared/test_authenticated.py` | 2 | Controller 权限注解、鉴权调用和拒绝响应 |
 | `tests/shared/test_kernel_log.py` | 8 | 日志转义、敏感信息脱敏、包装幂等、动态级别监控和 Server 生命周期 |
+| `tests/shared/test_prompt_catalog.py` | 3 | Prompt 资产加载、变量完整性、只读渲染和内联长提示词清理 |
 | `tests/shared/test_agentflow_runtime.py` | 13 | Agent Flow 顺序、条件/汇合、真并行、图渲染、指标发布、human-in-loop、取消和系统终止 |
 | `tests/shared/test_agentflow_capabilities.py` | 7 | Tool、Prompt、Hook、Checkpoint、拒答、动态追加分支和非法改图拒绝 |
 | `tests/shared/test_message_center.py` | 9 | 统一 interaction 契约、消息过滤、无回放、同分区时序、跨分区并行、消费者隔离、Command 定向投递、未处理反馈和生命周期重启 |
