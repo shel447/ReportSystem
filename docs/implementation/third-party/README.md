@@ -14,16 +14,7 @@
 
 当前仅包含 `_third_party/ibis`，目标依赖版本为 `ibis-framework[sqlite] == 11.0.0`。
 
-现有源码资产包括：
-
-| 能力 | 位置与用途 |
-|---|---|
-| DTE SQL 方言 | 扩展 PostgreSQL 方言生成规则，适配字符串、类型、紧凑 `NOT`、`DISTINCT/GROUP BY` 等行为 |
-| 定制编译器 | 基于 Ibis `PostgresCompiler` 提供 DTE SQL 编译器 |
-| SQL 优化规则 | 补充递归 `CONNECT BY` 恢复、count 别名重写等优化规则 |
-| 语法校验 | 增加 Relation 与 Value 比较等扩展语法限制 |
-| 编译状态 | 使用上下文状态记录 SQL 编译期间的血缘和别名信息 |
-| 扩展异常 | 定义扩展语法不支持错误 |
+Ibis 扩展明确区分 Ibis 核心语法扩展、SQLGlot 核心语法扩展和周边辅助扩展。各能力组的上游扩展机制、对应源码符号、具体行为、限制与升级风险统一维护在 [Ibis 扩展点清单](ibis.md)。
 
 ## 3. 当前接入状态
 
@@ -36,12 +27,7 @@
 
 后续正式接入前，需要先消除循环依赖，补充扩展能力单元测试，并验证生成 SQL 与 OneQuery/DTE SQL 契约兼容。
 
-## 4. 版本升级约束
+## 4. 文档导航
 
-Ibis 扩展依赖编译器、表达式节点和 SQLGlot 方言等内部实现。升级 Ibis 时至少需要检查：
-
-1. 上游编译器类和方法签名。
-2. Ibis operation 节点类型和遍历方式。
-3. SQLGlot optimizer、dialect 和 generator 扩展点。
-4. 当前扩展生成的 DTE SQL 是否保持兼容。
-5. 官方 Ibis 查询链路与 `_third_party/ibis` 扩展链路是否分别通过测试。
+- [Ibis 扩展点清单](ibis.md)：按能力组记录当前源码实际扩展行为和升级风险。
+- [智能问数实现](../data-analysis/README.md)：说明当前正式查询链路与扩展源码的关系。

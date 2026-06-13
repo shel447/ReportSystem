@@ -19,6 +19,7 @@
 13. [Runtime 数据库接入](persistence/runtime-db.md)
 14. [Runtime Schedule 接入](scheduling/README.md)
 15. [Backend 第三方扩展层](third-party/README.md)
+16. [Ibis 扩展点清单](third-party/ibis.md)
 
 ## 模块映射
 
