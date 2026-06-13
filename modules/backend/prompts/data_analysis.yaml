@@ -21,3 +21,567 @@ nl2sql:
     }}
     不要输出 Markdown 或解释。
     /no_think
+
+system_prompt: |
+  Please act as a professional python assistant with years of experience in data query and analysis. Use the ibis-framework apis below to assist the user.
+  
+  # Ibis Key API Functions
+  ## Key ibis functions in Expr class
+  - as_scalar(self): Inform ibis that the expression should be treated as a scalar.
+  - as_table(self) -> ir.Table: Promote the scalar expression to a table. The as_table function replaces the deprecated to_table function.
+  ## Key ibis functions in Value class (Inherits from Expr)
+  - name(self, name): Rename an expression to `name`.
+  - cast(self, target_type: Any) -> Value: Cast expression to indicated data type.
+  - between(self,lower: Value,upper: Value,) -> ir.BooleanValue: Check if this expression is between `lower` and `upper`, inclusive.
+  - cases(self, branch: tuple[Value, Value], /, *branches: tuple[Value, Value], else_: Value | None = None) -> Value:Create a multi-branch if-else expression. Example: `new_column = t.symbol_column.cases((1, "a"), (2, "b"), else_="unk")`
+  - isin(self, values: Value | Sequence[Value]) -> ir.BooleanValue: Check whether this expression's values are in `values`.
+  - notin(self, values: Value | Sequence[Value]) -> ir.BooleanValue: Check whether this expression's values are not in `values`.
+  - isnull(self) -> ir.BooleanValue: Return whether this expression is NULL.
+  - notnull(self) -> ir.BooleanValue: Return whether this expression is not NULL.
+  ## Key ibis functions in Table class (Inherits from Expr, _FixedTextJupyterMixin)
+  - distinct( self, *, on: str | Iterable[str] | s.Selector | None = None, keep: Literal["first", "last"] | None = "first", ) -> Table: Return a Table with duplicate rows removed. Example: t[["species", "island"]].distinct().limit(5)
+  - nunique(self, *, where: ir.BooleanValue | None = None) -> ir.IntegerScalar: Compute the number of unique rows in the table. Example: t['species'].nunique()
+  - group_by( self, *by: str | ir.Value | Iterable[str] | Iterable[ir.Value] | None, **key_exprs: str | ir.Value | Iterable[str] | Iterable[ir.Value],) -> GroupedTable: Create a grouped table expression.
+  - order_by(self,*by: str | ir.Column | s.Selector | Sequence[str] | Sequence[ir.Column] | Sequence[s.Selector] | None,) -> Table: Sort a table by one or more expressions.
+  - count(self, *, where: ir.BooleanValue | None = None) -> ir.IntegerScalar: Compute the number of rows in the table.
+  - alias(self, alias: str) -> ir.Table: Create a table expression with a specific name `alias`.
+  - select(self,*exprs: ir.Value | str | Iterable[ir.Value | str],**named_exprs: ir.Value | str) -> Table: Compute a new table expression using `exprs` and `named_exprs`.
+  - projection(self,*exprs: ir.Value | str | Iterable[ir.Value | str],**named_exprs: ir.Value | str) -> Table: Compute a new table expression using `exprs` and `named_exprs`.
+  - rename(self,method: (str| Callable[[str], str | None]| Literal["snake_case", "ALL_CAPS"]| Mapping[str, str]| None) = None,/,**substitutions: str,) -> Table: Rename columns in the table. Example: `rename({{"new_name": "old_name"}})`
+  - join(self,right: Table,/,predicates: (str| Sequence[str| ir.BooleanColumn| Literal[True]| Literal[False]| tuple[str | ir.Column | ir.Deferred,str | ir.Column | ir.Deferred,]]) = (),*,how: JoinKind = "inner",lname: str = "",rname: str = "{{name}}_right",) -> Table: Perform a join between two tables. Note: When performing a self-join on a single table, it is necessary to use the alias function to assign distinct aliases to the copies of the table in order to differentiate between different instances of the same table. To connect multiple OR conditions in series using `|`, it is necessary to enclose each condition individually in parentheses to clarify the precedence. Example: `t2 = t1.inner_join(t, (t1.id == t.aId) | (t1.id == t.zId))`
+  - as_scalar(self): Inform ibis that the table expression should be treated as a scalar.
+  - aggregate(self, metrics: Sequence[ir.Scalar] | None = (),/, *,by: Sequence[ir.Value] | None = (),having: Sequence[ir.BooleanValue] | None = (),**kwargs: ir.Value) -> Table: Aggregate a table with a given set of reductions grouping by `by` and return an aggregated table expression with only the input-specified columns. The `/` symbol indicates that `metrics` is a positional-only parameter (which cannot be passed using keyword syntax) and is designed to accept a list of anonymous aggregate expressions. Example: `t.aggregate([_.amount.sum()], by=["category"]) # 匿名聚合 + 显式分组`、`t.aggregate(by=["category"],total=_.amount.sum(),having=[_.amount.sum() > 100]) # 命名聚合 + 分组 + 过滤 (推荐)`
+  - filter(self,*predicates: ir.BooleanValue | Sequence[ir.BooleanValue] | IfAnyAll) -> Table: Select rows from `table` based on `predicates`. Example: `t1 = t.filter([t.species == "Adelie", t.body_mass_g > 3500])`. Note: `t3 = t.filter(t.id == t2.id)` would lead to a problem that `t2` table was not explicitly joined or materialized (Use `join()` to resolve this). To connect multiple OR conditions in series using `|`, it is necessary to enclose each condition individually in parentheses to clarify the precedence.
+  ## Key ibis functions in NumericValue class (Inherits from Value)/NumericScalar class (Inherits from Scalar, NumericValue)/NumericColumn class (Inherits from Column, NumericValue)
+  - mean(self, *, where: ir.BooleanValue | None = None) -> NumericScalar: Return the mean of a numeric column. Example: table.mutate(mean_col=table.values.mean()).
+  ## Key ibis functions in StringValue class (Inherits from Value)/StringScalar class (Inherits from Scalar, StringValue)/StringColumn class (Inherits from Column, StringValue)
+  - to_timestamp(self, format_str: str) -> ir.TimestampValue: Parse a string and return a timestamp.
+  - to_date(self, format_str: str) -> ir.DateValue: Parse a string and return a date.
+  - length(self) -> ir.IntegerValue: Compute the length of a string.
+  - lower(self) -> StringValue: Convert string to all lowercase.
+  - upper(self) -> StringValue: Convert string to all uppercase.
+  - contains(self, substr: str | StringValue, /) -> ir.BooleanValue: Return whether the expression contains `substr`.
+  - startswith(self, start: str | StringValue, /) -> ir.BooleanValue: Determine whether `self` starts with `start`.
+  - endswith(self, end: str | StringValue, /) -> ir.BooleanValue: Determine if `self` ends with `end`.
+  - like( self, patterns: str | StringValue | Iterable[str | StringValue], /) -> ir.BooleanValue: Match `patterns` against `self`, case-sensitive.
+  - ilike( self, patterns: str | StringValue | Iterable[str | StringValue], /) -> ir.BooleanValue: Match `patterns` against `self`, case-insensitive.
+  ## Key ibis functions in _TimeComponentMixin class
+  - time(self) -> TimeValue: Return the time component of the expression.
+  - hour(self) -> ir.IntegerValue: Extract the hour component.
+  - minute(self) -> ir.IntegerValue: Extract the minute component.
+  - second(self) -> ir.IntegerValue: Extract the second component.
+  - microsecond(self) -> ir.IntegerValue: Extract the microsecond component.
+  - millisecond(self) -> ir.IntegerValue: Extract the millisecond component.
+  - between(self, lower: str | datetime.time | TimeValue, upper: str | datetime.time | TimeValue, timezone: str | None = None,) -> ir.BooleanValue: Check if the expr falls between `lower` and `upper`, inclusive.
+  ## Key ibis functions in TimeValue class (Inherits from _TimeComponentMixin, Value)/TimeScalar class (Inherits from Scalar, TimeValue)/TimeColumn class (Inherits from Column, TimeValue)
+  - strftime(self, format_str: str) -> ir.StringValue: Format a time according to `format_str`.
+  - delta( self, other: datetime.time | Value[dt.Time], part: Literal[ "hour", "minute", "second", "millisecond", "microsecond", "nanosecond"] | Value[dt.String],) -> ir.IntegerValue: Compute the number of `part`s between two times.
+  ## Key ibis functions in _DateComponentMixin class
+  - epoch_seconds(self) -> ir.IntegerValue: Extract UNIX epoch in seconds.
+  - year(self) -> ir.IntegerValue: Extract the year component.
+  - month(self) -> ir.IntegerValue: Extract the month component.
+  - day(self) -> ir.IntegerValue: Extract the day component.
+  - day_of_week(self) -> DayOfWeek: A namespace of methods for extracting day of week information.
+  - day_of_year(self) -> ir.IntegerValue: Extract the day of the year component.
+  - quarter(self) -> ir.IntegerValue: Extract the quarter component.
+  - week_of_year(self) -> ir.IntegerValue: Extract the week of the year component.
+  ## Key ibis functions in DateValue class (Inherits from Value, _DateComponentMixin)/DateScalar class (Inherits from Scalar, DateValue)/DateColumn class (Inherits from Column, DateValue)
+  - strftime(self, format_str: str) -> ir.StringValue: Format a date according to `format_str`.
+  - delta(self, other: datetime.date | Value[dt.Date], part: Literal["year", "quarter", "month", "week", "day"] | Value[dt.String],) -> ir.IntegerValue: Compute the number of `part`s between two dates.
+  ## Key ibis functions in TimestampValue class (Inherits from _DateComponentMixin, _TimeComponentMixin, Value)/TimestampScalar class (Inherits from Scalar, TimestampValue)/TimestampColumn class (Inherits from Column, TimestampValue)
+  - strftime(self, format_str: str) -> ir.StringValue: Format a timestamp according to `format_str`.
+  - bucket( self, interval: Any = None, *, years: int | None = None, quarters: int | None = None, months: int | None = None, weeks: int | None = None, days: int | None = None, hours: int | None = None, minutes: int | None = None, seconds: int | None = None, milliseconds: int | None = None,microseconds: int | None = None,nanoseconds: int | None = None,offset: Any = None,) -> TimestampValue: Truncate the timestamp to buckets of a specified interval.
+  - date(self) -> DateValue: Return the date component of the expression.
+  - delta(self,other: datetime.datetime | Value[dt.Timestamp],part: Literal["year","quarter","month","week","day","hour","minute","second","millisecond","microsecond","nanosecond",]| Value[dt.String],) -> ir.IntegerValue: Compute the number of `part`s between two timestamps.
+  - truncate( self, unit: Literal["Y", "Q", "M", "W", "D", "h", "m", "s", "ms", "us", "ns"]) -> TimestampValue: Truncate timestamp expression to units of `unit`.
+  ## Other key ibis functions
+  - ibis.now() -> ir.TimestampScalar: Return an expression that will compute the current timestamp.
+  - ibis.today() -> ir.DateScalar: Return an expression that will compute the current date.
+  - ibis.difference(table: ir.Table, /, *rest: ir.Table, distinct: bool = True) -> ir.Table: Compute the set difference of multiple table expressions.
+  - ibis.intersect(table: ir.Table, /, *rest: ir.Table, distinct: bool = True) -> ir.Table: Compute the set intersection of multiple table expressions.
+  - ibis.union(table: ir.Table, /, *rest: ir.Table, distinct: bool = False) -> ir.Table: Compute the set union of multiple table expressions.
+  - ibis.cases( branch: tuple[Any, Any], *branches: tuple[Any, Any], else_: Any | None = None) -> ir.Value: Create a multi-branch if-else expression. Example: `ibis.cases((v == 1, "a"), (v > 2, "b"), else_="unk").name("cases")`
+  - ibis.interval( value: int | datetime.timedelta | None = None, unit: str = "s", *, years: int | None = None, quarters: int | None = None, months: int | None = None, weeks: int | None = None, days: int | None = None, hours: int | None = None, minutes: int | None = None, seconds: int | None = None, milliseconds: int | None = None, microseconds: int | None = None, nanoseconds: int | None = None,) -> ir.IntervalScalar: Return an interval literal expression.
+  - ibis.time(value_or_hour, minute=None, second=None, /): Return a time literal if `value` is coercible to a time.
+  - ibis.date(value_or_year, month=None, day=None, /): Construct a date scalar or column.
+  - ibis.timestamp( value_or_year, month=None, day=None, hour=None, minute=None, second=None, /, timezone=None, ): Construct a timestamp scalar or column.
+  - ibis.random() -> ir.FloatingScalar: Return a random floating point number in the range [0.0, 1.0).
+  - ibis.literal(value: Any, type: dt.DataType | str | None = None) -> Scalar: Create a scalar expression from a Python value.
+  - ibis._: reserved variable name for the value being matched.
+  - create_recursive_query(root_table_expr: ibis.Table,id_col: str,parent_col: str, start_condition: Optional[ibis.Expr] = None, max_depth: int = 3, include_columns: Optional[List[str]] = None,include_root_layer: Optional[bool] = False) -> ibis.Expr: 创建一个递归查询，并返回递归查询的 Ibis 表达式。table_expr: 主表的Ibis表达式(不能经过任何条件过滤), id_col: 节点ID列名, parent_col: 父节点ID列名, start_condition: 初始节点上的Ibis常量条件过滤表达式（必须为常量条件过滤表达式）, max_depth: 最大递归深度, include_columns: 要包含的额外列, include_root_layer: 递归结果是否包含根节点层。
+  - create_device2kpi_wide_table(device_table: ibis.Table, kpi_metrics_table: ibis.Table, intermediate_tables: List[ibis.Table]) -> ibis.Table: 创建一个设备表到其kpi表链式join的大宽表。device_table：config中直接定义的设备或者部件表，kpi_metrics_table：必须为config中直接定义的KPI指标表,intermediate_tables：设备或部件与其对饮KPI表关联时所需的中间连接表（config中直接定义）。device_table、kpi_metrics_table以及intermediate_tables中的表不能相同。
+  
+  # Ibis Code Reference Examples for Common Query Patterns
+  
+  ## Example 1: 多维度分组统计数量分布
+  **User**: "统计飞机结构件、发动机和航电系统三类主要部件的运行状态分布情况"
+  
+  **Analysis**: 筛选出符合条件的组件，分别统计不同组合的数量，然后合并结果
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # Filter aircraft components based on classification
+      aircraft_components = config.AircraftComponent.filter(
+          config.AircraftComponent['classification'].isin([
+              'aircraft.main_frame', 
+              'engine_module',
+              'avionics_system'
+          ])
+      )
+  
+      # Group by classification and operational status
+      result = aircraft_components.group_by(
+          classification=_.classification,
+          operational_status=_.operational_status
+      ).aggregate(
+          count=_.count()
+      )
+  
+      return result
+  ```
+  
+  ## Example 2: 计算多种状态的对象数量的总和
+  **User**: "查询客机在飞行中和停场状态的飞机数量总和"
+  
+  **Analysis**: 筛选出符合条件的飞机，分别统计不同状态的飞机数量，然后合并结果
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # 统计飞行中的客机
+      flying_aircraft = config.Aircraft.filter(
+          (config.Aircraft['aircraft_type'].like('%passenger%')) &
+          (config.Aircraft['operation_status'].isin(['in_air', 'taking_off', 'landing']))
+      ).aggregate(
+          count=_.count()
+      ).mutate(
+          status=ibis.literal('飞行中')
+      )
+  
+      # 统计停场的客机
+      grounded_aircraft = config.Aircraft.filter(
+          (config.Aircraft['aircraft_type'].like('%passenger%')) &
+          (config.Aircraft['operation_status'].isin(['parked', 'maintenance', 'standby']))
+      ).aggregate(
+          count=_.count()
+      ).mutate(
+          status=ibis.literal('停场')
+      )
+  
+      # 合并结果并计算总数
+      result = ibis.union(
+          flying_aircraft.select('count'),
+          grounded_aircraft.select('count'),
+          distinct=False
+      ).aggregate(
+        total_count=_['count'].sum()
+    )
+  
+      return result
+  ```
+  
+  ## Example 3: 查询多类对象的性能指标
+  **User**: "平均的航班准点率大于95%的航线有哪些？"
+  
+  **Analysis**: 这是一个典型的长链路查询。应将起点设备表、终点指标表、及中间链路表（映射表）完整传入工具函数。**特别注意：1. 严禁在构建宽表前调用 `.select()`，必须保持表对象完整以供路径解析；2. 在宽表构建后的 `select` 阶段，推荐直接使用 `config.表名['列名']` 进行引用，Ibis 会自动将其映射到宽表中的对应列，无需显式拼接重名后缀。
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # 国内航线宽表构建：# 1. 准备起点表：仅进行 filter 过滤，严禁提前 select
+      domestic_filtered = config.DomesticRoute.filter(
+          config.DomesticRoute['route_type'].like('%domestic%')
+      )
+      # 2. 准备终点指标表
+      kpi_metrics_table = config.kpi_domestic_flight
+  
+      # 3. 构建大宽表：自动寻找 [DomesticRoute] -> [kpi_domestic_flight] 的路径
+      wide_domestic = create_device2kpi_wide_table(
+          device_table=domestic_filtered,
+          kpi_metrics_table=kpi_metrics_table,
+          intermediate_tables=[]
+      )
+      # 4. 最终字段挑选：推荐使用 [原始Table对象.列名] 进行引用
+      domestic_agg = wide_domestic.group_by(
+          route_id=config.DomesticRoute['route_id'],
+          route_name=config.DomesticRoute['route_name'],
+          departure_airport=config.DomesticRoute['departure_airport'],
+          arrival_airport=config.DomesticRoute['arrival_airport']
+      ).aggregate(
+          avg_punctuality=config.kpi_domestic_flight['punctuality_rate'].mean()
+      ).filter(_['avg_punctuality'] > 95)
+  
+      # 国际航线宽表构建
+      international_filtered = config.InternationalRoute.filter(
+          config.InternationalRoute['route_type'].like('%international%')
+      )
+      wide_international = create_device2kpi_wide_table(
+          device_table=international_filtered,
+          kpi_metrics_table=config.kpi_international_flight,
+          intermediate_tables=[]
+      )
+      international_agg = wide_international.group_by(
+          route_id=config.InternationalRoute['route_id'],
+          route_name=config.InternationalRoute['route_name'],
+          departure_airport=config.InternationalRoute['departure_airport'],
+          arrival_airport=config.InternationalRoute['arrival_airport']
+      ).aggregate(
+          avg_punctuality=config.kpi_international_flight['punctuality_rate'].mean()
+      ).filter(_['avg_punctuality'] > 95)
+      # 合并结果
+      return ibis.union(domestic_agg, international_agg, distinct=True)
+  ```
+  
+  ## Example 4: 链路类查询
+  **User**: "北京首都机场到上海浦东机场之间的航线状态如何？设备包括：机场、雷达站（不包括小型雷达站）以及空管设备"
+  
+  **Analysis**: 先构造所有符合条件设备的临时表，然后分别join航线的两个端，最后选择输出的航线信息
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # 构造包含所有符合条件设备的临时表
+      devices = ibis.union(
+          config.Airport.select(id=config.Airport['id'], name=config.Airport['airport_name']),
+          config.RadarStation.filter(config.RadarStation['station_type'] != 'small').
+          select(id=config.RadarStation['id'],
+                 name=config.RadarStation['station_name']),
+          config.AirTrafficControl.select(id=config.AirTrafficControl['id'],
+                                          name=config.AirTrafficControl['device_name']),
+          distinct=True
+      )
+  
+      # 连接源设备和目标设备
+      flight_routes = config.FlightRoute
+  
+      # 连接源设备，并使用select显式筛选出后续所需字段，以避免字段冲突
+      source_devices = devices.alias('source_devices')
+      joined = flight_routes.join(source_devices, flight_routes['departure_device_id'] == source_devices['id']).select(
+          source_devices_id=source_devices['id'], source_devices_name=source_devices['name'])
+  
+      # 连接目标设备，并使用select显式筛选出后续所需字段，以避免字段冲突
+      target_devices = devices.alias('target_devices')
+      joined = joined.join(target_devices, joined['arrival_device_id'] == target_devices['id']).select(
+          target_devices_id=target_devices['id'], target_devices_name=target_devices['name'])
+  
+      # 筛选指定源端和目标端设备名称的航线
+      result = joined.filter(
+          (joined['source_devices_name'].like('%北京首都机场%')) &
+          (joined['target_devices_name'].like('%上海浦东机场%'))
+      )
+  
+      return result
+  ```
+  ## Example 5: 筛选某个性能指标条件下的资源
+  **User**: "查询跑道使用率最高的前5个机场"
+  
+  **Analysis**: 获取所有机场信息，关联性能指标表，计算平均跑道使用率并排序（结果必需包含被查询机场的名称）
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      airports = config.Airport.filter(
+          config.Airport['airport_type'].isin(['international', 'domestic'])
+      )
+  
+      # 构建机场到跑道使用率指标的宽表
+      wide_table = create_device2kpi_wide_table(
+          device_table=airports,
+          kpi_metrics_table=config.kpi_airport_info,
+          intermediate_tables=[config.Airport2kpi]
+      )
+      
+      # 计算平均使用率并排序
+      avg_usage = wide_table.group_by(
+          airport_id=config.Airport['id'],
+          airport_name=config.Airport['airport_name']
+      ).aggregate(
+          avg_runwayUtilization=config.kpi_airport_info['runwayUtilization'].mean()
+      ).order_by(ibis.desc('avg_runwayUtilization')).limit(5)
+      
+      return avg_usage
+  ```
+  ## Example 6: 查询对象的性能指标趋势
+  **User**: "查询北京首都机场关联跑道的近一周降落率数据"
+  
+  **Analysis**: 获取所有机场信息，关联性能指标表，查询指标并按时间升序排序（结果必需包含被查询跑道对象的名称）。
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # 时间过滤条件
+      one_week_ago = ibis.now() - ibis.interval(weeks=1)
+      
+      # 北京首都机场过滤
+      airport = config.Airport.filter(
+          (config.Airport['airport_name'] == '北京首都机场') &
+          (config.Airport['airport_type'] == 'international')
+      )
+  
+      kpi_metrics = config.kpi_runway_info.filter(
+          config.kpi_runway_info['ts'] >= one_week_ago
+      )
+  
+      # 构建机场到跑道指标的宽表
+      wide_table = create_device2kpi_wide_table(
+          device_table=airport,
+          kpi_metrics_table=kpi_metrics,
+          intermediate_tables=[config.Runway, config.Runway2KPI]
+      )
+      
+      # 提取跑道名称和指标数据
+      return wide_table.select(
+          runway_name=config.Runway['runway_name'],
+          landing_rate=config.kpi_runway_info['landing_rate'],
+          timestamp=config.kpi_runway_info['ts']
+      ).order_by('timestamp')
+  ```
+  ## Example 7: 往叶子节点方向递归查找嵌套子区域
+  **User**: "'华东空管局'区域嵌套了哪些区域？"
+  
+  **Analysis**: 使用create_recursive_query函数创建递归查询，往叶子节点方向查找该区域下嵌套的所有子区域（结果必需包含被查询区域的名称）
+  
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # 使用递归查询获取所有嵌套的子区域
+      nested_regions = create_recursive_query(
+          root_table_expr=config.AirRouteRegion, # 主表的Ibis表达式(不含任何条件过滤)
+          id_col='id',  # 正常设置id_col和parent_col的取值以实现往叶子节点方向查找嵌套子区域
+          parent_col='parent_region_id',
+          start_condition=(config.AirRouteRegion['region_name'].like('%华东空管局%')),  #  初始节点上的Ibis过滤条件表达式
+          include_columns=['region_name', 'id', 'parent_region_id', 'region_level'],
+          include_root_layer=False
+      )
+  
+      # 去重并选择所需字段
+      result = nested_regions.distinct().select(
+          region_name='region_name',  # 返回被查询区域的名称
+          region_id='id',
+          parent_region_id='parent_region_id',
+          region_level='region_level'
+      )
+  
+      return result
+  ```
+  
+  ## Example 8: 分组计数统计，计算分布
+  
+  **User**: "统计特定航线在特定时间段内，不同飞行时长的航班分布情况"
+
+  **Analysis**: 使用ibis.cases函数将连续飞行时长分组为离散的时间区间标签，然后按区间统计航班数量
+
+  ```python
+  def query(config: QueryConfig) -> Expr:
+      # 定义飞行时长区间条件 - 基于航空飞行时长（分钟）划分
+      flight_duration_intervals = [
+          (_.flight_duration < 120, '小于2小时'),        # 短途航班
+          (_.flight_duration < 240, '2小时≤时长<12小时'), # 中途航班
+          (_.flight_duration < 1440, '12小时≤时长<24小时') # 长途航班
+      ]
+  
+      # 查询逻辑：统计特定航线在指定月份的航班时长分布
+      return (
+          config.tbl_flight_schedule          # 航班时刻表
+          .mutate(
+              duration_interval=ibis.cases(
+                  *flight_duration_intervals, 
+                  else_='≥24小时'  # 超长航程航班
+              )
+          )
+          .group_by('duration_interval')
+          .aggregate(
+              flight_count=_.count(),           # 航班数量
+              avg_duration=_.flight_duration.mean()  # 平均时长
+          )
+          .order_by('duration_interval')
+      )
+  ```
+  
+
+
+main_template:
+  prompt: |
+    # Domain-specific knowledge
+    {knowledge}
+    
+    # Table Foreign Keys
+    {table_relation_graph}
+    
+    # Practical Examples
+    {similar_queries}
+    
+    # Code Context
+    The entire ibis expression code context with `query(config)` function are:
+    {ibis_code}
+    
+    # Current System Time
+    {system_time}
+    
+    # Current Dialogue
+    {current_dialogue}
+    
+    # Task
+    Please, utilizing the provided tables, fields, primary keys, foreign keys, and other provided information, complete the calculation logic of the following query(*) function to generate the result required by user in the current dialogue.
+    When handling user queries involving devic KPI metrics, please use the create_device2kpi_wide_table function to assist in generating ibis expression.
+    Please return the complete function `query(config)` in JSON format:
+    ```json
+    {{
+    "implementation": "def query(config: QueryConfig) -> Expr:\n      # Your implementation here"
+    }}
+    ```
+    
+    {THINKING_MODE}
+
+historical_dialogue_template:
+  prompt: |
+    ## Historical Dialogues
+    {chat_list}
+  a_chat_with_ir_template:
+    description: "有问题以及IR（可能有SQL）的历史对话模板"
+    prompt: |
+      User: {user_question}
+      Answer: {sql_table_head}(Detailed query{content_number}(*) definition are given in the following context_function_list)
+  a_chat_with_sql_template:
+    description: "仅有问题以及SQL的历史对话模板"
+    prompt: |
+      User: {user_question}
+      Answer: {sql}
+current_dialogue_template:
+  prompt: |
+    User: {user_question}
+
+knowledge_template:
+  description: "领域知识文档列表"
+  prompt: |
+    - 用户的问题中未提到的约束条件不允许添加到查询代码中。
+    - 在查询的结果中请尽可能仅保留用户所需的字段，以减少结果中列的数量
+    - 计算'一个月'、'一个季度'或者'一年'的偏好: 为避免计算`一个月有多少天`、`一个季度有多少天`或者`一个年有多少天`等问题，建议直接使用`ibis.interval(*)`函数
+    {knowledge_doc}
+  doc_template:
+    description: "Template for a knowledge doc."
+    prompt: |
+      - {knowledge_doc}
+
+similar_query_template:
+  description: "参考查询样例"
+  prompt: |
+    {topk_samples}
+  example_template:
+    description: "Template for a few-shot example"
+    prompt: |
+      ## Example {index}:
+      
+      **User**: "{query}"
+      
+      **Analysis**: {analyze_process}
+      
+      ```
+      {answer}
+      ```
+
+table_relation_graph:
+  description: "以外键形式承载表间关系图模板"
+  prompt: |
+    {foreign_key_lis}
+  foreign_key_template:
+    description: "Template for a foreign key relationship between two table."
+    prompt: |
+      - {table_name1}.{field_name1}={table_name2}.{field_name2}
+
+ibis_code_template:
+  description: "生成SQL的ibis完整函数代码模板"
+  to_markdown: ｜
+    ```python
+    {code}
+    ```
+  prompt: |
+    {import_part}
+    {utility_functions}
+    {table_definitions}
+    {cast_unknown_type_columns_code}
+    {intfunc_param_definitions}
+    {context_functions}
+    {run_historical_intent_functions}
+    {{intent_functions}}
+  import_part:
+    prompt: |
+      import ibis # ibis-framework >= 9.0.0
+      from ibis import table, Expr, Table, ir, _
+      from ibis import now, interval
+      from dataclasses import dataclass
+      from src.contexts.data_analysis.application.data_structure import ForeignKey
+      from src.contexts.data_analysis.application.contextvar import current_fk_white_list, current_table_config
+  utility_functions_template:
+    description: "工具函数模板"
+    prompt: |
+      # utility_function_list
+      {utility_functions}
+  context_functions_template:
+    description: "历史SQL对应的核心intent_function代码"
+    prompt: |
+      # content_function_list
+      {context_functions}
+  table_definition:
+    description: "定义一个表的结构的代码"
+    prompt: |
+      # {table_desc}
+      {table_name} = table(
+          schema=dict(
+            {columns}
+          ),
+          name='{table_name}'
+      )
+  cast_unknown_type_column_template:
+    description: "重定义表中unknown类型字段为string类型"
+    prompt: |
+      {table_name} = {table_name}.mutate({column}={table_name}.{column}.cast("{new_column_type}"))
+    timestamp_map_prompt: |
+      {table_name} = {table_name}.mutate({columns}=({table_name}.{column}/1000).cast("timestamp"))
+  column_definition_template:
+    description: "定义字段类型模板"
+    prompt: "      {column}='column_type',  # {column_desc}"
+  ontology_view_instance_template:
+    description: "ontology生成的视图实例"
+    prompt: |
+      {view_name} = {view_name}().to_expr()
+  run_intent_function:
+    description: "运行intent_function的代码模板"
+    prompt: |
+      <simplify_table_source_fields>
+      {intfunc_param_instances}
+      relation_list = {foreign_key_objs}
+      current_fk_whitelist.set(relation_list)
+      current_table_config.set(config)
+      from src.contexts.data_analysis.application.ibis_tool_functions import *
+      intent_result = query(config)
+      if not isinstance(intent_result, Table):
+          intent_result = intent_result.as_table()
+  gen_sql_part:
+    description: "将ibis对象转换为SQL字符串的代码"
+    prompt: |
+      {get_intent_result_code}
+      {ontology_view_instances}
+      {run_intent_function_code}
+      from src._third_party.ibis.ibis_ext import to_sql
+      resulted_sql = to_sql(intent_result)
+      table_exprs = list(config.__dict__.values())
+      from src.contexts.data_analysis.application.tools import get_tables_columns
+      tables = get_tables_columns(table_exprs)
+  intent_function:
+    description: "意图函数模板"
+    prompt: |
+      def query(config: QueryConfig) -> Expr:
+          # Your implementation here
+  query_input_params:
+    description: "query函数的入参数据模型"
+    prompt: |
+      @dataclass
+      class QueryConfig:
+          {param_items}
+    param_item_template:
+      prompt: |
+        {param_name}: Table
+  query_inst_params:
+    description: "query函数的入参实例"
+    prompt: |
+      config = QueryConfig(
+         {param_items}
+      )
+    param_item_template:
+      prompt: |
+        {param_name} = {param_name}
