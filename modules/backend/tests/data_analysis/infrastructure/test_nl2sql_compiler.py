@@ -7,17 +7,37 @@ from src.contexts.data_analysis.infrastructure.contextvar import current_fk_whit
 from src.contexts.data_analysis.infrastructure.nl2sql_compiler import RestrictedIbisNl2SqlCompiler
 
 
+def _entity(name: str, fields: list[tuple[str, str]]) -> dict:
+    return {
+        "name": name,
+        "businessName": name,
+        "businessName_cn": name,
+        "description": name,
+        "description_cn": name,
+        "schema": {
+            "name": "root",
+            "type": "record",
+            "fields": [
+                {
+                    "name": field_name,
+                    "businessName": field_name,
+                    "businessName_cn": field_name,
+                    "description": field_name,
+                    "description_cn": field_name,
+                    "columnType": "dimension",
+                    "type": {"name": field_name, "type": field_type},
+                }
+                for field_name, field_type in fields
+            ],
+        },
+    }
+
+
 def _context() -> Nl2SqlContext:
     return Nl2SqlContext(
         question="查询设备健康评分",
         entities=(
-            {
-                "name": "network_health",
-                "fields": [
-                    {"name": "device_name", "type": "string"},
-                    {"name": "health_score", "type": "double"},
-                ],
-            },
+            _entity("network_health", [("device_name", "string"), ("health_score", "double")]),
         ),
     )
 
@@ -63,14 +83,8 @@ def test_compiler_injects_relation_helpers_and_cleans_execution_context():
     context = Nl2SqlContext(
         question="查询设备指标",
         entities=(
-            {"name": "device", "fields": [{"name": "id", "type": "string"}]},
-            {
-                "name": "device_kpi",
-                "fields": [
-                    {"name": "device_id", "type": "string"},
-                    {"name": "score", "type": "double"},
-                ],
-            },
+            _entity("device", [("id", "string")]),
+            _entity("device_kpi", [("device_id", "string"), ("score", "double")]),
         ),
         relations=(
             {
@@ -92,3 +106,16 @@ def test_compiler_injects_relation_helpers_and_cleans_execution_context():
     assert "JOIN" in sql
     assert current_fk_whitelist.get() == ()
     assert current_table_config.get() is None
+
+
+def test_compiler_keeps_complex_fields_out_of_executable_ibis_tables():
+    context = Nl2SqlContext(
+        question="查询设备标签",
+        entities=(_entity("network_health", [("device_name", "string"), ("labels", "object")]),),
+    )
+
+    with pytest.raises(Nl2SqlCompileError, match="labels"):
+        RestrictedIbisNl2SqlCompiler().compile(
+            source="def query(config):\n    return config.network_health.select('labels')",
+            context=context,
+        )

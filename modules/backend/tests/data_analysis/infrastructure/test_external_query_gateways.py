@@ -8,9 +8,9 @@ from src.contexts.data_analysis.infrastructure.gateways import (
     ExternalKnowledgeGateway,
     ExternalOneQueryGateway,
 )
+from src.contexts.data_analysis.infrastructure.logical_entity_validator import DataCatalogLogicalEntityValidator
 from src.infrastructure.platform.cache import MemoryTtlCache
 from src.shared.configuration import KnowledgeConfiguration
-from src.shared.agentflow.metrics import FlowMetricsCollector, use_metrics_collector
 from src.shared.kernel.errors import ErrorCode, UpstreamError
 
 
@@ -20,6 +20,10 @@ class _Client:
         self.calls = []
 
     def post_json(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.payload
+
+    def get_json(self, **kwargs):
         self.calls.append(kwargs)
         return self.payload
 
@@ -116,16 +120,48 @@ def test_datacatalog_cache_is_isolated_by_user_id():
     assert [call["user_id"] for call in client.calls] == ["user-a", "user-b"]
 
 
-def test_datacatalog_records_logical_entity_metrics_when_flow_collector_exists():
-    client = _Client({"retCode": 0, "data": {"results": [{"name": "device"}, {"logicalEntityName": "interface"}, {"name": "device"}]}})
+def test_datacatalog_detail_cache_is_isolated_by_user_id():
+    client = _Client({"data": {"name": "device"}})
     gateway = ExternalDataCatalogGateway(client=client, cache=MemoryTtlCache())
-    collector = FlowMetricsCollector()
 
-    with use_metrics_collector(collector):
-        gateway.list_logical_entities(user_id="user-a")
+    gateway.get_logical_entity(name="device", user_id="user-a")
+    gateway.get_logical_entity(name="device", user_id="user-a")
+    gateway.get_logical_entity(name="device", user_id="user-b")
 
-    metrics = collector.snapshot(run_id="run_1", status="finished")
-    assert metrics.unique_counts["datacatalog.logical_entity.used"] == 2
+    assert len(client.calls) == 2
+
+
+def test_logical_entity_validator_accepts_complete_detail_and_rejects_summary():
+    valid = {
+        "name": "device",
+        "businessName": "Device",
+        "businessName_cn": "设备",
+        "description": "Device metadata",
+        "description_cn": "设备元数据",
+        "schema": {
+            "name": "root",
+            "type": "record",
+            "fields": [
+                {
+                    "name": "id",
+                    "businessName": "Identifier",
+                    "businessName_cn": "标识",
+                    "description": "Identifier",
+                    "description_cn": "标识",
+                    "columnType": "dimension",
+                    "type": {"name": "id", "type": "string"},
+                }
+            ],
+        },
+    }
+    validator = DataCatalogLogicalEntityValidator()
+
+    assert validator.validate(entity=valid, expected_name="device") == valid
+    with pytest.raises(UpstreamError) as captured:
+        validator.validate(entity={"name": "device"}, expected_name="device")
+
+    assert captured.value.error_code == ErrorCode.DATA_ANALYSIS_METADATA_INVALID
+    assert captured.value.retryable is False
 
 
 def test_rag_cache_is_isolated_by_user_id():

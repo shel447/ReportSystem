@@ -93,6 +93,35 @@ def test_external_dependency_examples_match_consumer_contracts(schema_name, defi
     _validate(schema_name, definition, payload)
 
 
+def test_logical_entity_detail_contract_is_strict_while_list_summary_remains_open():
+    detail = EXAMPLES["datacatalog"]["logicalEntity"]["response"]["data"]
+    _validator(_schema("logical-entity.schema.json")).validate(detail)
+    _validate(
+        "datacatalog.schema.json",
+        "ListLogicalEntitiesResponse",
+        {"retCode": 0, "retInfo": "", "data": {"results": [{"name": "summary_only", "platformField": True}]}},
+    )
+
+    with pytest.raises(ValidationError):
+        _validate("datacatalog.schema.json", "GetLogicalEntityResponse", {"data": {"name": "summary_only"}})
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda item: item["schema"]["fields"][0].update({"columnType": "unknown"}),
+        lambda item: item["schema"]["fields"][0].update({"type": {"name": "device_name", "type": "map"}}),
+        lambda item: item["schema"]["fields"][0].pop("businessName_cn"),
+    ],
+)
+def test_logical_entity_detail_contract_rejects_invalid_field_metadata(mutate):
+    payload = json.loads(json.dumps(EXAMPLES["datacatalog"]["logicalEntity"]["response"]["data"]))
+    mutate(payload)
+
+    with pytest.raises(ValidationError):
+        _validator(_schema("logical-entity.schema.json")).validate(payload)
+
+
 def test_agentcore_import_contract_is_an_upsert_payload():
     payload = EXAMPLES["agentcore"]["importChat"]["request"]
 

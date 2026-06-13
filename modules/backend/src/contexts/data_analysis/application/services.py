@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from ....shared.agentflow import FlowContext, FlowEdge, FlowGraph, FlowNode, SubflowEventPolicy, SubflowSpec
+from ....shared.agentflow.metrics import record_unique_metric
 from ....shared.kernel.errors import ApplicationError, ErrorCode, ValidationError
 from ....shared.kernel.audit import AuditEvent, AuditPublisher
 from ....shared.kernel.safety import GuardrailGateway
@@ -39,7 +40,14 @@ from ..domain.models import (
     query_result_to_dict,
     sql2data_input_from_dict,
 )
-from .ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, Nl2SqlCompiler, OneQueryGateway
+from .ports import (
+    ApiDatasetGateway,
+    DataCatalogGateway,
+    KnowledgeGateway,
+    LogicalEntityValidator,
+    Nl2SqlCompiler,
+    OneQueryGateway,
+)
 
 
 DATA_ANALYSIS_INSTRUCTION = "data_analysis"
@@ -85,6 +93,7 @@ class DataAnalysisService:
         completion_config_builder,
         prompt_catalog: PromptCatalog,
         nl2sql_compiler: Nl2SqlCompiler,
+        logical_entity_validator: LogicalEntityValidator,
         audit_publisher: AuditPublisher | None = None,
     ) -> None:
         self.query_service = query_service
@@ -95,6 +104,7 @@ class DataAnalysisService:
         self.completion_config_builder = completion_config_builder
         self.prompt_catalog = prompt_catalog
         self.nl2sql_compiler = nl2sql_compiler
+        self.logical_entity_validator = logical_entity_validator
         self.audit_publisher = audit_publisher
 
     def analyze_from_natural_language(self, *, question: str, user_id: str) -> DataAnalysisAnswer:
@@ -166,12 +176,10 @@ class DataAnalysisService:
             name = _entity_name(item)
             if not name:
                 continue
-            try:
-                detail = dict(self.data_catalog_gateway.get_logical_entity(name=name, user_id=user_id))
-                detail.setdefault("name", name)
-                details.append(detail)
-            except Exception:
-                details.append(item)
+            detail = dict(self.data_catalog_gateway.get_logical_entity(name=name, user_id=user_id))
+            validated = self.logical_entity_validator.validate(entity=detail, expected_name=name)
+            details.append(validated)
+            record_unique_metric("datacatalog.logical_entity.used", name)
         try:
             relations = self.data_catalog_gateway.list_logical_relations(user_id=user_id)
         except Exception:
@@ -689,18 +697,21 @@ def _ibis_table_definitions(entities: tuple[dict[str, Any], ...]) -> str:
         name = _entity_name(entity)
         if not name or not name.isidentifier():
             continue
-        raw_fields = entity.get("fields") or entity.get("columns") or entity.get("attributes") or entity.get("schema") or {}
-        if isinstance(raw_fields, list):
-            fields = {
-                str(item.get("name") or item.get("field") or item.get("key")): str(
-                    item.get("type") or item.get("dataType") or item.get("fieldType") or "string"
-                )
-                for item in raw_fields
-                if isinstance(item, dict) and (item.get("name") or item.get("field") or item.get("key"))
-            }
-        else:
-            fields = raw_fields
+        raw_fields = (entity.get("schema") or {}).get("fields") or []
+        fields = {}
+        complex_fields = []
+        for item in raw_fields:
+            field_name = str(item.get("name") or "").strip()
+            field_type = str((item.get("type") or {}).get("type") or "").strip()
+            if not field_name:
+                continue
+            if field_type in {"array", "record", "object"}:
+                complex_fields.append(field_name)
+                continue
+            fields[field_name] = field_type
         lines.append(f"    # {json.dumps(entity, ensure_ascii=False)}")
+        if complex_fields:
+            lines.append(f"    # Complex fields are metadata-only and cannot be queried: {', '.join(complex_fields)}")
         lines.append(f"    {name} = ibis.table({json.dumps(fields, ensure_ascii=False)}, name={name!r})")
     if len(lines) == 1:
         lines.append("    pass")

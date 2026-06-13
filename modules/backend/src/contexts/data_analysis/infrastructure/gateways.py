@@ -7,7 +7,6 @@ from typing import Any
 
 from ....infrastructure.platform.cache import MemoryTtlCache, platform_cache
 from ....shared.configuration import KnowledgeConfiguration
-from ....shared.agentflow.metrics import record_unique_metric
 from ....shared.kernel.errors import ErrorCode, UpstreamError
 from ..application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
 from ..domain.models import DatasetColumn, DatasetResult, QueryResult
@@ -135,14 +134,10 @@ class ExternalDataCatalogGateway(DataCatalogGateway):
         )
         _ensure_success(payload, service="DataCatalog")
         result = list((payload.get("data") or {}).get("results") or [])
-        for item in result:
-            if isinstance(item, dict):
-                record_unique_metric("datacatalog.logical_entity.used", str(item.get("name") or item.get("logicalEntityName") or ""))
         self.cache.set(key, deepcopy(result), ttl_seconds=600)
         return result
 
     def get_logical_entity(self, *, name: str, user_id: str) -> dict[str, Any]:
-        record_unique_metric("datacatalog.logical_entity.used", name)
         return self._cached_get(
             key=f"datacatalog:{user_id}:logical_entity:{name}",
             path="/rest/odae/v3/datacatalog/model/logicalentity",

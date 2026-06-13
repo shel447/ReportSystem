@@ -46,6 +46,18 @@ flowchart LR
 - 所选逻辑实体之间允许使用的逻辑关系。
 - Knowledge/RAG 的 `chatbi_sql_few_shot` 检索结果。
 
+逻辑实体上下文严格按两阶段获取：
+
+1. 查询逻辑实体列表，只使用摘要选择候选。
+2. 对每个选中候选逐个调用单实体详情接口。
+3. 按 `logical-entity.schema.json` 严格校验详情。
+4. 仅使用校验通过的详情构造 Prompt 和 Ibis `QueryConfig`。
+
+列表摘要不是字段 Schema 的事实源，不能替代详情请求。详情按
+`userId + logicalEntityName` 缓存；未被选中的摘要不参与校验，也不计入实体使用量。
+任一选中详情缺失、名称不匹配或结构非法时，本次 NL2SQL 返回
+`chatbi.data_analysis.metadata_invalid`。
+
 首版不复用历史对话中曾生成的 Ibis 源码。Knowledge/RAG 不可用或
 `chatbi_sql_few_shot` 未配置时，允许使用空 Few-shot 上下文继续生成。
 
@@ -94,6 +106,9 @@ def query(config: QueryConfig) -> Expr:
   `create_device2kpi_wide_table` 和 `get_tables_columns` 由 infrastructure
   在单次执行上下文内注入，执行完成后清理。
 - `config` 只暴露已选择的逻辑实体；未选择实体无法被生成函数访问。
+- `QueryConfig` 只从实体详情的 `schema.fields[]` 构建。基础字段类型映射为 Ibis
+  类型；`array/record/object` 仍保留在 Prompt 的完整实体元数据中，但不会加入
+  可执行 Ibis 表，生成代码引用这些字段时明确失败。
 - 函数返回值必须是 Ibis Expression。
 
 进程内执行不能强制终止已经进入第三方库内部的 Python 调用，因此白名单禁止循环

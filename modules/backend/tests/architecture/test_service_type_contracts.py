@@ -6,7 +6,7 @@ from src.contexts.conversation.application.services import ConversationService
 from src.contexts.conversation.application.ports import ConversationHistoryGateway, HostedChat
 from src.contexts.conversation.infrastructure.agentcore import ExternalConversationHistoryGateway
 from src.contexts.conversation.application.scenarios import ScenarioCodec, ScenarioHandler, ScenarioRegistrationProvider
-from src.contexts.data_analysis.application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, Nl2SqlCompiler, OneQueryGateway
+from src.contexts.data_analysis.application.ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, LogicalEntityValidator, Nl2SqlCompiler, OneQueryGateway
 from src.contexts.data_analysis.infrastructure.gateways import (
     ExternalApiDatasetGateway,
     ExternalDataCatalogGateway,
@@ -14,6 +14,7 @@ from src.contexts.data_analysis.infrastructure.gateways import (
     ExternalOneQueryGateway,
 )
 from src.contexts.data_analysis.infrastructure.nl2sql_compiler import RestrictedIbisNl2SqlCompiler
+from src.contexts.data_analysis.infrastructure.logical_entity_validator import DataCatalogLogicalEntityValidator
 from src.contexts.data_analysis.infrastructure.scenario_registration import DataAnalysisScenarioCodec, DataAnalysisScenarioHandler, DataAnalysisScenarioRegistrationProvider
 from src.contexts.report.application.generation_models import ReportAnswerView, ReportView
 from src.contexts.report.application.interfaces import DocumentExportGateway, ParameterOptionsResolver, ReportSchemaValidator
@@ -85,6 +86,7 @@ class ServiceTypeContractTests(unittest.TestCase):
             (ExternalDataCatalogGateway, DataCatalogGateway),
             (ExternalKnowledgeGateway, KnowledgeGateway),
             (RestrictedIbisNl2SqlCompiler, Nl2SqlCompiler),
+            (DataCatalogLogicalEntityValidator, LogicalEntityValidator),
             (ReportScenarioCodec, ScenarioCodec),
             (ReportScenarioHandler, ScenarioHandler),
             (ReportScenarioRegistrationProvider, ScenarioRegistrationProvider),

@@ -52,6 +52,7 @@ _TYPE_ALIASES = {
     "date": "date", "time": "time", "timestamp": "timestamp", "datetime": "timestamp",
     "string": "string", "text": "string", "varchar": "string",
 }
+_COMPLEX_TYPES = {"array", "record", "object"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,17 +197,16 @@ def _entity_name(entity: dict[str, Any]) -> str:
 
 
 def _entity_schema(entity: dict[str, Any]) -> dict[str, str]:
-    raw = entity.get("fields") or entity.get("columns") or entity.get("attributes") or entity.get("schema") or []
-    if isinstance(raw, dict):
-        return {str(key): _ibis_type(value if isinstance(value, str) else (value or {}).get("type")) for key, value in raw.items()}
+    raw = (entity.get("schema") or {}).get("fields") or []
     result: dict[str, str] = {}
     if isinstance(raw, list):
         for field in raw:
             if not isinstance(field, dict):
                 continue
-            key = str(field.get("name") or field.get("field") or field.get("key") or "").strip()
-            if key:
-                result[key] = _ibis_type(field.get("type") or field.get("dataType") or field.get("fieldType"))
+            key = str(field.get("name") or "").strip()
+            field_type = str((field.get("type") or {}).get("type") or "").strip().lower()
+            if key and field_type not in _COMPLEX_TYPES:
+                result[key] = _ibis_type(field_type)
     return result
 
 

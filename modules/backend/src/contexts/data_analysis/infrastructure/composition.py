@@ -19,6 +19,7 @@ from .gateways import (
     ExternalOneQueryGateway,
 )
 from .nl2sql_compiler import RestrictedIbisNl2SqlCompiler
+from .logical_entity_validator import DataCatalogLogicalEntityValidator
 from .scenario_registration import DataAnalysisScenarioRegistrationProvider
 
 
@@ -48,6 +49,7 @@ def build_data_analysis_service() -> DataAnalysisService:
         completion_config_builder=build_completion_provider_config,
         prompt_catalog=get_prompt_catalog(),
         nl2sql_compiler=RestrictedIbisNl2SqlCompiler(),
+        logical_entity_validator=DataCatalogLogicalEntityValidator(),
         audit_publisher=audit_publisher,
     )
 

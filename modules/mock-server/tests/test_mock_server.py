@@ -63,6 +63,20 @@ def test_onequery_exposes_known_string_business_errors():
     ).json() == {"retCode": "04023", "retInfo": "query field does not exist"}
 
 
+def test_datacatalog_list_returns_summaries_and_detail_returns_complete_logical_entity():
+    summaries = client.post("/rest/odae/v3/datacatalog/model/logicalentities/list", json={}).json()["data"]["results"]
+    detail = client.get(
+        "/rest/odae/v3/datacatalog/model/logicalentity",
+        params={"logicalEntityName": "network_health"},
+    ).json()["data"]
+
+    assert summaries[0]["name"] == "network_health"
+    assert "schema" not in summaries[0]
+    assert detail["schema"]["type"] == "record"
+    assert {item["columnType"] for item in detail["schema"]["fields"]} == {"dimension", "measure", "timestamp"}
+    assert any(item["type"]["type"] == "object" for item in detail["schema"]["fields"])
+
+
 def test_agentcore_import_is_upsert():
     client.post("/__mock__/reset")
     conversation_id = client.post("/rest/naie/aiagentcore/v1/conversation", json={"title": "test"}).json()["conversationId"]

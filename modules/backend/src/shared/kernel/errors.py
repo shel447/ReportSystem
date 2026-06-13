@@ -53,6 +53,7 @@ class ErrorCode:
     DATA_ANALYSIS_QUERY_GENERATION_FAILED = "chatbi.data_analysis.query_generation_failed"
     DATA_ANALYSIS_QUERY_UNSUPPORTED_SYNTAX = "chatbi.data_analysis.query.unsupported_syntax"
     DATA_ANALYSIS_QUERY_FIELD_NOT_FOUND = "chatbi.data_analysis.query.field_not_found"
+    DATA_ANALYSIS_METADATA_INVALID = "chatbi.data_analysis.metadata_invalid"
     DATA_ANALYSIS_DATASOURCE_UNAVAILABLE = "chatbi.data_analysis.datasource_unavailable"
     DATA_ANALYSIS_RESULT_INVALID = "chatbi.data_analysis.result_invalid"
     DATA_ANALYSIS_VISUALIZATION_FAILED = "chatbi.data_analysis.visualization_failed"

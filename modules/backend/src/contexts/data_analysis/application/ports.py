@@ -28,3 +28,7 @@ class KnowledgeGateway(Protocol):
 
 class Nl2SqlCompiler(Protocol):
     def compile(self, *, source: str, context: Nl2SqlContext) -> str: ...
+
+
+class LogicalEntityValidator(Protocol):
+    def validate(self, *, entity: dict[str, Any], expected_name: str) -> dict[str, Any]: ...

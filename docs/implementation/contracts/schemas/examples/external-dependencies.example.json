@@ -296,7 +296,74 @@
       },
       "response": {
         "data": {
-          "name": "network_health"
+          "name": "network_health",
+          "businessName": "Network device health",
+          "businessName_cn": "网络设备健康",
+          "description": "Network device health inspection results.",
+          "description_cn": "网络设备健康巡检结果。",
+          "properties": {
+            "dte.entityType": "performance"
+          },
+          "schema": {
+            "name": "root",
+            "type": "record",
+            "fields": [
+              {
+                "name": "device_name",
+                "businessName": "Device name",
+                "businessName_cn": "设备名称",
+                "description": "Device name",
+                "description_cn": "设备名称",
+                "columnType": "dimension",
+                "properties": {
+                  "ui": "text"
+                },
+                "type": {
+                  "name": "device_name",
+                  "type": "string"
+                }
+              },
+              {
+                "name": "health_score",
+                "businessName": "Health score",
+                "businessName_cn": "健康评分",
+                "description": "Device health score",
+                "description_cn": "设备健康评分",
+                "columnType": "measure",
+                "properties": {
+                  "unit": "score"
+                },
+                "type": {
+                  "name": "health_score",
+                  "type": "double"
+                }
+              },
+              {
+                "name": "collected_at",
+                "businessName": "Collected at",
+                "businessName_cn": "采集时间",
+                "description": "Metric collection time",
+                "description_cn": "指标采集时间",
+                "columnType": "timestamp",
+                "type": {
+                  "name": "collected_at",
+                  "type": "timestamp"
+                }
+              },
+              {
+                "name": "labels",
+                "businessName": "Device labels",
+                "businessName_cn": "设备标签",
+                "description": "Extended device labels",
+                "description_cn": "设备扩展标签",
+                "columnType": "dimension",
+                "type": {
+                  "name": "labels",
+                  "type": "object"
+                }
+              }
+            ]
+          }
         }
       }
     },

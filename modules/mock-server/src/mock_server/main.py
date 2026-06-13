@@ -36,6 +36,63 @@ def _dataset_business_error() -> dict[str, Any]:
     return {"retCode": 1001, "retInfo": "mock dataset business error"}
 
 
+def _logical_entity_detail(name: str) -> dict[str, Any]:
+    definitions = {
+        "network_health": {
+            "businessName": "Network device health",
+            "businessName_cn": "网络设备健康",
+            "description": "Network device health inspection results.",
+            "description_cn": "网络设备健康巡检结果。",
+            "fields": [
+                ("device_name", "Device name", "设备名称", "dimension", "string"),
+                ("health_score", "Health score", "健康评分", "measure", "double"),
+                ("collected_at", "Collected at", "采集时间", "timestamp", "timestamp"),
+                ("labels", "Device labels", "设备标签", "dimension", "object"),
+            ],
+        },
+        "network_alarm": {
+            "businessName": "Network alarm",
+            "businessName_cn": "网络告警",
+            "description": "Aggregated network alarm records.",
+            "description_cn": "网络告警汇总记录。",
+            "fields": [
+                ("level", "Alarm level", "告警级别", "dimension", "string"),
+                ("count", "Alarm count", "告警数量", "measure", "long"),
+                ("occurred_at", "Occurred at", "发生时间", "timestamp", "timestamp"),
+            ],
+        },
+    }
+    definition = definitions.get(name) or {
+        "businessName": name,
+        "businessName_cn": name,
+        "description": f"Mock logical entity {name}.",
+        "description_cn": f"Mock 逻辑实体 {name}。",
+        "fields": [("id", "Identifier", "标识", "dimension", "string")],
+    }
+    fields = [
+        {
+            "name": field_name,
+            "businessName": business_name,
+            "businessName_cn": business_name_cn,
+            "description": business_name,
+            "description_cn": business_name_cn,
+            "columnType": column_type,
+            "properties": {"mock": True},
+            "type": {"name": field_name, "type": field_type},
+        }
+        for field_name, business_name, business_name_cn, column_type, field_type in definition["fields"]
+    ]
+    return {
+        "name": name,
+        "businessName": definition["businessName"],
+        "businessName_cn": definition["businessName_cn"],
+        "description": definition["description"],
+        "description_cn": definition["description_cn"],
+        "properties": {"dte.entityType": "mock"},
+        "schema": {"name": "root", "type": "record", "fields": fields},
+    }
+
+
 def _normalize_import_answers(payload: dict[str, Any]) -> list[dict[str, Any]]:
     raw_answers = payload.get("answers")
     if isinstance(raw_answers, list):
@@ -280,7 +337,7 @@ def create_app() -> FastAPI:
 
     @app.get("/rest/odae/v3/datacatalog/model/logicalentity")
     def logical_entity(logicalEntityName: str):
-        return {"data": {"name": logicalEntityName}}
+        return {"data": _logical_entity_detail(logicalEntityName)}
 
     @app.get("/rest/odae/v3/datacatalog/model/datasets/{name}")
     def dataset_metadata(name: str):

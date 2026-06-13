@@ -15,6 +15,7 @@ from src.contexts.data_analysis.domain.models import (
     Sql2DataInput,
 )
 from src.shared.agentflow import FlowEdge, FlowGraph, FlowNode, InMemoryFlowRuntime, SubflowRegistry
+from src.shared.agentflow.metrics import FlowMetricsCollector, use_metrics_collector
 from src.shared.kernel.errors import ErrorCode, UpstreamError, ValidationError
 from src.infrastructure.prompts import get_prompt_catalog
 
@@ -74,17 +75,15 @@ class _QueryService:
 
 
 class _CatalogGateway:
+    def __init__(self) -> None:
+        self.detail_calls = []
+
     def list_logical_entities(self, *, user_id: str):
         return [{"name": "network_health"}]
 
     def get_logical_entity(self, *, name: str, user_id: str):
-        return {
-            "name": name,
-            "fields": [
-                {"name": "device_name", "type": "string"},
-                {"name": "health_score", "type": "double"},
-            ],
-        }
+        self.detail_calls.append((name, user_id))
+        return _logical_entity(name)
 
     def list_logical_relations(self, *, user_id: str):
         return []
@@ -118,6 +117,44 @@ class _GuardrailGateway:
         return GuardrailResult(passed=self.passed, reason="SQL blocked" if not self.passed else "")
 
 
+class _LogicalEntityValidator:
+    def validate(self, *, entity, expected_name):
+        assert entity["name"] == expected_name
+        return entity
+
+
+def _logical_entity(name: str, *, extra_fields=None):
+    fields = [
+        {
+            "name": "device_name",
+            "businessName": "Device name",
+            "businessName_cn": "设备名称",
+            "description": "Device name",
+            "description_cn": "设备名称",
+            "columnType": "dimension",
+            "type": {"name": "device_name", "type": "string"},
+        },
+        {
+            "name": "health_score",
+            "businessName": "Health score",
+            "businessName_cn": "健康评分",
+            "description": "Health score",
+            "description_cn": "健康评分",
+            "columnType": "measure",
+            "type": {"name": "health_score", "type": "double"},
+        },
+        *(extra_fields or []),
+    ]
+    return {
+        "name": name,
+        "businessName": "Network health",
+        "businessName_cn": "网络健康",
+        "description": "Network health data",
+        "description_cn": "网络健康数据",
+        "schema": {"name": "root", "type": "record", "fields": fields},
+    }
+
+
 def _service(*, guardrail_passed: bool = True, query_service=None, compiler=None):
     query = query_service or _QueryService()
     return (
@@ -130,6 +167,7 @@ def _service(*, guardrail_passed: bool = True, query_service=None, compiler=None
             completion_config_builder=lambda: object(),
             prompt_catalog=get_prompt_catalog(),
             nl2sql_compiler=compiler or _Nl2SqlCompiler(),
+            logical_entity_validator=_LogicalEntityValidator(),
         ),
         query,
     )
@@ -181,6 +219,37 @@ def test_nl2sql_retries_generated_ibis_compilation_up_to_three_attempts():
     assert generated.sql == "select device_name, health_score from network_health"
     assert len(compiler.calls) == 3
     assert compiler.calls[0][1].entities[0]["name"] == "network_health"
+
+
+def test_nl2sql_uses_selected_entity_detail_and_never_falls_back_to_summary():
+    class InvalidDetailCatalog(_CatalogGateway):
+        def get_logical_entity(self, *, name: str, user_id: str):
+            raise UpstreamError("detail unavailable", error_code=ErrorCode.DATA_ANALYSIS_METADATA_INVALID)
+
+    service, _query = _service()
+    service.data_catalog_gateway = InvalidDetailCatalog()
+
+    with pytest.raises(UpstreamError, match="detail unavailable"):
+        service.nl2sql(value=Nl2SqlInput(question="查询核心设备健康评分"), user_id="user-a")
+
+
+def test_nl2sql_requests_only_selected_details_and_counts_valid_participants():
+    class ManyEntitiesCatalog(_CatalogGateway):
+        def list_logical_entities(self, *, user_id: str):
+            return [{"name": f"entity_{index}"} for index in range(10)]
+
+    service, _query = _service()
+    catalog = ManyEntitiesCatalog()
+    service.data_catalog_gateway = catalog
+    collector = FlowMetricsCollector()
+
+    with use_metrics_collector(collector):
+        context = service._build_nl2sql_context(question="查询网络数据", user_id="user-a")
+
+    assert len(context.entities) == 8
+    assert catalog.detail_calls == [(f"entity_{index}", "user-a") for index in range(8)]
+    metrics = collector.snapshot(run_id="run_1", status="finished")
+    assert metrics.unique_counts["datacatalog.logical_entity.used"] == 8
 
 
 def test_data_analysis_stops_before_execution_when_application_guardrail_blocks_sql():

@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./logical-entity.schema.json",
+  "title": "LogicalEntity",
+  "description": "逻辑实体定义 Schema，用于描述业务实体、字段结构、字段类型、业务名称、多语言描述及扩展属性。",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "name",
+    "businessName",
+    "businessName_cn",
+    "description",
+    "description_cn",
+    "schema"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "逻辑实体的唯一名称，通常对应数据表、视图或逻辑模型名称。",
+      "minLength": 1,
+      "examples": ["kpi_wlan_ap"]
+    },
+    "businessName": {
+      "type": "string",
+      "description": "逻辑实体英文业务名称。",
+      "minLength": 1,
+      "examples": ["AP device performance indicators"]
+    },
+    "businessName_cn": {
+      "type": "string",
+      "description": "逻辑实体中文业务名称。",
+      "minLength": 1,
+      "examples": ["AP设备性能指标"]
+    },
+    "description": {
+      "type": "string",
+      "description": "逻辑实体英文描述。",
+      "examples": ["AP device performance indicators"]
+    },
+    "description_cn": {
+      "type": "string",
+      "description": "逻辑实体中文描述。",
+      "examples": ["AP设备性能指标"]
+    },
+    "properties": {
+      "$ref": "#/$defs/Properties",
+      "description": "逻辑实体扩展属性。用于保存实体类型、UI 配置、来源信息等非标准字段。"
+    },
+    "schema": {
+      "$ref": "#/$defs/RecordSchema",
+      "description": "逻辑实体的字段结构定义。"
+    }
+  },
+  "$defs": {
+    "Properties": {
+      "type": "object",
+      "description": "扩展属性对象，允许保存任意键值对。",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "integer",
+          "boolean",
+          "object",
+          "array",
+          "null"
+        ]
+      },
+      "examples": [
+        {
+          "dte.entityType": "performance"
+        }
+      ]
+    },
+    "RecordSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "fields"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Schema 根节点名称。",
+          "minLength": 1,
+          "examples": ["root"]
+        },
+        "type": {
+          "const": "record",
+          "description": "Schema 类型。当前逻辑实体根结构固定为 record。"
+        },
+        "fields": {
+          "type": "array",
+          "description": "字段定义列表。",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/Field"
+          }
+        }
+      }
+    },
+    "Field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "businessName",
+        "businessName_cn",
+        "description",
+        "description_cn",
+        "columnType",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "字段物理名称或逻辑字段标识。",
+          "minLength": 1,
+          "examples": ["hwApCpuUseRate"]
+        },
+        "businessName": {
+          "type": "string",
+          "description": "字段英文业务名称。",
+          "minLength": 1,
+          "examples": ["AP CPU usage"]
+        },
+        "businessName_cn": {
+          "type": "string",
+          "description": "字段中文业务名称。",
+          "minLength": 1,
+          "examples": ["AP CPU利用率"]
+        },
+        "description": {
+          "type": "string",
+          "description": "字段英文描述。",
+          "examples": ["AP CPU usage"]
+        },
+        "description_cn": {
+          "type": "string",
+          "description": "字段中文描述。",
+          "examples": ["AP CPU利用率。单位：%"]
+        },
+        "columnType": {
+          "type": "string",
+          "description": "字段业务列类型，用于区分维度、指标、时间戳等。",
+          "enum": ["dimension", "measure", "timestamp"],
+          "examples": ["measure"]
+        },
+        "properties": {
+          "$ref": "#/$defs/Properties",
+          "description": "字段级扩展属性。可用于保存 UI 展示配置、格式化规则、枚举值、血缘信息等。"
+        },
+        "type": {
+          "$ref": "#/$defs/FieldType",
+          "description": "字段类型定义。"
+        }
+      }
+    },
+    "FieldType": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "字段类型名称，通常与字段 name 保持一致。",
+          "minLength": 1,
+          "examples": ["hwApCpuUseRate"]
+        },
+        "type": {
+          "type": "string",
+          "description": "字段基础数据类型。",
+          "enum": [
+            "string",
+            "boolean",
+            "int",
+            "long",
+            "float",
+            "double",
+            "decimal",
+            "date",
+            "datetime",
+            "timestamp",
+            "array",
+            "record",
+            "object"
+          ],
+          "examples": ["double"]
+        }
+      }
+    }
+  }
+}

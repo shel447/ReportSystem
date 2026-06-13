@@ -170,6 +170,7 @@ X-User-Id: <external-user-id>
 | `chatbi.data_analysis.query_blocked` | 400 | 智能问数查询被安全规则拦截 |
 | `chatbi.data_analysis.query.unsupported_syntax` | 422 | 查询使用了当前数据源不支持的语法 |
 | `chatbi.data_analysis.query.field_not_found` | 422 | 查询引用的字段不存在 |
+| `chatbi.data_analysis.metadata_invalid` | 502 | 智能问数选中的逻辑实体详情缺失或不符合契约 |
 | `chatbi.data_analysis.visualization_failed` | 400 | 智能问数可视化建议输出无效 |
 | `chatbi.data_analysis.summary_failed` | 400 | 智能问数总结输出无效 |
 
