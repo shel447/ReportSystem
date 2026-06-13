@@ -10,6 +10,7 @@ from src.contexts.data_analysis.domain.models import (
     DatasetColumn,
     DatasetResult,
     Nl2SqlInput,
+    Nl2SqlCompileError,
     QueryResult,
     Sql2DataInput,
 )
@@ -21,12 +22,9 @@ from src.infrastructure.prompts import get_prompt_catalog
 class _AiGateway:
     def chat_completion(self, _config, messages, **_kwargs):
         prompt = messages[0]["content"]
-        if "可用逻辑实体" in prompt:
+        if "Ibis Key API Functions" in prompt:
             return {
-                "content": (
-                    '{"sql":"select device_name, health_score from network_health",'
-                    '"intent_function":"def resolve_intent(question):\\n    return {\'question\': question}"}'
-                )
+                "content": '{"implementation":"def query(config):\\n    return config.network_health"}'
             }
         if "选择最合适的可视化类型" in prompt:
             return {
@@ -79,10 +77,37 @@ class _CatalogGateway:
     def list_logical_entities(self, *, user_id: str):
         return [{"name": "network_health"}]
 
+    def get_logical_entity(self, *, name: str, user_id: str):
+        return {
+            "name": name,
+            "fields": [
+                {"name": "device_name", "type": "string"},
+                {"name": "health_score", "type": "double"},
+            ],
+        }
+
+    def list_logical_relations(self, *, user_id: str):
+        return []
+
 
 class _KnowledgeGateway:
     def retrieve_multi_index(self, *, query: str, user_id: str):
         return [{"sql": "select device_name, health_score from network_health"}]
+
+    def retrieve_sql_few_shot(self, *, query: str, user_id: str):
+        return [{"sql": "select device_name, health_score from network_health"}]
+
+
+class _Nl2SqlCompiler:
+    def __init__(self, failures: int = 0) -> None:
+        self.calls = []
+        self.failures = failures
+
+    def compile(self, *, source, context):
+        self.calls.append((source, context))
+        if len(self.calls) <= self.failures:
+            raise Nl2SqlCompileError("compile", "temporary compile failure")
+        return "select device_name, health_score from network_health"
 
 
 class _GuardrailGateway:
@@ -93,7 +118,7 @@ class _GuardrailGateway:
         return GuardrailResult(passed=self.passed, reason="SQL blocked" if not self.passed else "")
 
 
-def _service(*, guardrail_passed: bool = True, query_service=None):
+def _service(*, guardrail_passed: bool = True, query_service=None, compiler=None):
     query = query_service or _QueryService()
     return (
         DataAnalysisService(
@@ -104,6 +129,7 @@ def _service(*, guardrail_passed: bool = True, query_service=None):
             ai_gateway=_AiGateway(),
             completion_config_builder=lambda: object(),
             prompt_catalog=get_prompt_catalog(),
+            nl2sql_compiler=compiler or _Nl2SqlCompiler(),
         ),
         query,
     )
@@ -136,7 +162,7 @@ def test_data_analysis_step_contracts_share_complete_query_result():
         value=Data2SummaryInput(question="查询核心设备健康评分", sql=generated.sql, query_result=query_result)
     )
 
-    assert generated.intent_function.startswith("def resolve_intent")
+    assert generated.sql == "select device_name, health_score from network_health"
     assert query_result.ret_code == 0
     assert chart.type == "bar"
     assert chart.title == "核心设备健康评分"
@@ -144,6 +170,17 @@ def test_data_analysis_step_contracts_share_complete_query_result():
     assert chart.query_result is query_result
     assert summary.summaries == ["核心设备整体稳定，建议关注出口路由器-B。"]
     assert summary.sql_explanation == "按设备展示健康评分并关注低分设备。"
+
+
+def test_nl2sql_retries_generated_ibis_compilation_up_to_three_attempts():
+    compiler = _Nl2SqlCompiler(failures=2)
+    service, _query = _service(compiler=compiler)
+
+    generated = service.nl2sql(value=Nl2SqlInput(question="查询核心设备健康评分"), user_id="default")
+
+    assert generated.sql == "select device_name, health_score from network_health"
+    assert len(compiler.calls) == 3
+    assert compiler.calls[0][1].entities[0]["name"] == "network_health"
 
 
 def test_data_analysis_stops_before_execution_when_application_guardrail_blocks_sql():

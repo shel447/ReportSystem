@@ -236,6 +236,12 @@ class ExternalKnowledgeGateway(KnowledgeGateway):
         self.cache.set(key, deepcopy(result), ttl_seconds=300)
         return result
 
+    def retrieve_sql_few_shot(self, *, query: str, user_id: str) -> list[dict[str, Any]]:
+        index_name = self.configuration.index.chatbi_sql_few_shot
+        if not index_name:
+            return []
+        return self.retrieve_knowledge(query=query, rag_index=index_name, user_id=user_id)
+
     def query_knowledge(self, *, user_id: str, **filters: Any) -> list[dict[str, Any]]:
         payload = self.client.get_json(path_or_url="/rest/naie/knwl/v1/knowledge", params=filters, user_id=user_id)
         return list(payload.get("knowledgeList") or [])

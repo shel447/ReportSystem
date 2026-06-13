@@ -11,7 +11,9 @@
 - infrastructure：屏蔽外部接口路径、报文和错误码差异。
 - 场景接入：`infrastructure/scenario_registration.py` 只实现 conversation 拥有的场景注册协议，不承载会话或聊天业务语义。
 
-当前实验性 Ibis 查询链路继续使用官方 `ibis-framework[sqlite] == 11.0.0`。Backend 的 [`_third_party/ibis`](../third-party/README.md) 保存后续 DTE SQL 方言和编译器适配源码，但尚未接入本 Context，也不改变当前查询执行行为。
+NL2SQL 使用官方 Ibis 构造表达式，并通过 Backend 的
+[`_third_party/ibis`](../third-party/ibis.md) 编译 DTE SQL。完整的上下文构造、
+生成协议、受限执行和重试设计见 [NL2SQL 实现方案](nl2sql.md)。
 
 ## 3. 智能问数 Flow
 
@@ -30,16 +32,18 @@ flowchart LR
 
 | 步骤 | 输入 | 输出 | 职责 |
 |---|---|---|---|
-| `nl2sql` | `{"question": string}` | `{"sql": string, "intent_function": string}` | 加载 DataCatalog 和 Knowledge/RAG 上下文，调用 LLM 生成 SQL 与预留意图函数，执行 SQL Guardrail |
+| `nl2sql` | `{"question": string}` | `{"sql": string}` | 加载 DataCatalog 和 SQL Few-shot 上下文，生成受限 Ibis 函数并编译 DTE SQL，执行 SQL Guardrail |
 | `sql2data` | `{"question": string, "sql": string}` | 完整 OneQuery 成功响应 | 调用 OneQuery 执行查询并保留原始成功包络 |
-| `nl2data` | `{"question": string}` | `sql + intent_function + query_result` | 固定组合 `nl2sql -> sql2data` |
+| `nl2data` | `{"question": string}` | `sql + query_result` | 固定组合 `nl2sql -> sql2data` |
 | `data2chart` | `question + query_result` | `title + content + summaries + type + series + query_result` | 选择 BI Engine 图表或表格展示，并原样保留查询结果 |
 | `data2summary` | `question + sql + query_result` | `title + sql_explanation + summaries` | 基于问题、SQL 和数据生成标题、查询口径说明和分析结论 |
 | `finalize` | 上述步骤结果 | `DATA_ANALYSIS` answer | 适配为当前 `/chat` 最终答案结构 |
 
 ### 3.1 子流程契约
 
-`nl2sql` 输出的 `intent_function` 是模型生成的完整、单一 Python 函数定义源码。系统只使用 AST 验证其语法和顶层结构，不执行、不导入，也不参与当前流程判断。
+`nl2sql` 内部生成完整、单一的 `query(config)` Ibis 函数，并在受限环境执行后
+通过 `_third_party/ibis` 编译 DTE SQL。生成源码只属于一次内部尝试，不进入
+子流程输出和最终答案。
 
 `sql2data` 的 `query_result` 始终是完整 OneQuery 成功响应：
 

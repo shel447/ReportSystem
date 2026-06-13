@@ -3,8 +3,7 @@ from sqlglot import exp
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
 
 from ....exceptions import UnsupportedSyntaxException
-from ....state import CompileSqlState
-from ....ibis_ext import compile_sql_state
+from ....state import CompileSqlState, compile_sql_state
 
 
 class ConnectBySchema:

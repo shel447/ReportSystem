@@ -8,8 +8,8 @@
 |---|---|
 | 目标上游版本 | `ibis-framework[sqlite] == 11.0.0` |
 | 扩展源码入口 | `modules/backend/src/_third_party/ibis/` |
-| 当前接入状态 | **未接入**。`infrastructure/query` 仍使用官方 Ibis 11 和 SQLite backend |
-| 已知限制 | `_third_party.ibis.ibis_ext` 存在循环依赖，当前不能作为稳定公共入口直接导入 |
+| 当前接入状态 | **已接入 NL2SQL 编译链路**。生成的 Ibis Expression 通过该扩展编译为 DTE SQL |
+| 已知限制 | 依赖 Ibis/SQLGlot 内部扩展点，升级时必须执行本清单的兼容验证 |
 | 本文粒度 | 按行为能力组记录；私有辅助函数归入其支撑的能力组，不逐项罗列 |
 
 预期编译处理链路如下，当前仅作为扩展源码内部设计存在：
@@ -31,7 +31,8 @@ Ibis Expression
 2. **SQLGlot 核心语法扩展**：改变目标 SQL 方言、SQL 文本生成或 AST 优化语义。
 3. **周边辅助扩展**：负责串联编译、保存上下文状态和转换异常，本身不定义新的 Ibis/SQLGlot 语法。
 
-所有清单项当前均为 **未接入正式查询链路**。升级风险描述的是未来接入或升级 Ibis/SQLGlot 时必须重点验证的上游兼容点。
+清单项已由 NL2SQL 编译链路使用。升级风险描述的是升级 Ibis/SQLGlot 时必须重点
+验证的上游兼容点。
 
 ## 3. Ibis 核心语法扩展
 
@@ -59,7 +60,7 @@ Ibis Expression
 
 | 能力组 | 辅助职责 | 对应源码符号 | 依赖机制 | 当前限制 | 升级风险 |
 |---|---|---|---|---|---|
-| 编译入口与优化编排 | 将 Ibis 表达式串联到 DTE compiler、SQLGlot Generator 和 optimizer；普通 SQL 使用默认规则并追加 Count 别名规则，递归 SQL 使用受控规则序列 | `ibis_ext.to_sql`、`optimize_sql`、`custom_optimize_rules` | Ibis compiler、SQLGlot `optimizer.optimize/RULES` | `ibis_ext` 当前存在循环依赖，只能视为设计入口 | Ibis compiler 返回类型、SQLGlot 优化规则签名或默认顺序变化 |
+| 编译入口与优化编排 | 将 Ibis 表达式串联到 DTE compiler、SQLGlot Generator 和 optimizer；普通 SQL 使用默认规则并追加 Count 别名规则，递归 SQL 使用受控规则序列 | `ibis_ext.to_sql`、`optimize_sql`、`custom_optimize_rules` | Ibis compiler、SQLGlot `optimizer.optimize/RULES` | 已作为 NL2SQL 正式编译入口 | Ibis compiler 返回类型、SQLGlot 优化规则签名或默认顺序变化 |
 | 编译上下文与别名信息 | 每次编译通过 `ContextVar` 隔离状态；当前状态只记录 Count 表达式别名，供 Generator 与优化规则共享 | `compile_sql_state`、`CompileSqlState`、`SqlLineage` | Python `ContextVar` | 当前所谓 lineage 仅包含 Count 别名辅助信息，不是完整数据血缘 | 编译并发模型以及 Generator 与 optimizer 执行顺序变化 |
 | 扩展异常与异常转换 | 扩展不支持语法统一抛出 `UnsupportedSyntaxException`；将 SQLGlot 无法解析表引用的错误改写为更明确的未显式连接或物化提示 | `UnsupportedSyntaxException`、`custom_error_message`、`handle_unresolved_table` | Python exception、SQLGlot `OptimizeError` 消息 | 通过正则匹配上游英文错误文本，较脆弱 | SQLGlot 错误消息格式和异常层级变化 |
 
@@ -80,11 +81,10 @@ Ibis Expression
 
 正式接入前必须完成：
 
-1. 消除 `ibis_ext`、DTE 方言和优化规则间的循环依赖。
-2. 为清单中的每个能力组补充行为测试和代表性 SQL 快照。
+1. 为清单中的每个能力组补充行为测试和代表性 SQL 快照。
 3. 验证生成 SQL 与 OneQuery/DTE SQL 的真实执行结果。
 4. 明确全局方言注册和 `Expr.__eq__` monkey patch 的初始化、隔离与销毁策略。
 5. 证明官方 Ibis 查询链路与扩展链路能够独立运行。
-6. 分别为 Ibis 核心语法扩展、SQLGlot 核心语法扩展和周边辅助扩展建立独立测试集，避免辅助设施测试掩盖语法兼容问题。
+5. 分别为 Ibis 核心语法扩展、SQLGlot 核心语法扩展和周边辅助扩展建立独立测试集，避免辅助设施测试掩盖语法兼容问题。
 
 升级 Ibis 或 SQLGlot 时，必须逐项复核本清单中的“上游扩展机制”和“升级风险”，不能只以包安装成功作为兼容结论。

@@ -18,6 +18,7 @@ from .gateways import (
     ExternalKnowledgeGateway,
     ExternalOneQueryGateway,
 )
+from .nl2sql_compiler import RestrictedIbisNl2SqlCompiler
 from .scenario_registration import DataAnalysisScenarioRegistrationProvider
 
 
@@ -46,6 +47,7 @@ def build_data_analysis_service() -> DataAnalysisService:
         ai_gateway=OpenAICompatGateway(),
         completion_config_builder=build_completion_provider_config,
         prompt_catalog=get_prompt_catalog(),
+        nl2sql_compiler=RestrictedIbisNl2SqlCompiler(),
         audit_publisher=audit_publisher,
     )
 

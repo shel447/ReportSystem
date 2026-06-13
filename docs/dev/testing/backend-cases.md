@@ -27,8 +27,9 @@
 | `tests/conversation/unit/test_scenario_dispatch.py` | 6 | 场景注册、显式匹配、多轮延续、本地识别、澄清和无会话指令 |
 | `tests/data_analysis/unit/test_data_analysis_service.py` | 7 | 智能问数编排、强类型步骤组合、SQL 安全拒绝、精确查询错误停止后续节点和 BI 可视化建议 |
 | `tests/data_analysis/unit/test_prompt_outputs.py` | 3 | 图表提示词类型映射、字段引用校验和标题/SQL 解释/业务结论解析 |
-| `tests/data_analysis/unit/test_step_contracts.py` | 5 | 五个内部子流程 DTO round-trip、必填字段、`intent_function` AST 校验和禁止执行源码 |
+| `tests/data_analysis/unit/test_step_contracts.py` | 3 | 五个内部子流程 DTO round-trip 与必填字段校验 |
 | `tests/data_analysis/infrastructure/test_external_query_gateways.py` | 9 | OneQuery 正式路径、完整成功包络、精确业务错误、未知错误兼容语义、必填包络字段、字段元数据和用户级 DataCatalog/RAG 缓存 |
+| `tests/data_analysis/infrastructure/test_nl2sql_compiler.py` | 3 | 受限 Ibis 函数执行、DTE SQL 编译、危险语法与未授权逻辑实体拒绝 |
 | `tests/features/test_document_export_flow.py` | 1 | 文档生成 Controller 到应用服务的契约 |
 | `tests/features/test_complex_mock_template_export_flow.py` | 1 | 四份复杂开发模板真实 Word/PPT Office 包闭环 |
 | `tests/features/test_template_management_flow.py` | 2 | 模板 CRUD、导入预览、导出 API 闭环和跨用户共享可见性 |

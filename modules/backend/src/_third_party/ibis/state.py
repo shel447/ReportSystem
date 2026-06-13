@@ -1,3 +1,9 @@
+import contextvars
+
+
+compile_sql_state = contextvars.ContextVar("_state")
+
+
 class CompileSqlState:
     """
     SQL编译过程中的一些状态数据，线程隔离

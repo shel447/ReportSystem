@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import ast
+from datetime import datetime, timezone
 import json
 from typing import Any
 
@@ -21,6 +21,8 @@ from ..domain.models import (
     DataAnalysisAnswer,
     DatasetResult,
     Nl2DataOutput,
+    Nl2SqlCompileError,
+    Nl2SqlContext,
     Nl2SqlInput,
     Nl2SqlOutput,
     QueryResult,
@@ -37,7 +39,7 @@ from ..domain.models import (
     query_result_to_dict,
     sql2data_input_from_dict,
 )
-from .ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, OneQueryGateway
+from .ports import ApiDatasetGateway, DataCatalogGateway, KnowledgeGateway, Nl2SqlCompiler, OneQueryGateway
 
 
 DATA_ANALYSIS_INSTRUCTION = "data_analysis"
@@ -82,6 +84,7 @@ class DataAnalysisService:
         ai_gateway,
         completion_config_builder,
         prompt_catalog: PromptCatalog,
+        nl2sql_compiler: Nl2SqlCompiler,
         audit_publisher: AuditPublisher | None = None,
     ) -> None:
         self.query_service = query_service
@@ -91,6 +94,7 @@ class DataAnalysisService:
         self.ai_gateway = ai_gateway
         self.completion_config_builder = completion_config_builder
         self.prompt_catalog = prompt_catalog
+        self.nl2sql_compiler = nl2sql_compiler
         self.audit_publisher = audit_publisher
 
     def analyze_from_natural_language(self, *, question: str, user_id: str) -> DataAnalysisAnswer:
@@ -130,15 +134,11 @@ class DataAnalysisService:
     def nl2data(self, *, value: Nl2SqlInput, user_id: str) -> Nl2DataOutput:
         generated = self.nl2sql(value=value, user_id=user_id)
         query_result = self.sql2data(value=Sql2DataInput(question=value.question, sql=generated.sql), user_id=user_id)
-        return Nl2DataOutput(sql=generated.sql, intent_function=generated.intent_function, query_result=query_result)
+        return Nl2DataOutput(sql=generated.sql, query_result=query_result)
 
     def nl2sql(self, *, value: Nl2SqlInput, user_id: str) -> Nl2SqlOutput:
-        entities = self.data_catalog_gateway.list_logical_entities(user_id=user_id)
-        try:
-            retrieved = self.knowledge_gateway.retrieve_multi_index(query=value.question, user_id=user_id)
-        except Exception:
-            retrieved = []
-        output = self._generate_nl2sql_output(question=value.question, entities=entities, retrieved=retrieved)
+        context = self._build_nl2sql_context(question=value.question, user_id=user_id)
+        output = self._generate_nl2sql_output(context=context)
         security = self.guardrail_gateway.check_application_security(kind="nl2sql", content=output.sql, user_id=user_id)
         if not security.passed:
             self._audit(
@@ -157,6 +157,35 @@ class DataAnalysisService:
                 category="safety",
             )
         return output
+
+    def _build_nl2sql_context(self, *, question: str, user_id: str) -> Nl2SqlContext:
+        listed = self.data_catalog_gateway.list_logical_entities(user_id=user_id)
+        selected = _select_entities(question=question, entities=listed)
+        details: list[dict[str, Any]] = []
+        for item in selected:
+            name = _entity_name(item)
+            if not name:
+                continue
+            try:
+                detail = dict(self.data_catalog_gateway.get_logical_entity(name=name, user_id=user_id))
+                detail.setdefault("name", name)
+                details.append(detail)
+            except Exception:
+                details.append(item)
+        try:
+            relations = self.data_catalog_gateway.list_logical_relations(user_id=user_id)
+        except Exception:
+            relations = []
+        try:
+            few_shots = self.knowledge_gateway.retrieve_sql_few_shot(query=question, user_id=user_id)
+        except Exception:
+            few_shots = []
+        return Nl2SqlContext(
+            question=question,
+            entities=tuple(details),
+            relations=tuple(_select_relations(relations=relations, entities=details)),
+            few_shots=tuple(few_shots[:5]),
+        )
 
     def sql2data(self, *, value: Sql2DataInput, user_id: str) -> QueryResult:
         return self.query_service.execute_sql_result(
@@ -256,34 +285,80 @@ class DataAnalysisService:
         except Exception:
             return
 
-    def _generate_nl2sql_output(self, *, question: str, entities: list[dict[str, Any]], retrieved: list[dict[str, Any]]) -> Nl2SqlOutput:
-        response = self._complete(
-            prompt=[
-                {
-                    "role": "system",
-                    "content": self.prompt_catalog.render(
-                        "data_analysis.nl2sql",
-                        question=question,
-                        entities=json.dumps(entities[:20], ensure_ascii=False),
-                        retrieved=json.dumps(retrieved[:5], ensure_ascii=False),
-                    ),
-                },
-            ],
-            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
-            error_message="智能问数查询生成模型调用失败。",
-            temperature=0.0,
-            max_tokens=900,
-        )
-        payload = _json_object(response.get("content"))
-        sql = str(payload.get("sql") or "").strip()
-        if not sql:
-            raise ValidationError(
-                "模型没有生成可执行查询",
+    def _generate_nl2sql_output(self, *, context: Nl2SqlContext) -> Nl2SqlOutput:
+        last_error: Nl2SqlCompileError | None = None
+        for attempt in range(1, 4):
+            response = self._complete(
+                prompt=self._nl2sql_prompt(context=context, attempt=attempt, last_error=last_error),
                 error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
+                error_message="智能问数查询生成模型调用失败。",
+                temperature=0.0,
+                max_tokens=2400,
             )
-        intent_function = str(payload.get("intent_function") or "").strip()
-        _validate_intent_function(intent_function)
-        return Nl2SqlOutput(sql=sql, intent_function=intent_function)
+            try:
+                source = _generated_ibis_source(response.get("content"))
+                return Nl2SqlOutput(sql=self.nl2sql_compiler.compile(source=source, context=context))
+            except Nl2SqlCompileError as exc:
+                last_error = exc
+        raise ValidationError(
+            "模型生成的 Ibis 查询在三次尝试后仍无法编译。",
+            details={"stage": last_error.stage if last_error else "generation", "attempts": 3},
+            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
+        )
+
+    def _nl2sql_prompt(
+        self,
+        *,
+        context: Nl2SqlContext,
+        attempt: int,
+        last_error: Nl2SqlCompileError | None,
+    ) -> list[dict[str, Any]]:
+        error_feedback = ""
+        if last_error is not None:
+            error_feedback = f"\nPrevious attempt failed at {last_error.stage}: {last_error}\nPlease repair the function."
+        knowledge = self.prompt_catalog.render(
+            "data_analysis.knowledge_template",
+            knowledge_doc=json.dumps(context.few_shots, ensure_ascii=False),
+        )
+        relations = self.prompt_catalog.render(
+            "data_analysis.table_relation_graph",
+            foreign_key_lis=json.dumps(context.relations, ensure_ascii=False),
+        )
+        similar_queries = self.prompt_catalog.render(
+            "data_analysis.similar_query_template",
+            topk_samples=json.dumps(context.few_shots, ensure_ascii=False),
+        )
+        ibis_code = self.prompt_catalog.render(
+            "data_analysis.ibis_code_template",
+            import_part="import ibis\nfrom ibis import _\nfrom typing import Any",
+            utility_functions=(
+                "def create_recursive_query(root_table_expr, id_col: str, parent_col: str, "
+                "start_condition=None, max_depth: int = 2, include_columns=None, "
+                "include_root_layer: bool = False): ...\n"
+                "def create_device2kpi_wide_table(device_table, kpi_metrics_table, "
+                "intermediate_tables): ...\n"
+                "def get_tables_columns(table_exprs): ..."
+            ),
+            table_definitions=_ibis_table_definitions(context.entities),
+            cast_unknown_type_columns_code="",
+            intfunc_param_definitions="",
+            context_functions="",
+            run_historical_intent_functions="",
+        )
+        main = self.prompt_catalog.render(
+            "data_analysis.main_template",
+            knowledge=knowledge,
+            table_relation_graph=relations,
+            similar_queries=similar_queries,
+            ibis_code=ibis_code,
+            system_time=datetime.now(timezone.utc).isoformat(),
+            current_dialogue=f"User: {context.question}{error_feedback}",
+            THINKING_MODE="/no_think",
+        )
+        return [
+            {"role": "system", "content": self.prompt_catalog.render("data_analysis.system_prompt")},
+            {"role": "user", "content": f"Attempt {attempt}/3\n{main}"},
+        ]
 
     def _complete(
         self,
@@ -368,7 +443,6 @@ class DataAnalysisFlowFactory:
                         "answer": nl2data_output_to_dict(
                             Nl2DataOutput(
                                 sql=context.get_state("nl2sql_output").sql,
-                                intent_function=context.get_state("nl2sql_output").intent_function,
                                 query_result=context.get_state("query_result"),
                             )
                         ),
@@ -581,24 +655,56 @@ def _json_object(raw: object) -> dict[str, Any]:
     return payload
 
 
-def _validate_intent_function(source: str) -> None:
+def _generated_ibis_source(raw: object) -> str:
+    payload = _json_object(raw)
+    source = str(payload.get("implementation") or "").strip()
     if not source:
-        raise ValidationError(
-            "模型没有生成 intent_function",
-            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
-        )
-    try:
-        module = ast.parse(source)
-    except SyntaxError as exc:
-        raise ValidationError(
-            "模型生成的 intent_function 不是合法 Python 函数定义",
-            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
-        ) from exc
-    if len(module.body) != 1 or not isinstance(module.body[0], (ast.FunctionDef, ast.AsyncFunctionDef)):
-        raise ValidationError(
-            "模型生成的 intent_function 必须是单个完整函数定义",
-            error_code=ErrorCode.DATA_ANALYSIS_QUERY_GENERATION_FAILED,
-        )
+        raise Nl2SqlCompileError("generation", "Model response does not contain implementation")
+    return source
+
+
+def _entity_name(entity: dict[str, Any]) -> str:
+    return str(entity.get("name") or entity.get("logicalEntityName") or entity.get("tableName") or "").strip()
+
+
+def _select_entities(*, question: str, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    terms = {part.lower() for part in question.replace("，", " ").replace(",", " ").split() if part}
+    ranked = sorted(
+        entities,
+        key=lambda item: sum(term in json.dumps(item, ensure_ascii=False).lower() for term in terms),
+        reverse=True,
+    )
+    return ranked[:8]
+
+
+def _select_relations(*, relations: list[dict[str, Any]], entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    names = {_entity_name(item) for item in entities}
+    selected = [item for item in relations if any(name and name in json.dumps(item, ensure_ascii=False) for name in names)]
+    return selected[:50]
+
+
+def _ibis_table_definitions(entities: tuple[dict[str, Any], ...]) -> str:
+    lines = ["class QueryConfig:"]
+    for entity in entities:
+        name = _entity_name(entity)
+        if not name or not name.isidentifier():
+            continue
+        raw_fields = entity.get("fields") or entity.get("columns") or entity.get("attributes") or entity.get("schema") or {}
+        if isinstance(raw_fields, list):
+            fields = {
+                str(item.get("name") or item.get("field") or item.get("key")): str(
+                    item.get("type") or item.get("dataType") or item.get("fieldType") or "string"
+                )
+                for item in raw_fields
+                if isinstance(item, dict) and (item.get("name") or item.get("field") or item.get("key"))
+            }
+        else:
+            fields = raw_fields
+        lines.append(f"    # {json.dumps(entity, ensure_ascii=False)}")
+        lines.append(f"    {name} = ibis.table({json.dumps(fields, ensure_ascii=False)}, name={name!r})")
+    if len(lines) == 1:
+        lines.append("    pass")
+    return "\n".join(lines)
 
 
 def _yaml_object(raw: object, *, error_code: str, label: str) -> dict[str, Any]:

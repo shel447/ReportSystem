@@ -1,4 +1,3 @@
-import contextvars
 import re
 
 import ibis.expr.types as ir
@@ -12,7 +11,7 @@ from .backends.sql.sqlglot.custom_optimize_rules import (
     rename_count_alias,
     make_up_connect_by,
 )
-from .state import CompileSqlState
+from .state import CompileSqlState, compile_sql_state
 
 from sqlglot.optimizer.canonicalize import canonicalize
 from sqlglot.optimizer.qualify import qualify
@@ -26,7 +25,6 @@ from sqlglot.optimizer.annotate_types import annotate_types
 from sqlglot.optimizer.qualify_columns import quote_identifiers
 
 
-compile_sql_state = contextvars.ContextVar("_state")
 _compiler = DTESQLCompiler()
 
 

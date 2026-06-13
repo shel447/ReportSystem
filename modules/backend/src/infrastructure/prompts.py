@@ -48,7 +48,11 @@ REQUIRED_PROMPTS = {
     "figure.column_order_system": {"query", "result_fields", "data_sample"},
     "figure.summary_system": {"query", "sql", "result_fields", "data_sample"},
     "figure.rename_column_system": {"query", "sql", "result_fields", "data_sample"},
-    "data_analysis.nl2sql": {"question", "entities", "retrieved"},
+    "data_analysis.system_prompt": set(),
+    "data_analysis.main_template": {
+        "THINKING_MODE", "current_dialogue", "ibis_code", "knowledge",
+        "similar_queries", "system_time", "table_relation_graph",
+    },
 }
 
 _catalog: PromptCatalog | None = None
@@ -60,12 +64,14 @@ def initialize_prompt_catalog() -> PromptCatalog:
     for namespace, filename in PROMPT_FILES.items():
         payload = _load_yaml(PROMPT_ROOT / filename)
         for key, raw_entry in payload.items():
-            if not isinstance(raw_entry, dict):
-                raise ValueError(f"Prompt {namespace}.{key} must be an object")
-            description = raw_entry.get("description")
-            template = raw_entry.get("prompt")
-            if not isinstance(description, str) or not description.strip():
-                raise ValueError(f"Prompt {namespace}.{key}.description is required")
+            if isinstance(raw_entry, str):
+                description = f"{key} prompt"
+                template = raw_entry
+            elif isinstance(raw_entry, dict):
+                description = raw_entry.get("description") or f"{key} prompt"
+                template = raw_entry.get("prompt")
+            else:
+                raise ValueError(f"Prompt {namespace}.{key} must be a string or object")
             if not isinstance(template, str) or not template.strip():
                 raise ValueError(f"Prompt {namespace}.{key}.prompt is required")
             name = f"{namespace}.{key}"

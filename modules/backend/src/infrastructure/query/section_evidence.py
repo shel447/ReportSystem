@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, List
 import ibis
 
 from ..ai.openai_compat import AIRequestError, OpenAICompatGateway, ProviderConfig
-from .engine import QueryRequest, run_query
+from .engine import QueryEngineError, QueryRequest, execute_ibis_code as execute_query_ibis_code, run_query
 from ..demo.telecom import get_demo_db_path, get_schema_registry_text, open_demo_connection
 
 MAX_QUERY_RETRIES = 3
@@ -153,58 +153,15 @@ def generate_section_evidence(
 
 
 def execute_ibis_code(code: str) -> QueryExecutionResult:
-    sanitized = _extract_code_block(code)
-    if not sanitized.strip():
-        raise SectionQueryError("模型没有返回 Ibis 代码。")
-
-    tree = ast.parse(sanitized, mode="exec")
-    validator = IbisAstValidator()
-    validator.validate(tree)
-
-    backend = ibis.sqlite.connect(get_demo_db_path())
-    tables = MappingProxyType({name: backend.table(name) for name in backend.list_tables()})
-    globals_env = {
-        "__builtins__": {},
-        "ibis": SafeIbis(),
-        "tables": tables,
-    }
-    locals_env: Dict[str, Any] = {}
     try:
-        exec(compile(tree, "<generated_ibis>", "exec"), globals_env, locals_env)
-    except Exception as exc:
-        raise SectionQueryError(f"Ibis 代码执行失败：{exc}") from exc
-
-    result = locals_env.get("result")
-    if result is None:
-        raise SectionQueryError("Ibis 代码必须把最终结果赋值到 result。")
-    if not hasattr(result, "as_table"):
-        raise SectionQueryError("result 必须是 Ibis 表达式。")
-
-    try:
-        table_expr = result.as_table()
-        compiled_sql = str(backend.compile(table_expr)).strip()
-    except Exception as exc:
-        raise SectionQueryError(f"Ibis 编译 SQL 失败：{exc}") from exc
-
-    try:
-        with open_demo_connection() as conn:
-            row_count = int(
-                conn.execute(f"SELECT COUNT(*) AS cnt FROM ({compiled_sql}) AS generated_result").fetchone()["cnt"]
-            )
-            sample_rows = [
-                _coerce_row(row)
-                for row in conn.execute(
-                    f"SELECT * FROM ({compiled_sql}) AS generated_result LIMIT {MAX_SAMPLE_ROWS}"
-                ).fetchall()
-            ]
-    except Exception as exc:
-        raise SectionQueryError(f"SQL 执行失败：{exc} | SQL: {compiled_sql}") from exc
-
+        result = execute_query_ibis_code(code)
+    except QueryEngineError as exc:
+        raise SectionQueryError(exc.message) from exc
     return QueryExecutionResult(
-        ibis_code=sanitized.strip(),
-        compiled_sql=compiled_sql,
-        row_count=row_count,
-        sample_rows=sample_rows,
+        ibis_code=result.ibis_code,
+        compiled_sql=result.compiled_sql,
+        row_count=result.row_count,
+        sample_rows=result.sample_rows,
     )
 
 

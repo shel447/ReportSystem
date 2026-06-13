@@ -6,8 +6,7 @@ import sqlglot.expressions as exp
 from sqlglot import Dialect
 from sqlglot.dialects import postgres
 
-from ....ibis_ext import compile_sql_state
-from ....ibis_ext import CompileSqlState
+from ....state import CompileSqlState, compile_sql_state
 
 def _substring_sql(self: postgres.Postgres.Generator, expression: exp.Substring) -> str:
     this = self.sql(expression, "this")

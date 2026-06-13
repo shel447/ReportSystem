@@ -34,7 +34,6 @@ class Nl2SqlInput:
 @dataclass(frozen=True, slots=True)
 class Nl2SqlOutput:
     sql: str
-    intent_function: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,8 +45,21 @@ class Sql2DataInput:
 @dataclass(frozen=True, slots=True)
 class Nl2DataOutput:
     sql: str
-    intent_function: str
     query_result: QueryResult
+
+
+@dataclass(frozen=True, slots=True)
+class Nl2SqlContext:
+    question: str
+    entities: tuple[dict[str, Any], ...] = ()
+    relations: tuple[dict[str, Any], ...] = ()
+    few_shots: tuple[dict[str, Any], ...] = ()
+
+
+class Nl2SqlCompileError(ValueError):
+    def __init__(self, stage: str, message: str) -> None:
+        super().__init__(message)
+        self.stage = stage
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,15 +163,12 @@ def nl2sql_input_from_dict(payload: object) -> Nl2SqlInput:
 
 
 def nl2sql_output_to_dict(value: Nl2SqlOutput) -> dict[str, Any]:
-    return {"sql": value.sql, "intent_function": value.intent_function}
+    return {"sql": value.sql}
 
 
 def nl2sql_output_from_dict(payload: object) -> Nl2SqlOutput:
     data = _object(payload, "nl2sql output")
-    return Nl2SqlOutput(
-        sql=_required_string(data, "sql"),
-        intent_function=_required_string(data, "intent_function"),
-    )
+    return Nl2SqlOutput(sql=_required_string(data, "sql"))
 
 
 def sql2data_input_to_dict(value: Sql2DataInput) -> dict[str, Any]:
@@ -174,7 +183,6 @@ def sql2data_input_from_dict(payload: object) -> Sql2DataInput:
 def nl2data_output_to_dict(value: Nl2DataOutput) -> dict[str, Any]:
     return {
         "sql": value.sql,
-        "intent_function": value.intent_function,
         "query_result": query_result_to_dict(value.query_result),
     }
 
@@ -183,7 +191,6 @@ def nl2data_output_from_dict(payload: object) -> Nl2DataOutput:
     data = _object(payload, "nl2data output")
     return Nl2DataOutput(
         sql=_required_string(data, "sql"),
-        intent_function=_required_string(data, "intent_function"),
         query_result=query_result_from_dict(data.get("query_result")),
     )
 

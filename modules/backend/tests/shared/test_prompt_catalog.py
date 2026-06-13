@@ -55,6 +55,8 @@ def test_prompt_assets_preserve_detailed_business_rules():
     column_order = catalog.require("figure.column_order_system").template
     summary = catalog.require("figure.summary_system").template
     rename_column = catalog.require("figure.rename_column_system").template
+    nl2sql_system = catalog.require("data_analysis.system_prompt").template
+    nl2sql_main = catalog.require("data_analysis.main_template").template
 
     assert "如果某个参数无法从问题中提取，不要包含在输出中" in batch_extract
     assert "问题不要太死板，多变一点" in single_request
@@ -75,3 +77,6 @@ def test_prompt_assets_preserve_detailed_business_rules():
     assert "**生成summaries**" in summary
     assert "聚合函数列需要体现计算含义" in rename_column
     assert "price*quantity" in rename_column
+    assert "Ibis Key API Functions" in nl2sql_system
+    assert "create_recursive_query" in nl2sql_system
+    assert "complete function `query(config)`" in nl2sql_main
