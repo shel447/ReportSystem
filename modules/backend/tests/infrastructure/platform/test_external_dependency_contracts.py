@@ -122,6 +122,35 @@ def test_logical_entity_detail_contract_rejects_invalid_field_metadata(mutate):
         _validator(_schema("logical-entity.schema.json")).validate(payload)
 
 
+def test_logical_relationship_detail_contract_is_strict_while_list_summary_only_requires_name():
+    detail = EXAMPLES["datacatalog"]["logicalRelation"]["response"]["data"]
+    _validator(_schema("logical-relationship.schema.json")).validate(detail)
+    _validate(
+        "datacatalog.schema.json",
+        "ListLogicalRelationsResponse",
+        {"retCode": 0, "retInfo": "", "data": {"results": [{"name": "summary_only", "platformField": True}]}},
+    )
+
+    with pytest.raises(ValidationError):
+        _validate("datacatalog.schema.json", "GetLogicalRelationResponse", {"retCode": 0, "data": {"name": "summary_only"}})
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda item: item.update({"cardinality": "1:N"}),
+        lambda item: item["rule"].update({"conditionType": "expression"}),
+        lambda item: item["rule"].update({"condition": ""}),
+    ],
+)
+def test_logical_relationship_detail_contract_rejects_invalid_rules(mutate):
+    payload = json.loads(json.dumps(EXAMPLES["datacatalog"]["logicalRelation"]["response"]["data"]))
+    mutate(payload)
+
+    with pytest.raises(ValidationError):
+        _validator(_schema("logical-relationship.schema.json")).validate(payload)
+
+
 def test_agentcore_import_contract_is_an_upsert_payload():
     payload = EXAMPLES["agentcore"]["importChat"]["request"]
 

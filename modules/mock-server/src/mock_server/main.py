@@ -56,6 +56,7 @@ def _logical_entity_detail(name: str) -> dict[str, Any]:
             "description": "Aggregated network alarm records.",
             "description_cn": "网络告警汇总记录。",
             "fields": [
+                ("device_name", "Device name", "设备名称", "dimension", "string"),
                 ("level", "Alarm level", "告警级别", "dimension", "string"),
                 ("count", "Alarm count", "告警数量", "measure", "long"),
                 ("occurred_at", "Occurred at", "发生时间", "timestamp", "timestamp"),
@@ -345,11 +346,26 @@ def create_app() -> FastAPI:
 
     @app.post("/rest/dte/v2/datacatalog/product/model/logicalrelations/query")
     def logical_relations(_: dict[str, Any]):
-        return {"retCode": 0, "retInfo": "", "data": {"results": [], "totalCount": 0}}
+        return {"retCode": 0, "retInfo": "", "data": {"results": [{"name": "network_health_Association_network_alarm"}], "totalCount": 1}}
 
     @app.get("/rest/dte/v2/datacatalog/product/model/logicalrelation")
     def logical_relation(name: str):
-        return {"retCode": 0, "retInfo": "", "data": {"name": name}}
+        return {
+            "retCode": 0,
+            "retInfo": "",
+            "data": {
+                "name": name,
+                "type": "Association",
+                "sourceEntityName": "network_health",
+                "targetEntityName": "network_alarm",
+                "cardinality": "1:M",
+                "description": "Device health to alarm records.",
+                "rule": {
+                    "condition": "network_health.device_name = network_alarm.device_name",
+                    "conditionType": "sql"
+                }
+            }
+        }
 
     @app.get("/rest/naie/knwl/v1/knowledge")
     def knowledge():

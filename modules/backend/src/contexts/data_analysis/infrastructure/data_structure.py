@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 
@@ -19,6 +20,15 @@ class ForeignKey:
 
     @classmethod
     def from_mapping(cls, value: dict[str, Any]) -> "ForeignKey":
+        relationship = _relationship_fields(value)
+        if relationship is not None:
+            return cls(
+                stmt=str((value.get("rule") or {}).get("condition") or ""),
+                table=relationship[0],
+                column=relationship[1],
+                ref_table=relationship[2],
+                ref_column=relationship[3],
+            )
         source = value.get("source") if isinstance(value.get("source"), dict) else {}
         target = value.get("target") if isinstance(value.get("target"), dict) else {}
         return cls(
@@ -40,3 +50,26 @@ def _text(value: dict[str, Any], *keys: str) -> str:
         if candidate is not None and str(candidate).strip():
             return str(candidate).strip()
     return ""
+
+
+_SIMPLE_EQUALITY = re.compile(
+    r"^\s*([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"
+    r"([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*$"
+)
+
+
+def _relationship_fields(value: dict[str, Any]) -> tuple[str, str, str, str] | None:
+    rule = value.get("rule")
+    if not isinstance(rule, dict) or rule.get("conditionType") != "sql":
+        return None
+    match = _SIMPLE_EQUALITY.fullmatch(str(rule.get("condition") or ""))
+    if match is None:
+        return None
+    left_entity, left_field, right_entity, right_field = match.groups()
+    source = str(value.get("sourceEntityName") or "")
+    target = str(value.get("targetEntityName") or "")
+    if (left_entity, right_entity) == (source, target):
+        return left_entity, left_field, right_entity, right_field
+    if (left_entity, right_entity) == (target, source):
+        return right_entity, right_field, left_entity, left_field
+    return None

@@ -88,8 +88,12 @@ def test_compiler_injects_relation_helpers_and_cleans_execution_context():
         ),
         relations=(
             {
-                "source": {"entity": "device", "field": "id"},
-                "target": {"entity": "device_kpi", "field": "device_id"},
+                "name": "device_to_kpi",
+                "type": "Association",
+                "sourceEntityName": "device",
+                "targetEntityName": "device_kpi",
+                "cardinality": "1:M",
+                "rule": {"condition": "device.id = device_kpi.device_id", "conditionType": "sql"},
             },
         ),
     )
@@ -106,6 +110,67 @@ def test_compiler_injects_relation_helpers_and_cleans_execution_context():
     assert "JOIN" in sql
     assert current_fk_whitelist.get() == ()
     assert current_table_config.get() is None
+
+
+def test_compiler_accepts_reversed_simple_relationship_condition():
+    context = Nl2SqlContext(
+        question="查询设备指标",
+        entities=(
+            _entity("device", [("id", "string")]),
+            _entity("device_kpi", [("device_id", "string"), ("score", "double")]),
+        ),
+        relations=(
+            {
+                "name": "device_to_kpi",
+                "type": "Association",
+                "sourceEntityName": "device",
+                "targetEntityName": "device_kpi",
+                "cardinality": "1:M",
+                "rule": {"condition": "device_kpi.device_id = device.id", "conditionType": "sql"},
+            },
+        ),
+    )
+
+    sql = RestrictedIbisNl2SqlCompiler().compile(
+        source="def query(config):\n    return create_device2kpi_wide_table(config.device, config.device_kpi, [])",
+        context=context,
+    )
+
+    assert "JOIN" in sql
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        "device.id = device_kpi.missing",
+        "device.id = device_kpi.device_id AND device.id = device_kpi.device_id",
+        "other.id = device_kpi.device_id",
+    ],
+)
+def test_compiler_does_not_authorize_invalid_or_complex_relationship_conditions(condition):
+    context = Nl2SqlContext(
+        question="查询设备指标",
+        entities=(
+            _entity("device", [("id", "string")]),
+            _entity("device_kpi", [("device_id", "string")]),
+        ),
+        relations=(
+            {
+                "name": "device_to_kpi",
+                "type": "Association",
+                "sourceEntityName": "device",
+                "targetEntityName": "device_kpi",
+                "cardinality": "1:M",
+                "rule": {"condition": condition, "conditionType": "sql"},
+            },
+        ),
+    )
+
+    with pytest.raises(Nl2SqlCompileError):
+        RestrictedIbisNl2SqlCompiler().compile(
+            source="def query(config):\n    return create_device2kpi_wide_table(config.device, config.device_kpi, [])",
+            context=context,
+        )
 
 
 def test_compiler_keeps_complex_fields_out_of_executable_ibis_tables():

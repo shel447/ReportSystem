@@ -9,6 +9,7 @@ from src.contexts.data_analysis.infrastructure.gateways import (
     ExternalOneQueryGateway,
 )
 from src.contexts.data_analysis.infrastructure.logical_entity_validator import DataCatalogLogicalEntityValidator
+from src.contexts.data_analysis.infrastructure.logical_relationship_validator import DataCatalogLogicalRelationshipValidator
 from src.infrastructure.platform.cache import MemoryTtlCache
 from src.shared.configuration import KnowledgeConfiguration
 from src.shared.kernel.errors import ErrorCode, UpstreamError
@@ -162,6 +163,36 @@ def test_logical_entity_validator_accepts_complete_detail_and_rejects_summary():
 
     assert captured.value.error_code == ErrorCode.DATA_ANALYSIS_METADATA_INVALID
     assert captured.value.retryable is False
+
+
+def test_logical_relationship_validator_accepts_complete_detail_and_rejects_summary():
+    valid = {
+        "name": "device_to_kpi",
+        "type": "Association",
+        "sourceEntityName": "device",
+        "targetEntityName": "device_kpi",
+        "cardinality": "1:M",
+        "description": None,
+        "rule": {"condition": "device.id = device_kpi.device_id", "conditionType": "sql"},
+    }
+    validator = DataCatalogLogicalRelationshipValidator()
+
+    assert validator.validate(relationship=valid, expected_name="device_to_kpi") == valid
+    with pytest.raises(UpstreamError) as captured:
+        validator.validate(relationship={"name": "device_to_kpi"}, expected_name="device_to_kpi")
+
+    assert captured.value.error_code == ErrorCode.DATA_ANALYSIS_METADATA_INVALID
+
+
+def test_datacatalog_relationship_detail_cache_is_isolated_by_user_id():
+    client = _Client({"retCode": 0, "data": {"name": "device_to_kpi"}})
+    gateway = ExternalDataCatalogGateway(client=client, cache=MemoryTtlCache())
+
+    gateway.get_logical_relation(name="device_to_kpi", user_id="user-a")
+    gateway.get_logical_relation(name="device_to_kpi", user_id="user-a")
+    gateway.get_logical_relation(name="device_to_kpi", user_id="user-b")
+
+    assert len(client.calls) == 2
 
 
 def test_rag_cache_is_isolated_by_user_id():

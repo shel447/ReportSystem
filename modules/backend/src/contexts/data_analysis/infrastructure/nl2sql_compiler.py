@@ -72,11 +72,7 @@ class RestrictedIbisNl2SqlCompiler(Nl2SqlCompiler):
     def compile(self, *, source: str, context: Nl2SqlContext) -> str:
         tree = _IbisQueryAstValidator().validate(source)
         config = QueryConfig(MappingProxyType(_build_tables(context.entities)))
-        relations = tuple(
-            relation
-            for relation in (ForeignKey.from_mapping(item) for item in context.relations)
-            if relation.complete
-        )
+        relations = _valid_relationship_foreign_keys(context.relations, context.entities)
         namespace: dict[str, Any] = {
             "__builtins__": {},
             "ibis": ibis,
@@ -190,6 +186,23 @@ def _build_tables(entities: tuple[dict[str, Any], ...]) -> dict[str, ir.Table]:
     if not tables:
         raise Nl2SqlCompileError("context", "No logical entity definitions are available")
     return tables
+
+
+def _valid_relationship_foreign_keys(
+    relations: tuple[dict[str, Any], ...],
+    entities: tuple[dict[str, Any], ...],
+) -> tuple[ForeignKey, ...]:
+    fields = {name: set(_entity_schema(entity)) for entity in entities if (name := _entity_name(entity))}
+    result = []
+    for relation in relations:
+        foreign_key = ForeignKey.from_mapping(relation)
+        if (
+            foreign_key.complete
+            and foreign_key.column in fields.get(foreign_key.table, set())
+            and foreign_key.ref_column in fields.get(foreign_key.ref_table, set())
+        ):
+            result.append(foreign_key)
+    return tuple(result)
 
 
 def _entity_name(entity: dict[str, Any]) -> str:

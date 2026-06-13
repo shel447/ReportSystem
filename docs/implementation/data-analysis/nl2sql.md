@@ -58,6 +58,12 @@ flowchart LR
 任一选中详情缺失、名称不匹配或结构非法时，本次 NL2SQL 返回
 `chatbi.data_analysis.metadata_invalid`。
 
+逻辑关系也采用“列表名称 + 单详情”的方式获取。系统逐个请求列表中的关系详情并
+严格校验，任一非法详情都会终止本次 NL2SQL；校验完成后只保留源实体和目标实体
+均属于本次已选实体的关系。完整关系进入 Prompt。只有
+`Source.field = Target.field` 单字段等值条件，且实体和字段均属于可执行 Ibis 表时，
+才会进入 Join 白名单；复合条件、非等值条件和复杂字段关系只供模型理解。
+
 首版不复用历史对话中曾生成的 Ibis 源码。Knowledge/RAG 不可用或
 `chatbi_sql_few_shot` 未配置时，允许使用空 Few-shot 上下文继续生成。
 

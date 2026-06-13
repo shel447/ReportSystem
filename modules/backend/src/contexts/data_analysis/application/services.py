@@ -10,7 +10,7 @@ import yaml
 
 from ....shared.agentflow import FlowContext, FlowEdge, FlowGraph, FlowNode, SubflowEventPolicy, SubflowSpec
 from ....shared.agentflow.metrics import record_unique_metric
-from ....shared.kernel.errors import ApplicationError, ErrorCode, ValidationError
+from ....shared.kernel.errors import ApplicationError, ErrorCode, UpstreamError, ValidationError
 from ....shared.kernel.audit import AuditEvent, AuditPublisher
 from ....shared.kernel.safety import GuardrailGateway
 from ....shared.prompts import PromptCatalog
@@ -45,6 +45,7 @@ from .ports import (
     DataCatalogGateway,
     KnowledgeGateway,
     LogicalEntityValidator,
+    LogicalRelationshipValidator,
     Nl2SqlCompiler,
     OneQueryGateway,
 )
@@ -94,6 +95,7 @@ class DataAnalysisService:
         prompt_catalog: PromptCatalog,
         nl2sql_compiler: Nl2SqlCompiler,
         logical_entity_validator: LogicalEntityValidator,
+        logical_relationship_validator: LogicalRelationshipValidator,
         audit_publisher: AuditPublisher | None = None,
     ) -> None:
         self.query_service = query_service
@@ -105,6 +107,7 @@ class DataAnalysisService:
         self.prompt_catalog = prompt_catalog
         self.nl2sql_compiler = nl2sql_compiler
         self.logical_entity_validator = logical_entity_validator
+        self.logical_relationship_validator = logical_relationship_validator
         self.audit_publisher = audit_publisher
 
     def analyze_from_natural_language(self, *, question: str, user_id: str) -> DataAnalysisAnswer:
@@ -180,10 +183,21 @@ class DataAnalysisService:
             validated = self.logical_entity_validator.validate(entity=detail, expected_name=name)
             details.append(validated)
             record_unique_metric("datacatalog.logical_entity.used", name)
-        try:
-            relations = self.data_catalog_gateway.list_logical_relations(user_id=user_id)
-        except Exception:
-            relations = []
+        relation_summaries = self.data_catalog_gateway.list_logical_relations(user_id=user_id)
+        relations = []
+        for item in relation_summaries:
+            name = _entity_name(item)
+            if not name:
+                raise UpstreamError(
+                    "DataCatalog 逻辑关系列表缺少关系名称。",
+                    error_code=ErrorCode.DATA_ANALYSIS_METADATA_INVALID,
+                    category="upstream",
+                    retryable=False,
+                    source="datacatalog",
+                    http_status=502,
+                )
+            detail = self.data_catalog_gateway.get_logical_relation(name=name, user_id=user_id)
+            relations.append(self.logical_relationship_validator.validate(relationship=detail, expected_name=name))
         try:
             few_shots = self.knowledge_gateway.retrieve_sql_few_shot(query=question, user_id=user_id)
         except Exception:
@@ -687,7 +701,11 @@ def _select_entities(*, question: str, entities: list[dict[str, Any]]) -> list[d
 
 def _select_relations(*, relations: list[dict[str, Any]], entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
     names = {_entity_name(item) for item in entities}
-    selected = [item for item in relations if any(name and name in json.dumps(item, ensure_ascii=False) for name in names)]
+    selected = [
+        item
+        for item in relations
+        if item.get("sourceEntityName") in names and item.get("targetEntityName") in names
+    ]
     return selected[:50]
 
 

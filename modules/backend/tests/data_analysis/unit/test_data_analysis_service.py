@@ -88,6 +88,9 @@ class _CatalogGateway:
     def list_logical_relations(self, *, user_id: str):
         return []
 
+    def get_logical_relation(self, *, name: str, user_id: str):
+        return _logical_relationship(name)
+
 
 class _KnowledgeGateway:
     def retrieve_multi_index(self, *, query: str, user_id: str):
@@ -121,6 +124,24 @@ class _LogicalEntityValidator:
     def validate(self, *, entity, expected_name):
         assert entity["name"] == expected_name
         return entity
+
+
+class _LogicalRelationshipValidator:
+    def validate(self, *, relationship, expected_name):
+        assert relationship["name"] == expected_name
+        return relationship
+
+
+def _logical_relationship(name: str, source="network_health", target="network_alarm"):
+    return {
+        "name": name,
+        "type": "Association",
+        "sourceEntityName": source,
+        "targetEntityName": target,
+        "cardinality": "1:M",
+        "description": None,
+        "rule": {"condition": f"{source}.device_name = {target}.device_name", "conditionType": "sql"},
+    }
 
 
 def _logical_entity(name: str, *, extra_fields=None):
@@ -168,6 +189,7 @@ def _service(*, guardrail_passed: bool = True, query_service=None, compiler=None
             prompt_catalog=get_prompt_catalog(),
             nl2sql_compiler=compiler or _Nl2SqlCompiler(),
             logical_entity_validator=_LogicalEntityValidator(),
+            logical_relationship_validator=_LogicalRelationshipValidator(),
         ),
         query,
     )
@@ -250,6 +272,63 @@ def test_nl2sql_requests_only_selected_details_and_counts_valid_participants():
     assert catalog.detail_calls == [(f"entity_{index}", "user-a") for index in range(8)]
     metrics = collector.snapshot(run_id="run_1", status="finished")
     assert metrics.unique_counts["datacatalog.logical_entity.used"] == 8
+
+
+def test_nl2sql_requests_all_relationship_details_then_selects_related_relationships():
+    class RelatedCatalog(_CatalogGateway):
+        def __init__(self):
+            super().__init__()
+            self.relationship_calls = []
+
+        def list_logical_entities(self, *, user_id: str):
+            return [{"name": "network_health"}, {"name": "network_alarm"}]
+
+        def list_logical_relations(self, *, user_id: str):
+            return [{"name": "health_alarm"}, {"name": "other_relation"}]
+
+        def get_logical_relation(self, *, name: str, user_id: str):
+            self.relationship_calls.append((name, user_id))
+            if name == "health_alarm":
+                return _logical_relationship(name)
+            return _logical_relationship(name, source="other_a", target="other_b")
+
+    service, _query = _service()
+    catalog = RelatedCatalog()
+    service.data_catalog_gateway = catalog
+
+    context = service._build_nl2sql_context(question="查询网络健康告警", user_id="user-a")
+
+    assert catalog.relationship_calls == [("health_alarm", "user-a"), ("other_relation", "user-a")]
+    assert [item["name"] for item in context.relations] == ["health_alarm"]
+
+
+def test_nl2sql_fails_when_any_requested_relationship_detail_is_invalid():
+    class RelationshipCatalog(_CatalogGateway):
+        def list_logical_relations(self, *, user_id: str):
+            return [{"name": "broken_relation"}]
+
+    class RejectingRelationshipValidator:
+        def validate(self, *, relationship, expected_name):
+            raise UpstreamError("invalid relationship", error_code=ErrorCode.DATA_ANALYSIS_METADATA_INVALID)
+
+    service, _query = _service()
+    service.data_catalog_gateway = RelationshipCatalog()
+    service.logical_relationship_validator = RejectingRelationshipValidator()
+
+    with pytest.raises(UpstreamError, match="invalid relationship"):
+        service._build_nl2sql_context(question="查询网络健康", user_id="user-a")
+
+
+def test_nl2sql_fails_when_relationship_summary_has_no_name():
+    class InvalidRelationshipSummaryCatalog(_CatalogGateway):
+        def list_logical_relations(self, *, user_id: str):
+            return [{"sourceEntityName": "network_health"}]
+
+    service, _query = _service()
+    service.data_catalog_gateway = InvalidRelationshipSummaryCatalog()
+
+    with pytest.raises(UpstreamError, match="缺少关系名称"):
+        service._build_nl2sql_context(question="查询网络健康", user_id="user-a")
 
 
 def test_data_analysis_stops_before_execution_when_application_guardrail_blocks_sql():

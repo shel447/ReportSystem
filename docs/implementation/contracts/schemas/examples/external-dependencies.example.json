@@ -387,20 +387,33 @@
         "retCode": 0,
         "retInfo": "",
         "data": {
-          "results": [],
-          "totalCount": 0
+          "results": [
+            {
+              "name": "network_health_Association_network_alarm"
+            }
+          ],
+          "totalCount": 1
         }
       }
     },
     "logicalRelation": {
       "request": {
-        "name": "network_link"
+        "name": "network_health_Association_network_alarm"
       },
       "response": {
         "retCode": 0,
         "retInfo": "",
         "data": {
-          "name": "network_link"
+          "name": "network_health_Association_network_alarm",
+          "type": "Association",
+          "sourceEntityName": "network_health",
+          "targetEntityName": "network_alarm",
+          "cardinality": "1:M",
+          "description": "Device health to alarm records.",
+          "rule": {
+            "condition": "network_health.device_name = network_alarm.device_name",
+            "conditionType": "sql"
+          }
         }
       }
     }

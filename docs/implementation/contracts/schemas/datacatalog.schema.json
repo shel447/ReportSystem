@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "./datacatalog.schema.json",
   "title": "DataCatalog Consumer Contract",
-  "description": "ReportSystem 使用的 DataCatalog 请求与响应 fragment。逻辑实体列表返回候选摘要，单实体详情引用严格 LogicalEntity；数据集和关系对象保持开放。",
+  "description": "ReportSystem 使用的 DataCatalog 请求与响应 fragment。逻辑实体与关系列表返回摘要，单详情分别引用严格 LogicalEntity 与 LogicalRelationship；数据集保持开放。",
   "$defs": {
     "ListLogicalEntitiesRequest": {
       "type": "object",
@@ -90,7 +90,15 @@
           "additionalProperties": true,
           "required": ["results"],
           "properties": {
-            "results": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": ["name"],
+                "properties": {"name": {"type": "string", "minLength": 1}}
+              }
+            },
             "totalCount": {"type": "integer"}
           }
         }
@@ -109,7 +117,7 @@
       "properties": {
         "retCode": {"const": 0},
         "retInfo": {"type": "string"},
-        "data": {"type": "object", "additionalProperties": true}
+        "data": {"$ref": "./logical-relationship.schema.json"}
       }
     }
   }

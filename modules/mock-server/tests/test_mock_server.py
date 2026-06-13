@@ -77,6 +77,19 @@ def test_datacatalog_list_returns_summaries_and_detail_returns_complete_logical_
     assert any(item["type"]["type"] == "object" for item in detail["schema"]["fields"])
 
 
+def test_datacatalog_relationship_list_returns_names_and_detail_returns_complete_relationship():
+    summaries = client.post("/rest/dte/v2/datacatalog/product/model/logicalrelations/query", json={}).json()["data"]["results"]
+    detail = client.get(
+        "/rest/dte/v2/datacatalog/product/model/logicalrelation",
+        params={"name": summaries[0]["name"]},
+    ).json()["data"]
+
+    assert summaries == [{"name": "network_health_Association_network_alarm"}]
+    assert detail["sourceEntityName"] == "network_health"
+    assert detail["targetEntityName"] == "network_alarm"
+    assert detail["rule"]["conditionType"] == "sql"
+
+
 def test_agentcore_import_is_upsert():
     client.post("/__mock__/reset")
     conversation_id = client.post("/rest/naie/aiagentcore/v1/conversation", json={"title": "test"}).json()["conversationId"]

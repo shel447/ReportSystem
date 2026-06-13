@@ -93,7 +93,7 @@ Schema：[guardrail.schema.json](guardrail.schema.json)
 
 ### 5.4 DataCatalog 与元数据刷新
 
-Schema：[datacatalog.schema.json](datacatalog.schema.json)、[logical-entity.schema.json](logical-entity.schema.json)、[metadata-sync.schema.json](metadata-sync.schema.json)
+Schema：[datacatalog.schema.json](datacatalog.schema.json)、[logical-entity.schema.json](logical-entity.schema.json)、[logical-relationship.schema.json](logical-relationship.schema.json)、[metadata-sync.schema.json](metadata-sync.schema.json)
 
 | 调用 | Request | Response | 使用状态 |
 |---|---|---|---|
@@ -101,12 +101,14 @@ Schema：[datacatalog.schema.json](datacatalog.schema.json)、[logical-entity.sc
 | 查询逻辑实体 | [GetLogicalEntityRequest](datacatalog.schema.json#/$defs/GetLogicalEntityRequest) | [GetLogicalEntityResponse](datacatalog.schema.json#/$defs/GetLogicalEntityResponse) | 运行时校验 + 契约测试 |
 | 查询数据集 | [GetDatasetRequest](datacatalog.schema.json#/$defs/GetDatasetRequest) | [GetDatasetResponse](datacatalog.schema.json#/$defs/GetDatasetResponse) | 契约测试 |
 | 查询逻辑关系列表 | [ListLogicalRelationsRequest](datacatalog.schema.json#/$defs/ListLogicalRelationsRequest) | [ListLogicalRelationsResponse](datacatalog.schema.json#/$defs/ListLogicalRelationsResponse) | 契约测试 |
-| 查询逻辑关系 | [GetLogicalRelationRequest](datacatalog.schema.json#/$defs/GetLogicalRelationRequest) | [GetLogicalRelationResponse](datacatalog.schema.json#/$defs/GetLogicalRelationResponse) | 契约测试 |
+| 查询逻辑关系 | [GetLogicalRelationRequest](datacatalog.schema.json#/$defs/GetLogicalRelationRequest) | [GetLogicalRelationResponse](datacatalog.schema.json#/$defs/GetLogicalRelationResponse) | 运行时校验 + 契约测试 |
 | 检查元数据刷新版本 | [PackageRegisterProcessRequest](metadata-sync.schema.json#/$defs/PackageRegisterProcessRequest) | [PackageRegisterProcessResponse](metadata-sync.schema.json#/$defs/PackageRegisterProcessResponse) | 契约测试 |
 
 Metadata Sync 是 DataCatalog 的辅助刷新特性：版本变化时清理 DataCatalog 与 Knowledge/RAG 缓存。
 
 [logical-entity.schema.json](logical-entity.schema.json) 是单个逻辑实体详情的根 Schema。实体列表只返回候选摘要并要求稳定 `name`；NL2SQL 选中候选后逐个请求详情，并严格校验双语名称、描述、字段业务类型、扩展属性和基础数据类型。数据集与逻辑关系继续按开放对象消费。
+
+[logical-relationship.schema.json](logical-relationship.schema.json) 是单个逻辑关系详情的根 Schema。关系列表只提供名称摘要；NL2SQL 逐个请求并严格校验完整关系详情，再筛选连接已选实体的关系。
 
 ### 5.5 Knowledge / RAG
 

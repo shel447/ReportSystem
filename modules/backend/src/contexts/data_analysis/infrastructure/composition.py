@@ -20,6 +20,7 @@ from .gateways import (
 )
 from .nl2sql_compiler import RestrictedIbisNl2SqlCompiler
 from .logical_entity_validator import DataCatalogLogicalEntityValidator
+from .logical_relationship_validator import DataCatalogLogicalRelationshipValidator
 from .scenario_registration import DataAnalysisScenarioRegistrationProvider
 
 
@@ -50,6 +51,7 @@ def build_data_analysis_service() -> DataAnalysisService:
         prompt_catalog=get_prompt_catalog(),
         nl2sql_compiler=RestrictedIbisNl2SqlCompiler(),
         logical_entity_validator=DataCatalogLogicalEntityValidator(),
+        logical_relationship_validator=DataCatalogLogicalRelationshipValidator(),
         audit_publisher=audit_publisher,
     )
 

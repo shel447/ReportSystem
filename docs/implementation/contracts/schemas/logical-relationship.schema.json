@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "./logical-relationship.schema.json",
+  "title": "LogicalRelationship",
+  "description": "逻辑关系定义 Schema，用于描述两个逻辑实体之间的关联关系、基数关系以及关联规则。",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["name", "type", "sourceEntityName", "targetEntityName", "cardinality", "rule"],
+  "properties": {
+    "name": {"type": "string", "description": "逻辑关系的唯一名称。", "minLength": 1},
+    "type": {"type": "string", "description": "逻辑关系类型。", "enum": ["Association"]},
+    "sourceEntityName": {"type": "string", "description": "源逻辑实体名称。", "minLength": 1},
+    "targetEntityName": {"type": "string", "description": "目标逻辑实体名称。", "minLength": 1},
+    "cardinality": {"type": "string", "description": "源实体到目标实体的基数关系。", "enum": ["1:1", "1:M", "M:1", "M:N"]},
+    "description": {"type": ["string", "null"], "description": "逻辑关系描述。允许为空。"},
+    "rule": {"$ref": "#/$defs/RelationshipRule", "description": "逻辑关系的关联规则。"}
+  },
+  "$defs": {
+    "RelationshipRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["condition", "conditionType"],
+      "properties": {
+        "condition": {"type": "string", "description": "关联条件表达式。", "minLength": 1},
+        "conditionType": {"type": "string", "description": "关联条件表达式类型。", "enum": ["sql"]}
+      }
+    }
+  }
+}
