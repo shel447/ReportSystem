@@ -45,6 +45,9 @@
 | `tests/infrastructure/platform/test_external_dependency_contracts.py` | 56 | 平台外部依赖消费者 Schema、集中示例、AgentCore upsert、查询响应同构与 Schema 索引完整性 |
 | `tests/infrastructure/query/test_query_engine.py` | 4 | Ibis 查询与策略切换 |
 | `tests/infrastructure/web/test_report_document_gateway.py` | 5 | Markdown、下载、PDF 拒绝和 CLI 参数 |
+| `tests/third_party/ibis/test_syntax_validation.py` | 1 | Ibis 严格语法规则安装、table/column 比较拒绝和全局 monkey patch 隔离 |
+| `tests/third_party/ibis/test_syntax_extensions.py` | 20 | DTE Ibis/SQLGlot 语法扩展、紧凑 NOT、投影、子查询限制、字符串函数和已知缺口 |
+| `tests/third_party/ibis/test_time_semantics.py` | 17 | 原始过滤字段不计算、时间转换只作用于右侧操作数的范围比较和 DTE SQL 语义 |
 | `tests/report/api/test_report_controller.py` | 2 | 报告 Controller 下载和错误转换 |
 | `tests/report/api/test_template_controller.py` | 2 | 模板管理 Controller 与 testdata round-trip |
 | `tests/report/contract/test_shared_fixtures.py` | 5 | `testdata/` 模板、Report DSL Schema 与新版数据集响应契约 |

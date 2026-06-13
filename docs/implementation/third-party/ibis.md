@@ -77,14 +77,43 @@ Ibis Expression
 | 周边辅助扩展 | `state.py` | 单次编译上下文状态 |
 | 周边辅助扩展 | `exceptions.py` | 扩展语法异常 |
 
-## 7. 接入与升级要求
+## 7. 行为测试覆盖
+
+扩展行为测试按职责拆成三组，位于
+`modules/backend/tests/third_party/ibis/`：
+
+| 测试组 | 覆盖目标 | 当前结果 |
+|---|---|---|
+| `test_syntax_validation.py` | 显式安装严格比较规则后，禁止 table 与 column 直接比较；测试完成后恢复全局 `Expr.__eq__` | 通过 |
+| `test_syntax_extensions.py` | 紧凑 NOT、空值语义、字符串与时间 interval、显式字段投影、别名、子查询限制、字符串拼接和动态模式拒绝 | 18 通过，2 个严格 xfail |
+| `test_time_semantics.py` | 原始过滤字段与时间字符串标量或经过时间转换的右侧操作数进行范围比较时的 UTC 毫秒、截断、提取、格式化、区间和构造值语义 | 14 通过，3 个严格 xfail |
+
+严格 xfail 用来记录当前源码已经存在、但尚未补齐的行为缺口。它们使用
+`strict=True`，缺口被修复后会以 XPASS 失败，要求实现团队同步移除 xfail：
+
+| 用例 | 当前缺口 |
+|---|---|
+| `test_not_in_subquery` | `NOT IN` 子查询仍被优化成 `LEFT JOIN ... IS NULL` |
+| `test_logical_not_null` | 逻辑取反后的 `IS NOT NULL` 过滤条件在优化阶段丢失 |
+| `test_time_string_literal` | UTC 毫秒字段与时间字符串标量比较时，当前仍计算左侧字段，未转换为原始 long 左值比较 |
+| `test_date_from_parts_of_datetime_column` | 使用 datetime 字段动态构造右侧日期操作数时缺少 compiler 字符串拼接辅助实现 |
+| `test_timestamp_from_parts_of_datetime_column` | 使用 datetime 字段动态构造右侧时间戳操作数时缺少 compiler 字符串拼接辅助实现 |
+
+时间测试全部保持过滤字段位于左侧且不参与计算，时间相关的 `date()`、truncate、
+extract、格式化和 from-parts 操作只作用在右侧操作数。比较统一使用大于等于或
+区间，不使用等值比较。UTC 毫秒时间过滤必须保持原始 long 字段位于左侧，并将
+右侧时间操作数转换为 `UNIX_TIMESTAMP(...) * 1000`。`time_string_literal` 使用未经
+cast 的时间字符串标量；其他无后缀用例使用字面量构造右侧操作数；
+`_of_datetime_column` 用例使用普通 datetime 字段或时间字符串标量构造右侧操作数。
+
+## 8. 接入与升级要求
 
 正式接入前必须完成：
 
-1. 为清单中的每个能力组补充行为测试和代表性 SQL 快照。
-3. 验证生成 SQL 与 OneQuery/DTE SQL 的真实执行结果。
-4. 明确全局方言注册和 `Expr.__eq__` monkey patch 的初始化、隔离与销毁策略。
-5. 证明官方 Ibis 查询链路与扩展链路能够独立运行。
-5. 分别为 Ibis 核心语法扩展、SQLGlot 核心语法扩展和周边辅助扩展建立独立测试集，避免辅助设施测试掩盖语法兼容问题。
+1. 按本清单维护行为测试和代表性 SQL 断言。
+2. 验证生成 SQL 与 OneQuery/DTE SQL 的真实执行结果。
+3. 明确全局方言注册和 `Expr.__eq__` monkey patch 的初始化、隔离与销毁策略。
+4. 证明官方 Ibis 查询链路与扩展链路能够独立运行。
+5. 分别维护 Ibis 核心语法扩展、SQLGlot 核心语法扩展和周边辅助扩展测试，避免辅助设施测试掩盖语法兼容问题。
 
 升级 Ibis 或 SQLGlot 时，必须逐项复核本清单中的“上游扩展机制”和“升级风险”，不能只以包安装成功作为兼容结论。
