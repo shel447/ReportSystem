@@ -16,6 +16,35 @@ def test_backend_prompt_assets_load_with_required_keys_and_variables():
         assert set(catalog.require(name).variables) == set(variables)
 
 
+def test_prompt_assets_use_business_domain_paths_and_namespaces():
+    prompt_root = Path(__file__).resolve().parents[2] / "prompts"
+    expected = {
+        prompt_root / "report" / "parameter.yaml",
+        prompt_root / "data_analysis" / "generate_sql.yaml",
+        prompt_root / "data_analysis" / "generate_chart.yaml",
+    }
+    removed = {
+        prompt_root / "report_parameter.yaml",
+        prompt_root / "data_analysis.yaml",
+        prompt_root / "figure_generate_template.yaml",
+    }
+    catalog = initialize_prompt_catalog()
+
+    assert all(path.is_file() for path in expected)
+    assert all(not path.exists() for path in removed)
+    assert all(
+        name.startswith(("report.parameter.", "data_analysis.generate_sql.", "data_analysis.generate_chart."))
+        for name in catalog.names()
+    )
+    for old_name in (
+        "report_parameter.parameter_batch_extract_prompt",
+        "figure.any",
+        "data_analysis.system_prompt",
+    ):
+        with pytest.raises(KeyError, match="Prompt not found"):
+            catalog.require(old_name)
+
+
 def test_prompt_catalog_is_read_only_and_rejects_missing_variables():
     catalog = PromptCatalog({
         "sample": PromptEntry(
@@ -48,15 +77,15 @@ def test_active_application_services_do_not_keep_the_replaced_inline_prompts():
 def test_prompt_assets_preserve_detailed_business_rules():
     catalog = initialize_prompt_catalog()
 
-    batch_extract = catalog.require("report_parameter.parameter_batch_extract_prompt").template
-    single_request = catalog.require("report_parameter.parameter_request_prompt").template
-    extract_rule = catalog.require("report_parameter.extract_rule").template
-    figure_any = catalog.require("figure.any").template
-    column_order = catalog.require("figure.column_order_system").template
-    summary = catalog.require("figure.summary_system").template
-    rename_column = catalog.require("figure.rename_column_system").template
-    nl2sql_system = catalog.require("data_analysis.system_prompt").template
-    nl2sql_main = catalog.require("data_analysis.main_template").template
+    batch_extract = catalog.require("report.parameter.parameter_batch_extract_prompt").template
+    single_request = catalog.require("report.parameter.parameter_request_prompt").template
+    extract_rule = catalog.require("report.parameter.extract_rule").template
+    figure_any = catalog.require("data_analysis.generate_chart.any").template
+    column_order = catalog.require("data_analysis.generate_chart.column_order_system").template
+    summary = catalog.require("data_analysis.generate_chart.summary_system").template
+    rename_column = catalog.require("data_analysis.generate_chart.rename_column_system").template
+    nl2sql_system = catalog.require("data_analysis.generate_sql.system_prompt").template
+    nl2sql_main = catalog.require("data_analysis.generate_sql.main_template").template
 
     assert "如果某个参数无法从问题中提取，不要包含在输出中" in batch_extract
     assert "问题不要太死板，多变一点" in single_request

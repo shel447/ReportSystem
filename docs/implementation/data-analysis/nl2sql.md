@@ -82,7 +82,8 @@ application/domain 不允许直接导入 Ibis、SQLGlot、Pydantic、`_third_par
 
 ## 4. Prompt 与生成协议
 
-NL2SQL Prompt 是启动时加载的只读资产，包含：
+NL2SQL Prompt 位于 `modules/backend/prompts/data_analysis/generate_sql.yaml`，
+以 `data_analysis.generate_sql.*` 命名空间在启动时加载为只读资产，包含：
 
 - Ibis API 和项目辅助函数使用规则。
 - 逻辑实体表定义和允许的关系。

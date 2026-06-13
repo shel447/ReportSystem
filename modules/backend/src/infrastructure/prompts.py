@@ -12,44 +12,44 @@ from ..shared.prompts import PromptCatalog, PromptEntry
 PROMPT_ROOT = Path(__file__).resolve().parents[2] / "prompts"
 
 PROMPT_FILES = {
-    "report_parameter": "report_parameter.yaml",
-    "figure": "figure_generate_template.yaml",
-    "data_analysis": "data_analysis.yaml",
+    "report.parameter": "report/parameter.yaml",
+    "data_analysis.generate_chart": "data_analysis/generate_chart.yaml",
+    "data_analysis.generate_sql": "data_analysis/generate_sql.yaml",
 }
 
 REQUIRED_PROMPTS = {
-    "report_parameter.parameter_batch_extract_prompt": {
+    "report.parameter.parameter_batch_extract_prompt": {
         "current_time", "user_question", "parameter_definitions", "extract_rule"
     },
-    "report_parameter.parameter_extract_prompt": {
+    "report.parameter.parameter_extract_prompt": {
         "current_time", "template_name", "current_param_label", "current_question",
         "current_param_options", "extract_rule", "parameter_definitions",
     },
-    "report_parameter.parameter_request_prompt": {
+    "report.parameter.parameter_request_prompt": {
         "last_params", "current_param_label", "current_param_type",
         "current_param_required", "current_param_options", "multi_select",
     },
-    "report_parameter.parameter_multi_request_prompt": {"last_params", "current_params"},
-    "report_parameter.parameter_reask_request_prompt": {
+    "report.parameter.parameter_multi_request_prompt": {"last_params", "current_params"},
+    "report.parameter.parameter_reask_request_prompt": {
         "value", "current_param_label", "current_param_type",
         "current_param_required", "current_param_options", "multi_select",
     },
-    "report_parameter.extract_rule": set(),
-    "figure.any": {"user_question", "query_results", "field_descriptions"},
-    "figure.text": {"user_question", "query_results", "field_descriptions"},
-    "figure.bar": {"user_question", "query_results", "field_descriptions"},
-    "figure.line": {"user_question", "query_results", "field_descriptions"},
-    "figure.pie": {"user_question", "query_results", "field_descriptions"},
-    "figure.ring": {"user_question", "query_results", "field_descriptions"},
-    "figure.scatter": {"user_question", "query_results", "field_descriptions"},
-    "figure.radar": {"user_question", "query_results", "field_descriptions"},
-    "figure.gauge": {"user_question", "query_results", "field_descriptions"},
-    "figure.candlestick": {"user_question", "query_results", "field_descriptions"},
-    "figure.column_order_system": {"query", "result_fields", "data_sample"},
-    "figure.summary_system": {"query", "sql", "result_fields", "data_sample"},
-    "figure.rename_column_system": {"query", "sql", "result_fields", "data_sample"},
-    "data_analysis.system_prompt": set(),
-    "data_analysis.main_template": {
+    "report.parameter.extract_rule": set(),
+    "data_analysis.generate_chart.any": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.text": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.bar": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.line": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.pie": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.ring": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.scatter": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.radar": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.gauge": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.candlestick": {"user_question", "query_results", "field_descriptions"},
+    "data_analysis.generate_chart.column_order_system": {"query", "result_fields", "data_sample"},
+    "data_analysis.generate_chart.summary_system": {"query", "sql", "result_fields", "data_sample"},
+    "data_analysis.generate_chart.rename_column_system": {"query", "sql", "result_fields", "data_sample"},
+    "data_analysis.generate_sql.system_prompt": set(),
+    "data_analysis.generate_sql.main_template": {
         "THINKING_MODE", "current_dialogue", "ibis_code", "knowledge",
         "similar_queries", "system_time", "table_relation_graph",
     },

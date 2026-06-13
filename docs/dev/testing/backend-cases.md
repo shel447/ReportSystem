@@ -64,7 +64,7 @@
 | `tests/shared/test_http_identity.py` | 2 | 正式用户身份必填和本地开发用户覆盖 |
 | `tests/shared/test_authenticated.py` | 2 | Controller 权限注解、鉴权调用和拒绝响应 |
 | `tests/shared/test_kernel_log.py` | 8 | 日志转义、敏感信息脱敏、包装幂等、动态级别监控和 Server 生命周期 |
-| `tests/shared/test_prompt_catalog.py` | 3 | Prompt 资产加载、变量完整性、只读渲染和内联长提示词清理 |
+| `tests/shared/test_prompt_catalog.py` | 4 | Prompt 资产业务域路径、运行时命名空间、变量完整性、只读渲染和内联长提示词清理 |
 | `tests/shared/test_agentflow_runtime.py` | 13 | Agent Flow 顺序、条件/汇合、真并行、图渲染、指标发布、human-in-loop、取消和系统终止 |
 | `tests/shared/test_agentflow_capabilities.py` | 7 | Tool、Prompt、Hook、Checkpoint、拒答、动态追加分支和非法改图拒绝 |
 | `tests/shared/test_message_center.py` | 9 | 统一 interaction 契约、消息过滤、无回放、同分区时序、跨分区并行、消费者隔离、Command 定向投递、未处理反馈和生命周期重启 |

@@ -222,7 +222,7 @@ class DataAnalysisService:
             prompt=[{
                 "role": "system",
                 "content": self.prompt_catalog.render(
-                    "figure.any",
+                    "data_analysis.generate_chart.any",
                     user_question=value.question,
                     query_results=json.dumps(data.rows[:50], ensure_ascii=False),
                     field_descriptions=json.dumps(
@@ -244,7 +244,7 @@ class DataAnalysisService:
             prompt=[{
                 "role": "system",
                 "content": self.prompt_catalog.render(
-                    "figure.summary_system",
+                    "data_analysis.generate_chart.summary_system",
                     query=value.question,
                     sql=value.sql,
                     result_fields=json.dumps(
@@ -339,19 +339,19 @@ class DataAnalysisService:
         if last_error is not None:
             error_feedback = f"\nPrevious attempt failed at {last_error.stage}: {last_error}\nPlease repair the function."
         knowledge = self.prompt_catalog.render(
-            "data_analysis.knowledge_template",
+            "data_analysis.generate_sql.knowledge_template",
             knowledge_doc=json.dumps(context.few_shots, ensure_ascii=False),
         )
         relations = self.prompt_catalog.render(
-            "data_analysis.table_relation_graph",
+            "data_analysis.generate_sql.table_relation_graph",
             foreign_key_lis=json.dumps(context.relations, ensure_ascii=False),
         )
         similar_queries = self.prompt_catalog.render(
-            "data_analysis.similar_query_template",
+            "data_analysis.generate_sql.similar_query_template",
             topk_samples=json.dumps(context.few_shots, ensure_ascii=False),
         )
         ibis_code = self.prompt_catalog.render(
-            "data_analysis.ibis_code_template",
+            "data_analysis.generate_sql.ibis_code_template",
             import_part="import ibis\nfrom ibis import _\nfrom typing import Any",
             utility_functions=(
                 "def create_recursive_query(root_table_expr, id_col: str, parent_col: str, "
@@ -368,7 +368,7 @@ class DataAnalysisService:
             run_historical_intent_functions="",
         )
         main = self.prompt_catalog.render(
-            "data_analysis.main_template",
+            "data_analysis.generate_sql.main_template",
             knowledge=knowledge,
             table_relation_graph=relations,
             similar_queries=similar_queries,
@@ -378,7 +378,7 @@ class DataAnalysisService:
             THINKING_MODE="/no_think",
         )
         return [
-            {"role": "system", "content": self.prompt_catalog.render("data_analysis.system_prompt")},
+            {"role": "system", "content": self.prompt_catalog.render("data_analysis.generate_sql.system_prompt")},
             {"role": "user", "content": f"Attempt {attempt}/3\n{main}"},
         ]
 

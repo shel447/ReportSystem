@@ -71,7 +71,7 @@ flowchart LR
 
 `series` 是 BI Engine series 对象数组。无法形成合适图表时 `type = "table"`。最终 `visualizations.components` 由该 DTO 适配生成，以保持现有 `/chat` 答案兼容。
 
-`data2chart` 与 `data2summary` 使用 `modules/backend/prompts/figure_generate_template.yaml`。主流程调用 `any` 与 `summary_system`；指定图表、列排序和列重命名模板在启动时一并校验，留作后续流程节点。模型输出必须通过 YAML 解析、图表类型和字段引用校验。
+`data2chart` 与 `data2summary` 使用 `modules/backend/prompts/data_analysis/generate_chart.yaml`。主流程调用 `any` 与 `summary_system`；指定图表、列排序和列重命名模板在启动时一并校验，留作后续流程节点。模型输出必须通过 YAML 解析、图表类型和字段引用校验。
 
 `data2summary.summaries` 是有序结论数组；最终 `DATA_ANALYSIS.answer.summary` 暂以换行拼接，并新增可选 `title/sqlExplanation`。LLM 调用或输出非法时直接返回 `chatbi.data_analysis.*` 错误，不使用固定柱状图或固定摘要兜底。
 

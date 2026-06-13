@@ -258,11 +258,11 @@ class ReportParameterService:
 
     def _extract_batch(self, *, definitions: list[Parameter], question: str) -> dict[str, Any]:
         content = self._complete(
-            "report_parameter.parameter_batch_extract_prompt",
+            "report.parameter.parameter_batch_extract_prompt",
             current_time=datetime.now().isoformat(timespec="seconds"),
             user_question=question,
             parameter_definitions=json.dumps([_parameter_prompt_dict(item) for item in definitions], ensure_ascii=False),
-            extract_rule=self._prompt_catalog().render("report_parameter.extract_rule"),
+            extract_rule=self._prompt_catalog().render("report.parameter.extract_rule"),
         )
         try:
             payload = json.loads(_strip_code_fence(content))
@@ -280,13 +280,13 @@ class ReportParameterService:
 
     def _extract_single(self, *, template: ReportTemplate, parameter: Parameter, question: str) -> dict[str, Any]:
         content = self._complete(
-            "report_parameter.parameter_extract_prompt",
+            "report.parameter.parameter_extract_prompt",
             current_time=datetime.now().isoformat(timespec="seconds"),
             template_name=template.name,
             current_param_label=parameter.label,
             current_question=question,
             current_param_options=json.dumps([_parameter_value_dict(item) for item in parameter.options], ensure_ascii=False),
-            extract_rule=self._prompt_catalog().render("report_parameter.extract_rule"),
+            extract_rule=self._prompt_catalog().render("report.parameter.extract_rule"),
             parameter_definitions=json.dumps(_parameter_prompt_dict(parameter), ensure_ascii=False),
         ).strip()
         if content == NO_PARAMETER_VALUE:
@@ -373,16 +373,16 @@ class ReportParameterService:
         last_params = _filled_parameter_summary(template_instance)
         if len(parameters) > 1:
             return self._complete(
-                "report_parameter.parameter_multi_request_prompt",
+                "report.parameter.parameter_multi_request_prompt",
                 last_params=last_params,
                 current_params=json.dumps([_parameter_prompt_dict(item) for item in parameters], ensure_ascii=False),
                 max_tokens=180,
             ).strip()
         parameter = parameters[0]
         prompt_name = (
-            "report_parameter.parameter_reask_request_prompt"
+            "report.parameter.parameter_reask_request_prompt"
             if reask_value
-            else "report_parameter.parameter_request_prompt"
+            else "report.parameter.parameter_request_prompt"
         )
         variables = {
             "current_param_label": parameter.label,

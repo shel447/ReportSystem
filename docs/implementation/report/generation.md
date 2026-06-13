@@ -72,7 +72,7 @@
 - 判断必填参数缺失
 - 构造报告场景 `ask.parameters` 与 `ask.reportContext`
 
-参数提取和追问文案使用 `modules/backend/prompts/report_parameter.yaml`。提示词由基础设施在启动阶段加载并校验，应用服务只依赖只读 Prompt Catalog。缺失参数按 `priority` 从小到大分批处理，同一优先级一起追问；`priority=99` 只进入最终确认。模型输出必须再次经过参数类型、候选项和单选/多选约束校验，非法输出以 `chatbi.report.parameter.*` 错误终止当前流程，不回退到规则猜测。
+参数提取和追问文案使用 `modules/backend/prompts/report/parameter.yaml`。提示词由基础设施在启动阶段加载并校验，应用服务只依赖只读 Prompt Catalog。缺失参数按 `priority` 从小到大分批处理，同一优先级一起追问；`priority=99` 只进入最终确认。模型输出必须再次经过参数类型、候选项和单选/多选约束校验，非法输出以 `chatbi.report.parameter.*` 错误终止当前流程，不回退到规则猜测。
 
 领域层的 `ParameterResolver` 负责纯参数归一化、作用域解析、标量转换和缺参判断，不访问外部数据源，不构造聊天响应。动态候选值的本地或 HTTP 调用由基础设施 gateway 负责。
 
